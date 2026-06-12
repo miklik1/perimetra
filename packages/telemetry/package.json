@@ -1,0 +1,41 @@
+{
+  "name": "@repo/telemetry",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts",
+    "./native": "./src/native.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "@sentry/nextjs": "*",
+    "@sentry/react-native": "*"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/nextjs": {
+      "optional": true
+    },
+    "@sentry/react-native": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@sentry/nextjs": "catalog:",
+    "@sentry/react-native": "catalog:expo56",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

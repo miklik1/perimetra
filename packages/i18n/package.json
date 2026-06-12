@@ -1,0 +1,57 @@
+{
+  "name": "@repo/i18n",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.tsx",
+    "./web/server": "./src/web.server.ts",
+    "./native": "./src/native.tsx",
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "peerDependencies": {
+    "next": "*",
+    "next-intl": "*",
+    "react": "*",
+    "use-intl": "*"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "next-intl": {
+      "optional": true
+    },
+    "use-intl": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@types/react": "catalog:react19",
+    "eslint": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "react": "catalog:react19",
+    "tsc-alias": "^1.8.16",
+    "typescript": "catalog:",
+    "use-intl": "catalog:"
+  }
+}

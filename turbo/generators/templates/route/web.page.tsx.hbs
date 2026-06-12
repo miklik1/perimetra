@@ -1,0 +1,10 @@
+import { {{pascalCase name}}Client } from "./{{routeSegment path}}-client";
+
+/**
+ * `{{path}}` — RSC entry (ADR 0003/0007). A server component that renders the
+ * client leaf; add prefetch + `<HydrationBoundary>` here when this route reads
+ * data (mirror `app/page.tsx`'s `usersQueries.list()` prefetch).
+ */
+export default function {{pascalCase name}}Page() {
+  return <{{pascalCase name}}Client />;
+}

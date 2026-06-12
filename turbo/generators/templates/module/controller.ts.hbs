@@ -1,0 +1,107 @@
+/**
+ * {{pascalCase plural}} controller — `pnpm gen module` scaffold of the reference
+ * controller (spec §7.8). Conventions on display:
+ * - SessionGuard on the class — every route authenticated.
+ * - nestjs-zod (via `common/api/zod.ts`): the global `APP_PIPE` parses and
+ *   coerces inputs against the DTOs (422 envelope on failure);
+ *   `@ZodSerializerDto` validates + STRIPS every response (an unvalidated
+ *   drizzle select shipping internals is the leak class this kills, spec §8).
+ * - `@Idempotent()` on the unsafe create — replays return the cached
+ *   response (Idempotency-Key header, spec §8).
+ * - Ownership 404s (not 403s) come from the service: same shape whether the
+ *   row is missing or someone else's.
+ */
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+
+import { type {{pascalCase singular}}, type {{pascalCase plural}}Page } from "@repo/validators/{{kebabCase plural}}";
+
+import { ZodSerializerDto } from "../../common/api/zod.js";
+import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
+import { type RequestScope } from "../../common/tenancy/request-scope.js";
+import { SessionGuard } from "../auth/session.guard.js";
+import {
+  Create{{pascalCase singular}}Dto,
+  List{{pascalCase plural}}QueryDto,
+  {{pascalCase singular}}Dto,
+  {{pascalCase plural}}PageDto,
+  Update{{pascalCase singular}}Dto,
+} from "./{{kebabCase plural}}.dto.js";
+import { {{pascalCase plural}}Service } from "./{{kebabCase plural}}.service.js";
+
+@Controller("{{kebabCase plural}}")
+@UseGuards(SessionGuard)
+export class {{pascalCase plural}}Controller {
+  constructor(private readonly {{camelCase plural}}: {{pascalCase plural}}Service) {}
+
+  @Get()
+  @ZodSerializerDto({{pascalCase plural}}PageDto)
+  list(
+    @CurrentScope() scope: RequestScope,
+    @Query() query: List{{pascalCase plural}}QueryDto,
+  ): Promise<{{pascalCase plural}}Page> {
+    return this.{{camelCase plural}}.list(scope, query);
+  }
+
+  @Post()
+  @Idempotent()
+  @ZodSerializerDto({{pascalCase singular}}Dto)
+  create(
+    @CurrentScope() scope: RequestScope,
+    @Body() body: Create{{pascalCase singular}}Dto,
+  ): Promise<{{pascalCase singular}}> {
+    return this.{{camelCase plural}}.create(scope, body);
+  }
+
+  @Get(":id")
+  @ZodSerializerDto({{pascalCase singular}}Dto)
+  get(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<{{pascalCase singular}}> {
+    return this.{{camelCase plural}}.get(scope, id);
+  }
+
+  @Patch(":id")
+  @ZodSerializerDto({{pascalCase singular}}Dto)
+  update(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: Update{{pascalCase singular}}Dto,
+  ): Promise<{{pascalCase singular}}> {
+    return this.{{camelCase plural}}.update(scope, id, body);
+  }
+
+  @Post(":id/archive")
+  @HttpCode(HttpStatus.OK)
+  @ZodSerializerDto({{pascalCase singular}}Dto)
+  archive(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<{{pascalCase singular}}> {
+    return this.{{camelCase plural}}.archive(scope, id);
+  }
+
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    // 204 — the one route without a response DTO (there is no body to strip).
+    return this.{{camelCase plural}}.softDelete(scope, id);
+  }
+}

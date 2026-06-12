@@ -1,0 +1,11 @@
+
+  {{camelCase resource}}s: {
+    all: ["{{camelCase resource}}s"] as const,
+    lists: () => [...keys.{{camelCase resource}}s.all, "list"] as const,
+    list: (filters?: SearchParamsInput) =>
+      [...keys.{{camelCase resource}}s.lists(), stableParams(filters)] as const,
+    pages: (filters?: SearchParamsInput) =>
+      [...keys.{{camelCase resource}}s.all, "pages", stableParams(filters)] as const,
+    details: () => [...keys.{{camelCase resource}}s.all, "detail"] as const,
+    detail: (id: string) => [...keys.{{camelCase resource}}s.details(), id] as const,
+  },$1

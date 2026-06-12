@@ -1,0 +1,199 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tooling/*"
+
+# pnpm settings (moved from package.json `pnpm` field — pnpm 11 reads them here).
+
+# TEMPORARY: nodemailer@8.0.11 entered the lockfile inside its 24h release
+# window (eligible after 2026-06-11 ~12:10 UTC) — drop this block on any later
+# lockfile touch. The policy itself stays ON (ADR 0044).
+minimumReleaseAgeExclude:
+  - nodemailer
+
+overrides:
+  lightningcss: 1.30.1
+  react: "catalog:react19"
+  react-dom: "catalog:react19"
+  # Single @types/node for the whole tree (2026-06-11): without this, three
+  # majors coexist (18 via testcontainers→@types/dockerode→@types/ssh2, 25 via
+  # @inquirer optional peers, 22 ours) and their merged `net`/undici-types
+  # globals break `tsc -p tsconfig.build.json` in apps/api (stale `Request`
+  # from undici-types@5). Types-only, safe to force.
+  "@types/node": "catalog:"
+
+# Default catalog — cross-cutting deps that don't move as part of a versioned set.
+catalog:
+  # Typed test globals — imported explicitly in mobile Jest specs (mirrors the
+  # `import { describe, it } from "vitest"` style on web). Tracks the jest 29 line.
+  "@hookform/resolvers": ^5.4.0
+  "@jest/globals": ^29.7.0
+  # Telemetry web binding (ADR 0021): Sentry's Next.js SDK (v10 line supports
+  # Next 16). Web-only — the RN SDK is a native module and lives in expo56.
+  "@sentry/nextjs": ^10.56.0
+  "@t3-oss/env-core": ^0.13.11
+  "@t3-oss/env-nextjs": ^0.13.11
+  "@tanstack/react-query": ^5.95.1
+  "@testing-library/react": ^16.3.2
+  # RNTL is SDK-independent (peers: jest >=29, RN >=0.71). jest-expo /
+  # @react-native/jest-preset track the SDK — see the expo56 catalog.
+  "@testing-library/react-native": ^13.3.3
+  "@types/node": ^22.15.3
+  eslint: ^9.39.1
+  # jest stays on the v29 line: jest-expo 56's preset + jest-watch-typeahead
+  # require jest 29, not 30 (`expo install` defaults jest to latest, so this is
+  # pinned by hand).
+  jest: ^29.7.0
+  knip: ^6.14.2
+  # Realtime transport (ADR 0029): the Centrifugo JS client behind
+  # @repo/realtime's vendor-agnostic seam. Pure JS (WebSocket transport) — the
+  # same package serves web and RN, so default catalog (not the expo56 set).
+  centrifuge: ^5.4.0
+  # API mocking for the web dev runtime + Vitest (ADR 0015). Web only for now —
+  # msw/native is a maintainer-flagged WIP and mobile is dormant, so no mobile
+  # mock yet (the injectable client seam lets one drop in later).
+  msw: ^2.7.0
+  # 16.2.9 (2026-06-11 bump): ≥16.2.6 clears the 8 high `pnpm audit` advisories
+  # the CI gate (ADR 0044) trips on against 16.2.1 (e.g. GHSA-q4gf-8mx6-v5v3).
+  next: 16.2.9
+  # i18n engine (ADR 0020): next-intl on web (incl. RSC), its framework-agnostic
+  # core use-intl on mobile, over one shared ICU catalog. `use-intl` is pinned
+  # EXACT (no caret) to freeze the React Native rough edges tracked in
+  # next-intl#957 — bump it deliberately, not via a caret drift.
+  next-intl: ^4.13.0
+  # PostHog (ADR 0028): one client shared by @repo/flags and @repo/telemetry's
+  # analytics adapter. posthog-js (browser) is framework-agnostic — fine with
+  # Next 16 / React 19.2; posthog-node (RSC flag eval) needs Node ^20.20 / >=22.22.
+  # Both web-only — the RN SDK is a native module and lives in expo56.
+  posthog-js: ^1.379.2
+  posthog-node: ^5.35.14
+  # Forms (ADR 0009): RHF + zod resolver. Pure-JS, no native module — identical
+  # on web + RN, so default catalog (not the expo56 set).
+  react-hook-form: ^7.77.0
+  # TypeScript 6.0 — the Expo SDK 56 expected version (`expo install --check`);
+  # typescript-eslint 8.60+ supports it (peer `typescript <6.1.0`). ADR 0013.
+  typescript: ~6.0.3
+  use-intl: 4.13.0
+  zod: ^4.3.6
+  # UI state (ADR 0010): Zustand in @repo/store. Pure-JS, web + RN.
+  zustand: ^5.0.14
+  "@nestjs/testing": ^11.1.26
+  fastify: ^5.8.5
+  # Better Auth: exact pin, CVE policy ADR 0033 (`auth` = its CLI, version-locked)
+  better-auth: 1.6.16
+  ioredis: ^5.11.1
+  auth: 1.6.16
+  "@types/react": 19.2.14
+  uuidv7: ^1.2.1
+  nestjs-zod: ^5.4.0
+  "@opentelemetry/sdk-node": 0.218.0
+  "@opentelemetry/exporter-trace-otlp-http": 0.218.0
+  "@opentelemetry/exporter-metrics-otlp-http": 0.218.0
+  "@opentelemetry/instrumentation": 0.218.0
+  "@opentelemetry/instrumentation-pg": 0.70.0
+  "@opentelemetry/instrumentation-ioredis": 0.66.0
+  "@opentelemetry/instrumentation-pino": 0.64.0
+  "@fastify/otel": 0.18.1
+  "@opentelemetry/api": ^1.9.1
+  "@sentry/node": ^10.57.0
+  "@testcontainers/postgresql": ^12.0.1
+  "@testcontainers/redis": ^12.0.1
+  "@nestjs/swagger": ^11.4.4
+
+# Force `pnpm add` to honor catalogs for names already present. Note: this
+# only enforces during `pnpm add` flows — hand-edits to a package.json
+# (literal version for a catalog'd name) are not rejected. For repo-wide
+# lint-time enforcement add syncpack when the repo crosses ~10+ packages.
+# Requires pnpm 10.12.1+.
+catalogMode: strict
+
+# Named catalogs — groups of versions that move atomically. Bumping a framework
+# major (Expo SDK, React major, Tailwind major) becomes a one-block edit instead
+# of a hunt across every package.json.
+catalogs:
+  # React + types. Bumping requires moving Next/Expo/RN together — see expo56.
+  # react/react-dom are pinned exact to the Expo SDK 56 expected version (no
+  # caret) so `expo install --check` stays clean and web + mobile share one React.
+
+  # Expo SDK 56 (RN 0.85 + React 19.2) + all SDK-aligned packages. The pins
+  # below are the SDK-56-expected versions enforced by `expo install --check`
+  # (run in CI); bump the SDK and all its pins here together — see ADR 0013.
+  expo56:
+    "@expo/log-box": ~56.0.12
+    "@expo/metro-runtime": ~56.0.14
+    # Device key/value store for the theme preference (ADR 0010 follow-up). A
+    # native module, so it tracks the SDK: `expo install` resolves it from
+    # bundledNativeModules (2.2.0 for SDK 56) and `expo install --check` guards it.
+    "@react-native-async-storage/async-storage": 2.2.0
+    # Mobile test runner (ADR 0005): jest-expo tracks the SDK (`expo install`
+    # resolves it from bundledNativeModules — ~56.0.4 for SDK 56); its preset
+    # extends @react-native/jest-preset, pinned to the RN line. Both bump with
+    # this block, not on their own.
+    "@react-native/jest-preset": ~0.85.3
+    # Telemetry native binding (ADR 0021): a native module, so it lives with the
+    # SDK set (peers: expo >=49, RN >=0.65 — fine for SDK 56 / RN 0.85). Seam-only
+    # today: only @repo/telemetry dev-installs it for typechecking; apps/mobile
+    # adds it (via `expo install`, `--check`-guarded) when mobile telemetry wires.
+    "@sentry/react-native": ~8.13.0
+    expo: ~56.0.9
+    expo-constants: ~56.0.17
+    expo-linking: ~56.0.13
+    # Device locale detection for the initial mobile locale (ADR 0020). A native
+    # module, so it tracks the SDK like async-storage — `expo install` resolves
+    # it from bundledNativeModules (56.0.6 for SDK 56) and `--check` guards it.
+    expo-localization: ~56.0.6
+    expo-router: ~56.2.9
+    # Splash held until the persisted theme rehydrates, to avoid a cold-start
+    # theme flash (ADR 0015); a config plugin, registered in app.config.ts.
+    expo-splash-screen: ~56.0.10
+    expo-status-bar: ~56.0.4
+    expo-system-ui: ~56.0.5
+    jest-expo: ~56.0.4
+    # Flags native binding (ADR 0028): a native module (peers: async-storage,
+    # expo-application/device/file-system/localization — all SDK-managed), so it
+    # lives with the SDK set. Seam-only today: only @repo/flags dev-installs it
+    # for typechecking; apps/mobile adds it (via `expo install`, `--check`-
+    # guarded) when mobile flags wire — mirrors @sentry/react-native above.
+    posthog-react-native: ~4.46.11
+    react-native: 0.85.3
+    react-native-gesture-handler: ~2.31.1
+    react-native-reanimated: 4.3.1
+    react-native-safe-area-context: ~5.7.0
+    react-native-screens: 4.25.2
+    react-native-web: ~0.21.0
+    react-native-worklets: 0.8.3
+  react19:
+    "@types/react": 19.2.14
+    "@types/react-dom": 19.2.3
+    react: 19.2.3
+    react-dom: 19.2.3
+
+  # Tailwind v4, shared by web (CSS-first @theme) and mobile (NativeWind v5).
+  # NativeWind is exact-pinned to a v5 preview (no caret) to freeze preview
+  # churn — ADR 0001. `react-native-css` is NativeWind v5's runtime peer. The
+  # `lightningcss` deserialize pin lives in the root `pnpm.overrides`.
+  tailwind4:
+    "@tailwindcss/postcss": 4.3.0
+    nativewind: 5.0.0-preview.4
+    react-native-css: ^3.0.7
+    tailwindcss: 4.3.0
+
+# Build-script allowlist (pnpm 11, replaces onlyBuiltDependencies/
+# ignoredBuiltDependencies). Only @sentry/cli + lefthook ran scripts under the
+# base repo's pnpm 10 allowlist and the suite was green — everything else ships
+# prebuilds via optionalDependencies and stays false.
+allowBuilds:
+  "@parcel/watcher": false
+  "@scarf/scarf": false
+  "@sentry/cli": true
+  "@swc/core": false
+  core-js: false
+  cpu-features: false
+  esbuild: false
+  lefthook: true
+  msgpackr-extract: false
+  msw: false
+  protobufjs: false
+  sharp: false
+  ssh2: false
+  unrs-resolver: false

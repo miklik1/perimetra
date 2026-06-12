@@ -1,0 +1,55 @@
+/**
+ * {{pascalCase singular}} schema — `pnpm gen module` scaffold of the reference resource
+ * (spec §7.8; canonical copy: `packages/db/src/schema/projects`). Conventions
+ * on display:
+ *
+ * - `id()` UUIDv7: time-ordered, so it doubles as the keyset-pagination
+ *   cursor (no separate `created_at` cursor column needed).
+ * - `ownerId` is the interim ownership scope (ADR 0041): every query in
+ *   `{{kebabCase plural}}.repository.ts` filters on it via the RequestScope seam.
+ * - `organizationId` is the DORMANT tenancy seam: nullable FK now, flipped
+ *   to `NOT NULL` + scope filter when multi-tenancy is retrofitted — a
+ *   migration + one repository change, not a project-wide hunt.
+ * - `softDelete()`: rows are never hard-deleted by the API; the partial
+ *   index keeps the hot list query (live rows per owner) tight.
+ */
+import { sql } from "drizzle-orm";
+import { index, pgTable, text } from "drizzle-orm/pg-core";
+
+import { id, softDelete, timestamps } from "../../columns.js";
+import { organization, user } from "../auth/index.js";
+
+export const {{constantCase singular}}_STATUSES = ["active", "archived"] as const;
+export type {{pascalCase singular}}Status = (typeof {{constantCase singular}}_STATUSES)[number];
+
+export const {{camelCase singular}} = pgTable(
+  "{{snakeCase singular}}",
+  {
+    id: id(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** Dormant tenancy seam (ADR 0041) — populated, never filtered on (yet). */
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    // TODO(gen): replace this example column with the real domain fields.
+    // Mirror every change in `@repo/validators/{{kebabCase plural}}` (the zod contract
+    // owns the length bounds) and wrap personal-data columns with `pii()`
+    // from `@repo/db/pii` (ADR 0040).
+    name: text("name").notNull(),
+    status: text("status").notNull().default("active").$type<{{pascalCase singular}}Status>(),
+    ...timestamps(),
+    ...softDelete(),
+  },
+  (table) => [
+    // THE list query: WHERE owner_id = ? AND deleted_at IS NULL ORDER BY id.
+    // Partial — soft-deleted rows leave the index instead of bloating it.
+    index("{{snakeCase singular}}_owner_id_id_idx")
+      .on(table.ownerId, table.id)
+      .where(sql`${table.deletedAt} IS NULL`),
+  ],
+);
+
+export type {{pascalCase singular}}Row = typeof {{camelCase singular}}.$inferSelect;
+export type New{{pascalCase singular}}Row = typeof {{camelCase singular}}.$inferInsert;

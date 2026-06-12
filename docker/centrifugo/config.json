@@ -1,0 +1,29 @@
+{
+  "client": {
+    "token": {
+      "hmac_secret_key": "XpcXMlvJEZODHwyomyINy6SuPE97cerQ-E52v4Oka6c"
+    },
+    "allowed_origins": [
+      "http://localhost:3000"
+    ]
+  },
+  "http_api": {
+    "key": "b5bss3IrRmQ5BHgWcsQ0qQwD1n_klHiIgwg9YJD36wc"
+  },
+  "admin": {
+    "enabled": false
+  },
+  "channel": {
+    "namespaces": [
+      {
+        "name": "user"
+      },
+      {
+        "name": "org"
+      }
+    ]
+  },
+  "health": {
+    "enabled": true
+  }
+}

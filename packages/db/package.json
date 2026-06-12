@@ -1,0 +1,65 @@
+{
+  "name": "@repo/db",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./columns": {
+      "types": "./dist/columns.d.ts",
+      "default": "./dist/columns.js"
+    },
+    "./pii": {
+      "types": "./dist/pii.d.ts",
+      "default": "./dist/pii.js"
+    },
+    "./migrations-path": {
+      "types": "./dist/migrations-path.d.ts",
+      "default": "./dist/migrations-path.js"
+    },
+    "./factories": {
+      "types": "./dist/factories/index.d.ts",
+      "default": "./dist/factories/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "default": "./dist/schema/index.js"
+    },
+    "./schema/*": {
+      "types": "./dist/schema/*/index.d.ts",
+      "default": "./dist/schema/*/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.3",
+    "pg": "^8.21.0",
+    "uuidv7": "^1.2.1"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "1.0.0-rc.3",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

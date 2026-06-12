@@ -1,0 +1,36 @@
+{
+  "name": "@repo/api",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/config": "workspace:*",
+    "@repo/utils": "workspace:*",
+    "@repo/validators": "workspace:*",
+    "@tanstack/react-query": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:react19",
+    "eslint": "catalog:",
+    "react": "catalog:react19",
+    "typescript": "catalog:"
+  }
+}

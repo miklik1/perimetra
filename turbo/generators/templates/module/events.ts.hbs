@@ -1,0 +1,56 @@
+/**
+ * Worker-side consumer of the {{kebabCase singular}} outbox events (spec §7.8 chain:
+ * outbox → relay → events queue → here → Centrifugo). Payloads are IDs only
+ * (ADR 0037), so the handler RE-FETCHES the row — both for fresh state and
+ * for the `ownerId` that names the channel.
+ *
+ * Delivery is at-least-once: every branch here is an idempotent no-op when
+ * re-run (publish is fire-and-forget state-free; missing rows are skipped).
+ */
+import { Injectable, Logger } from "@nestjs/common";
+
+import { type DomainEventHandler } from "../jobs/jobs.tokens.js";
+import { RealtimeService } from "../realtime/realtime.service.js";
+import { userChannel } from "../realtime/realtime.tokens.js";
+import { {{pascalCase plural}}Repository } from "./{{kebabCase plural}}.repository.js";
+import { {{constantCase singular}}_ARCHIVED, {{constantCase singular}}_CREATED } from "./{{kebabCase plural}}.tokens.js";
+
+@Injectable()
+export class {{pascalCase plural}}EventsHandler implements DomainEventHandler {
+  private readonly logger = new Logger({{pascalCase plural}}EventsHandler.name);
+
+  readonly eventTypes = [{{constantCase singular}}_CREATED, {{constantCase singular}}_ARCHIVED] as const;
+
+  constructor(
+    private readonly {{camelCase plural}}: {{pascalCase plural}}Repository,
+    private readonly realtime: RealtimeService,
+  ) {}
+
+  async handle(event: {
+    eventType: string;
+    aggregateType: string;
+    aggregateId: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    const id = event.payload["{{camelCase singular}}Id"];
+    if (typeof id !== "string") {
+      // Poison payload — retrying can never fix it; log loudly and drop.
+      this.logger.error(`event ${event.eventType} carried no string {{camelCase singular}}Id — skipping`);
+      return;
+    }
+
+    const row = await this.{{camelCase plural}}.findByIdSystem(id);
+    if (!row) {
+      // Deleted before the worker caught up — nothing to notify about.
+      this.logger.warn(`{{kebabCase singular}} ${id} gone before ${event.eventType} was handled`);
+      return;
+    }
+
+    // Fail-soft by design (RealtimeService logs failures): a Centrifugo
+    // outage must not dead-letter domain events over a lost notification.
+    await this.realtime.publish(userChannel(row.ownerId), {
+      type: event.eventType,
+      {{camelCase singular}}Id: row.id,
+    });
+  }
+}

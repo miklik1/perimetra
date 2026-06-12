@@ -1,0 +1,23 @@
+{
+  "extends": "@repo/typescript-config/library.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true
+  },
+  "include": [
+    "src/index.ts",
+    "src/config.ts",
+    "src/messages",
+    "src/messages.types.ts",
+    "src/zod-error-map.ts",
+    "src/store.ts"
+  ],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "tsc-alias": {
+    "resolveFullPaths": true
+  }
+}

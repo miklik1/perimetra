@@ -1,0 +1,55 @@
+import { create{{pascalCase resource}}Schema, type {{pascalCase resource}} } from "@repo/validators";
+
+import { MockHttpError, type MockRoute } from "../core/types";
+import {
+  find{{pascalCase resource}}ById,
+  list{{pascalCase resource}}s,
+  page{{pascalCase resource}}s,
+} from "../fixtures/{{kebabCase resource}}";
+
+/**
+ * {{pascalCase resource}} mock routes (ADR 0018). Returns the bare contracts the
+ * client parses (`{{camelCase resource}}ListSchema` / `{{camelCase resource}}Schema`)
+ * — no envelope. Mirrors `handlers/users.ts`: the `/paged` list MUST precede
+ * `/:id` so "paged" is not captured as an id.
+ */
+export const {{camelCase resource}}Routes: MockRoute[] = [
+  {
+    method: "GET",
+    pattern: "/{{camelCase resource}}s",
+    handler: () => ({ data: list{{pascalCase resource}}s() }),
+  },
+  {
+    // Must precede `/{{camelCase resource}}s/:id` — otherwise "paged" matches as an `:id`.
+    method: "GET",
+    pattern: "/{{camelCase resource}}s/paged",
+    handler: ({ searchParams }) => {
+      const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+      const perPage = Math.max(1, Number(searchParams.get("perPage") ?? "10") || 10);
+      return { data: page{{pascalCase resource}}s(page, perPage) };
+    },
+  },
+  {
+    method: "GET",
+    pattern: "/{{camelCase resource}}s/:id",
+    handler: ({ params }) => {
+      const item = find{{pascalCase resource}}ById(params.id ?? "");
+      if (!item) throw new MockHttpError(404, "NOT_FOUND", "{{pascalCase resource}} not found");
+      return { data: item };
+    },
+  },
+  {
+    method: "POST",
+    pattern: "/{{camelCase resource}}s",
+    handler: async ({ getBody }) => {
+      const parsed = create{{pascalCase resource}}Schema.safeParse(await getBody());
+      if (!parsed.success) throw new MockHttpError(422, "INVALID_INPUT", "Invalid input");
+      const item: {{pascalCase resource}} = {
+        id: crypto.randomUUID(),
+        ...parsed.data,
+        createdAt: new Date().toISOString(),
+      };
+      return { data: item, status: 201 };
+    },
+  },
+];

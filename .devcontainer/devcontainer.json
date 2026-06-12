@@ -1,0 +1,29 @@
+// Dev container (spec §12) — pairs with cloud agents and gives a clean local
+// onboarding path. Node 24 (matches .nvmrc), docker-in-docker so the compose
+// infra + Testcontainers integration suite run INSIDE the container, pnpm via
+// corepack (version pinned by the root package.json `packageManager` field).
+{
+  "name": "fullstack-skeleton",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  // corepack ships with Node and reads `packageManager` — no global pnpm
+  // install. setup.mjs then bootstraps everything (compose, deps, build,
+  // migrate); it is idempotent, so rebuilding the container is safe.
+  "postCreateCommand": "corepack enable && node scripts/setup.mjs",
+  "forwardPorts": [3000, 4000, 8000, 8025, 9000, 9001],
+  "portsAttributes": {
+    "3000": { "label": "web (Next.js)" },
+    "4000": { "label": "api (NestJS)" },
+    "8000": { "label": "Centrifugo" },
+    "8025": { "label": "Mailpit UI" },
+    "9000": { "label": "MinIO S3" },
+    "9001": { "label": "MinIO console" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  }
+}

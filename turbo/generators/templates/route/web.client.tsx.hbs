@@ -1,0 +1,46 @@
+"use client";
+
+{{#if authGated}}
+import { useRouter } from "next/navigation";
+
+import { AuthGuard } from "@repo/auth/react";
+
+/**
+ * Client subtree of the protected `{{path}}` route. `<AuthGuard>` validates the
+ * session on mount and redirects to `/login` when absent (mirrors
+ * `app/account/account-client.tsx`).
+ */
+export function {{pascalCase name}}Client() {
+  const router = useRouter();
+  return (
+    <AuthGuard
+      redirect={() => router.push("/login")}
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">Checking session…</main>
+      }
+    >
+      <{{pascalCase name}}Content />
+    </AuthGuard>
+  );
+}
+
+function {{pascalCase name}}Content() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <h1 className="text-2xl font-bold">{{pascalCase name}}</h1>
+    </main>
+  );
+}
+{{else}}
+/**
+ * Client leaf of the `{{path}}` route. Add hooks/data consumption here; the RSC
+ * parent (`page.tsx`) prefetches and hydrates when this route reads data.
+ */
+export function {{pascalCase name}}Client() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <h1 className="text-2xl font-bold">{{pascalCase name}}</h1>
+    </main>
+  );
+}
+{{/if}}

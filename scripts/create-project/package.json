@@ -1,0 +1,7 @@
+{
+  "name": "create-project-script",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "description": "Stamp-out script for derived projects (ADR 0042). Not a workspace package (scripts/ is outside pnpm-workspace.yaml globs) — this manifest only lets `node scripts/create-project` resolve index.mjs."
+}

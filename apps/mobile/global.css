@@ -1,0 +1,8 @@
+/* NativeWind v5 / Tailwind v4 CSS-first entry (ADR 0001). The shared semantic
+ * tokens (ADR 0004) come from the same `@theme` file the web app imports, so
+ * mobile and web stay a single source of truth — no JS `tailwind.config`. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+@import "nativewind/theme";
+@import "@repo/tailwind-config/theme";

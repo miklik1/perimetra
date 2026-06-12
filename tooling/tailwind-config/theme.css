@@ -1,0 +1,73 @@
+/*
+ * Shared Tailwind v4 @theme token file (ADR 0004).
+ *
+ * Single source of truth for design tokens across both platforms. Web
+ * (Tailwind v4) and mobile (NativeWind v5) @import "@repo/tailwind-config/theme".
+ * OKLCH semantic tokens + dark-variant overrides. shadcn / react-native-reusables
+ * naming for ecosystem compatibility. Use semantic tokens only in components
+ * (bg-background, text-muted-foreground) — never raw palette.
+ *
+ * Wiring into the apps' CSS entry points lands in migration item 3.
+ */
+
+@theme {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.21 0.006 285.885);
+
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.21 0.006 285.885);
+
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.21 0.006 285.885);
+
+  --color-primary: oklch(0.62 0.19 259.815);
+  --color-primary-foreground: oklch(0.98 0 0);
+
+  --color-secondary: oklch(0.967 0.001 286.375);
+  --color-secondary-foreground: oklch(0.21 0.006 285.885);
+
+  --color-muted: oklch(0.967 0.001 286.375);
+  --color-muted-foreground: oklch(0.552 0.016 285.938);
+
+  --color-accent: oklch(0.967 0.001 286.375);
+  --color-accent-foreground: oklch(0.21 0.006 285.885);
+
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  --color-border: oklch(0.92 0.004 286.32);
+  --color-input: oklch(0.92 0.004 286.32);
+  --color-ring: oklch(0.62 0.19 259.815);
+
+  --radius: 0.625rem;
+}
+
+@variant dark {
+  --color-background: oklch(0.21 0.006 285.885);
+  --color-foreground: oklch(0.98 0 0);
+
+  --color-card: oklch(0.274 0.006 286.033);
+  --color-card-foreground: oklch(0.98 0 0);
+
+  --color-popover: oklch(0.274 0.006 286.033);
+  --color-popover-foreground: oklch(0.98 0 0);
+
+  --color-primary: oklch(0.62 0.19 259.815);
+  --color-primary-foreground: oklch(0.98 0 0);
+
+  --color-secondary: oklch(0.274 0.006 286.033);
+  --color-secondary-foreground: oklch(0.98 0 0);
+
+  --color-muted: oklch(0.274 0.006 286.033);
+  --color-muted-foreground: oklch(0.705 0.015 286.067);
+
+  --color-accent: oklch(0.274 0.006 286.033);
+  --color-accent-foreground: oklch(0.98 0 0);
+
+  --color-destructive: oklch(0.704 0.191 22.216);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  --color-border: oklch(1 0 0 / 10%);
+  --color-input: oklch(1 0 0 / 15%);
+  --color-ring: oklch(0.62 0.19 259.815);
+}

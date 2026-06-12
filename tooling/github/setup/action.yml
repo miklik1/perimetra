@@ -1,0 +1,19 @@
+name: Setup
+description: Set up pnpm, Node, and install workspace dependencies (frozen lockfile)
+
+runs:
+  using: composite
+  steps:
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        # Single source of truth — `.nvmrc` at repo root. Bump there to roll forward.
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

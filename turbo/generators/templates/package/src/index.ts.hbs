@@ -1,0 +1,26 @@
+/**
+ * @repo/{{kebabCase name}} — {{description}}
+ *
+ * Public barrel. Export the package's surface from here; consumers import only
+ * from `@repo/{{kebabCase name}}` (ADR 0008).
+ */
+{{#if internalDeps.length}}
+{{#each internalDeps}}
+import * as {{camelCase this}} from "@repo/{{this}}";
+{{/each}}
+
+/**
+ * Placeholder that references every declared internal dependency so the barrel
+ * is never empty and the deps are not flagged unused (knip). Replace with the
+ * real API — the imports above are the seam to those packages.
+ */
+export const {{camelCase name}}Deps = {
+{{#each internalDeps}}
+  {{camelCase this}},
+{{/each}}
+} as const;
+{{else}}
+
+/** Placeholder export so the barrel is never empty. Replace with the real API. */
+export const {{camelCase name}}PackageName = "@repo/{{kebabCase name}}" as const;
+{{/if}}

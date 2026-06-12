@@ -1,0 +1,22 @@
+/**
+ * nestjs-zod DTOs over the shared contracts (`@repo/validators/{{kebabCase plural}}`) —
+ * the classes give Nest something to hang pipe/serializer metadata (and,
+ * later, OpenAPI) on; the zod schemas stay the single source of truth.
+ */
+import {
+  create{{pascalCase singular}}Schema,
+  list{{pascalCase plural}}QuerySchema,
+  {{camelCase singular}}Schema,
+  {{camelCase plural}}PageSchema,
+  update{{pascalCase singular}}Schema,
+} from "@repo/validators/{{kebabCase plural}}";
+
+import { createZodDto } from "../../common/api/zod.js";
+
+export class Create{{pascalCase singular}}Dto extends createZodDto(create{{pascalCase singular}}Schema) {}
+export class Update{{pascalCase singular}}Dto extends createZodDto(update{{pascalCase singular}}Schema) {}
+export class List{{pascalCase plural}}QueryDto extends createZodDto(list{{pascalCase plural}}QuerySchema) {}
+
+/** Response DTOs — used with `@ZodSerializerDto` (strip semantics, spec §8). */
+export class {{pascalCase singular}}Dto extends createZodDto({{camelCase singular}}Schema) {}
+export class {{pascalCase plural}}PageDto extends createZodDto({{camelCase plural}}PageSchema) {}

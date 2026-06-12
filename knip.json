@@ -1,0 +1,103 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      // The `turbo gen` scaffolding config (ADR 0024) — discovered by the turbo
+      // CLI, never imported in source. Declared as an entry so knip sees it as
+      // used (its `import type { PlopTypes } from "@turbo/gen"` also marks the
+      // `@turbo/gen` devDep as used; invoked via `pnpm gen`).
+      "entry": ["turbo/generators/config.ts"],
+      // k6 load script (spec §14) — run by the external `k6` binary, never by
+      // node; its `k6/http` imports are k6-runtime modules knip can't resolve.
+      // The binary itself (root `pnpm loadtest` script) is installed outside
+      // npm, like mobile's maestro.
+      "ignore": ["loadtest/**"],
+      "ignoreBinaries": ["k6"]
+    },
+    "apps/api": {
+      // Three deployables from one codebase (ADR 0031): http, worker, and the
+      // one-shot migration runner — only main.ts is reachable from another
+      // import, the rest are process entrypoints.
+      "entry": [
+        "src/main.ts",
+        "src/worker.ts",
+        "src/migrate.ts",
+        "src/otel/loader.ts",
+        "src/otel/register.ts",
+        // Testcontainers integration suite (spec §14): knip's vitest plugin
+        // already finds vitest.integration.config.ts (and its globalSetup),
+        // but its `include` glob isn't followed — declare the itest files.
+        "test/**/*.itest.ts"
+      ],
+      // pino-pretty is loaded by pino at runtime via the transport `target`
+      // string (dev only) — invisible to static analysis. `auth` is the
+      // Better Auth CLI (schema scaffolding, `pnpm exec auth generate`) —
+      // a binary-only devDep, never imported.
+      "ignoreDependencies": [
+        "pino-pretty",
+        "auth",
+        "@opentelemetry/exporter-trace-otlp-http",
+        "@opentelemetry/exporter-metrics-otlp-http"
+      ]
+    },
+    "apps/web": {},
+    "apps/mobile": {
+      "metro": false,
+      "ignoreDependencies": ["expo-updates"],
+      // maestro is a standalone CLI (installed outside npm), invoked by the
+      // test:e2e script — not a resolvable node binary.
+      "ignoreBinaries": ["maestro"],
+      // generate-placeholder-assets.mjs is a standalone `node`-run asset tool
+      // (regenerates the placeholder app icon/splash, never imported) — declared
+      // as an entry so knip sees it as used, like the root turbo-gen config.
+      "entry": ["scripts/generate-placeholder-assets.mjs"],
+      "ignore": ["babel.config.cjs", "metro.config.cjs"]
+    },
+    "packages/ai": {},
+    "packages/api": {
+      // vitest.setup.ts re-exports the shared jsdom/jest-dom setup so it isn't
+      // imported in source; it stays only so tsconfig's `include` loads the
+      // jest-dom matcher types (ADR 0025).
+      "ignore": ["vitest.setup.ts"]
+    },
+    "packages/api-mocks": {},
+    "packages/auth": {
+      "ignore": ["vitest.setup.ts"]
+    },
+    "packages/config": {},
+    "packages/db": {
+      // Built package: the exports map points at dist/, so knip can't link
+      // the subpath export back to its source — declare it as an entry.
+      "entry": ["src/index.ts", "src/migrations-path.ts"]
+    },
+    "packages/flags": {
+      "ignore": ["vitest.setup.ts"]
+    },
+    "packages/i18n": {},
+    "packages/navigation": {},
+    "packages/realtime": {
+      "ignore": ["vitest.setup.ts"]
+    },
+    "packages/store": {},
+    "packages/telemetry": {},
+    "packages/ui": {
+      "ignoreDependencies": ["@repo/tailwind-config"],
+      "ignore": ["src/styles.css", "vitest.setup.ts"]
+    },
+    "packages/utils": {},
+    "packages/validators": {},
+    // @gen:workspaces — `pnpm gen package` injects the new workspace entry here.
+    "tooling/eslint": {
+      // Referenced by name in base.js `import/resolver: { typescript: {} }`
+      // (eslint-module-utils resolves it), so knip can't see the usage.
+      "ignoreDependencies": ["eslint-import-resolver-typescript"]
+    },
+    "tooling/typescript": {
+      "ignoreUnresolved": ["next"]
+    },
+    "tooling/prettier-config": {},
+    "tooling/tailwind-config": {},
+    "tooling/vitest-config": {},
+    "tooling/github": {}
+  }
+}

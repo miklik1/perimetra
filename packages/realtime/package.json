@@ -1,0 +1,43 @@
+{
+  "name": "@repo/realtime",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./centrifuge": "./src/centrifuge.ts",
+    "./react": "./src/react.tsx"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "centrifuge": "*",
+    "react": "*"
+  },
+  "peerDependenciesMeta": {
+    "centrifuge": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:react19",
+    "centrifuge": "catalog:",
+    "eslint": "catalog:",
+    "react": "catalog:react19",
+    "typescript": "catalog:"
+  }
+}

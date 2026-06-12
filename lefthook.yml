@@ -1,0 +1,41 @@
+# Lefthook config — git hooks for the monorepo.
+# https://lefthook.dev/configuration/index.html
+#
+# Philosophy: pre-commit stays cheap (format only) so committing isn't a chore;
+# pre-push runs the full lint+typecheck so anything that would fail CI gets
+# caught locally instead. Override per-machine with LEFTHOOK=0 or `--no-verify`.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: prettier
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
+    # Secret scan of the STAGED diff (ADR 0044) — catches a leaked key before
+    # it ever becomes a commit (rewriting history after the fact is the
+    # expensive path). Degrades gracefully: gitleaks is a single Go binary
+    # (`brew install gitleaks` / https://github.com/gitleaks/gitleaks#installing)
+    # and machines without it just skip — CI scans every PR regardless, so
+    # nothing slips through. Config/allowlist: `.gitleaks.toml` (repo root,
+    # auto-detected; same file CI uses).
+    - name: gitleaks
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks git --pre-commit --staged --redact
+        else
+          echo "[gitleaks] binary not installed — skipping local secret scan (CI still scans every PR)"
+        fi
+
+pre-push:
+  parallel: true
+  jobs:
+    # Cheap, dependency-free: catch orphan stale react-native dirs (a hoisted-
+    # linker residue that shadows @react-native/codegen and breaks the mobile
+    # build) before they reach CI. See scripts/check-no-orphan-rn.mjs.
+    - name: no-orphan-rn
+      run: pnpm check:no-orphan-rn
+    - name: lint
+      run: pnpm turbo run lint
+    - name: check-types
+      run: pnpm turbo run check-types

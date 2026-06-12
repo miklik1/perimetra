@@ -1,0 +1,9 @@
+
+  {{camelCase name}}: {
+    path: "{{path}}"{{{routeParams path}}},
+    // ADR 0022: search params are user-editable, so every field MUST be
+    // `.optional()` or `.default(...)` — parsing falls back instead of throwing.
+    search: z.object({
+      page: z.coerce.number().int().positive().default(1),
+    }),
+  },$1

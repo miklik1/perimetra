@@ -1,0 +1,57 @@
+import { appendSearchParams, type SearchParamsInput } from "@repo/utils";
+import {
+  {{camelCase resource}}ListSchema,
+  {{camelCase resource}}PageSchema,
+  {{camelCase resource}}Schema,
+  type Create{{pascalCase resource}}Input,
+  type {{pascalCase resource}},
+  type {{pascalCase resource}}Page,
+} from "@repo/validators";
+
+import { defineInfiniteQuery, defineMutation, defineQuery } from "../builders/define-endpoints";
+import { type ApiClient } from "../client/create-api-client";
+import { keys } from "../keys";
+
+/**
+ * Hand-written {{camelCase resource}}s endpoint module (mirrors `endpoints/users.ts`,
+ * ADR 0007). A factory bound to an `ApiClient` so it carries no transport state
+ * of its own — the same factory serves the browser, RN, and the RSC server. Built
+ * on the thin `defineQuery`/`defineMutation` builders, which emit plain
+ * `queryOptions`/`mutationOptions` and thread the signal, the trust-boundary zod
+ * `parse`, and search-param serialization.
+ */
+export function create{{pascalCase resource}}Queries(client: ApiClient) {
+  return {
+    list: (filters?: SearchParamsInput) =>
+      defineQuery<{{pascalCase resource}}[]>(client, {
+        queryKey: keys.{{camelCase resource}}s.list(filters),
+        path: "/{{camelCase resource}}s",
+        searchParams: filters,
+        schema: (data) => {{camelCase resource}}ListSchema.parse(data),
+      }),
+    detail: (id: string) =>
+      defineQuery<{{pascalCase resource}}>(client, {
+        queryKey: keys.{{camelCase resource}}s.detail(id),
+        path: `/{{camelCase resource}}s/${id}`,
+        schema: (data) => {{camelCase resource}}Schema.parse(data),
+      }),
+    // Cursor-paginated list: `GET /{{camelCase resource}}s/paged?page=N`. Consumed
+    // with `useInfiniteQuery`; `getNextPageParam` reads the page's `nextPage`.
+    listPaged: (perPage = 10) =>
+      defineInfiniteQuery<{{pascalCase resource}}Page>(client, {
+        queryKey: keys.{{camelCase resource}}s.pages({ perPage }),
+        path: (page) => appendSearchParams("/{{camelCase resource}}s/paged", { page, perPage }),
+        schema: (data) => {{camelCase resource}}PageSchema.parse(data),
+        getNextPageParam: (lastPage) => lastPage.nextPage,
+      }),
+    // POST /{{camelCase resource}}s. Validates the response at the trust boundary;
+    // the request input is validated by the form (`create{{pascalCase resource}}Schema`,
+    // ADR 0009) before it reaches here. Invalidation is the caller's concern.
+    create: () =>
+      defineMutation<{{pascalCase resource}}, Create{{pascalCase resource}}Input>(client, {
+        method: "POST",
+        path: "/{{camelCase resource}}s",
+        schema: (data) => {{camelCase resource}}Schema.parse(data),
+      }),
+  };
+}

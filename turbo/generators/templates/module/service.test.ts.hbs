@@ -1,0 +1,89 @@
+/**
+ * Starter service test — a thin copy of `projects.service.test.ts`: proves
+ * the §7.8 write contract (outbox event with an IDs-only payload + audit row
+ * in the same transaction) and the no-oracle 404. Extend alongside the real
+ * domain fields.
+ */
+import { NotFoundException } from "@nestjs/common";
+import { describe, expect, it, vi } from "vitest";
+
+import { type {{pascalCase singular}}Row } from "@repo/db/schema/{{kebabCase plural}}";
+
+import { {{pascalCase plural}}Service } from "./{{kebabCase plural}}.service.js";
+
+// `@Transactional()` resolves a live TransactionHost from a static registry
+// at CALL time — neutralize the wrapper so the unit under test is the
+// service's orchestration, not the CLS plumbing (covered by live tests).
+vi.mock("@nestjs-cls/transactional", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@nestjs-cls/transactional")>()),
+  Transactional: () => () => undefined,
+}));
+
+const SCOPE = { userId: "user-1", organizationId: null };
+const NOW = new Date("2026-01-01T00:00:00.000Z");
+
+function makeRow(overrides: Partial<{{pascalCase singular}}Row> = {}): {{pascalCase singular}}Row {
+  return {
+    id: "01890a5d-ac96-774b-bcce-b302099a0001",
+    ownerId: SCOPE.userId,
+    organizationId: null,
+    // TODO(gen): extend with the real domain fields.
+    name: "Example",
+    status: "active",
+    createdAt: NOW,
+    updatedAt: NOW,
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
+function makeService() {
+  const repo = {
+    list: vi.fn(),
+    findById: vi.fn(),
+    findByIdSystem: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    softDelete: vi.fn(),
+  };
+  const outbox = { emit: vi.fn().mockResolvedValue("event-id") };
+  const audit = { record: vi.fn().mockResolvedValue(undefined) };
+  const service = new {{pascalCase plural}}Service(repo as never, outbox as never, audit as never);
+  return { service, repo, outbox, audit };
+}
+
+describe("{{pascalCase plural}}Service.create", () => {
+  it("inserts, emits {{kebabCase singular}}.created (IDs only) and records an audit row", async () => {
+    const { service, repo, outbox, audit } = makeService();
+    const row = makeRow();
+    repo.insert.mockResolvedValue(row);
+
+    const result = await service.create(SCOPE, { name: "Example" });
+
+    expect(outbox.emit).toHaveBeenCalledWith({
+      aggregateType: "{{kebabCase singular}}",
+      aggregateId: row.id,
+      eventType: "{{kebabCase singular}}.created",
+      payload: { {{camelCase singular}}Id: row.id }, // IDs ONLY — never names/PII
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: SCOPE.userId,
+        action: "{{kebabCase singular}}.create",
+        entityType: "{{kebabCase singular}}",
+        entityId: row.id,
+      }),
+    );
+    // Response contract: Dates serialized to ISO strings, internals dropped.
+    expect(result.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(result).not.toHaveProperty("ownerId");
+  });
+});
+
+describe("{{pascalCase plural}}Service reads", () => {
+  it("get 404s identically for missing and foreign rows (no oracle)", async () => {
+    const { service, repo } = makeService();
+    repo.findById.mockResolvedValue(null);
+    await expect(service.get(SCOPE, "someone-elses")).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

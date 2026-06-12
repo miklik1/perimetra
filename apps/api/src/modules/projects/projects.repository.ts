@@ -1,0 +1,141 @@
+/**
+ * Reference repository (spec §7.8): drizzle queries through the ambient
+ * transactional client (`TransactionHost`, ADR 0037) — inside a
+ * `@Transactional()` service method `tx` IS the transaction, outside it
+ * falls back to the pooled client (fine for the read-only paths).
+ *
+ * EVERY method takes a `RequestScope` and routes its WHERE clause through
+ * `scoped()` — the ADR 0041 seam. There is deliberately no scope-less query
+ * surface except `findByIdSystem()` (worker handlers, no request to scope).
+ */
+import { TransactionHost } from "@nestjs-cls/transactional";
+import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
+import { Injectable } from "@nestjs/common";
+import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+
+import { type Db } from "@repo/db";
+import { project, type ProjectRow, type ProjectStatus } from "@repo/db/schema/projects";
+
+import { type RequestScope } from "../../common/tenancy/request-scope.js";
+
+export interface ListProjectsParams {
+  cursor?: string | undefined;
+  limit: number;
+  sort: "createdAt:asc" | "createdAt:desc";
+  status?: ProjectStatus | undefined;
+}
+
+export interface ProjectsPageRows {
+  items: ProjectRow[];
+  /** Id of the last returned row when more exist — UUIDv7 keyset cursor. */
+  nextCursor: string | null;
+}
+
+@Injectable()
+export class ProjectsRepository {
+  constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
+
+  /**
+   * THE ownership filter (ADR 0041): owner scope + live rows. The tenancy
+   * retrofit changes this ONE expression to `organizationId =
+   * scope.organizationId` — every method below inherits it.
+   */
+  private scoped(scope: RequestScope) {
+    return and(eq(project.ownerId, scope.userId), isNull(project.deletedAt));
+  }
+
+  /**
+   * Keyset pagination by id (spec §8): UUIDv7 is time-ordered, so `id <
+   * cursor` walks creation-time descending (`>` for ascending). `limit + 1`
+   * fetch — the extra row only proves a next page exists.
+   */
+  async list(scope: RequestScope, params: ListProjectsParams): Promise<ProjectsPageRows> {
+    const ascending = params.sort === "createdAt:asc";
+    const rows = await this.txHost.tx
+      .select()
+      .from(project)
+      .where(
+        and(
+          this.scoped(scope),
+          params.status ? eq(project.status, params.status) : undefined,
+          params.cursor
+            ? ascending
+              ? gt(project.id, params.cursor)
+              : lt(project.id, params.cursor)
+            : undefined,
+        ),
+      )
+      .orderBy(ascending ? asc(project.id) : desc(project.id))
+      .limit(params.limit + 1);
+
+    const items = rows.slice(0, params.limit);
+    const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
+    return { items, nextCursor };
+  }
+
+  async findById(scope: RequestScope, projectId: string): Promise<ProjectRow | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from(project)
+      .where(and(this.scoped(scope), eq(project.id, projectId)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * System-context lookup for worker event handlers, which re-fetch from
+   * IDs-only payloads (ADR 0037) and have no request scope to apply. Still
+   * excludes soft-deleted rows. NOT for controllers — request-driven code
+   * goes through `findById(scope, …)`.
+   */
+  async findByIdSystem(projectId: string): Promise<ProjectRow | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from(project)
+      .where(and(eq(project.id, projectId), isNull(project.deletedAt)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async insert(
+    scope: RequestScope,
+    data: { name: string; description?: string | undefined },
+  ): Promise<ProjectRow> {
+    const [row] = await this.txHost.tx
+      .insert(project)
+      .values({
+        ownerId: scope.userId,
+        // Dormant tenancy seam: persisted from day one so the retrofit
+        // backfill (ADR 0041 playbook step 2) starts mostly done.
+        organizationId: scope.organizationId,
+        name: data.name,
+        description: data.description ?? null,
+      })
+      .returning();
+    return row!;
+  }
+
+  /** Returns the updated row, or null when the scope owns no such live row. */
+  async update(
+    scope: RequestScope,
+    projectId: string,
+    patch: Partial<Pick<ProjectRow, "name" | "description" | "status">>,
+  ): Promise<ProjectRow | null> {
+    const [row] = await this.txHost.tx
+      .update(project)
+      .set(patch)
+      .where(and(this.scoped(scope), eq(project.id, projectId)))
+      .returning();
+    return row ?? null;
+  }
+
+  /** Soft delete (ADR 0032 lifecycle) — true when a live row was tombstoned. */
+  async softDelete(scope: RequestScope, projectId: string): Promise<boolean> {
+    const rows = await this.txHost.tx
+      .update(project)
+      .set({ deletedAt: new Date() })
+      .where(and(this.scoped(scope), eq(project.id, projectId)))
+      .returning({ id: project.id });
+    return rows.length > 0;
+  }
+}

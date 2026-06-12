@@ -1,0 +1,10 @@
+{
+  "extends": "@repo/typescript-config/web-library.json",
+  "compilerOptions": {
+    "paths": {
+      "@repo/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "vitest.setup.ts"],
+  "exclude": ["node_modules", "dist"]
+}

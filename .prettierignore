@@ -1,0 +1,16 @@
+node_modules
+.next
+.expo
+dist
+build
+out
+.turbo
+.vercel
+pnpm-lock.yaml
+android
+ios
+
+# Vitest file snapshots are byte-for-byte test fixtures (raw JSON.stringify
+# output) — prettier reformatting them at commit time breaks the openapi
+# contract test (the pre-commit hook globs *.json).
+apps/api/src/openapi/__snapshots__/

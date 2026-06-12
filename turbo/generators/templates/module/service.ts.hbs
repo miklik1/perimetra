@@ -1,0 +1,169 @@
+/**
+ * {{pascalCase plural}} service — `pnpm gen module` scaffold of the reference service
+ * (spec §7.8): `@Transactional()` on every write — the state change, the
+ * outbox event and the audit row commit or roll back as ONE transaction
+ * (ADR 0037). Reads stay decorator-free (no tx needed; the repository falls
+ * back to the pooled client).
+ *
+ * Events carry IDs only (`{ {{camelCase singular}}Id }`) — handlers re-fetch (spec §7.2).
+ */
+import { Transactional } from "@nestjs-cls/transactional";
+import { Injectable, NotFoundException } from "@nestjs/common";
+
+import { type {{pascalCase singular}}Row } from "@repo/db/schema/{{kebabCase plural}}";
+import {
+  type Create{{pascalCase singular}}Input,
+  type List{{pascalCase plural}}Query,
+  type {{pascalCase singular}},
+  type {{pascalCase plural}}Page,
+  type Update{{pascalCase singular}}Input,
+} from "@repo/validators/{{kebabCase plural}}";
+
+import { type RequestScope } from "../../common/tenancy/request-scope.js";
+import { AuditService } from "../audit/audit.service.js";
+import { OutboxService } from "../outbox/outbox.service.js";
+import { {{pascalCase plural}}Repository } from "./{{kebabCase plural}}.repository.js";
+import { {{constantCase singular}}_ARCHIVED, {{constantCase singular}}_CREATED } from "./{{kebabCase plural}}.tokens.js";
+
+/** Fields the audit diff tracks — the client-visible, mutable surface. */
+// TODO(gen): extend with the real domain fields.
+const AUDITED_FIELDS = ["name", "status"] as const;
+
+/** DB row → response contract (Dates become ISO strings, internals dropped). */
+function to{{pascalCase singular}}(row: {{pascalCase singular}}Row): {{pascalCase singular}} {
+  return {
+    id: row.id,
+    // TODO(gen): map the real domain fields.
+    name: row.name,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** before/after restricted to the fields that actually changed. */
+function auditDiff(
+  before: {{pascalCase singular}}Row,
+  after: {{pascalCase singular}}Row,
+): { before: Record<string, unknown>; after: Record<string, unknown> } {
+  const diff = { before: {} as Record<string, unknown>, after: {} as Record<string, unknown> };
+  for (const field of AUDITED_FIELDS) {
+    if (before[field] !== after[field]) {
+      diff.before[field] = before[field];
+      diff.after[field] = after[field];
+    }
+  }
+  return diff;
+}
+
+@Injectable()
+export class {{pascalCase plural}}Service {
+  constructor(
+    private readonly {{camelCase plural}}: {{pascalCase plural}}Repository,
+    private readonly outbox: OutboxService,
+    private readonly audit: AuditService,
+  ) {}
+
+  async list(scope: RequestScope, query: List{{pascalCase plural}}Query): Promise<{{pascalCase plural}}Page> {
+    const { items, nextCursor } = await this.{{camelCase plural}}.list(scope, query);
+    return { items: items.map(to{{pascalCase singular}}), nextCursor };
+  }
+
+  /** 404 covers both "doesn't exist" and "not yours" — no existence oracle. */
+  async get(scope: RequestScope, {{camelCase singular}}Id: string): Promise<{{pascalCase singular}}> {
+    const row = await this.{{camelCase plural}}.findById(scope, {{camelCase singular}}Id);
+    if (!row) throw new NotFoundException("{{pascalCase singular}} not found");
+    return to{{pascalCase singular}}(row);
+  }
+
+  @Transactional()
+  async create(scope: RequestScope, input: Create{{pascalCase singular}}Input): Promise<{{pascalCase singular}}> {
+    const row = await this.{{camelCase plural}}.insert(scope, input);
+    await this.outbox.emit({
+      aggregateType: "{{kebabCase singular}}",
+      aggregateId: row.id,
+      eventType: {{constantCase singular}}_CREATED,
+      payload: { {{camelCase singular}}Id: row.id },
+    });
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "{{kebabCase singular}}.create",
+      entityType: "{{kebabCase singular}}",
+      entityId: row.id,
+      diff: {
+        before: null,
+        // TODO(gen): record the real domain fields.
+        after: { name: row.name, status: row.status },
+      },
+    });
+    return to{{pascalCase singular}}(row);
+  }
+
+  @Transactional()
+  async update(
+    scope: RequestScope,
+    {{camelCase singular}}Id: string,
+    input: Update{{pascalCase singular}}Input,
+  ): Promise<{{pascalCase singular}}> {
+    const before = await this.{{camelCase plural}}.findById(scope, {{camelCase singular}}Id);
+    if (!before) throw new NotFoundException("{{pascalCase singular}} not found");
+
+    // TODO(gen): extend the changed-fields diffing to the real domain fields.
+    const patch: { name?: string } = {};
+    if (input.name !== undefined && input.name !== before.name) patch.name = input.name;
+    // No-op patch: skip the write AND the audit row — nothing changed.
+    if (Object.keys(patch).length === 0) return to{{pascalCase singular}}(before);
+
+    const row = await this.{{camelCase plural}}.update(scope, {{camelCase singular}}Id, patch);
+    if (!row) throw new NotFoundException("{{pascalCase singular}} not found");
+
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "{{kebabCase singular}}.update",
+      entityType: "{{kebabCase singular}}",
+      entityId: {{camelCase singular}}Id,
+      diff: auditDiff(before, row),
+    });
+    return to{{pascalCase singular}}(row);
+  }
+
+  @Transactional()
+  async archive(scope: RequestScope, {{camelCase singular}}Id: string): Promise<{{pascalCase singular}}> {
+    const before = await this.{{camelCase plural}}.findById(scope, {{camelCase singular}}Id);
+    if (!before) throw new NotFoundException("{{pascalCase singular}} not found");
+    // Idempotent: archiving an archived row changes (and emits) nothing.
+    if (before.status === "archived") return to{{pascalCase singular}}(before);
+
+    const row = await this.{{camelCase plural}}.update(scope, {{camelCase singular}}Id, { status: "archived" });
+    if (!row) throw new NotFoundException("{{pascalCase singular}} not found");
+
+    await this.outbox.emit({
+      aggregateType: "{{kebabCase singular}}",
+      aggregateId: {{camelCase singular}}Id,
+      eventType: {{constantCase singular}}_ARCHIVED,
+      payload: { {{camelCase singular}}Id },
+    });
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "{{kebabCase singular}}.archive",
+      entityType: "{{kebabCase singular}}",
+      entityId: {{camelCase singular}}Id,
+      diff: auditDiff(before, row),
+    });
+    return to{{pascalCase singular}}(row);
+  }
+
+  @Transactional()
+  async softDelete(scope: RequestScope, {{camelCase singular}}Id: string): Promise<void> {
+    const deleted = await this.{{camelCase plural}}.softDelete(scope, {{camelCase singular}}Id);
+    if (!deleted) throw new NotFoundException("{{pascalCase singular}} not found");
+
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "{{kebabCase singular}}.delete",
+      entityType: "{{kebabCase singular}}",
+      entityId: {{camelCase singular}}Id,
+      // No diff: the row state is unchanged except the tombstone.
+    });
+  }
+}

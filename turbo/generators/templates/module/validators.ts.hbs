@@ -1,0 +1,47 @@
+/**
+ * {{pascalCase singular}} contracts — `pnpm gen module` scaffold (reference:
+ * `packages/validators/src/projects.ts`, spec §7.8) — the single source of
+ * truth for field rules. The api derives nestjs-zod DTOs from these; the web
+ * app reuses them for forms (RHF + zodResolver, ADR 0009).
+ */
+import { z } from "zod";
+
+import { cursorQuerySchema, paginated } from "./api/pagination";
+
+export const {{constantCase singular}}_STATUSES = ["active", "archived"] as const;
+export const {{camelCase singular}}StatusSchema = z.enum({{constantCase singular}}_STATUSES);
+export type {{pascalCase singular}}Status = z.infer<typeof {{camelCase singular}}StatusSchema>;
+
+/** Response shape — what every {{kebabCase singular}} endpoint serializes through (strip semantics). */
+export const {{camelCase singular}}Schema = z.object({
+  id: z.uuid(),
+  // TODO(gen): replace the example `name` field with the real domain fields
+  // (mirror every change in `@repo/db/schema/{{kebabCase plural}}`).
+  name: z.string().min(1).max(200),
+  status: {{camelCase singular}}StatusSchema,
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+export type {{pascalCase singular}} = z.infer<typeof {{camelCase singular}}Schema>;
+
+export const create{{pascalCase singular}}Schema = z.object({
+  // TODO(gen): keep in lockstep with `{{camelCase singular}}Schema` above.
+  name: z.string().min(1).max(200),
+});
+export type Create{{pascalCase singular}}Input = z.infer<typeof create{{pascalCase singular}}Schema>;
+
+export const update{{pascalCase singular}}Schema = create{{pascalCase singular}}Schema.partial();
+export type Update{{pascalCase singular}}Input = z.infer<typeof update{{pascalCase singular}}Schema>;
+
+/**
+ * Keyset pagination (spec §8): the shared `{ cursor, limit, sort }` block
+ * plus the resource-specific filter. The cursor is a {{kebabCase singular}} id — UUIDv7
+ * is time-ordered, so paging by id IS paging by creation time.
+ */
+export const list{{pascalCase plural}}QuerySchema = cursorQuerySchema.extend({
+  status: {{camelCase singular}}StatusSchema.optional(),
+});
+export type List{{pascalCase plural}}Query = z.infer<typeof list{{pascalCase plural}}QuerySchema>;
+
+export const {{camelCase plural}}PageSchema = paginated({{camelCase singular}}Schema);
+export type {{pascalCase plural}}Page = z.infer<typeof {{camelCase plural}}PageSchema>;

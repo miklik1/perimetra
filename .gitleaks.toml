@@ -1,0 +1,15 @@
+# Gitleaks configuration (ADR 0044). Auto-detected from the repo root by both
+# the CI job (.github/workflows/ci.yml `gitleaks`) and the lefthook pre-commit
+# hook — keep it here so all scanners agree.
+#
+# Allowlist policy: PATH allowlists only for files whose JOB is to contain
+# secret-shaped strings (test fixtures for scrubbers/redaction). Never allowlist
+# a real leak — rotate the secret and rewrite history instead.
+
+[extend]
+# Start from gitleaks' built-in rules; entries below only ADD allowlist scope.
+useDefault = true
+
+[[allowlists]]
+description = "PII/secret-scrubber test fixtures — deliberately secret-shaped fake values (e.g. the static dummy JWT in scrub.test.ts)"
+paths = ['''packages/telemetry/src/scrub\.test\.ts''']

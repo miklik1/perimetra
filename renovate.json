@@ -1,0 +1,5 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dogfoods the shared preset (ADR 0042): the skeleton runs the exact dependency policy derived projects extend, so a broken policy change breaks here first. All rules live in renovate-preset.json — edit THAT file, not this one.",
+  "extends": ["github>miklik1/fullstack-skeleton//renovate-preset"]
+}

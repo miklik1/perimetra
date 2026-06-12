@@ -1,0 +1,143 @@
+/**
+ * {{pascalCase plural}} repository — `pnpm gen module` scaffold of the reference
+ * repository (spec §7.8; canonical copy: `modules/projects`): drizzle queries
+ * through the ambient transactional client (`TransactionHost`, ADR 0037) —
+ * inside a `@Transactional()` service method `tx` IS the transaction, outside
+ * it falls back to the pooled client (fine for the read-only paths).
+ *
+ * EVERY method takes a `RequestScope` and routes its WHERE clause through
+ * `scoped()` — the ADR 0041 seam. There is deliberately no scope-less query
+ * surface except `findByIdSystem()` (worker handlers, no request to scope).
+ */
+import { TransactionHost } from "@nestjs-cls/transactional";
+import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
+import { Injectable } from "@nestjs/common";
+import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+
+import { type Db } from "@repo/db";
+import {
+  {{camelCase singular}},
+  type {{pascalCase singular}}Row,
+  type {{pascalCase singular}}Status,
+} from "@repo/db/schema/{{kebabCase plural}}";
+
+import { type RequestScope } from "../../common/tenancy/request-scope.js";
+
+export interface List{{pascalCase plural}}Params {
+  cursor?: string | undefined;
+  limit: number;
+  sort: "createdAt:asc" | "createdAt:desc";
+  status?: {{pascalCase singular}}Status | undefined;
+}
+
+export interface {{pascalCase plural}}PageRows {
+  items: {{pascalCase singular}}Row[];
+  /** Id of the last returned row when more exist — UUIDv7 keyset cursor. */
+  nextCursor: string | null;
+}
+
+@Injectable()
+export class {{pascalCase plural}}Repository {
+  constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
+
+  /**
+   * THE ownership filter (ADR 0041): owner scope + live rows. The tenancy
+   * retrofit changes this ONE expression to `organizationId =
+   * scope.organizationId` — every method below inherits it.
+   */
+  private scoped(scope: RequestScope) {
+    return and(eq({{camelCase singular}}.ownerId, scope.userId), isNull({{camelCase singular}}.deletedAt));
+  }
+
+  /**
+   * Keyset pagination by id (spec §8): UUIDv7 is time-ordered, so `id <
+   * cursor` walks creation-time descending (`>` for ascending). `limit + 1`
+   * fetch — the extra row only proves a next page exists.
+   */
+  async list(scope: RequestScope, params: List{{pascalCase plural}}Params): Promise<{{pascalCase plural}}PageRows> {
+    const ascending = params.sort === "createdAt:asc";
+    const rows = await this.txHost.tx
+      .select()
+      .from({{camelCase singular}})
+      .where(
+        and(
+          this.scoped(scope),
+          params.status ? eq({{camelCase singular}}.status, params.status) : undefined,
+          params.cursor
+            ? ascending
+              ? gt({{camelCase singular}}.id, params.cursor)
+              : lt({{camelCase singular}}.id, params.cursor)
+            : undefined,
+        ),
+      )
+      .orderBy(ascending ? asc({{camelCase singular}}.id) : desc({{camelCase singular}}.id))
+      .limit(params.limit + 1);
+
+    const items = rows.slice(0, params.limit);
+    const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
+    return { items, nextCursor };
+  }
+
+  async findById(scope: RequestScope, {{camelCase singular}}Id: string): Promise<{{pascalCase singular}}Row | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from({{camelCase singular}})
+      .where(and(this.scoped(scope), eq({{camelCase singular}}.id, {{camelCase singular}}Id)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * System-context lookup for worker event handlers, which re-fetch from
+   * IDs-only payloads (ADR 0037) and have no request scope to apply. Still
+   * excludes soft-deleted rows. NOT for controllers — request-driven code
+   * goes through `findById(scope, …)`.
+   */
+  async findByIdSystem({{camelCase singular}}Id: string): Promise<{{pascalCase singular}}Row | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from({{camelCase singular}})
+      .where(and(eq({{camelCase singular}}.id, {{camelCase singular}}Id), isNull({{camelCase singular}}.deletedAt)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  // TODO(gen): widen the insert/update payloads as domain fields land.
+  async insert(scope: RequestScope, data: { name: string }): Promise<{{pascalCase singular}}Row> {
+    const [row] = await this.txHost.tx
+      .insert({{camelCase singular}})
+      .values({
+        ownerId: scope.userId,
+        // Dormant tenancy seam: persisted from day one so the retrofit
+        // backfill (ADR 0041 playbook step 2) starts mostly done.
+        organizationId: scope.organizationId,
+        name: data.name,
+      })
+      .returning();
+    return row!;
+  }
+
+  /** Returns the updated row, or null when the scope owns no such live row. */
+  async update(
+    scope: RequestScope,
+    {{camelCase singular}}Id: string,
+    patch: Partial<Pick<{{pascalCase singular}}Row, "name" | "status">>,
+  ): Promise<{{pascalCase singular}}Row | null> {
+    const [row] = await this.txHost.tx
+      .update({{camelCase singular}})
+      .set(patch)
+      .where(and(this.scoped(scope), eq({{camelCase singular}}.id, {{camelCase singular}}Id)))
+      .returning();
+    return row ?? null;
+  }
+
+  /** Soft delete (ADR 0032 lifecycle) — true when a live row was tombstoned. */
+  async softDelete(scope: RequestScope, {{camelCase singular}}Id: string): Promise<boolean> {
+    const rows = await this.txHost.tx
+      .update({{camelCase singular}})
+      .set({ deletedAt: new Date() })
+      .where(and(this.scoped(scope), eq({{camelCase singular}}.id, {{camelCase singular}}Id)))
+      .returning({ id: {{camelCase singular}}.id });
+    return rows.length > 0;
+  }
+}

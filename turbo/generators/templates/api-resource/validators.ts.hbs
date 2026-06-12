@@ -1,0 +1,40 @@
+import { z } from "zod";
+
+export const {{camelCase resource}}Schema = z.object({
+  id: z.uuid(),
+{{#each fields}}
+  {{this.name}}: {{{this.zod}}},
+{{/each}}
+  createdAt: z.iso.datetime(),
+});
+
+export type {{pascalCase resource}} = z.infer<typeof {{camelCase resource}}Schema>;
+
+export const {{camelCase resource}}ListSchema = z.array({{camelCase resource}}Schema);
+
+/**
+ * One page of {{camelCase resource}} (cursor-style pagination). `nextPage` is the
+ * next page number, or `null` on the last page — fed straight into TanStack's
+ * `getNextPageParam`.
+ */
+export const {{camelCase resource}}PageSchema = z.object({
+  data: {{camelCase resource}}ListSchema,
+  nextPage: z.number().int().positive().nullable(),
+});
+
+export type {{pascalCase resource}}Page = z.infer<typeof {{camelCase resource}}PageSchema>;
+
+/**
+ * Client → server input for creating a {{camelCase resource}}. Derived from
+ * `{{camelCase resource}}Schema` so the field contracts stay in one place; `id`
+ * and `createdAt` are server-assigned and therefore omitted. Consumed by both
+ * the `@repo/api` create mutation and app-side form validation (RHF +
+ * zodResolver, ADR 0009).
+ */
+export const create{{pascalCase resource}}Schema = {{camelCase resource}}Schema.pick({
+{{#each fields}}
+  {{this.name}}: true,
+{{/each}}
+});
+
+export type Create{{pascalCase resource}}Input = z.infer<typeof create{{pascalCase resource}}Schema>;

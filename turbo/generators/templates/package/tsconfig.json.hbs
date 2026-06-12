@@ -1,0 +1,10 @@
+{
+  "extends": "@repo/typescript-config/library.json",
+{{#unless needsReact}}
+  "compilerOptions": {
+    "types": ["node"]
+  },
+{{/unless}}
+  "include": ["src"],
+  "exclude": ["node_modules"]
+}

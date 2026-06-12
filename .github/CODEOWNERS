@@ -1,0 +1,25 @@
+# CODEOWNERS — GitHub uses this to auto-request review on matching paths.
+# Order matters: later patterns override earlier ones.
+
+# Default owner for everything
+*                                @BePositive-s-r-o/engineering
+
+# Architecture + ADRs require owner sign-off
+/ARCHITECTURE.md                 @BePositive-s-r-o/engineering
+/docs/adr/                       @BePositive-s-r-o/engineering
+
+# Shared packages: cross-cutting, broader review
+/packages/api/                   @BePositive-s-r-o/engineering
+/packages/config/                @BePositive-s-r-o/engineering
+/packages/validators/            @BePositive-s-r-o/engineering
+/packages/utils/                 @BePositive-s-r-o/engineering
+/packages/navigation/            @BePositive-s-r-o/engineering
+/packages/ui/                    @BePositive-s-r-o/engineering
+
+# Tooling: build/lint/format infra
+/tooling/                        @BePositive-s-r-o/engineering
+/packages/eslint-config/         @BePositive-s-r-o/engineering
+/packages/typescript-config/     @BePositive-s-r-o/engineering
+/turbo.json                      @BePositive-s-r-o/engineering
+/pnpm-workspace.yaml             @BePositive-s-r-o/engineering
+/.github/                        @BePositive-s-r-o/engineering

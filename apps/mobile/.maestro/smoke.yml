@@ -1,0 +1,16 @@
+# Maestro smoke flow (ADR 0005) — runs against an EAS-built binary via the
+# e2e EAS Workflow (.eas/workflows/e2e-test.yml). appId must match app.config.ts
+# ios.bundleIdentifier / android.package.
+#
+# NOTE: not run in this repo's CI yet — Maestro needs a built app + device/cloud,
+# which can't run on the local dev box. Wire it once `eas init` links a project.
+appId: cz.bepositive.mobile
+---
+- launchApp
+- assertVisible: "Mobile"
+- assertVisible: "Color scheme:.*"
+- assertVisible: "Go to users"
+- tapOn: "Go to users"
+# The users screen now exists (app/users.tsx). Assert its heading to prove the
+# Link resolves to a real route, not expo-router's unmatched/not-found screen.
+- assertVisible: "Users"

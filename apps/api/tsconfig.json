@@ -1,0 +1,12 @@
+{
+  "extends": "@repo/typescript-config/node-library.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "test", "vitest.config.ts", "vitest.integration.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

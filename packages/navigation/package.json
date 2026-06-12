@@ -1,0 +1,47 @@
+{
+  "name": "@repo/navigation",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "react-native": "./src/native.tsx",
+      "default": "./src/web.tsx"
+    },
+    "./contract": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/utils": "workspace:*",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "expo-router": "*",
+    "next": "*",
+    "react": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo-router": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
+    "@types/react": "catalog:react19",
+    "eslint": "catalog:",
+    "expo-router": "catalog:expo56",
+    "next": "catalog:",
+    "react": "catalog:react19",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,61 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing
+coverage
+
+# Playwright (web E2E — ADR 0025)
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Turbo
+.turbo
+
+# Vercel
+.vercel
+
+# Build Outputs
+.next/
+out/
+build
+dist
+
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+android/
+ios/
+*.jks
+*.keystore
+
+# IDE
+# .vscode/ is committed (shared settings.json + extensions.json); ignore only
+# per-user overrides and machine-local files.
+.vscode/*.local.json
+.vscode/settings.local.json
+.idea/
+
+# Misc
+.DS_Store
+*.pem
+.claude/
+
+# machine-local compose overrides
+docker/.env

@@ -1,0 +1,140 @@
+/**
+ * Czech catalog — the primary language AND the `Messages` type source-of-truth
+ * (`Messages = typeof csMessages`), so the primary-language author is never
+ * blocked by a missing translation elsewhere. `en.ts` is kept key-for-key in
+ * step by the catalog-parity test. ICU message syntax (plurals/select/args).
+ *
+ * The `errors` group is consumed by `createZodErrorMap` (zod issue → message).
+ */
+const cs = {
+  app: {
+    name: "Skeleton",
+  },
+  locale: {
+    label: "Jazyk",
+    cs: "Čeština",
+    en: "Angličtina",
+  },
+  nav: {
+    home: "Domů",
+    account: "Účet",
+  },
+  home: {
+    title: "Web",
+    users:
+      "{count, plural, =0 {Žádní uživatelé} one {# uživatel} few {# uživatelé} other {# uživatelů}}",
+    goToUsers: "Přejít na uživatele",
+    accountLink: "Účet (chráněný)",
+    helloAction: "Pozdravit",
+    helloToast: "Ahoj z webu!",
+  },
+  theme: {
+    label: "Motiv",
+    light: "světlý",
+    dark: "tmavý",
+    system: "systémový",
+  },
+  auth: {
+    login: "Přihlásit se",
+    logout: "Odhlásit se",
+    email: "E-mail",
+    password: "Heslo",
+    submit: "Pokračovat",
+    signingIn: "Přihlašování…",
+  },
+  account: {
+    title: "Účet",
+    greeting: "Vítejte zpět, {name}!",
+    signedInAs: "Přihlášen jako {email}",
+    logout: "Odhlásit se",
+    checkingSession: "Ověřování relace…",
+  },
+  users: {
+    create: "Vytvořit uživatele",
+    creating: "Vytváření…",
+    created: "Vytvořeno.",
+    name: "Jméno",
+    email: "E-mail",
+    loadMore: "Načíst další",
+    loading: "Načítání…",
+    noMore: "Žádní další",
+    newUser: "Nový uživatel",
+    rscTitle: "Uživatelé (přednačteno v RSC)",
+    infiniteTitle: "Uživatelé (nekonečný seznam)",
+    status: "stav: {status}",
+    fetchStatus: "stav načítání: {fetchStatus}",
+    loaded: "načteno: {count}",
+  },
+  projects: {
+    title: "Projekty",
+    newProject: "Nový projekt",
+    name: "Název",
+    description: "Popis",
+    create: "Vytvořit projekt",
+    creating: "Vytváření…",
+    created: "Vytvořeno.",
+    archive: "Archivovat",
+    archived: "Archivováno",
+    delete: "Smazat",
+    deleted: "Smazáno.",
+    empty: "Zatím žádné projekty",
+    loadMore: "Načíst další",
+    loading: "Načítání…",
+    noMore: "Žádné další",
+    checkingSession: "Ověřování relace…",
+    live: "Živě",
+    connecting: "Připojování…",
+    offline: "Offline",
+  },
+  errors: {
+    title: "Něco se pokazilo",
+    retry: "Zkusit znovu",
+    dismiss: "Zavřít",
+    notFoundTitle: "404",
+    notFoundDescription: "Stránka nenalezena",
+    goHome: "Přejít na úvod",
+    // User-facing messages mapped from ApiError kinds/status (see
+    // apps/web/lib/error-messages.ts). The raw error detail is shown only in dev.
+    generic: "Něco se pokazilo. Zkuste to prosím znovu.",
+    network: "Nelze se připojit. Zkontrolujte připojení a zkuste to znovu.",
+    unauthorized: "Vaše relace vypršela. Přihlaste se prosím znovu.",
+    forbidden: "Na tuto akci nemáte oprávnění.",
+    notFound: "Požadovaná položka nebyla nalezena.",
+    conflict: "Tato akce je v konfliktu se stávajícími daty.",
+    validation: "Zkontrolujte zadané údaje a zkuste to znovu.",
+    rateLimited: "Příliš mnoho požadavků. Zkuste to prosím za chvíli.",
+    server: "Na serveru došlo k chybě. Zkuste to prosím později.",
+    invalid: "Neplatná hodnota.",
+    invalidType: "Očekáván typ {expected}.",
+    invalidEmail: "Neplatná e-mailová adresa.",
+    invalidUrl: "Neplatná adresa URL.",
+    invalidUuid: "Neplatné UUID.",
+    invalidFormat: "Neplatný formát ({format}).",
+    notMultipleOf: "Musí být násobkem {divisor}.",
+    tooSmall: {
+      string: "Musí mít alespoň {minimum, plural, one {# znak} few {# znaky} other {# znaků}}.",
+      number: "Musí být alespoň {minimum}.",
+      array:
+        "Musí obsahovat alespoň {minimum, plural, one {# položku} few {# položky} other {# položek}}.",
+      other: "Hodnota je příliš malá (minimum {minimum}).",
+    },
+    tooBig: {
+      string: "Smí mít nejvýše {maximum, plural, one {# znak} few {# znaky} other {# znaků}}.",
+      number: "Smí být nejvýše {maximum}.",
+      array:
+        "Smí obsahovat nejvýše {maximum, plural, one {# položku} few {# položky} other {# položek}}.",
+      other: "Hodnota je příliš velká (maximum {maximum}).",
+    },
+  },
+  emails: {
+    verification: {
+      subject: "Potvrďte svou e-mailovou adresu",
+      heading: "Vítejte, {name}!",
+      body: "Potvrďte prosím svou e-mailovou adresu kliknutím na tlačítko níže.",
+      button: "Potvrdit e-mail",
+      ignore: "Pokud jste si účet nezakládali, tento e-mail ignorujte.",
+    },
+  },
+} satisfies Record<string, unknown>;
+
+export default cs;

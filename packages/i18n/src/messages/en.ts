@@ -1,0 +1,137 @@
+import type { Messages } from "../messages.types";
+
+/**
+ * English catalog — kept a complete, first-class locale so the skeleton stays
+ * "ready for `en`" even though the first product renders only `cs`. Typed as
+ * `Messages` (derived from `cs`) so a missing or extra key fails `tsc`; the
+ * runtime catalog-parity test is the second guard against silent drift.
+ */
+const en: Messages = {
+  app: {
+    name: "Skeleton",
+  },
+  locale: {
+    label: "Language",
+    cs: "Czech",
+    en: "English",
+  },
+  nav: {
+    home: "Home",
+    account: "Account",
+  },
+  home: {
+    title: "Web",
+    users: "{count, plural, =0 {No users} one {# user} other {# users}}",
+    goToUsers: "Go to users",
+    accountLink: "Account (protected)",
+    helloAction: "Say hello",
+    helloToast: "Hello from web!",
+  },
+  theme: {
+    label: "Theme",
+    light: "light",
+    dark: "dark",
+    system: "system",
+  },
+  auth: {
+    login: "Sign in",
+    logout: "Sign out",
+    email: "Email",
+    password: "Password",
+    submit: "Continue",
+    signingIn: "Signing in…",
+  },
+  account: {
+    title: "Account",
+    greeting: "Welcome back, {name}!",
+    signedInAs: "Signed in as {email}",
+    logout: "Log out",
+    checkingSession: "Checking session…",
+  },
+  users: {
+    create: "Create user",
+    creating: "Creating…",
+    created: "Created.",
+    name: "Name",
+    email: "Email",
+    loadMore: "Load more",
+    loading: "Loading…",
+    noMore: "No more",
+    newUser: "New user",
+    rscTitle: "Users (RSC-prefetched)",
+    infiniteTitle: "Users (infinite)",
+    status: "status: {status}",
+    fetchStatus: "fetchStatus: {fetchStatus}",
+    loaded: "loaded: {count}",
+  },
+  projects: {
+    title: "Projects",
+    newProject: "New project",
+    name: "Name",
+    description: "Description",
+    create: "Create project",
+    creating: "Creating…",
+    created: "Created.",
+    archive: "Archive",
+    archived: "Archived",
+    delete: "Delete",
+    deleted: "Deleted.",
+    empty: "No projects yet",
+    loadMore: "Load more",
+    loading: "Loading…",
+    noMore: "No more",
+    checkingSession: "Checking session…",
+    live: "Live",
+    connecting: "Connecting…",
+    offline: "Offline",
+  },
+  errors: {
+    title: "Something went wrong",
+    retry: "Try again",
+    dismiss: "Dismiss",
+    notFoundTitle: "404",
+    notFoundDescription: "Page not found",
+    goHome: "Go home",
+    // User-facing messages mapped from ApiError kinds/status (see
+    // apps/web/lib/error-messages.ts). The raw error detail is shown only in dev.
+    generic: "Something went wrong. Please try again.",
+    network: "Couldn't connect. Check your connection and try again.",
+    unauthorized: "Your session has expired. Please sign in again.",
+    forbidden: "You don't have permission to do that.",
+    notFound: "The requested item could not be found.",
+    conflict: "This action conflicts with existing data.",
+    validation: "Please check the details you entered and try again.",
+    rateLimited: "Too many requests. Please try again in a moment.",
+    server: "The server ran into a problem. Please try again later.",
+    invalid: "Invalid value.",
+    invalidType: "Expected {expected}.",
+    invalidEmail: "Invalid email address.",
+    invalidUrl: "Invalid URL.",
+    invalidUuid: "Invalid UUID.",
+    invalidFormat: "Invalid format ({format}).",
+    notMultipleOf: "Must be a multiple of {divisor}.",
+    tooSmall: {
+      string: "Must contain at least {minimum, plural, one {# character} other {# characters}}.",
+      number: "Must be at least {minimum}.",
+      array: "Must contain at least {minimum, plural, one {# item} other {# items}}.",
+      other: "Value is too small (minimum {minimum}).",
+    },
+    tooBig: {
+      string: "Must contain at most {maximum, plural, one {# character} other {# characters}}.",
+      number: "Must be at most {maximum}.",
+      array: "Must contain at most {maximum, plural, one {# item} other {# items}}.",
+      other: "Value is too large (maximum {maximum}).",
+    },
+  },
+  emails: {
+    verification: {
+      subject: "Confirm your email address",
+      heading: "Welcome, {name}!",
+      body: "Please confirm your email address by clicking the button below.",
+      button: "Confirm email",
+      ignore: "If you did not create an account, you can ignore this email.",
+    },
+  },
+};
+
+export default en;

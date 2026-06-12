@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Shared Renovate preset for fullstack-skeleton and every derived project (ADR 0042; docs/managing-updates.md channel B).",
+    "Derived repos extend it: { \"extends\": [\"github>miklik1/fullstack-skeleton//renovate-preset\"] } — dependency POLICY is steered centrally from the skeleton; a policy change here reaches all projects on their next Renovate run.",
+    "pnpm catalogs/catalogs in pnpm-workspace.yaml are managed natively by Renovate (since v39) — no extra manager flag needed."
+  ],
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "timezone": "Europe/Prague",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group all non-major (minor + patch) updates into one weekly PR.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "Keep major updates separate, one PR per package — they need a human.",
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    },
+    {
+      "description": "React/React-DOM/React Native are pinned via the react19/expo56 catalogs + pnpm overrides and move only with a deliberate SDK bump (ADR 0013); never auto-bump.",
+      "matchPackageNames": ["react", "react-dom", "react-native"],
+      "enabled": false
+    },
+    {
+      "description": "OTel JS: the 0.x SDK/instrumentation packages are exact-pinned in the catalog and only work in lockstep (ADR 0036). Group EVERY update for the set (0.x minors are breaking) into one labeled PR so it is reviewed and bumped atomically.",
+      "matchPackageNames": ["@opentelemetry/**", "@fastify/otel"],
+      "groupName": "opentelemetry",
+      "groupSlug": "otel",
+      "labels": ["dependencies", "otel"],
+      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"]
+    },
+    {
+      "description": "better-auth (+ `auth`, its version-locked CLI) is exact-pinned with a CVE-history policy (ADR 0033/0044): routine updates require Dependency Dashboard approval — bumps are deliberate, never drift. Security fixes still land automatically: vulnerabilityAlerts/OSV PRs bypass the approval gate and the schedule.",
+      "matchPackageNames": ["better-auth", "auth"],
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "better-auth"]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "extends": "@repo/typescript-config/expo.json",
+  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
+  "exclude": ["node_modules", "android", "ios"]
+}

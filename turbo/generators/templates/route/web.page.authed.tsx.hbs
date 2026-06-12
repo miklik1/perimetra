@@ -1,0 +1,12 @@
+import { {{pascalCase name}}Client } from "./{{routeSegment path}}-client";
+
+/**
+ * Protected `{{path}}` (ADR 0016). RSC entry: the server-side gate
+ * (apps/web/proxy.ts) redirects signed-out visitors before this renders, and the
+ * client leaf's `<AuthGuard>` stays the authoritative check. Prefetch the authed
+ * query here with `createServerApiClient()` + `<HydrationBoundary>` when this
+ * route reads data (mirror `app/account/page.tsx`).
+ */
+export default function {{pascalCase name}}Page() {
+  return <{{pascalCase name}}Client />;
+}

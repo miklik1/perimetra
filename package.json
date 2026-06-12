@@ -1,0 +1,44 @@
+{
+  "name": "perimetra",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "create-project": "node scripts/create-project",
+    "loadtest": "k6 run loadtest/projects.k6.js",
+    "build": "turbo run build",
+    "gen": "turbo gen",
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:mobile": "turbo run dev --filter=mobile",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "knip": "knip",
+    "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
+    "prepare": "lefthook install"
+  },
+  "prettier": "@repo/prettier-config",
+  "devDependencies": {
+    "@repo/prettier-config": "workspace:*",
+    "@turbo/gen": "^2.8.20",
+    "knip": "catalog:",
+    "lefthook": "^2.1.8",
+    "prettier": "^3.8.1",
+    "turbo": "^2.9.17",
+    "typescript": "catalog:",
+    "vitest": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.0"
+  },
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "skeleton": {
+    "repo": "git@github.com:miklik1/fullstack-skeleton.git",
+    "baseCommit": "8c57d3792a8105f4e323a357d93f732fa76d18b1",
+    "createdAt": "2026-06-12T01:35:43.516Z"
+  }
+}

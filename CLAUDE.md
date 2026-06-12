@@ -1,0 +1,106 @@
+# CLAUDE.md — agent operating manual
+
+Canonical agent instructions for this repo (tool-neutral despite the
+filename; `AGENTS.md` points here). Read this before changing anything.
+TypeScript fullstack monorepo **template**: NestJS 11 (Fastify) backend +
+Next.js 16 web + Expo SDK 56 mobile. Conventions are the product — when in
+doubt, copy the reference module, don't invent.
+
+## Package map
+
+| Path                                                        | What it is                                                                                                              |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `apps/api`                                                  | NestJS modular monolith — 3 deployables from one build: `main.ts` (http), `worker.ts` (queues), `migrate.ts` (one-shot) |
+| `apps/web`                                                  | Next.js 16 (App Router, RSC); proxies `/api/*` to the api (same-origin cookies)                                         |
+| `apps/mobile`                                               | Expo SDK 56 / React Native (Jest, not Vitest)                                                                           |
+| `packages/db`                                               | **Built** pkg: Drizzle schema (split per module), `columns` helpers, `pii()` registry, factories, migrations            |
+| `packages/validators`                                       | Shared zod (v4) contracts — the api ↔ frontend seam                                                                     |
+| `packages/api` / `api-mocks`                                | REST client factory / MSW mocks (mock-mode dev + 3rd-party HTTP mocking in tests)                                       |
+| `packages/auth`                                             | Better Auth client wrapper (`useAuth`, `AuthGuard`)                                                                     |
+| `packages/config` / `utils` / `store` / `navigation`        | Typed env / helpers / Zustand stores / route contract                                                                   |
+| `packages/i18n` / `flags` / `telemetry` / `realtime` / `ui` | ICU catalogs / PostHog flag registry / Sentry+analytics seam / Centrifuge adapter / web+mobile UI                       |
+| `packages/ai`                                               | Thin LLM seam: chat/embedding interfaces + router + no-op defaults (provider adapters are per-project)                  |
+| `tooling/*`                                                 | Shared eslint / tsconfig / prettier / tailwind / vitest configs; CI setup action                                        |
+
+## Dependency DAG & boundaries (ESLint-enforced — ADR 0008/0011)
+
+- The package DAG lives in `tooling/eslint/base.js` (`boundaries/elements` +
+  `boundaries/dependencies`). Apps import packages; packages import only
+  their declared deps; cycles are uncompilable.
+- **Deep imports are banned.** Only a package's `exports`-map subpaths are
+  importable (`no-restricted-imports` allow-list in `tooling/eslint/base.js`
+  — keep it in lockstep with `exports` maps; `pnpm gen package` wires both).
+- **Api modules own their schema dirs** (ADR 0032): `modules/X/**` imports
+  `@repo/db/schema/X` plus shared helpers only. Cross-module reads go through
+  the owning module's exported service — never joins across module schemas.
+- Each `apps/api/src/modules/*/CONTEXT.md` states what that module may never
+  import. Generators maintain `@gen:*` anchor comments — never delete them.
+
+## Commands (run from repo root; node 24 per `.nvmrc`)
+
+| Command                                                         | What                                                                                                                                               |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm run setup`                                                | One-command bootstrap: compose up + install + build + migrate (`scripts/setup.mjs`). `run` required — pnpm's builtin `setup` shadows the bare form |
+| `pnpm dev` / `pnpm dev:web`                                     | All dev servers / web only (api dev: `pnpm --filter api dev`)                                                                                      |
+| `pnpm build` / `check-types` / `lint` / `test` / `knip`         | The quality bar — ALL must pass before done                                                                                                        |
+| `pnpm --filter api test:integration`                            | Testcontainers suite (real pg + redis; needs Docker)                                                                                               |
+| `pnpm gen module`                                               | Scaffold a full backend resource (see generator-first below)                                                                                       |
+| `pnpm --filter api migrate`                                     | Run migrations (release-phase one-shot; never at boot)                                                                                             |
+| `pnpm --filter @repo/db db:generate`                            | Generate a migration from schema changes                                                                                                           |
+| `BASE_URL=http://localhost:4000 k6 run loadtest/projects.k6.js` | Load test (k6 is an external binary)                                                                                                               |
+| `pnpm format`                                                   | Prettier-write (md/ts/tsx)                                                                                                                         |
+
+Local quirk: gitignored `docker/.env` may remap infra ports (this box:
+pg `5433`, redis `6380`) with matching `apps/api/.env.local` overrides. CI
+and fresh clones use compose defaults (5432/6379/8000/9000/1025).
+
+## Conventions that bite (the uncompilable / un-reviewable list)
+
+- **ESM NodeNext** in `apps/api` + `packages/db`: relative imports need the
+  `.js` extension (`./foo.js`, even from `.ts`). Forgetting it breaks build.
+- **Built vs source packages**: `@repo/db` resolves from `dist/` — build it
+  (`turbo` handles ordering) before consuming; stale `dist` = stale types.
+- **Outbox**: `OutboxService.emit()` THROWS outside `@Transactional()` —
+  state change + event row share one transaction, always (ADR 0037).
+- **Payloads are IDs-only, never PII** (jobs and outbox events). Processors
+  re-fetch. This keeps Redis non-PII-bearing and rebuildable.
+- **PII columns must use `pii()`** from `@repo/db/columns` — the registry
+  drives GDPR export/erasure AND log redaction. A raw column leaks.
+- **Cron = BullMQ repeatables only**; `@nestjs/schedule` is banned (fires
+  once per replica). Singleton work: jobId dedup or pg advisory lock.
+- **Keyset pagination** by default (UUIDv7 ids); offset is a documented
+  exception. **Every endpoint returns through a zod response schema** (strip
+  semantics) — unvalidated `select()` shipping `passwordHash` is the leak
+  class this kills (ADR 0039).
+- **Migrations are expand/contract** and N−1 compatible; `lock_timeout` set;
+  run as the release phase, never at app boot (ADR 0038).
+- Transaction-pooling-safe by default: no session GUCs, no LISTEN/NOTIFY,
+  no prepared-statement reliance.
+
+## Generator-first rule
+
+New backend resource? **`pnpm gen module`** — it scaffolds the full ADR
+0039–0041 pattern (contract → controller → `@Transactional()` service →
+org-scoped repository → per-module schema → outbox events → worker handler →
+privacy handler → tests) and injects into every `@gen:*` anchor. Hand-rolling
+gets ~80% of the dance right; the generator gets 100%. `pnpm gen package` /
+`api-resource` / `route` likewise for packages, frontend api slices, routes.
+The reference implementation is `apps/api/src/modules/projects`.
+
+## Where truth lives
+
+- Spec: `docs/superpowers/specs/2026-06-10-fullstack-skeleton-design.md`
+- Plan: `docs/superpowers/plans/2026-06-10-fullstack-skeleton-plan.md`
+- Decisions: `docs/adr/README.md` (index; one ADR per decision — supersede,
+  don't edit history). Architecture overview: `ARCHITECTURE.md`.
+- Operations: `OBSERVABILITY.md` (golden signals, redaction),
+  `SECURITY.md` (CSRF stance, throttle tiers, ASVS map, supply-chain gates)
+- Per-module: `apps/api/src/modules/*/CONTEXT.md`, `packages/db/CONTEXT.md`,
+  `packages/ai/CONTEXT.md`
+
+## Definition of done
+
+`pnpm check-types && pnpm lint && pnpm test && pnpm build && pnpm knip` green,
+plus `pnpm --filter api test:integration` when backend behavior changed.
+Architectural deviation? Amend the spec and write an ADR — never silently
+diverge.

@@ -1,0 +1,18 @@
+import { ScrollView } from "react-native";
+
+import { SafeArea, Text } from "../components/ui";
+
+/**
+ * Mobile `{{path}}` screen (expo-router). The RN mirror of web's
+ * `app/{{routeSegment path}}/page.tsx`. Add `useQuery(...)` data consumption with
+ * RN primitives as in `app/users.tsx`.
+ */
+export default function {{pascalCase name}}() {
+  return (
+    <SafeArea className="bg-background flex-1">
+      <ScrollView contentContainerClassName="gap-4 p-6">
+        <Text variant="heading">{{pascalCase name}}</Text>
+      </ScrollView>
+    </SafeArea>
+  );
+}

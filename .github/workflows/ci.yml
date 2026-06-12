@@ -1,0 +1,427 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["*"]
+  push:
+    branches: [main]
+  # Manual runs double as the gitleaks FULL-history pass: on dispatch the
+  # gitleaks-action scans every commit from the root instead of an event range.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # Lint + type-check share a job: both are CPU-light, fully cached by turbo, and
+  # short — splitting them buys no wall-clock but doubles the install cost. They
+  # run in parallel with `build`, `test`, and `e2e-web` (separate jobs below).
+  lint:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      # GitHub Actions fallback for the turbo local cache. The remote cache
+      # (TURBO_TOKEN/TURBO_TEAM) is the primary accelerator, but it is absent on
+      # forks and PRs from contributors without the secret — without this, those
+      # runs rebuild everything cold. Keyed on the lockfile + workflow so a deps
+      # or pipeline change invalidates it; the loose `restore-keys` lets an older
+      # cache seed a partial hit.
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-lint-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-lint-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-lint-
+
+      # Fail fast on orphan stale react-native dirs that shadow @react-native/codegen
+      # and break the mobile build (hoisted-linker residue). See scripts/check-no-orphan-rn.mjs.
+      - name: No orphan react-native dirs
+        run: pnpm check:no-orphan-rn
+
+      - name: Lint
+        run: pnpm turbo run lint --cache-dir=.turbo
+
+      - name: Type-check
+        run: pnpm turbo run check-types --cache-dir=.turbo
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-build-
+
+      - name: Build
+        run: pnpm turbo run build --cache-dir=.turbo
+
+      # Enforce SDK version alignment for the Expo app (ADR 0002 / 0005). Lives on
+      # the build job — it validates the same dependency surface a build consumes.
+      - name: Expo dependency check
+        run: pnpm --filter mobile exec expo install --check
+
+  test:
+    name: Test (unit + component)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-test-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-test-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-test-
+
+      # `--coverage` makes the suites emit v8 coverage (ADR 0025); the `test`
+      # turbo task declares `coverage/**` as an output, so the report caches with
+      # the run. Thresholds (when configured in @repo/vitest-config) fail here.
+      - name: Test
+        run: pnpm turbo run test --cache-dir=.turbo -- --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: "**/coverage/**"
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Dead-code + unused-dep gate. False positives live in knip.json with a comment.
+  # Independent of the build graph, so it runs as its own parallel job.
+  knip:
+    name: Knip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: Knip
+        run: pnpm knip
+
+  # Dependency audit GATE (ADR 0044; upgrades the Phase-0 advisory job):
+  # high-severity advisories against PRODUCTION dependencies fail the build.
+  # Allowlist mechanism for advisories with no upstream fix yet:
+  # `auditConfig.ignoreCves` / `auditConfig.ignoreGhsas` in pnpm-workspace.yaml
+  # (where the repo's pnpm settings live) — every entry carries a comment with
+  # the advisory link, why it can't be fixed yet, and a revisit date. Fixable
+  # advisories are never allowlisted: bump the dependency (Renovate usually has
+  # the PR open already). Dev-only advisories stay out of this gate by `--prod`.
+  audit:
+    name: Dependency audit (gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: pnpm audit (prod, high+)
+        run: |
+          if ! pnpm audit --audit-level=high --prod > audit.out 2>&1; then
+            cat audit.out
+            {
+              echo "## ❌ pnpm audit — high-severity production advisories"
+              echo
+              echo '```'
+              tail -n 50 audit.out
+              echo '```'
+              echo
+              echo "Fix: bump the dependency (check Renovate's open PRs first)."
+              echo "No fix released yet? Allowlist the advisory via \`auditConfig.ignoreCves\`"
+              echo "in \`pnpm-workspace.yaml\` with a comment + revisit date (ADR 0044)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat audit.out
+          echo "No high-severity production advisories." >> "$GITHUB_STEP_SUMMARY"
+
+  # Web E2E (Playwright, mock mode — ADR 0025). A dedicated job kept off the
+  # cached `turbo test` task: browser binaries + a dev server make it
+  # non-deterministic to cache, and isolating it keeps the fast jobs fast.
+  # Runs in parallel with the jobs above.
+  e2e-web:
+    name: Web E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      # Cache the Playwright browser binaries keyed on the resolved version, so a
+      # green run skips the multi-hundred-MB download.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(pnpm --filter web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # Cache miss: install the browser + its OS deps. Cache hit: the binaries are
+      # restored, so install only the OS deps.
+      - name: Install Playwright browser + deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Install Playwright OS deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter web exec playwright install-deps chromium
+
+      # The webServer in playwright.config.ts boots `next dev` with mock mode on
+      # (NEXT_PUBLIC_ENABLE_MSW=true, NEXT_PUBLIC_MSW_MOCKS=auth,users) — hermetic,
+      # no real backend (ADR 0018).
+      - name: Run web E2E
+        run: pnpm --filter web test:e2e
+
+      - name: Upload Playwright report on failure
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  # Secret scan (ADR 0044). On pull_request/push the action scans the incoming
+  # commit range (every commit is scanned before it can reach main); a
+  # workflow_dispatch run scans the FULL history — `fetch-depth: 0` provides it
+  # either way. Config + allowlist live in `.gitleaks.toml` at the repo root
+  # (auto-detected; the lefthook pre-commit hook uses the same file). Allowlist
+  # policy: test-fixture PATHS only — a real leak gets rotated, never ignored.
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Required for ORGANIZATION-owned repos only (free key from
+          # gitleaks.io); personal-account repos run without it.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # Build the backend image (docker/api.Dockerfile — ADR 0031: one image, three
+  # commands) to prove the turbo-prune + pnpm-deploy Dockerfile stays green.
+  # No push — CI validates the contract, releases are a deploy concern. Layers
+  # land in the GitHub Actions cache (mode=max: ALL stages, including the heavy
+  # pnpm-install layer) so the trivy job below and the next CI run rebuild warm.
+  docker-build:
+    name: Docker build (api image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build api image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          tags: fullstack-skeleton-api:ci
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Vulnerability scan of the BUILT image (ADR 0044): fails on CRITICAL/HIGH
+  # findings that have a fix available (`ignore-unfixed` — unfixed alpine/node
+  # CVEs would otherwise hold the build hostage with nothing actionable).
+  # The image is rebuilt from the GHA layer cache `docker-build` just primed
+  # (seconds, cache-only) with `load: true` so the local daemon can scan it.
+  # Allowlist mechanism: a `.trivyignore` file at the repo root (one CVE id per
+  # line, each with a comment + revisit date) — intentionally absent until the
+  # first justified entry.
+  trivy:
+    name: Trivy (image scan)
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Rebuild api image from cache
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          tags: fullstack-skeleton-api:ci
+          push: false
+          load: true
+          cache-from: type=gha
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: fullstack-skeleton-api:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  # Backend integration suite (spec §14): Testcontainers boots real Postgres +
+  # Redis per suite — the runner's Docker daemon is all it needs; no compose
+  # stack, no service containers, the suite manages its own lifecycles.
+  # Workspace deps (@repo/db et al.) are BUILT packages, so build the api graph
+  # first (turbo-cached).
+  integration:
+    name: Integration tests (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-integration-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-integration-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-integration-
+
+      - name: Build api graph
+        run: pnpm turbo run build --filter=api... --cache-dir=.turbo
+
+      - name: Integration tests
+        run: pnpm --filter api test:integration
+
+  # Real-stack smoke E2E (spec §14, "the v1 gap"): ONE job composes the real
+  # local stack and drives the few flows whose risk lives in the GLUE —
+  # proxy ↔ cookies ↔ Better Auth ↔ RSC fetch ↔ CSRF — which mock-mode E2E
+  # (ADR 0025) structurally cannot see. The broad Playwright suite stays
+  # mock-mode; this job runs only the dedicated smoke config.
+  # Ports are the compose DEFAULTS: docker/.env (the local port-override file)
+  # is gitignored, so CI gets 5432/6379/8000/9000/1025 — exactly what the api
+  # and web env defaults expect.
+  smoke-e2e:
+    name: Smoke E2E (real stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./tooling/github/setup
+
+      - name: Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-smoke-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-smoke-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-${{ runner.os }}-smoke-
+
+      # Same Playwright browser-cache pattern as e2e-web above.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(pnpm --filter web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright browser + deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Install Playwright OS deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter web exec playwright install-deps chromium
+
+      # `--wait` blocks on the long-running services' healthchecks. The
+      # one-shot minio-init is excluded — compose's `--wait` treats ANY exited
+      # container as a failure even at exit 0 (verified on compose v2.40) — and
+      # runs as its own step instead (creates the default bucket, exits 0).
+      - name: Start infrastructure (compose, default ports)
+        run: |
+          docker compose -f docker/compose.yaml up -d --wait postgres redis centrifugo minio mailpit
+          docker compose -f docker/compose.yaml run --rm minio-init
+
+      - name: Build api
+        run: pnpm turbo run build --filter=api... --cache-dir=.turbo
+
+      # One-shot release-phase deployable (ADR 0038) — schema in place before
+      # the api boots, same order production uses.
+      - name: Run migrations
+        run: pnpm --filter api migrate
+
+      # Background processes started in a step keep running for the rest of the
+      # job. Dev-default env throughout (NODE_ENV=development → http cookies
+      # without the __Host- prefix, matching a localhost browser context).
+      - name: Start api + worker
+        run: |
+          pnpm --filter api start > api.log 2>&1 &
+          pnpm --filter api start:worker > worker.log 2>&1 &
+          timeout 90 bash -c 'until curl -fsS http://localhost:4000/health/ready > /dev/null 2>&1; do sleep 2; done'
+
+      # The smoke config's own `webServer` boots `next dev` (mocks pinned OFF,
+      # `reuseExistingServer: false` — starting web by hand here would collide
+      # on :3000). API_URL is the same-origin proxy target: next.config.js
+      # rewrites /api/auth/* and /api/v1/* to it, so the browser talks only to
+      # :3000 and the session cookie stays first-party.
+      - name: Run smoke E2E
+        env:
+          API_URL: http://localhost:4000
+        run: pnpm --filter web exec playwright test --config playwright.smoke.config.ts
+
+      - name: Upload logs + report on failure
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: smoke-e2e-artifacts
+          path: |
+            api.log
+            worker.log
+            apps/web/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: ${{ always() }}
+        run: docker compose -f docker/compose.yaml down -v
+
+  # Mobile E2E (Maestro via EAS Workflows) is deferred to migration item 6 (ADR 0005).

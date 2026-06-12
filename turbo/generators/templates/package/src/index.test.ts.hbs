@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+
+{{#if internalDeps.length}}
+import { {{camelCase name}}Deps } from "./index";
+
+describe("@repo/{{kebabCase name}}", () => {
+  it("exposes its declared internal dependencies", () => {
+    expect(Object.keys({{camelCase name}}Deps)).toEqual([
+{{#each internalDeps}}
+      "{{camelCase this}}",
+{{/each}}
+    ]);
+  });
+});
+{{else}}
+import { {{camelCase name}}PackageName } from "./index";
+
+describe("@repo/{{kebabCase name}}", () => {
+  it("exposes its package name", () => {
+    expect({{camelCase name}}PackageName).toBe("@repo/{{kebabCase name}}");
+  });
+});
+{{/if}}
