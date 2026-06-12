@@ -86,6 +86,9 @@
     },
     "packages/utils": {},
     "packages/validators": {},
+    "packages/model": {},
+    "packages/engine": {},
+    "packages/fixtures": {},
     // @gen:workspaces — `pnpm gen package` injects the new workspace entry here.
     "tooling/eslint": {
       // Referenced by name in base.js `import/resolver: { typescript: {} }`

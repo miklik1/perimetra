@@ -2,9 +2,31 @@
 
 Canonical agent instructions for this repo (tool-neutral despite the
 filename; `AGENTS.md` points here). Read this before changing anything.
-TypeScript fullstack monorepo **template**: NestJS 11 (Fastify) backend +
-Next.js 16 web + Expo SDK 56 mobile. Conventions are the product — when in
-doubt, copy the reference module, don't invent.
+TypeScript fullstack monorepo: NestJS 11 (Fastify) backend + Next.js 16 web +
+Expo SDK 56 mobile, stamped from `fullstack-skeleton` (ADR 0042; `skeleton`
+git remote = upstream channel A). Skeleton conventions are the product — when
+in doubt, copy the reference module, don't invent.
+
+## What this repo is — the Perimetra enterprise rebuild
+
+A vertical CPQ where **product knowledge is data, not code**: a generic engine
+interprets immutable, vendor-authored **Product Model Releases**. The founding
+contract is **`docs/rebuild/CORE_SPEC.md`** (read it first for anything touching
+the core); cross-cutting strategy/decisions live in the vault
+(`10 Projects/Perimetra/`), not here. The rebuild core:
+
+| Path                | What it is                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/model`    | Schema types + the **Expr DSL** (parse/evaluate). Pure, zero internal deps. The published contract.                                            |
+| `packages/engine`   | Generic interpreter: cascade → constraints (swappable evaluator) → derivation → emit. **Pure** (no I/O — the calc-engine discipline, widened). |
+| `packages/fixtures` | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine).                                        |
+
+Build order is CORE_SPEC §10. **Slice 1 done (2026-06-12):** `sliding-gate@1`
+authored as data, delta-0 against the MVP's Excel goldens (I1/I2). Next: catalog
+
+- role resolution + a second material (step 2). Invariants I1–I11 (CORE_SPEC §1)
+  are the bar every PR is judged against; the Expr numeric-domain choice is
+  ADR 0045.
 
 ## Package map
 

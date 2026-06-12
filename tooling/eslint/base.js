@@ -52,6 +52,9 @@ export const baseConfig = [
         { type: "telemetry", mode: "full", pattern: "packages/telemetry/**" },
         { type: "flags", mode: "full", pattern: "packages/flags/**" },
         { type: "realtime", mode: "full", pattern: "packages/realtime/**" },
+        { type: "model", mode: "full", pattern: "packages/model/**" },
+        { type: "engine", mode: "full", pattern: "packages/engine/**" },
+        { type: "fixtures", mode: "full", pattern: "packages/fixtures/**" },
         // @gen:boundaries-elements — `pnpm gen package` injects new elements here.
       ],
       "import/resolver": { typescript: {} },
@@ -177,6 +180,9 @@ export const baseConfig = [
                 "telemetry",
                 "flags",
                 "realtime",
+                "model",
+                "engine",
+                "fixtures",
                 // @gen:app-allow — `pnpm gen package` adds the new package type here.
               ].map((type) => ({ to: { type } })),
             },
@@ -261,6 +267,20 @@ export const baseConfig = [
             { from: { type: "utils" }, allow: [{ to: { type: "utils" } }] },
             { from: { type: "config" }, allow: [{ to: { type: "config" } }] },
             { from: { type: "store" }, allow: [{ to: { type: "store" } }] },
+            {
+              from: { type: "model" },
+              allow: ["model"].map((type) => ({ to: { type } })),
+            },
+            // The rebuild core (CORE_SPEC §9): model is the zero-dep contract;
+            // engine interprets it; fixtures exercises both (delta-0 harness).
+            {
+              from: { type: "engine" },
+              allow: ["engine", "model"].map((type) => ({ to: { type } })),
+            },
+            {
+              from: { type: "fixtures" },
+              allow: ["fixtures", "model", "engine"].map((type) => ({ to: { type } })),
+            },
             // @gen:boundaries-rules — `pnpm gen package` injects the new package's dependency rule here.
           ],
         },
