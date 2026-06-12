@@ -57,6 +57,14 @@ exists, deliberately not wired — by design).
 | [0042](0042-template-lifecycle.md)                         | Template lifecycle: stamp-out script, two-channel updates, @repo scope stays                        | Accepted | Implemented                                     |
 | [0044](0044-security-baseline-supply-chain.md)             | Security baseline + supply chain: hardening defaults, gitleaks/audit/Trivy CI gates, ASVS L2 map    | Accepted | Implemented (gates live in CI)                  |
 
+## Project-owned ADRs (Perimetra rebuild, ≥0045 — never touched by skeleton merges)
+
+| ADR                                         | Decision                                                                                             | Status   | Reality     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ----------- |
+| [0045](0045-expr-numeric-domain-ieee754.md) | Expr DSL evaluates in IEEE-754 (delta-0 requires the MVP's arithmetic); I10 money hardens in step 3  | Accepted | Implemented |
+| [0046](0046-catalog-role-resolution.md)     | Catalog = versioned engine argument; {role, section, material} resolution is the ONE component mech  | Accepted | Implemented |
+| [0047](0047-error-taxonomy.md)              | Error taxonomy: author-time throws (validateRelease publish gate), config-time typed Issues + params | Accepted | Implemented |
+
 See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for the stack overview and
 the consolidated constraints cheat-sheet.
 

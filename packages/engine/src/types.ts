@@ -29,11 +29,34 @@ export interface AssemblyGraph {
   parts: Part[];
 }
 
-/** A surfaced constraint outcome (CORE_SPEC §3). `key` is the i18n message key. */
+/**
+ * A surfaced config-time problem (CORE_SPEC §3 constraints, plus the input
+ * gate and catalog resolution). `key` is the i18n message key; `params` is the
+ * interpolation payload. The taxonomy split: AUTHOR-time errors (bad release /
+ * catalog data) throw, CONFIG-time errors (user-shaped input) become Issues —
+ * never raw throws on user input.
+ */
 export interface Issue {
   key: string;
   severity: "error" | "warn";
   scope: "instance" | "connection";
+  params?: Record<string, Value>;
+}
+
+/** Carries a config-time Issue out of a throwing code path; the pipeline
+ *  converts it into an invalid result, never lets it escape to the caller. */
+export class ConfigError extends Error {
+  constructor(readonly issue: Issue) {
+    super(`Config error: ${issue.key}`);
+    this.name = "ConfigError";
+  }
+}
+
+/** What a derivation ran against (I3) — quotes snapshot these to be
+ *  re-derivable forever. Grows priceTableVersion + overrideIds in step 3. */
+export interface Stamps {
+  releaseId: string;
+  catalogVersion: number;
 }
 
 export interface CategoryTotals {
@@ -50,6 +73,7 @@ export interface DerivationResult {
   parts: Part[];
   totals: CategoryTotals;
   issues: Issue[];
+  stamps: Stamps;
 }
 
 /**

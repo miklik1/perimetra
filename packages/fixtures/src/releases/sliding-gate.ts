@@ -11,8 +11,14 @@
  *   railLength  = opening × (2-panel 3D ? 1.4 : 1.333)
  *   hProfile    = postA − 115 ; fillCount = floor(hProfile / min_spacing)
  *
- * Single-material (aluminum) and option-carried fill attrs are the slice-1
- * shape; role-based multi-material resolution is step 2.
+ * Step 2: every part resolves through the catalog via {role, section, material}
+ * (CORE_SPEC §2) — the slice-1 componentCode bridge is gone. `frame_material`
+ * switches the whole frame+fill between aluminum and steel against the same
+ * recipe (multi-material), and the ENZO rail is two real SKUs priced from the
+ * price table, not a hardcoded CZK ternary (price truth).
+ *
+ * Range/enum input rules live on parameter `domain`s — the engine's input gate
+ * (I7) enforces them; constraints carry only the judgment calls (warn limits).
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -49,6 +55,13 @@ export const slidingGateV1: ProductModelRelease = {
     },
     { key: "fill_type_id", type: "select", adjustability: "user" },
     {
+      key: "frame_material",
+      type: "select",
+      domain: { kind: "enum", values: ["alu", "steel"] },
+      default: "alu",
+      adjustability: "user",
+    },
+    {
       key: "opening_direction",
       type: "select",
       domain: { kind: "enum", values: ["left", "right"] },
@@ -61,7 +74,7 @@ export const slidingGateV1: ProductModelRelease = {
       type: "int",
       // Estimator-editable (CORE_SPEC §3); defaults to the price-table multiplier
       // as a per-size estimate when the estimator leaves it blank (MVP rule).
-      default: expr("price.manufacturing_multiplier"),
+      defaultExpr: expr("price.manufacturing_multiplier"),
       adjustability: "tenant",
     },
   ],
@@ -78,7 +91,7 @@ export const slidingGateV1: ProductModelRelease = {
             profile_mm: 100,
             dimension_type: "2D",
             min_spacing_mm: 101,
-            material_component_code: "planka_100",
+            section_code: "planka_100",
           },
         },
         {
@@ -88,7 +101,7 @@ export const slidingGateV1: ProductModelRelease = {
             profile_mm: 113,
             dimension_type: "3D",
             min_spacing_mm: 90,
-            material_component_code: "lamela_113",
+            section_code: "lamela_113",
           },
         },
       ],
@@ -96,34 +109,7 @@ export const slidingGateV1: ProductModelRelease = {
   ],
 
   constraints: [
-    {
-      key: "sliding.opening_width.range",
-      kind: "range",
-      expr: expr("opening_width_mm >= 2000 && opening_width_mm <= 8000"),
-      severity: "error",
-      scope: "instance",
-    },
-    {
-      key: "sliding.clear_height.range",
-      kind: "range",
-      expr: expr("clear_height_mm >= 800 && clear_height_mm <= 2500"),
-      severity: "error",
-      scope: "instance",
-    },
-    {
-      key: "sliding.suspension_angle.allowed",
-      kind: "expr",
-      expr: expr("suspension_angle == 35 || suspension_angle == 40 || suspension_angle == 45"),
-      severity: "error",
-      scope: "instance",
-    },
-    {
-      key: "sliding.panel_count.allowed",
-      kind: "expr",
-      expr: expr("panel_count == 2 || panel_count == 3"),
-      severity: "error",
-      scope: "instance",
-    },
+    // Judgment limits only — hard input ranges are parameter domains (I7 gate).
     {
       key: "sliding.opening_width.wide",
       kind: "range",
@@ -170,7 +156,11 @@ export const slidingGateV1: ProductModelRelease = {
       // --- MATERIAL ---
       {
         path: "frame.lprofile",
-        componentCode: "sloupek_l_50",
+        resolve: {
+          role: "frame.l_profile",
+          section: expr('"L50x50"'),
+          material: expr("frame_material"),
+        },
         name: "Sloupek L 50×50",
         bom: {
           unit: "meter",
@@ -181,7 +171,11 @@ export const slidingGateV1: ProductModelRelease = {
       },
       {
         path: "frame.tpost",
-        componentCode: "sloupek_t_50",
+        resolve: {
+          role: "frame.t_post",
+          section: expr('"T50x50"'),
+          material: expr("frame_material"),
+        },
         name: "Sloupek T 50×50",
         when: expr("panel_count > 1"),
         bom: {
@@ -193,7 +187,11 @@ export const slidingGateV1: ProductModelRelease = {
       },
       {
         path: "frame.hprofile",
-        componentCode: "h_profile_50",
+        resolve: {
+          role: "frame.h_profile",
+          section: expr('"h50"'),
+          material: expr("frame_material"),
+        },
         name: "h-profil 50",
         bom: {
           unit: "meter",
@@ -204,8 +202,11 @@ export const slidingGateV1: ProductModelRelease = {
       },
       {
         path: "fill.material",
-        componentCode: "fill",
-        componentCodeExpr: expr("fill.material_component_code"),
+        resolve: {
+          role: "fill",
+          section: expr("fill.section_code"),
+          material: expr("frame_material"),
+        },
         name: "Výplň",
         bom: {
           unit: "meter",
@@ -216,14 +217,14 @@ export const slidingGateV1: ProductModelRelease = {
       },
       {
         path: "rail.top_guide_beam",
-        componentCode: "top_guide_beam",
+        resolve: { role: "rail.top_guide" },
         name: "Nosník V-horní vedení",
         // Literal 6.5 m (MVP Excel T23, not rounded).
         bom: { unit: "meter", quantity: expr("6.5"), lengthMm: expr("6500"), category: "material" },
       },
       {
         path: "frame.tower_post",
-        componentCode: "tower_post",
+        resolve: { role: "frame.tower_post" },
         name: "Tower sloupek",
         bom: { unit: "piece", quantity: expr("1"), category: "material" },
       },
@@ -231,62 +232,67 @@ export const slidingGateV1: ProductModelRelease = {
       // --- ACCESSORIES ---
       {
         path: "drive.gear_rack",
-        componentCode: "gear_rack",
+        resolve: { role: "drive.gear_rack" },
         name: "Hřeben V6",
         bom: { unit: "meter", quantity: expr("railMeters"), category: "accessory" },
       },
       {
         path: "frame.diagonal_tensioner",
-        componentCode: "diagonal_tensioner",
+        resolve: { role: "frame.tensioner" },
         name: "Napínák",
         bom: { unit: "piece", quantity: expr("1"), category: "accessory" },
       },
+      // The ENZO rail set: the MVP's length-thresholded price ternary (U28) is
+      // now two real SKUs — the threshold picks WHICH set, the price table
+      // says what each costs (price truth, ENZO bypass class closed).
       {
-        path: "rail.set_enzo",
-        componentCode: "rail_set_enzo",
+        path: "rail.set[standard]",
+        resolve: { role: "rail.set.standard" },
         name: "Sada kolejnice ENZO",
-        // Length-thresholded fixed price (MVP U28).
-        bom: {
-          unit: "set",
-          quantity: expr("1"),
-          totalPrice: expr("if(railLength > 6700, 24500, 11650) + 1000"),
-          category: "accessory",
-        },
+        when: expr("railLength <= 6700"),
+        bom: { unit: "set", quantity: expr("1"), category: "accessory" },
+      },
+      {
+        path: "rail.set[long]",
+        resolve: { role: "rail.set.long" },
+        name: "Sada kolejnice ENZO (dlouhá)",
+        when: expr("railLength > 6700"),
+        bom: { unit: "set", quantity: expr("1"), category: "accessory" },
       },
       {
         path: "frame.kit",
-        componentCode: "frame_kit",
+        resolve: { role: "frame.kit" },
         name: "Sada k rámu",
         bom: { unit: "set", quantity: expr("1"), category: "accessory" },
       },
       {
         path: "drive.motor",
-        componentCode: "motor",
+        resolve: { role: "drive.motor" },
         name: "Pohon SOMFY ELIXO io",
         when: expr("include_motor"),
         bom: { unit: "piece", quantity: expr("1"), category: "accessory" },
       },
       {
         path: "fill.connectors",
-        componentCode: "fill_connector",
+        resolve: { role: "fill.connector" },
         name: "Spojovák výplně",
         bom: { unit: "piece", quantity: expr("totalPieces * 4"), category: "accessory" },
       },
       {
         path: "drive.gsm_module",
-        componentCode: "gsm_module",
+        resolve: { role: "drive.gsm" },
         name: "park GSM",
         bom: { unit: "piece", quantity: expr("1"), category: "accessory" },
       },
       {
         path: "drive.rack_mount",
-        componentCode: "rack_mount",
+        resolve: { role: "drive.rack_mount" },
         name: "Hřeben V6 (uchycení)",
         bom: { unit: "meter", quantity: expr("railMeters"), category: "accessory" },
       },
       {
         path: "drive.guide_roller",
-        componentCode: "guide_roller",
+        resolve: { role: "drive.guide_roller" },
         name: "Kladka JRS 30",
         bom: { unit: "piece", quantity: expr("1"), category: "accessory" },
       },
@@ -294,7 +300,7 @@ export const slidingGateV1: ProductModelRelease = {
       // --- MANUFACTURING ---
       {
         path: "labor.manufacturing",
-        componentCode: "manufacturing",
+        resolve: { role: "labor.manufacturing" },
         name: "Výroba",
         bom: {
           unit: "hour",
@@ -308,7 +314,7 @@ export const slidingGateV1: ProductModelRelease = {
       // --- INSTALLATION ---
       {
         path: "labor.installation",
-        componentCode: "installation",
+        resolve: { role: "labor.installation" },
         name: "Montáž",
         when: expr("include_installation"),
         bom: {

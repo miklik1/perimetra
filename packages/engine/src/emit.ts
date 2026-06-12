@@ -8,8 +8,8 @@ import type { CategoryTotals, Part, PriceTable } from "./types";
 
 /** Raised when a part has no resolvable price — never default to 0 (I5). */
 export class PriceError extends Error {
-  constructor(componentCode: string) {
-    super(`No price for component "${componentCode}" (I5: no silent zeros)`);
+  constructor(message: string) {
+    super(`${message} (I5: no silent zeros)`);
     this.name = "PriceError";
   }
 }
@@ -25,7 +25,9 @@ export function priceParts(parts: Part[], prices: PriceTable): Part[] {
     if (part.totalPrice !== undefined) return part;
 
     const unitPrice = part.pricePerUnit ?? prices.components[part.componentCode];
-    if (unitPrice === undefined) throw new PriceError(part.componentCode);
+    if (unitPrice === undefined) {
+      throw new PriceError(`No price for component "${part.componentCode}"`);
+    }
 
     return {
       ...part,
@@ -44,9 +46,13 @@ export function sumByCategory(parts: Part[]): CategoryTotals {
     total: 0,
   };
   for (const part of parts) {
-    const cost = part.totalPrice ?? 0;
-    totals[part.category] += cost;
-    totals.total += cost;
+    // Summing an unpriced part would be a silent zero — only priced parts
+    // (post-priceParts) may be aggregated (I5).
+    if (part.totalPrice === undefined) {
+      throw new PriceError(`Unpriced part "${part.path}" in aggregation`);
+    }
+    totals[part.category] += part.totalPrice;
+    totals.total += part.totalPrice;
   }
   return totals;
 }

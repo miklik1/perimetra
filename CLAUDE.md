@@ -21,12 +21,12 @@ the core); cross-cutting strategy/decisions live in the vault
 | `packages/engine`   | Generic interpreter: cascade → constraints (swappable evaluator) → derivation → emit. **Pure** (no I/O — the calc-engine discipline, widened). |
 | `packages/fixtures` | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine).                                        |
 
-Build order is CORE_SPEC §10. **Slice 1 done (2026-06-12):** `sliding-gate@1`
-authored as data, delta-0 against the MVP's Excel goldens (I1/I2). Next: catalog
-
-- role resolution + a second material (step 2). Invariants I1–I11 (CORE_SPEC §1)
-  are the bar every PR is judged against; the Expr numeric-domain choice is
-  ADR 0045.
+Build order is CORE_SPEC §10. **Step 2 done (2026-06-12):** catalog@1 +
+role-based resolution (`{role, section, material}` is the ONE component
+mechanism — ADR 0046), second material (steel) delta-0 on the same recipe,
+input gate (I7) + author/config error taxonomy (ADR 0047). Next: cascade +
+overrides + exception ledger (step 3). Invariants I1–I11 (CORE_SPEC §1) are
+the bar every PR is judged against; the Expr numeric-domain choice is ADR 0045.
 
 ## Package map
 

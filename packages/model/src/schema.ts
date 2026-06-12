@@ -47,9 +47,12 @@ export interface ParameterDef {
   key: string;
   type: ParamType;
   domain?: ParamDomain;
-  /** Resolved default — a literal or an expression (may reference other layers,
-   *  e.g. a price-table value injected as `price.*`). */
-  default?: ExprString | number | string | boolean;
+  /** Literal default. Mutually exclusive with {@link defaultExpr} — a string
+   *  literal and a serialized expression are indistinguishable at runtime
+   *  (releases are stored data), so the schema, not a brand, discriminates. */
+  default?: number | string | boolean;
+  /** Expression default (may reference earlier parameters and `price.*`). */
+  defaultExpr?: ExprString;
   adjustability: Adjustability;
   deviation?: DeviationSpec;
   /** UI shows the parameter only when this evaluates true (generated UI). */
@@ -106,24 +109,33 @@ export interface BomRule {
 }
 
 /**
- * A part rule generates 1..n parts (CORE_SPEC §3). Slice 1 names the component
- * code directly (single-material; role-based resolution against the catalog is
- * §2 / step 2). `geometry` (length/cuts/transform) is reserved for the
- * renderers (step 5); slice 1 proves BOM + price.
+ * The catalog resolution request (CORE_SPEC §2) — THE one mechanism by which a
+ * recipe names physical reality. A rule never names a component code; it
+ * requests a semantic role, optionally constrained by section and material
+ * (both expressions, so the same model yields aluminum or steel by switching a
+ * material parameter). Resolution failure is an I5 hard error carrying the
+ * missing (role, section, material) triple — which doubles as the vendor's
+ * "what to add to the catalog" worklist.
+ */
+export interface ResolveSpec {
+  role: string;
+  /** Must evaluate to a SectionProfile.code (string). */
+  section?: ExprString;
+  /** Must evaluate to a Material.code (string). */
+  material?: ExprString;
+}
+
+/**
+ * A part rule generates 1..n parts (CORE_SPEC §3). The component is resolved
+ * from the catalog via {@link ResolveSpec} — never named directly (the slice-1
+ * `componentCode`/`componentCodeExpr` bridge is dead; one resolution mechanism
+ * only). `geometry` (length/cuts/transform) is reserved for the renderers
+ * (step 5).
  */
 export interface PartRule {
   /** Stable id root (I9) — survives re-derivation so overrides/annotations stick. */
   path: string;
-  componentCode: string;
-  /**
-   * When set, the component code is resolved at derive time from this
-   * expression (it must evaluate to a string), overriding {@link componentCode}.
-   * Slice-1 bridge for option-driven components (e.g. the chosen fill's
-   * `fill.material_component_code`); superseded by role-based catalog
-   * resolution (CORE_SPEC §2 / step 2), where the recipe requests
-   * `{role, section, material}` instead of naming a code.
-   */
-  componentCodeExpr?: ExprString;
+  resolve: ResolveSpec;
   name: string;
   /** Conditional inclusion (e.g. only when `include_motor`). */
   when?: ExprString;

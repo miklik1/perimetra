@@ -334,8 +334,14 @@ function evalBin(ast: { op: BinOp; a: Ast; b: Ast }, scope: Scope): Value {
   const a = evaluate(ast.a, scope);
   const b = evaluate(ast.b, scope);
 
-  if (ast.op === "==") return a === b;
-  if (ast.op === "!=") return a !== b;
+  // Equality across types is an authoring bug (e.g. comparing a select's
+  // string id to a number), never a meaningful "false" — surface it (I5).
+  if (ast.op === "==" || ast.op === "!=") {
+    if (typeof a !== typeof b) {
+      throw new ExprError(`Type mismatch: ${typeof a} ${ast.op} ${typeof b}`);
+    }
+    return ast.op === "==" ? a === b : a !== b;
+  }
 
   // Remaining operators are numeric.
   const x = asNumber(a, `left of ${ast.op}`);
@@ -361,6 +367,55 @@ function evalBin(ast: { op: BinOp; a: Ast; b: Ast }, scope: Scope): Value {
     case "%":
       return x % y;
   }
+}
+
+// --- Static analysis (the validateRelease publish gate builds on these) ------
+
+/** Whether `name` is an evaluable function (whitelist + the lazy forms). */
+export function isKnownFunction(name: string): boolean {
+  return name in FUNCTIONS || LAZY.has(name);
+}
+
+/** Every reference path mentioned anywhere in the expression. */
+export function collectRefs(ast: Ast, into: Set<string> = new Set()): Set<string> {
+  switch (ast.k) {
+    case "ref":
+      into.add(ast.path);
+      break;
+    case "unary":
+      collectRefs(ast.x, into);
+      break;
+    case "bin":
+      collectRefs(ast.a, into);
+      collectRefs(ast.b, into);
+      break;
+    case "call":
+      for (const arg of ast.args) collectRefs(arg, into);
+      break;
+    default:
+      break;
+  }
+  return into;
+}
+
+/** Every function name called anywhere in the expression. */
+export function collectCalls(ast: Ast, into: Set<string> = new Set()): Set<string> {
+  switch (ast.k) {
+    case "unary":
+      collectCalls(ast.x, into);
+      break;
+    case "bin":
+      collectCalls(ast.a, into);
+      collectCalls(ast.b, into);
+      break;
+    case "call":
+      into.add(ast.fn);
+      for (const arg of ast.args) collectCalls(arg, into);
+      break;
+    default:
+      break;
+  }
+  return into;
 }
 
 /** Parse + evaluate in one step (convenience; the engine caches parsed ASTs). */

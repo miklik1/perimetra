@@ -3,5 +3,6 @@
  * and the delta-0 proving harness. Test-only consumer of @repo/model +
  * @repo/engine; never imported by app or runtime code.
  */
+export { catalogV1 } from "./catalog/catalog-v1";
 export { slidingGateV1 } from "./releases/sliding-gate";
 export * from "./golden/sliding-gate";

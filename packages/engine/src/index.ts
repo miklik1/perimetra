@@ -5,6 +5,7 @@
 export * from "./types";
 export * from "./scope";
 export * from "./constraints";
+export * from "./resolve";
 export * from "./derive";
 export * from "./emit";
 export * from "./pipeline";
