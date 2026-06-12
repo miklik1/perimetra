@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { expr, type ProductModelRelease } from "@repo/model";
 
-import { forwardChecker } from "./constraints";
+import { forwardChecker, type ConstraintEvaluator } from "./constraints";
 import { PriceError, priceParts, sumByCategory } from "./emit";
 import { deriveInstance } from "./pipeline";
 import { buildScope } from "./scope";
-import type { ConstraintEvaluator, Part, PriceTable } from "./types";
+import type { Part, PriceTable } from "./types";
 
 /** A minimal release exercising every engine seam in isolation. */
 const release: ProductModelRelease = {
