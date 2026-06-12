@@ -40,8 +40,13 @@ describe("sliding-gate@1 — delta-0 vs MVP goldens (I1/I2)", () => {
         expect(result.issues.filter((i) => i.severity === "error")).toHaveLength(0);
       });
 
-      it("stamps the release and catalog versions (I3)", () => {
-        expect(result.stamps).toEqual({ releaseId: "sliding-gate@1", catalogVersion: 1 });
+      it("stamps the release, catalog, and price-table versions (I3)", () => {
+        expect(result.stamps).toEqual({
+          releaseId: "sliding-gate@1",
+          catalogVersion: 1,
+          priceTableVersion: 1,
+          overrideIds: [],
+        });
       });
 
       it("dimensions match the MVP chain", () => {
@@ -57,6 +62,12 @@ describe("sliding-gate@1 — delta-0 vs MVP goldens (I1/I2)", () => {
 
       it("grand total equals the golden exactly (delta-0)", () => {
         expect(result.totals.total).toBeCloseTo(golden.expectedTotalPrice, 2);
+      });
+
+      it("money boundary is the delta-0 value as a decimal string (I10)", () => {
+        // String-exact: the boundary representation IS the golden, not a
+        // re-rounded cousin of it (ADR 0045/0048).
+        expect(result.money.total).toBe(String(golden.expectedTotalPrice));
       });
 
       it("is deterministic — re-derivation is byte-identical (I1)", () => {

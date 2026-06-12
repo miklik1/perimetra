@@ -34,12 +34,27 @@ export const slidingGateV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 2000, max: 8000 },
       adjustability: "user",
+      // The "but not there" knowledge (CORE_SPEC §3): a quote may deviate
+      // outside the catalog range with a recorded reason, never past bounds.
+      // Placeholder envelope — real values are a fabricator-extraction item.
+      deviation: {
+        mode: "warn",
+        bounds: { min: expr("1800"), max: expr("9000") },
+        note: "outside catalog range — track/cantilever stability unverified",
+      },
     },
     {
       key: "clear_height_mm",
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2500 },
       adjustability: "user",
+      // Hard structural limit: the dimension chain (frameHeight − 40 …) and
+      // wind load make this non-negotiable. Placeholder envelope, as above.
+      deviation: {
+        mode: "hard",
+        bounds: { min: expr("600"), max: expr("2600") },
+        note: "frame dimension chain and wind load break outside this envelope",
+      },
     },
     {
       key: "suspension_angle",

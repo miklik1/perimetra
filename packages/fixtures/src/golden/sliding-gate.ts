@@ -27,6 +27,7 @@ export interface SlidingGoldenCase {
 }
 
 const sharedPrices = {
+  version: 1,
   manufacturing: { rate: 790, multiplier: 16 },
   installation: 10500,
 };

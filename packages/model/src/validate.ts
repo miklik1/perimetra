@@ -129,6 +129,15 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
       parseInto(p.deviation.bounds.min, `parameters[${p.key}].deviation.min`, uiKnown);
       parseInto(p.deviation.bounds.max, `parameters[${p.key}].deviation.max`, uiKnown);
     }
+    if (p.deviation?.mode === "hard" && p.deviation.bounds === undefined) {
+      // "hard" means the bounds ARE the structural limit — without them the
+      // mode is unenforceable and the authored knowledge is incomplete.
+      defects.push({
+        code: "deviation.unbounded",
+        where: `parameters[${p.key}].deviation`,
+        message: `deviation mode "hard" requires bounds`,
+      });
+    }
   }
 
   // --- Constraints: evaluated BEFORE derivation — derived keys are not in scope

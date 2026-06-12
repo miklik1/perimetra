@@ -5,7 +5,18 @@
  * and later cut list / 3D / 2D) derives from these parts — no consumer
  * recomputes geometry from raw config (I4).
  */
-import type { BomCategory, BomUnit, Value } from "@repo/model";
+import type { ArtifactField, BomCategory, BomUnit, MoneyString, Value } from "@repo/model";
+
+/** The workshop-drawing flag (CORE_SPEC §6): an artifact override applied to a
+ *  part. Mandatory and visible — the workshop always sees what deviated. */
+export interface PartDeviation {
+  field: ArtifactField;
+  /** The derived value before the patch (absent when the field was unset). */
+  original?: number;
+  value: number;
+  overrideId: string;
+  reason?: string;
+}
 
 /** One physical part produced by a {@link import("@repo/model").PartRule}. */
 export interface Part {
@@ -21,6 +32,8 @@ export interface Part {
   pricePerUnit?: number;
   /** quantity × pricePerUnit, or an explicit override. */
   totalPrice?: number;
+  /** Applied artifact overrides — rendered as deviation flags (CORE_SPEC §6). */
+  deviations?: PartDeviation[];
 }
 
 /** The derived assembly: named dimensions + the parts list. */
@@ -53,10 +66,13 @@ export class ConfigError extends Error {
 }
 
 /** What a derivation ran against (I3) — quotes snapshot these to be
- *  re-derivable forever. Grows priceTableVersion + overrideIds in step 3. */
+ *  re-derivable forever: the versioned data arguments plus the exact cascade
+ *  state (every override that participated, in application order). */
 export interface Stamps {
   releaseId: string;
   catalogVersion: number;
+  priceTableVersion: number;
+  overrideIds: string[];
 }
 
 export interface CategoryTotals {
@@ -67,11 +83,17 @@ export interface CategoryTotals {
   total: number;
 }
 
+/** The I10 pricing boundary: category totals as decimal strings. Computed from
+ *  {@link CategoryTotals} losslessly — consumers (API/DB/PDF) never see a float. */
+export type MoneyTotals = Record<keyof CategoryTotals, MoneyString>;
+
 export interface DerivationResult {
   isValid: boolean;
   derived: Record<string, number>;
   parts: Part[];
   totals: CategoryTotals;
+  /** Decimal-as-string mirror of `totals` — the boundary representation (I10). */
+  money: MoneyTotals;
   issues: Issue[];
   stamps: Stamps;
 }
@@ -83,6 +105,9 @@ export interface DerivationResult {
  * layer; slice 1 takes it as a single table).
  */
 export interface PriceTable {
+  /** Stamped on every result (I3) — price tables are versioned data, like the
+   *  catalog; effective-date windows resolve to a version upstream. */
+  version: number;
   components: Record<string, number>;
   manufacturing: { rate: number; multiplier: number };
   installation: number;

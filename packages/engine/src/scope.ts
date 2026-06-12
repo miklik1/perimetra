@@ -40,7 +40,7 @@ const issue = (key: string, params: Issue["params"]): Issue => ({
 });
 
 /** Expected JS type per parameter type; multiselect is deferred (unused). */
-function typeDefect(param: ParameterDef, value: Value): string | undefined {
+export function typeDefect(param: ParameterDef, value: Value): string | undefined {
   switch (param.type) {
     case "length_mm":
       // Lengths are integer mm (I10).
@@ -58,7 +58,7 @@ function typeDefect(param: ParameterDef, value: Value): string | undefined {
   }
 }
 
-function domainIssue(param: ParameterDef, value: Value): Issue | undefined {
+export function domainIssue(param: ParameterDef, value: Value): Issue | undefined {
   const domain = param.domain;
   if (!domain) return undefined;
   if (domain.kind === "range" && typeof value === "number") {
@@ -96,6 +96,13 @@ function domainIssue(param: ParameterDef, value: Value): Issue | undefined {
  * not UI convention, is what makes them unwritable (I7).
  */
 export function gateInput(release: ProductModelRelease, input: ConfigInput): Issue[] {
+  return [...gateInputKeys(release, input), ...missingParams(release, new Set(Object.keys(input)))];
+}
+
+/** The per-key half of the gate (exists, writable, typed, in domain). The
+ *  cascade runs it on user input alone — required params may legitimately be
+ *  supplied by a customer-agreement override instead (CORE_SPEC §4). */
+export function gateInputKeys(release: ProductModelRelease, input: ConfigInput): Issue[] {
   const issues: Issue[] = [];
   const params = new Map(release.parameters.map((p) => [p.key, p]));
 
@@ -122,12 +129,25 @@ export function gateInput(release: ProductModelRelease, input: ConfigInput): Iss
     if (domain) issues.push(domain);
   }
 
+  return issues;
+}
+
+/** The completeness half: every parameter without a default must be supplied
+ *  by SOME cascade layer (`supplied` is the post-cascade key set). */
+export function missingParams(
+  release: ProductModelRelease,
+  supplied: ReadonlySet<string>,
+): Issue[] {
+  const issues: Issue[] = [];
   for (const param of release.parameters) {
-    if (param.default === undefined && param.defaultExpr === undefined && !(param.key in input)) {
+    if (
+      param.default === undefined &&
+      param.defaultExpr === undefined &&
+      !supplied.has(param.key)
+    ) {
       issues.push(issue("engine.input.missing_param", { key: param.key }));
     }
   }
-
   return issues;
 }
 

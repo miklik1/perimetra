@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { expr, type Catalog, type ProductModelRelease } from "@repo/model";
+import { expr, type Catalog, type Override, type ProductModelRelease } from "@repo/model";
 
+import type { CascadeLayers } from "./cascade";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints";
 import { PriceError, priceParts, sumByCategory } from "./emit";
+import { recurrenceReport } from "./ledger";
 import { deriveInstance } from "./pipeline";
 import { CatalogAmbiguityError, resolveComponent } from "./resolve";
 import { buildScope, gateInput } from "./scope";
@@ -21,6 +23,22 @@ const release: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 1000, max: 5000 },
       adjustability: "user",
+      // Deviation envelope is WIDER than the domain below the min: a quote may
+      // bend down to 800 with a reason (warn), never below.
+      deviation: {
+        mode: "warn",
+        bounds: { min: expr("800"), max: expr("5000") },
+        note: "frame stiffness untested below 800",
+      },
+    },
+    {
+      key: "depth",
+      type: "int",
+      domain: { kind: "range", min: 100, max: 200 },
+      default: 150,
+      adjustability: "user",
+      // Hard knowledge: bounds reject outside, no ceremony inside.
+      deviation: { mode: "hard", bounds: { min: expr("50"), max: expr("300") } },
     },
     {
       key: "hours",
@@ -108,10 +126,21 @@ const catalog: Catalog = {
 };
 
 const prices: PriceTable = {
+  version: 3,
   components: { comp_a: 10 },
   manufacturing: { rate: 50, multiplier: 4 },
   installation: 0,
 };
+
+/** Override factory — quote scope unless stated. */
+const ov = (patch: Partial<Override> & Pick<Override, "target" | "value">): Override => ({
+  id: `ov-${patch.target}`,
+  scope: "quote",
+  scopeRef: "quote-1",
+  author: "sales@test",
+  createdAt: "2026-06-12T00:00:00.000Z",
+  ...patch,
+});
 
 const validInput = { width: 4000, fill_id: "a" };
 
@@ -287,7 +316,12 @@ describe("deriveInstance (pipeline §5)", () => {
     const result = deriveInstance(release, validInput, prices, catalog);
     expect(result.isValid).toBe(true);
     expect(result.derived.count).toBe(40);
-    expect(result.stamps).toEqual({ releaseId: "test@1", catalogVersion: 7 });
+    expect(result.stamps).toEqual({
+      releaseId: "test@1",
+      catalogVersion: 7,
+      priceTableVersion: 3,
+      overrideIds: [],
+    });
     const fill = result.parts.find((p) => p.path === "p.fill");
     expect(fill?.componentCode).toBe("comp_a");
     expect(fill?.totalPrice).toBe(400); // 40 × 10
@@ -315,5 +349,261 @@ describe("deriveInstance (pipeline §5)", () => {
     expect(result.issues.map((i) => i.key)).toContain("test.width.engineering_max");
     expect(result.parts).toHaveLength(0);
     expect(result.totals.total).toBe(0);
+  });
+
+  it("mirrors totals as decimal strings at the money boundary (I10)", () => {
+    const result = deriveInstance(release, validInput, prices, catalog);
+    expect(result.money).toEqual({
+      material: "400",
+      accessory: "0",
+      manufacturing: "200",
+      installation: "0",
+      total: "600",
+    });
+  });
+});
+
+describe("resolveCascade (§4 — overrides through the one write path)", () => {
+  const derive = (overrides: CascadeLayers) =>
+    deriveInstance(release, validInput, prices, catalog, { overrides });
+
+  it("a tenant price override repoints the table and is stamped (I3)", () => {
+    const o = ov({ scope: "tenant", scopeRef: "t1", target: "price:comp_a", value: 12 });
+    const result = derive({ tenant: [o] });
+    expect(result.isValid).toBe(true);
+    expect(result.parts.find((p) => p.path === "p.fill")?.totalPrice).toBe(480);
+    expect(result.stamps.overrideIds).toEqual([o.id]);
+  });
+
+  it("removing an override restores the layer below — never mutates it (I8)", () => {
+    const o = ov({ scope: "tenant", scopeRef: "t1", target: "price:comp_a", value: 12 });
+    derive({ tenant: [o] });
+    const without = derive({});
+    expect(without.parts.find((p) => p.path === "p.fill")?.totalPrice).toBe(400);
+    expect(without.stamps.overrideIds).toEqual([]);
+  });
+
+  it("a customer default patch applies under user input (input still wins)", () => {
+    const o = ov({ scope: "customer", scopeRef: "c1", target: "param:hours", value: 8 });
+    const patched = derive({ customer: [o] });
+    expect(patched.parts.find((p) => p.path === "p.labor")?.totalPrice).toBe(400); // 50 × 8
+    const result = deriveInstance(release, { ...validInput, hours: 2 }, prices, catalog, {
+      overrides: { customer: [o] },
+    });
+    expect(result.parts.find((p) => p.path === "p.labor")?.totalPrice).toBe(100); // input wins
+  });
+
+  it("a tenant/customer param patch must stay inside the domain (not a deviation)", () => {
+    const o = ov({ scope: "tenant", scopeRef: "t1", target: "param:width", value: 900 });
+    const result = derive({ tenant: [o] });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.input.below_min");
+  });
+
+  it("a quote deviation passes outside the domain, inside bounds, with a reason (warn + flag)", () => {
+    const o = ov({ target: "param:width", value: 900, reason: "client plot is 900" });
+    const result = derive({ quote: [o] });
+    expect(result.isValid).toBe(true);
+    expect(result.derived.count).toBe(9);
+    expect(result.issues).toContainEqual({
+      key: "engine.deviation.applied",
+      severity: "warn",
+      scope: "instance",
+      params: {
+        key: "width",
+        value: 900,
+        reason: "client plot is 900",
+        note: "frame stiffness untested below 800",
+      },
+    });
+    expect(result.stamps.overrideIds).toEqual([o.id]);
+  });
+
+  it("warn-mode deviation without a reason is rejected", () => {
+    const result = derive({ quote: [ov({ target: "param:width", value: 900 })] });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.deviation.reason_required");
+  });
+
+  it("deviation bounds reject outside — the product does not bend there", () => {
+    const result = derive({
+      quote: [ov({ target: "param:width", value: 700, reason: "still no" })],
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.deviation.out_of_bounds");
+  });
+
+  it("hard-mode deviation needs no ceremony inside bounds, rejects outside", () => {
+    const inside = derive({ quote: [ov({ target: "param:depth", value: 250 })] });
+    expect(inside.isValid).toBe(true);
+    expect(inside.issues).toHaveLength(0);
+    const outside = derive({ quote: [ov({ target: "param:depth", value: 400 })] });
+    expect(outside.isValid).toBe(false);
+    expect(outside.issues.map((i) => i.key)).toContain("engine.deviation.out_of_bounds");
+  });
+
+  it("a parameter without a deviation spec does not bend beyond its domain", () => {
+    const result = derive({
+      quote: [ov({ target: "param:material", value: "wood", reason: "x" })],
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.input.not_in_enum");
+  });
+
+  it("no scope may write a vendor parameter (I7)", () => {
+    for (const layer of [
+      { tenant: [ov({ scope: "tenant", scopeRef: "t1", target: "param:margin_floor", value: 0 })] },
+      { quote: [ov({ target: "param:margin_floor", value: 0, reason: "x" })] },
+    ]) {
+      const result = derive(layer);
+      expect(result.isValid).toBe(false);
+      expect(result.issues.map((i) => i.key)).toContain("engine.input.not_adjustable");
+    }
+  });
+
+  it("rejects malformed targets, scope mismatches, and non-quote artifact overrides", () => {
+    const result = derive({
+      tenant: [
+        ov({ scope: "tenant", scopeRef: "t1", target: "nonsense", value: 1 }),
+        ov({ scope: "quote", scopeRef: "q9", target: "price:comp_a", value: 1 }),
+        ov({ scope: "tenant", scopeRef: "t1", target: "artifact:p.fill.quantity", value: 1 }),
+      ],
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toEqual(
+      expect.arrayContaining([
+        "engine.override.bad_target",
+        "engine.override.scope_mismatch",
+        "engine.override.artifact_scope",
+      ]),
+    );
+  });
+
+  it("flags a price override that creates a NEW code (typo guard, warn only)", () => {
+    const result = derive({
+      tenant: [ov({ scope: "tenant", scopeRef: "t1", target: "price:comp_typo", value: 5 })],
+    });
+    expect(result.isValid).toBe(true);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ key: "engine.override.new_price_code", severity: "warn" }),
+    );
+  });
+});
+
+describe("artifact overrides (§6 — flagged, never silent)", () => {
+  const quantity = (resolution: "keep_price" | "reprice") =>
+    ov({
+      target: "artifact:p.fill.quantity",
+      value: 42,
+      reason: "one extra row",
+      pricingResolution: resolution,
+    });
+
+  it("patches quantity with an explicit reprice and flags the part + result", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: { quote: [quantity("reprice")] },
+    });
+    expect(result.isValid).toBe(true);
+    const fill = result.parts.find((p) => p.path === "p.fill")!;
+    expect(fill.quantity).toBe(42);
+    expect(fill.totalPrice).toBe(420);
+    expect(fill.deviations).toEqual([
+      {
+        field: "quantity",
+        original: 40,
+        value: 42,
+        overrideId: quantity("reprice").id,
+        reason: "one extra row",
+      },
+    ]);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ key: "engine.deviation.artifact", severity: "warn" }),
+    );
+    expect(result.totals.material).toBe(420);
+  });
+
+  it("keep_price pins the derived line total", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: { quote: [quantity("keep_price")] },
+    });
+    const fill = result.parts.find((p) => p.path === "p.fill")!;
+    expect(fill.quantity).toBe(42);
+    expect(fill.totalPrice).toBe(400);
+  });
+
+  it("a quantity patch without a pricing resolution is rejected", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: { quote: [ov({ target: "artifact:p.fill.quantity", value: 42 })] },
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain(
+      "engine.override.pricing_resolution_required",
+    );
+  });
+
+  it("repricing a fixed-total line is an error, not a guess (I5)", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: {
+        quote: [
+          ov({
+            target: "artifact:p.labor.quantity",
+            value: 9,
+            pricingResolution: "reprice",
+          }),
+        ],
+      },
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.override.cannot_reprice");
+  });
+
+  it("a stale artifact address is an error — the deviation must exist (I5/I9)", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: {
+        quote: [
+          ov({ target: "artifact:p.gone.totalPrice", value: 1, pricingResolution: "reprice" }),
+        ],
+      },
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((i) => i.key)).toContain("engine.override.artifact_missing");
+  });
+
+  it("a totalPrice patch is itself the pricing resolution", () => {
+    const result = deriveInstance(release, validInput, prices, catalog, {
+      overrides: { quote: [ov({ target: "artifact:p.labor.totalPrice", value: 999 })] },
+    });
+    expect(result.isValid).toBe(true);
+    expect(result.parts.find((p) => p.path === "p.labor")?.totalPrice).toBe(999);
+    expect(result.totals.manufacturing).toBe(999);
+  });
+});
+
+describe("exception ledger (§4 — deviations become data)", () => {
+  const entries: Override[] = [
+    ov({ id: "a", scopeRef: "q1", target: "param:width", value: 900, reason: "plot" }),
+    ov({ id: "b", scopeRef: "q2", target: "param:width", value: 910, reason: "plot again" }),
+    ov({ id: "c", scopeRef: "q2", target: "param:width", value: 905 }),
+    ov({ id: "d", scopeRef: "q3", target: "artifact:p.fill.quantity", value: 42 }),
+    ov({ id: "e", scope: "tenant", scopeRef: "t1", target: "price:comp_a", value: 12 }),
+  ];
+
+  it("groups quote-scope overrides by target into the promotion queue", () => {
+    expect(recurrenceReport(entries)).toEqual([
+      {
+        target: "param:width",
+        occurrences: 3,
+        distinctQuotes: 2,
+        values: [900, 910, 905],
+        reasons: ["plot", "plot again"],
+      },
+    ]);
+  });
+
+  it("tenant-layer overrides are config, not exceptions — excluded", () => {
+    expect(recurrenceReport(entries, 1).map((g) => g.target)).toEqual([
+      "param:width",
+      "artifact:p.fill.quantity",
+    ]);
   });
 });

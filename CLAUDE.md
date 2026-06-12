@@ -21,12 +21,15 @@ the core); cross-cutting strategy/decisions live in the vault
 | `packages/engine`   | Generic interpreter: cascade → constraints (swappable evaluator) → derivation → emit. **Pure** (no I/O — the calc-engine discipline, widened). |
 | `packages/fixtures` | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine).                                        |
 
-Build order is CORE_SPEC §10. **Step 2 done (2026-06-12):** catalog@1 +
-role-based resolution (`{role, section, material}` is the ONE component
-mechanism — ADR 0046), second material (steel) delta-0 on the same recipe,
-input gate (I7) + author/config error taxonomy (ADR 0047). Next: cascade +
-overrides + exception ledger (step 3). Invariants I1–I11 (CORE_SPEC §1) are
-the bar every PR is judged against; the Expr numeric-domain choice is ADR 0045.
+Build order is CORE_SPEC §10. **Step 3 done (2026-06-12):** cascade +
+overrides + exception ledger (ADR 0048 — one write path through the I7 gate,
+quote-only deviations validated against `deviation` specs, artifact patches
+with explicit `pricingResolution`, ledger = pure query + recurrence report)
+and the I10 money boundary (`DerivationResult.money`, decimal-as-string at 15
+significant digits — delta-0 now string-exact). Next: site graph (step 4).
+Invariants I1–I11 (CORE_SPEC §1) are the bar every PR is judged against; the
+Expr numeric-domain choice is ADR 0045, catalog/resolution ADR 0046, error
+taxonomy ADR 0047.
 
 ## Package map
 

@@ -1,42 +1,62 @@
 /**
  * The derivation pipeline (CORE_SPEC §5) — the one compute path:
  *
- *   gate input (I7) → resolve cascade → validate constraints
- *     → derive assembly graph (catalog resolution) → emit
+ *   resolve cascade (overrides + input gate, I7/I8) → validate constraints
+ *     → derive assembly graph (catalog resolution) → emit → apply artifact
+ *     overrides (deviation flags) → money boundary (I10)
  *
- * The catalog enters as a versioned data argument exactly like the price
- * table — never ambient state — and the result carries the stamps (release id
- * + catalog version) a quote needs for eternal reproducibility (I3).
+ * The catalog and price table enter as versioned data arguments — never
+ * ambient state — and the result carries the stamps (release id + catalog +
+ * price table versions + the exact override set applied) a quote needs for
+ * eternal reproducibility (I3).
  *
- * Error taxonomy (ADR 0047): user-shaped problems (input gate, option
- * selection, constraint failures, catalog resolution gaps) surface as typed
- * Issues on an invalid result; author-shaped problems (bad expressions,
+ * Error taxonomy (ADR 0047): user-shaped problems (input gate, overrides,
+ * option selection, constraint failures, catalog resolution gaps) surface as
+ * typed Issues on an invalid result; author-shaped problems (bad expressions,
  * ambiguous catalog data, unit mismatches) throw.
  *
- * Determinism (I1): given the same (release, input, prices, catalog) the
- * result is byte-identical — the whole path is pure.
+ * Determinism (I1): given the same (release, input, prices, catalog,
+ * overrides) the result is byte-identical — the whole path is pure.
  */
+import { toMoneyString } from "@repo/model";
 import type { Catalog, ProductModelRelease } from "@repo/model";
 
+import { applyArtifactOverrides } from "./artifacts";
+import { resolveCascade, type CascadeLayers } from "./cascade";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints";
 import { derive } from "./derive";
 import { priceParts, sumByCategory } from "./emit";
-import { buildScope, gateInput } from "./scope";
+import { buildScope } from "./scope";
 import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types";
-import type { PriceTable, Stamps } from "./types";
+import type { CategoryTotals, MoneyTotals, PriceTable, Stamps } from "./types";
 
 export interface DeriveOptions {
   /** Swap the constraint evaluator (defaults to the forward checker). */
   constraintEvaluator?: ConstraintEvaluator;
+  /** Cascade layers 3–5 (CORE_SPEC §4); omitted layers are empty. */
+  overrides?: CascadeLayers;
+}
+
+/** The I10 boundary: totals leave the engine as decimal strings too. */
+function moneyTotals(totals: CategoryTotals): MoneyTotals {
+  return {
+    material: toMoneyString(totals.material),
+    accessory: toMoneyString(totals.accessory),
+    manufacturing: toMoneyString(totals.manufacturing),
+    installation: toMoneyString(totals.installation),
+    total: toMoneyString(totals.total),
+  };
 }
 
 /** An invalid configuration never emits a BOM/price — typed issues only (I5). */
 function invalid(issues: Issue[], stamps: Stamps): DerivationResult {
+  const totals = { material: 0, accessory: 0, manufacturing: 0, installation: 0, total: 0 };
   return {
     isValid: false,
     derived: {},
     parts: [],
-    totals: { material: 0, accessory: 0, manufacturing: 0, installation: 0, total: 0 },
+    totals,
+    money: moneyTotals(totals),
     issues,
     stamps,
   };
@@ -50,22 +70,28 @@ export function deriveInstance(
   options: DeriveOptions = {},
 ): DerivationResult {
   const evaluator = options.constraintEvaluator ?? forwardChecker;
-  const stamps: Stamps = { releaseId: release.id, catalogVersion: catalog.version };
 
-  const gateIssues = gateInput(release, input);
-  if (gateIssues.some((i) => i.severity === "error")) {
-    return invalid(gateIssues, stamps);
+  const cascade = resolveCascade(release, input, prices, options.overrides ?? {});
+  const stamps: Stamps = {
+    releaseId: release.id,
+    catalogVersion: catalog.version,
+    priceTableVersion: prices.version,
+    overrideIds: cascade.appliedOverrideIds,
+  };
+
+  if (cascade.issues.some((i) => i.severity === "error")) {
+    return invalid(cascade.issues, stamps);
   }
 
   let scope;
   try {
-    scope = buildScope(release, input, prices);
+    scope = buildScope(release, cascade.effectiveInput, cascade.effectivePrices);
   } catch (error) {
-    if (error instanceof ConfigError) return invalid([...gateIssues, error.issue], stamps);
+    if (error instanceof ConfigError) return invalid([...cascade.issues, error.issue], stamps);
     throw error;
   }
 
-  const issues = [...gateIssues, ...evaluator.evaluate(release, scope)];
+  const issues = [...cascade.issues, ...evaluator.evaluate(release, scope)];
 
   // A failed constraint of severity "error" stops before derivation — we never
   // emit a BOM/price for an invalid configuration (I5).
@@ -79,14 +105,21 @@ export function deriveInstance(
     return invalid([...issues, ...graph.issues], stamps);
   }
 
-  const parts = priceParts(graph.parts, prices);
-  const totals = sumByCategory(parts);
+  const priced = priceParts(graph.parts, cascade.effectivePrices);
+  const artifacts = applyArtifactOverrides(priced, cascade.artifactOverrides);
+  issues.push(...artifacts.issues);
+  if (artifacts.issues.some((i) => i.severity === "error")) {
+    return invalid(issues, stamps);
+  }
+
+  const totals = sumByCategory(artifacts.parts);
 
   return {
     isValid: true,
     derived: graph.derived,
-    parts,
+    parts: artifacts.parts,
     totals,
+    money: moneyTotals(totals),
     issues,
     stamps,
   };

@@ -5,5 +5,7 @@
  */
 export * from "./catalog";
 export * from "./expr";
+export * from "./money";
+export * from "./override";
 export * from "./schema";
 export * from "./validate";

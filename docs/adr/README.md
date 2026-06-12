@@ -64,6 +64,7 @@ exists, deliberately not wired — by design).
 | [0045](0045-expr-numeric-domain-ieee754.md) | Expr DSL evaluates in IEEE-754 (delta-0 requires the MVP's arithmetic); I10 money hardens in step 3  | Accepted | Implemented |
 | [0046](0046-catalog-role-resolution.md)     | Catalog = versioned engine argument; {role, section, material} resolution is the ONE component mech  | Accepted | Implemented |
 | [0047](0047-error-taxonomy.md)              | Error taxonomy: author-time throws (validateRelease publish gate), config-time typed Issues + params | Accepted | Implemented |
+| [0048](0048-cascade-overrides-ledger.md)    | Cascade/override semantics: one write path, quote-only deviations, ledger as query, 15-sig money     | Accepted | Implemented |
 
 See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for the stack overview and
 the consolidated constraints cheat-sheet.
