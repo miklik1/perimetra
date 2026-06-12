@@ -69,7 +69,11 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      // Apps/packages import BUILT workspace dists (@repo/db, @repo/i18n/server,
+      // …). A bare `pnpm check-types` (or a standalone CI typecheck) must build
+      // upstream first or it resolves against missing/stale `dist` types. Depend
+      // on `^build`, not `^check-types`. (Engineering finding 2026-06-12.)
+      "dependsOn": ["^build"]
     },
     "test": {
       // api tests import BUILT workspace subpaths (@repo/i18n/server,
