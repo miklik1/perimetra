@@ -17,6 +17,12 @@
  *
  * Geometry is hand-authored for the harness (no Excel anchor — `anchored:
  * false` corpus); the real fabricator chain is a FIL-extraction item.
+ *
+ * Step 5 (renderers): piece geometry on the material parts — posts stand
+ * vertical at their field positions (`repeat` lays out the line posts), two
+ * rails span the run, fill pieces stack per field. The elevation parameter
+ * flows into every `at` Y, so a stepped placement visibly lifts the run.
+ * Port anchors sit at the run's two ends.
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -123,6 +129,14 @@ export const fenceRunV1: ProductModelRelease = {
           lengthMm: expr("postLength"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "post",
+            length: expr("postLength"),
+            at: [expr("0"), expr("ground_elevation_mm"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+          },
+        ],
       },
       {
         path: "posts.end",
@@ -138,6 +152,14 @@ export const fenceRunV1: ProductModelRelease = {
           lengthMm: expr("postLength"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "post",
+            length: expr("postLength"),
+            at: [expr("run_length_mm"), expr("ground_elevation_mm"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+          },
+        ],
       },
       {
         path: "posts.line",
@@ -154,6 +176,15 @@ export const fenceRunV1: ProductModelRelease = {
           lengthMm: expr("postLength"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "post",
+            length: expr("postLength"),
+            at: [expr("(i + 1) * fieldWidth"), expr("ground_elevation_mm"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+            repeat: { count: expr("innerPostCount"), var: "i" },
+          },
+        ],
       },
       {
         path: "rails.run",
@@ -169,6 +200,18 @@ export const fenceRunV1: ProductModelRelease = {
           quantity: expr("roundUp(2 * run_length_mm / 1000)"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "top",
+            length: expr("run_length_mm"),
+            at: [expr("0"), expr("ground_elevation_mm + clear_height_mm - 20"), expr("0")],
+          },
+          {
+            key: "bottom",
+            length: expr("run_length_mm"),
+            at: [expr("0"), expr("ground_elevation_mm + 120"), expr("0")],
+          },
+        ],
       },
       {
         path: "fill.material",
@@ -184,6 +227,18 @@ export const fenceRunV1: ProductModelRelease = {
           quantity: expr("roundUp(fillPieces * fieldWidth / 1000)"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "plank",
+            length: expr("fieldWidth"),
+            at: [
+              expr("floor(i / fillRows) * fieldWidth"),
+              expr("ground_elevation_mm + 160 + (i % fillRows) * fill.min_spacing_mm"),
+              expr("0"),
+            ],
+            repeat: { count: expr("fillPieces"), var: "i" },
+          },
+        ],
       },
 
       // --- MANUFACTURING ---
@@ -222,12 +277,14 @@ export const fenceRunV1: ProductModelRelease = {
       kind: "fence.start",
       compatibleKinds: ["fence.end", "gate.side"],
       sharing: { element: "posts.start", policy: "consumer" },
+      anchor: { at: [expr("0"), expr("ground_elevation_mm"), expr("0")] },
     },
     {
       id: "end",
       kind: "fence.end",
       compatibleKinds: ["fence.start", "gate.side"],
       sharing: { element: "posts.end", policy: "owner" },
+      anchor: { at: [expr("run_length_mm"), expr("ground_elevation_mm"), expr("0")] },
     },
   ],
 

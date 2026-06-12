@@ -15,21 +15,24 @@ contract is **`docs/rebuild/CORE_SPEC.md`** (read it first for anything touching
 the core); cross-cutting strategy/decisions live in the vault
 (`10 Projects/Perimetra/`), not here. The rebuild core:
 
-| Path                | What it is                                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/model`    | Schema types + the **Expr DSL** (parse/evaluate). Pure, zero internal deps. The published contract.                                            |
-| `packages/engine`   | Generic interpreter: cascade → constraints (swappable evaluator) → derivation → emit. **Pure** (no I/O — the calc-engine discipline, widened). |
-| `packages/fixtures` | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine).                                        |
+| Path                 | What it is                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/model`     | Schema types + the **Expr DSL** (parse/evaluate). Pure, zero internal deps. The published contract.                                            |
+| `packages/engine`    | Generic interpreter: cascade → constraints (swappable evaluator) → derivation → emit. **Pure** (no I/O — the calc-engine discipline, widened). |
+| `packages/renderers` | Cut list / 3D scene / 2D drawings as **pure data** off (Site, SiteResult) only (I4). Presentation (R3F/SVG/PDF) is app-land.                   |
+| `packages/fixtures`  | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine+renderers).                              |
 
-Build order is CORE_SPEC §10. **Step 4 done (2026-06-12):** site graph
-(ADR 0049 — `deriveSite`: port sharing owner/consumer with one-owner BOM
-dedupe (I6), stepped terrain driving elevation params through the input gate,
-connection-scope constraints on paired `self.*`/`other.*` scopes, aggregate
-BOM merged by component with provenance; `fence-run@1` + `catalog@2` corpus,
-aggregate string-exact). Next: renderers off the site graph (step 5).
-Invariants I1–I11 (CORE_SPEC §1) are the bar every PR is judged against; the
-Expr numeric-domain choice is ADR 0045, catalog/resolution ADR 0046, error
-taxonomy ADR 0047, cascade/overrides ADR 0048.
+Build order is CORE_SPEC §10. **Step 5 done (2026-06-12):** renderers
+(ADR 0050 — keyed piece geometry + port anchors on PartRule/PortDef, engine
+bakes catalog profile/stock onto parts; `packages/renderers` emits cut list
+with FFD stock nesting, 3D scene, workshop drawing with mandatory §6
+deviation flags, and site plan — all pure data off (Site, SiteResult) only
+(I4), consumed sharing elements vanish render-wide (I6)). Next: app surfaces
+(step 6) — generated configurator, site canvas, quote lifecycle; `~/gates`
+R3F code is the 3D-adapter port reference. Invariants I1–I11 (CORE_SPEC §1)
+are the bar every PR is judged against; the Expr numeric-domain choice is
+ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
+cascade/overrides ADR 0048, site graph ADR 0049.
 
 ## Package map
 

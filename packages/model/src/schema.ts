@@ -128,12 +128,45 @@ export interface ResolveSpec {
   material?: ExprString;
 }
 
+/** Mitre angles at a piece's two ends, authored in decimal degrees measured
+ *  from the piece axis (omitted end = square 90° cut). The engine emits
+ *  integer arc-minutes (I10) — presentation divides by 60. */
+export interface CutSpec {
+  left?: ExprString;
+  right?: ExprString;
+}
+
+/**
+ * One keyed group of physical pieces a part rule emits for the renderers
+ * (CORE_SPEC §3 geometry / step 5). A BOM line and its physical pieces are
+ * different truths: `frame.lprofile` bills rolled-up meters but cuts five
+ * distinct pieces (postA, postB, diagonal, …) — each is one GeometryRule.
+ * Pieces live in assembly space (X across, Y up, Z toward the viewer; mm),
+ * length runs along the piece's local X axis before rotation. `repeat` lays
+ * out count pieces with `var` injected into the expression scope (fill
+ * lamella i at `100 + i * spacing`). Piece ids are `<key>` / `<key>[i]` under
+ * the part path (I9 — never array position).
+ */
+export interface GeometryRule {
+  /** Unique within the part; an identifier (no dots/brackets — it addresses). */
+  key: string;
+  /** Piece length along local X, mm. */
+  length: ExprString;
+  /** Assembly-space origin [x, y, z], mm. May reference `repeat.var`. */
+  at: [ExprString, ExprString, ExprString];
+  /** Rotation about [X, Y, Z], authored in decimal degrees; the engine emits
+   *  integer arc-minutes (I10). Omitted = unrotated (length along X). */
+  rotation?: [ExprString, ExprString, ExprString];
+  cuts?: CutSpec;
+  /** Emit `count` pieces with `var` bound to 0..count-1 in this rule's scope. */
+  repeat?: { count: ExprString; var: string };
+}
+
 /**
  * A part rule generates 1..n parts (CORE_SPEC §3). The component is resolved
  * from the catalog via {@link ResolveSpec} — never named directly (the slice-1
  * `componentCode`/`componentCodeExpr` bridge is dead; one resolution mechanism
- * only). `geometry` (length/cuts/transform) is reserved for the renderers
- * (step 5).
+ * only).
  */
 export interface PartRule {
   /** Stable id root (I9) — survives re-derivation so overrides/annotations stick. */
@@ -143,6 +176,9 @@ export interface PartRule {
   /** Conditional inclusion (e.g. only when `include_motor`). */
   when?: ExprString;
   bom: BomRule;
+  /** Physical pieces for the renderers (step 5). A part without geometry is
+   *  BOM-only (labor, kits, motors) and never appears in scene/drawing/cuts. */
+  geometry?: GeometryRule[];
 }
 
 export interface DerivedDef {
@@ -154,7 +190,8 @@ export interface DerivationRecipe {
   /** Named dimensions, evaluated in order; each may reference earlier ones. */
   derived: DerivedDef[];
   parts: PartRule[];
-  // joints: reserved for the renderers (CORE_SPEC §3 / step 5).
+  // joints: reserved (CORE_SPEC §3) — no authored model needs them yet; piece
+  // geometry (step 5) carries the renderers without joint records.
 }
 
 /** Which side of a connection provides the shared element (I6). */
@@ -180,8 +217,7 @@ export interface PortSharing {
  * port) — vendor-only authoring makes the symmetry enforceable. Declaring a
  * kind compatible is a contract: your connection-scope constraints must
  * evaluate against every release exposing that kind (their `other.*` refs
- * must exist there). `anchor` (expr-driven pose on the assembly) lands with
- * the renderers (step 5).
+ * must exist there).
  */
 export interface PortDef {
   id: string;
@@ -189,6 +225,9 @@ export interface PortDef {
   kind: string;
   compatibleKinds: string[];
   sharing?: PortSharing;
+  /** Where the port sits in assembly space ([x, y, z] mm, expr-driven) — the
+   *  site plan marks connections here; step-6 canvas snapping builds on it. */
+  anchor?: { at: [ExprString, ExprString, ExprString] };
 }
 
 /** Binds the site's stepped terrain to this model: a placement on a terrain

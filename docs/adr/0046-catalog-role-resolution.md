@@ -12,7 +12,7 @@ multi-material on the same authored model. Keeping the slice-1 bridge alive
 alongside resolution would mean two component mechanisms forever; every later
 layer (overrides, ledger, renderers) would have to handle both.
 
-CORE_SPEC §9 also _suggests_ a separate `packages/catalog`. The catalog types
+CORE*SPEC §9 also \_suggests* a separate `packages/catalog`. The catalog types
 are ~80 lines of pure shapes and the resolution function ~40 lines of pure
 lookup; a package boundary would add exports-map/eslint-DAG ceremony for no
 isolation gain at this size.

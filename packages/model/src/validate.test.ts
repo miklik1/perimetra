@@ -126,3 +126,101 @@ describe("validateRelease — connection-scope constraint references", () => {
     expect(codes(withConstraint("price.cap > 0"))).toEqual(["ref.unknown"]);
   });
 });
+
+describe("validateRelease — geometry (step 5)", () => {
+  const withGeometry = (
+    geometry: NonNullable<ProductModelRelease["derivation"]["parts"][number]["geometry"]>,
+  ): ProductModelRelease => ({
+    ...base,
+    derivation: {
+      ...base.derivation,
+      parts: [{ ...base.derivation.parts[0]!, geometry }],
+    },
+  });
+
+  it("accepts keyed pieces with repeat vars and cut/rotation exprs", () => {
+    expect(
+      codes(
+        withGeometry([
+          {
+            key: "piece",
+            length: expr("len"),
+            at: [expr("i * 100"), expr("top"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+            cuts: { left: expr("45") },
+            repeat: { count: expr("3"), var: "i" },
+          },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects duplicate and non-identifier geometry keys (I9 addressing)", () => {
+    const rule: NonNullable<
+      ProductModelRelease["derivation"]["parts"][number]["geometry"]
+    >[number] = {
+      key: "a",
+      length: expr("1"),
+      at: [expr("0"), expr("0"), expr("0")],
+    };
+    expect(codes(withGeometry([rule, { ...rule }]))).toContain("key.duplicate");
+    expect(codes(withGeometry([{ ...rule, key: "a.b[0]" }]))).toContain("key.invalid");
+  });
+
+  it("rejects a repeat var that shadows a scope name, and refs outside scope", () => {
+    expect(
+      codes(
+        withGeometry([
+          {
+            key: "a",
+            length: expr("1"),
+            at: [expr("0"), expr("0"), expr("0")],
+            repeat: { count: expr("2"), var: "len" },
+          },
+        ]),
+      ),
+    ).toContain("repeat.var.invalid");
+    // The repeat var is NOT in scope for the count itself.
+    expect(
+      codes(
+        withGeometry([
+          {
+            key: "a",
+            length: expr("1"),
+            at: [expr("0"), expr("0"), expr("0")],
+            repeat: { count: expr("i + 1"), var: "i" },
+          },
+        ]),
+      ),
+    ).toContain("ref.unknown");
+  });
+
+  it("checks port anchor exprs against the full part scope", () => {
+    expect(
+      codes({
+        ...base,
+        ports: [
+          {
+            id: "p",
+            kind: "k",
+            compatibleKinds: ["k"],
+            anchor: { at: [expr("top"), expr("0"), expr("0")] },
+          },
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      codes({
+        ...base,
+        ports: [
+          {
+            id: "p",
+            kind: "k",
+            compatibleKinds: ["k"],
+            anchor: { at: [expr("nope"), expr("0"), expr("0")] },
+          },
+        ],
+      }),
+    ).toContain("ref.unknown");
+  });
+});

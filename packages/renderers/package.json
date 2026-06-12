@@ -1,5 +1,5 @@
 {
-  "name": "@repo/fixtures",
+  "name": "@repo/renderers",
   "version": "0.0.0",
   "type": "module",
   "private": true,
@@ -21,8 +21,7 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@repo/model": "workspace:*",
     "@repo/engine": "workspace:*",
-    "@repo/renderers": "workspace:*"
+    "@repo/model": "workspace:*"
   }
 }

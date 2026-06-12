@@ -607,3 +607,113 @@ describe("exception ledger (§4 — deviations become data)", () => {
     ]);
   });
 });
+
+describe("geometry derivation (§3 / step 5)", () => {
+  /** The test release with piece geometry + an anchored port grafted on. */
+  const withGeometry: ProductModelRelease = {
+    ...release,
+    derivation: {
+      ...release.derivation,
+      parts: [
+        {
+          ...release.derivation.parts[0]!,
+          geometry: [
+            {
+              key: "piece",
+              length: expr("fill.pitch"),
+              at: [expr("i * fill.pitch"), expr("0"), expr("0")],
+              rotation: [expr("0"), expr("0"), expr("45")],
+              cuts: { left: expr("45") },
+              repeat: { count: expr("count"), var: "i" },
+            },
+          ],
+        },
+        release.derivation.parts[1]!,
+      ],
+    },
+    ports: [
+      {
+        id: "side",
+        kind: "test.side",
+        compatibleKinds: ["test.side"],
+        anchor: { at: [expr("width"), expr("0"), expr("0")] },
+      },
+    ],
+  };
+  const input = { width: 1000, fill_id: "a", hours: 4 };
+
+  it("expands repeat into addressed pieces, degrees → arc-minutes (I9/I10)", () => {
+    const result = deriveInstance(withGeometry, input, prices, catalog);
+    expect(result.isValid).toBe(true);
+    const fill = result.parts.find((p) => p.path === "p.fill")!;
+    expect(fill.geometry!.pieces.map((p) => p.id)).toEqual([
+      "piece[0]",
+      "piece[1]",
+      "piece[2]",
+      "piece[3]",
+      "piece[4]",
+      "piece[5]",
+      "piece[6]",
+      "piece[7]",
+      "piece[8]",
+      "piece[9]",
+    ]);
+    expect(fill.geometry!.pieces[3]!.at).toEqual([300, 0, 0]);
+    expect(fill.geometry!.pieces[0]!.rotationArcMin).toEqual([0, 0, 2700]);
+    expect(fill.geometry!.pieces[0]!.cutArcMin).toEqual({ left: 2700 });
+    // Profile baked from the resolved component's catalog section (I4).
+    expect(fill.geometry!.profile).toEqual({ shape: "flat", wMm: 100 });
+    // BOM-only parts stay geometry-free.
+    expect(result.parts.find((p) => p.path === "p.labor")!.geometry).toBeUndefined();
+  });
+
+  it("evaluates port anchors against the full post-derivation scope", () => {
+    const result = deriveInstance(withGeometry, input, prices, catalog);
+    expect(result.anchors).toEqual({ side: [1000, 0, 0] });
+    // A release without anchors keeps the field absent — not an empty object.
+    expect(deriveInstance(release, input, prices, catalog).anchors).toBeUndefined();
+  });
+
+  it("a fractional repeat count is an authoring defect — throws, never truncates (I5)", () => {
+    const broken: ProductModelRelease = {
+      ...withGeometry,
+      derivation: {
+        ...withGeometry.derivation,
+        parts: [
+          {
+            ...withGeometry.derivation.parts[0]!,
+            geometry: [
+              {
+                key: "piece",
+                length: expr("10"),
+                at: [expr("0"), expr("0"), expr("0")],
+                repeat: { count: expr("width / 300"), var: "i" },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    expect(() => deriveInstance(broken, input, prices, catalog)).toThrow(/non-negative integer/);
+  });
+
+  it("a component naming a ghost section is a catalog defect — throws (ADR 0047)", () => {
+    // The component row points at a section code its own catalog release
+    // doesn't carry — internal catalog disagreement, author-shaped.
+    const brokenCatalog: Catalog = {
+      ...catalog,
+      components: [{ ...catalog.components[0]!, section: "ghost" }, catalog.components[1]!],
+    };
+    const rule = {
+      ...withGeometry.derivation.parts[0]!,
+      resolve: { role: "fill", section: expr('"ghost"'), material: expr("material") },
+    };
+    const broken: ProductModelRelease = {
+      ...withGeometry,
+      derivation: { ...withGeometry.derivation, parts: [rule] },
+    };
+    expect(() => deriveInstance(broken, input, prices, brokenCatalog)).toThrow(
+      /unknown section "ghost"/,
+    );
+  });
+});

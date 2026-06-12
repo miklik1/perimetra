@@ -176,10 +176,18 @@ DerivationRecipe {
 PartRule {
   path                            // stable id root, e.g. "frame.post[left]"  (I9)
   role, material: Expr, section?  // catalog resolution request (§2)
-  repeat?: {count: Expr, var}     // arrays: "fill[i] for i in fillCount"
-  geometry: {length: Expr, cuts: {angleL: Expr, angleR: Expr}, transform: Expr[]}
   bom: {unit, quantity: Expr, category}   // material | accessory | manufacturing | installation
+  geometry?: GeometryRule[]       // physical pieces (ADR 0050): a BOM line and its
+                                  // pieces are different truths — one rolled-up meters
+                                  // line may cut five distinct pieces
 }
+
+GeometryRule {                    // one keyed piece group (piece ids <key>/<key>[i], I9)
+  key, length: Expr
+  at: [Expr, Expr, Expr]          // assembly space, mm
+  rotation?, cuts?                // authored degrees, emitted arc-minutes (I10)
+  repeat?: {count: Expr, var}     // arrays: "fill[i] for i in fillCount"
+}                                 // part-level repeat (1..n Parts) deferred: ADR 0050
 
 PortDef {
   id, kind                        // "fence.end", "gate.hinge-side", "post.top"

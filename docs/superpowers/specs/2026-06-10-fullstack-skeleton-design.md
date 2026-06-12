@@ -15,7 +15,7 @@ Three principles drive every decision:
 
 1. **Think 10 years out.** Prefer the structurally scalable option over the
    minimal starter — "starting small is no longer leverage." Complexity that
-   buys scale is accepted; complexity whose cost is *operational* and paid at
+   buys scale is accepted; complexity whose cost is _operational_ and paid at
    runtime on every derived project (day-one microservices) is rejected.
 2. **Conventions are the product.** Anything the skeleton leaves open, ten
    derived projects will re-decide ten different ways. The skeleton's job is to
@@ -45,18 +45,18 @@ Three principles drive every decision:
 
 ## 2. Stack (locked, versions verified 2026-06)
 
-| Area | Decision | Notes |
-| --- | --- | --- |
-| Runtime | **Node 24 LTS**, pnpm 11, Turborepo 2.x, Vitest 4 | Node 22 is in maintenance; base repo's `.nvmrc`/catalogs get bumped |
-| Backend | **NestJS 11 on Fastify 5**, ESM-ready build (NodeNext) | NestJS 12 (~Q3 2026) is a full-ESM migration with native zod validation — being ESM-ready now makes that jump cheap |
-| DB / ORM | **PostgreSQL 17 + Drizzle `1.0.0-rc.x`** (pinned) | Starting on 0.45.x buys an immediate RQB v1→v2 migration; queries isolated behind repositories regardless. Driver: node-postgres `Pool` (postgres.js prepared statements break behind transaction-mode poolers) |
-| Auth | **Better Auth** (pinned exact; advisories watched) | Handler mounted **manually on Fastify** — the community NestJS lib's Fastify support is beta; manual mount is a plain request handler, full control. Had a critical CVE 2025-61928 (API-key plugin) — version pinning + advisory subscription is policy, api-key plugin off until needed |
-| Contract | Shared zod (v4) in `@repo/validators` via nestjs-zod v5; OpenAPI 3.1 generated from the same schemas | DTO creation centralized so NestJS 12's native Standard Schema validation can replace the pipe later |
-| Infra | Redis 7 (cache/queues/throttle), BullMQ (+ first-party `bullmq-otel`), Centrifugo **≥6.8.1** (JWKS security fix), MinIO/S3, SMTP seam | |
-| Observability | pino + OpenTelemetry (**`@fastify/otel`** — the OTel-contrib Fastify instrumentation is deprecated/removed) + Sentry + PostHog | |
-| Deploy | Containers, platform-agnostic; multi-stage Dockerfiles; docker-compose dev | No k8s manifests in the skeleton |
-| IDs / versioning | UUIDv7 PKs; URI versioning `/v1` | UUIDv7 also gives keyset pagination and outbox ordering for free |
-| Tests | Vitest 4 + Testcontainers (api), Playwright (web), Jest (mobile only) | |
+| Area             | Decision                                                                                                                              | Notes                                                                                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime          | **Node 24 LTS**, pnpm 11, Turborepo 2.x, Vitest 4                                                                                     | Node 22 is in maintenance; base repo's `.nvmrc`/catalogs get bumped                                                                                                                                                                                                                      |
+| Backend          | **NestJS 11 on Fastify 5**, ESM-ready build (NodeNext)                                                                                | NestJS 12 (~Q3 2026) is a full-ESM migration with native zod validation — being ESM-ready now makes that jump cheap                                                                                                                                                                      |
+| DB / ORM         | **PostgreSQL 17 + Drizzle `1.0.0-rc.x`** (pinned)                                                                                     | Starting on 0.45.x buys an immediate RQB v1→v2 migration; queries isolated behind repositories regardless. Driver: node-postgres `Pool` (postgres.js prepared statements break behind transaction-mode poolers)                                                                          |
+| Auth             | **Better Auth** (pinned exact; advisories watched)                                                                                    | Handler mounted **manually on Fastify** — the community NestJS lib's Fastify support is beta; manual mount is a plain request handler, full control. Had a critical CVE 2025-61928 (API-key plugin) — version pinning + advisory subscription is policy, api-key plugin off until needed |
+| Contract         | Shared zod (v4) in `@repo/validators` via nestjs-zod v5; OpenAPI 3.1 generated from the same schemas                                  | DTO creation centralized so NestJS 12's native Standard Schema validation can replace the pipe later                                                                                                                                                                                     |
+| Infra            | Redis 7 (cache/queues/throttle), BullMQ (+ first-party `bullmq-otel`), Centrifugo **≥6.8.1** (JWKS security fix), MinIO/S3, SMTP seam |                                                                                                                                                                                                                                                                                          |
+| Observability    | pino + OpenTelemetry (**`@fastify/otel`** — the OTel-contrib Fastify instrumentation is deprecated/removed) + Sentry + PostHog        |                                                                                                                                                                                                                                                                                          |
+| Deploy           | Containers, platform-agnostic; multi-stage Dockerfiles; docker-compose dev                                                            | No k8s manifests in the skeleton                                                                                                                                                                                                                                                         |
+| IDs / versioning | UUIDv7 PKs; URI versioning `/v1`                                                                                                      | UUIDv7 also gives keyset pagination and outbox ordering for free                                                                                                                                                                                                                         |
+| Tests            | Vitest 4 + Testcontainers (api), Playwright (web), Jest (mobile only)                                                                 |                                                                                                                                                                                                                                                                                          |
 
 ## 3. Repo layout (delta over the copied base)
 
@@ -126,7 +126,7 @@ paid at runtime on every derived project forever.
 **Transactions (the load-bearing pattern).** Ambient transaction propagation
 via `@nestjs-cls/transactional` + its Drizzle adapter: services declare
 `@Transactional()`, repositories and the outbox writer resolve the ambient
-`tx` from CLS. `OutboxService.emit()` *only* accepts the ambient transactional
+`tx` from CLS. `OutboxService.emit()` _only_ accepts the ambient transactional
 client — emitting an event outside a transaction does not compile. The example
 resource demonstrates the full pattern.
 
@@ -151,7 +151,7 @@ entry-point-per-module exports, and ESLint `boundaries` rules map
 `apps/api/src/modules/X/**` → may import only `@repo/db/schema/X` (plus
 shared column helpers). Cross-module reads go through the owning module's
 exported query service, or an explicit read-model module (CQRS-lite) — never
-joins across module schemas. This is what keeps every module *extractable*
+joins across module schemas. This is what keeps every module _extractable_
 into a service later, which is the entire justification for the monolith.
 
 **Domain-layer position (stated once, so it isn't relitigated per project):**
@@ -166,7 +166,7 @@ field errors → 422). Exceptions at the seam; no Result idiom.
 ## 6. Data layer conventions
 
 - **Zero-downtime migrations.** Migrations run as a one-shot container
-  (`migrate.ts`) *before* rollout — the platform-agnostic release phase; never
+  (`migrate.ts`) _before_ rollout — the platform-agnostic release phase; never
   at app boot (N-replica race). **Expand/contract is mandatory:** every
   migration must be compatible with N−1 code (add-nullable → backfill →
   enforce; never rename in one step). Migration template sets
@@ -306,7 +306,7 @@ module the generator (§12) reproduces and the pattern AI agents copy.
   forwarding cookies.
 - Mobile → direct API URL; Better Auth Expo plugin.
 - Mock mode (`@repo/api-mocks` + MSW) unchanged for frontend-only dev; MSW is
-  also the named convention for mocking *third-party* HTTP in tests.
+  also the named convention for mocking _third-party_ HTTP in tests.
 
 ## 10. Analytics & flags (PostHog)
 
@@ -418,7 +418,7 @@ update propagation); (13) jobs & scheduling rules (repeatables-only cron, DLQ);
 ## 16. Out of scope (deliberately)
 
 - k8s manifests/Helm (container images are the contract).
-- *Full* multi-tenancy, billing, admin UI, webhooks portal — the **seams**
+- _Full_ multi-tenancy, billing, admin UI, webhooks portal — the **seams**
   exist (§6, §7.6), the features don't.
 - Microservices/NestJS transports (§5), chatbot UIs, landing-page/marketing
   machinery, docs-site app, vendor-coupled services (Clerk/Arcjet-style).
@@ -443,7 +443,7 @@ update propagation); (13) jobs & scheduling rules (repeatables-only cron, DLQ);
 5. **Conventions made concrete:** API semantics helpers (pagination,
    idempotency, serialization), audit + privacy modules, tenancy-seam
    repositories — all landed via the **reference resource** + `turbo gen
-   module`.
+module`.
 6. **Observability + analytics:** OTel traces/metrics, Sentry, PostHog
    server-side + shared registry + consent annotations; OBSERVABILITY.md.
 7. **Quality net:** Testcontainers suite, real-stack smoke E2E, OpenAPI

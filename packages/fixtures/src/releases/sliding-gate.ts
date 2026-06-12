@@ -25,6 +25,14 @@
  * connection rules read via `other.*`, and two `gate.side` ports that OWN the
  * tower post — a fence run attaching to the gate consumes its own end post
  * and bolts to the tower post (I6).
+ *
+ * Step 5 (renderers): piece geometry on the structural material parts. The
+ * MVP's rolled-up BOM lines stay untouched (delta-0); geometry tells the
+ * OTHER truth — `frame.lprofile` bills meters but cuts five distinct pieces
+ * (postA, postB, the suspension diagonal with its mitre cut, bottom member,
+ * slide rail). Origin: left outer-frame edge at the site datum, X across the
+ * opening, Y up. Accessories (motor, kits, rollers) are BOM-only in v1 —
+ * geometry lands per part when a drawing needs it, never invented wholesale.
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -199,6 +207,40 @@ export const slidingGateV1: ProductModelRelease = {
           quantity: expr("roundUp((postA + postB + diagonal + bottomRail + railLength) / 1000)"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "postA",
+            length: expr("postA"),
+            at: [expr("0"), expr("ground_elevation_mm + 40"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+          },
+          {
+            key: "postB",
+            length: expr("postB"),
+            at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+          },
+          // The cantilever suspension diagonal: rises from the rear post top
+          // toward the front at the suspension angle — its mitre cut is the
+          // cut list's angled-cut proof.
+          {
+            key: "diagonal",
+            length: expr("diagonal"),
+            at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40 + postB"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("180 - suspension_angle")],
+            cuts: { left: expr("suspension_angle"), right: expr("90") },
+          },
+          {
+            key: "bottom",
+            length: expr("bottomRail"),
+            at: [expr("0"), expr("ground_elevation_mm + 40"), expr("0")],
+          },
+          {
+            key: "rail",
+            length: expr("railLength"),
+            at: [expr("0"), expr("ground_elevation_mm"), expr("60")],
+          },
+        ],
       },
       {
         path: "frame.tpost",
@@ -215,6 +257,19 @@ export const slidingGateV1: ProductModelRelease = {
           quantity: expr("roundUp((panel_count - 1) * postB / 1000)"),
           category: "material",
         },
+        geometry: [
+          {
+            key: "post",
+            length: expr("postB"),
+            at: [
+              expr("(i + 1) * (outerFrameWidth / panel_count)"),
+              expr("ground_elevation_mm + 40"),
+              expr("0"),
+            ],
+            rotation: [expr("0"), expr("0"), expr("90")],
+            repeat: { count: expr("panel_count - 1"), var: "i" },
+          },
+        ],
       },
       {
         path: "frame.hprofile",
@@ -230,6 +285,23 @@ export const slidingGateV1: ProductModelRelease = {
           quantity: expr("roundUp(panel_count * 2 * hProfileLength / 1000)"),
           category: "material",
         },
+        // Two verticals per panel, at each panel's inner edges.
+        geometry: [
+          {
+            key: "upright",
+            length: expr("hProfileLength"),
+            at: [
+              expr(
+                "80 + floor(i / 2) * (outerFrameWidth / panel_count)" +
+                  " + (i % 2) * (outerFrameWidth / panel_count - 160)",
+              ),
+              expr("ground_elevation_mm + 90"),
+              expr("0"),
+            ],
+            rotation: [expr("0"), expr("0"), expr("90")],
+            repeat: { count: expr("panel_count * 2"), var: "i" },
+          },
+        ],
       },
       {
         path: "fill.material",
@@ -245,6 +317,19 @@ export const slidingGateV1: ProductModelRelease = {
           quantity: expr("roundUp(totalPieces * fillPieceLength / 1000)"),
           category: "material",
         },
+        // fillCount rows per panel, stacked at the fill option's spacing.
+        geometry: [
+          {
+            key: "piece",
+            length: expr("fillPieceLength"),
+            at: [
+              expr("70 + floor(i / fillCount) * (outerFrameWidth / panel_count)"),
+              expr("ground_elevation_mm + 130 + (i % fillCount) * fill.min_spacing_mm"),
+              expr("0"),
+            ],
+            repeat: { count: expr("totalPieces"), var: "i" },
+          },
+        ],
       },
       {
         path: "rail.top_guide_beam",
@@ -252,12 +337,27 @@ export const slidingGateV1: ProductModelRelease = {
         name: "Nosník V-horní vedení",
         // Literal 6.5 m (MVP Excel T23, not rounded).
         bom: { unit: "meter", quantity: expr("6.5"), lengthMm: expr("6500"), category: "material" },
+        geometry: [
+          {
+            key: "beam",
+            length: expr("6500"),
+            at: [expr("-150"), expr("ground_elevation_mm + clear_height_mm + 60"), expr("0")],
+          },
+        ],
       },
       {
         path: "frame.tower_post",
         resolve: { role: "frame.tower_post" },
         name: "Tower sloupek",
         bom: { unit: "piece", quantity: expr("1"), category: "material" },
+        geometry: [
+          {
+            key: "post",
+            length: expr("clear_height_mm + 400"),
+            at: [expr("-150"), expr("ground_elevation_mm"), expr("0")],
+            rotation: [expr("0"), expr("0"), expr("90")],
+          },
+        ],
       },
 
       // --- ACCESSORIES ---
@@ -364,12 +464,14 @@ export const slidingGateV1: ProductModelRelease = {
       kind: "gate.side",
       compatibleKinds: ["fence.start", "fence.end"],
       sharing: { element: "frame.tower_post", policy: "owner" },
+      anchor: { at: [expr("-150"), expr("ground_elevation_mm"), expr("0")] },
     },
     {
       id: "right",
       kind: "gate.side",
       compatibleKinds: ["fence.start", "fence.end"],
       sharing: { element: "frame.tower_post", policy: "owner" },
+      anchor: { at: [expr("outerFrameWidth + 150"), expr("ground_elevation_mm"), expr("0")] },
     },
   ],
 

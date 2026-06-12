@@ -55,6 +55,7 @@ export const baseConfig = [
         { type: "model", mode: "full", pattern: "packages/model/**" },
         { type: "engine", mode: "full", pattern: "packages/engine/**" },
         { type: "fixtures", mode: "full", pattern: "packages/fixtures/**" },
+        { type: "renderers", mode: "full", pattern: "packages/renderers/**" },
         // @gen:boundaries-elements — `pnpm gen package` injects new elements here.
       ],
       "import/resolver": { typescript: {} },
@@ -183,6 +184,7 @@ export const baseConfig = [
                 "model",
                 "engine",
                 "fixtures",
+                "renderers",
                 // @gen:app-allow — `pnpm gen package` adds the new package type here.
               ].map((type) => ({ to: { type } })),
             },
@@ -279,7 +281,13 @@ export const baseConfig = [
             },
             {
               from: { type: "fixtures" },
-              allow: ["fixtures", "model", "engine"].map((type) => ({ to: { type } })),
+              allow: ["fixtures", "model", "engine", "renderers"].map((type) => ({ to: { type } })),
+            },
+            // Renderers consume the derived site graph only (I4) — model types
+            // + engine result shapes, never catalog/config recomputation.
+            {
+              from: { type: "renderers" },
+              allow: ["renderers", "model", "engine"].map((type) => ({ to: { type } })),
             },
             // @gen:boundaries-rules — `pnpm gen package` injects the new package's dependency rule here.
           ],

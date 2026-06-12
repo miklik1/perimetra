@@ -39,6 +39,9 @@ export const catalogV1: Catalog = {
       roles: ["frame.l_profile"],
       material: "alu",
       section: "L50x50",
+      // Standard 6 m bars (industry default; FIL-confirm pending) — feeds
+      // cut-list nesting (step 5). Absent stock = no nesting, never a guess.
+      stockLength_mm: 6000,
     },
     {
       code: "sloupek_l_50_steel",

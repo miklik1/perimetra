@@ -7,10 +7,10 @@
  * recipes never name component codes. Pure: no clock, no randomness, no I/O (I1).
  */
 import { evalBoolean, evalNumber, evalString, type Catalog, type Scope } from "@repo/model";
-import type { ExprString, ProductModelRelease } from "@repo/model";
+import type { Component, ExprString, PartRule, ProductModelRelease } from "@repo/model";
 
 import { resolveComponent, type ResolutionRequest } from "./resolve";
-import type { AssemblyGraph, Issue, Part } from "./types";
+import type { AssemblyGraph, Issue, Part, PartGeometry, PartPiece } from "./types";
 
 /** Resolution failures are collected (the full vendor worklist, not just the
  *  first gap) and fail the derivation — no partial BOM ever ships (I5). */
@@ -26,6 +26,111 @@ function evalAxis(source: ExprString | undefined, scope: Scope, where: string): 
     throw new TypeError(`resolve.${where} must evaluate to a string, got ${typeof value}`);
   }
   return value;
+}
+
+/** Angles are authored in decimal degrees, emitted as arc-minutes (I10). */
+const ARCMIN_PER_DEG = 60;
+
+const evalTriple = (
+  exprs: readonly [ExprString, ExprString, ExprString],
+  scope: Scope,
+): [number, number, number] => [
+  evalNumber(exprs[0], scope),
+  evalNumber(exprs[1], scope),
+  evalNumber(exprs[2], scope),
+];
+
+/**
+ * Expand a part rule's geometry into physical pieces (step 5) and bake the
+ * catalog facts the renderers need (cross-section profile, stock length) so
+ * no renderer ever opens the catalog (I4). Geometry expressions are vendor
+ * data — failures throw as authoring defects (ADR 0047), like any bad expr.
+ */
+function buildGeometry(
+  rule: PartRule,
+  scope: Scope,
+  component: Component,
+  catalog: Catalog,
+): PartGeometry {
+  const pieces: PartPiece[] = [];
+  for (const geo of rule.geometry!) {
+    const emit = (id: string, local: Scope): void => {
+      const piece: PartPiece = {
+        id,
+        lengthMm: evalNumber(geo.length, local),
+        at: evalTriple(geo.at, local),
+        rotationArcMin:
+          geo.rotation === undefined
+            ? [0, 0, 0]
+            : (evalTriple(geo.rotation, local).map((deg) => deg * ARCMIN_PER_DEG) as [
+                number,
+                number,
+                number,
+              ]),
+      };
+      if (geo.cuts !== undefined) {
+        piece.cutArcMin = {
+          ...(geo.cuts.left !== undefined && {
+            left: evalNumber(geo.cuts.left, local) * ARCMIN_PER_DEG,
+          }),
+          ...(geo.cuts.right !== undefined && {
+            right: evalNumber(geo.cuts.right, local) * ARCMIN_PER_DEG,
+          }),
+        };
+      }
+      pieces.push(piece);
+    };
+
+    if (geo.repeat === undefined) {
+      emit(geo.key, scope);
+      continue;
+    }
+    const count = evalNumber(geo.repeat.count, scope);
+    if (!Number.isInteger(count) || count < 0) {
+      throw new TypeError(
+        `Geometry repeat count at "${rule.path}.${geo.key}" must be a non-negative ` +
+          `integer, got ${count}`,
+      );
+    }
+    for (let i = 0; i < count; i++) {
+      emit(`${geo.key}[${i}]`, { ...scope, [geo.repeat.var]: i });
+    }
+  }
+
+  const geometry: PartGeometry = { pieces };
+  if (component.section !== undefined) {
+    const section = catalog.sections.find((s) => s.code === component.section);
+    if (section === undefined) {
+      // Component names a section the catalog release doesn't carry —
+      // catalog-internal data disagreement, author-shaped.
+      throw new TypeError(
+        `Component "${component.code}" names unknown section "${component.section}"`,
+      );
+    }
+    geometry.profile = {
+      shape: section.shape,
+      ...(section.w_mm !== undefined && { wMm: section.w_mm }),
+      ...(section.d_mm !== undefined && { dMm: section.d_mm }),
+      ...(section.wall_mm !== undefined && { wallMm: section.wall_mm }),
+    };
+  }
+  if (component.stockLength_mm !== undefined) geometry.stockLengthMm = component.stockLength_mm;
+  return geometry;
+}
+
+/** Evaluate declared port anchors against the full post-derivation scope.
+ *  Returns undefined when no port declares one (most BOM-era releases). */
+export function evaluateAnchors(
+  release: ProductModelRelease,
+  scope: Scope,
+): Record<string, [number, number, number]> | undefined {
+  let anchors: Record<string, [number, number, number]> | undefined;
+  for (const port of release.ports ?? []) {
+    if (port.anchor === undefined) continue;
+    anchors ??= {};
+    anchors[port.id] = evalTriple(port.anchor.at, scope);
+  }
+  return anchors;
 }
 
 export function derive(
@@ -84,6 +189,9 @@ export function derive(
     }
     if (rule.bom.totalPrice !== undefined) {
       part.totalPrice = evalNumber(rule.bom.totalPrice, scope);
+    }
+    if (rule.geometry !== undefined && rule.geometry.length > 0) {
+      part.geometry = buildGeometry(rule, scope, component, catalog);
     }
     parts.push(part);
   }

@@ -23,7 +23,7 @@ import type { Catalog, ProductModelRelease, Scope } from "@repo/model";
 import { applyArtifactOverrides } from "./artifacts";
 import { resolveCascade, type CascadeLayers } from "./cascade";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints";
-import { derive } from "./derive";
+import { derive, evaluateAnchors } from "./derive";
 import { priceParts, sumByCategory, toMoneyTotals } from "./emit";
 import { buildScope } from "./scope";
 import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types";
@@ -112,18 +112,21 @@ export function deriveInstanceDetailed(
   }
 
   const totals = sumByCategory(artifacts.parts);
+  const fullScope: Scope = { ...scope, ...graph.derived };
+  const anchors = evaluateAnchors(release, fullScope);
 
   return {
     result: {
       isValid: true,
       derived: graph.derived,
       parts: artifacts.parts,
+      ...(anchors !== undefined && { anchors }),
       totals,
       money: toMoneyTotals(totals),
       issues,
       stamps,
     },
-    scope: { ...scope, ...graph.derived },
+    scope: fullScope,
   };
 }
 

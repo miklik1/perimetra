@@ -968,6 +968,9 @@ importers:
       '@repo/model':
         specifier: workspace:*
         version: link:../model
+      '@repo/renderers':
+        specifier: workspace:*
+        version: link:../renderers
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -1159,6 +1162,34 @@ importers:
       react:
         specifier: 19.2.3
         version: 19.2.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/renderers:
+    dependencies:
+      '@repo/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@repo/model':
+        specifier: workspace:*
+        version: link:../model
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../tooling/typescript
+      '@repo/vitest-config':
+        specifier: workspace:*
+        version: link:../../tooling/vitest-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.19.19
+      eslint:
+        specifier: 'catalog:'
+        version: 9.39.4(jiti@2.7.0)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

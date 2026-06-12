@@ -34,6 +34,8 @@ export const catalogV2: Catalog = {
       roles: ["fence.post"],
       material: "alu",
       section: "jakl_60x60",
+      // Standard 6 m bars (industry default; FIL-confirm pending) — step 5.
+      stockLength_mm: 6000,
     },
     {
       code: "fence_rail_40x20",
@@ -42,6 +44,7 @@ export const catalogV2: Catalog = {
       roles: ["fence.rail"],
       material: "alu",
       section: "jakl_40x20",
+      stockLength_mm: 6000,
     },
   ],
 };

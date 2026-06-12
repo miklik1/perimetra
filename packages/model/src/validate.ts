@@ -16,6 +16,8 @@
  *     (params + option attrs + derived), `other.*` cannot be checked
  *     statically — declaring a port kind compatible is the vendor's contract
  *     that the refs exist on every release exposing that kind (CORE_SPEC §5)
+ *   - geometry: keys unique identifiers per part; repeat vars don't shadow
+ *     scope names; piece/anchor exprs check like any other slot
  *   - ports: sharing elements name real part paths; the terrain binding
  *     names a writable length_mm parameter
  *   - against a catalog: every resolve.role exists, and literal
@@ -220,6 +222,42 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
       parseInto(rule.bom.totalPrice, `${at}.bom.totalPrice`, partKnown);
     }
 
+    // --- Geometry (step 5): keyed pieces, repeat var hygiene, expr refs ------
+    const seenGeometryKeys = new Set<string>();
+    for (const geo of rule.geometry ?? []) {
+      const geoAt = `${at}.geometry[${geo.key}]`;
+      if (seenGeometryKeys.has(geo.key)) {
+        defects.push(duplicate("geometry key", geoAt, geo.key));
+      }
+      seenGeometryKeys.add(geo.key);
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(geo.key)) {
+        defects.push({
+          code: "key.invalid",
+          where: geoAt,
+          message: `geometry key "${geo.key}" must be an identifier — piece ids build on it (I9)`,
+        });
+      }
+      let geoKnown: ReadonlySet<string> = partKnown;
+      if (geo.repeat !== undefined) {
+        // The count decides how many pieces exist — it cannot see the var.
+        parseInto(geo.repeat.count, `${geoAt}.repeat.count`, partKnown);
+        const v = geo.repeat.var;
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v) || partKnown.has(v)) {
+          defects.push({
+            code: "repeat.var.invalid",
+            where: `${geoAt}.repeat.var`,
+            message: `repeat var "${v}" must be an identifier and must not shadow a scope name`,
+          });
+        }
+        geoKnown = new Set([...partKnown, v]);
+      }
+      parseInto(geo.length, `${geoAt}.length`, geoKnown);
+      geo.at.forEach((source, i) => parseInto(source, `${geoAt}.at[${i}]`, geoKnown));
+      geo.rotation?.forEach((source, i) => parseInto(source, `${geoAt}.rotation[${i}]`, geoKnown));
+      if (geo.cuts?.left !== undefined) parseInto(geo.cuts.left, `${geoAt}.cuts.left`, geoKnown);
+      if (geo.cuts?.right !== undefined) parseInto(geo.cuts.right, `${geoAt}.cuts.right`, geoKnown);
+    }
+
     if (catalog) {
       const { role, section, material } = rule.resolve;
       if (!catalog.components.some((c) => c.roles.includes(role))) {
@@ -264,6 +302,9 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
         message: `"${port.sharing.element}" is not a part path of this release`,
       });
     }
+    port.anchor?.at.forEach((source, i) => {
+      parseInto(source, `ports[${port.id}].anchor.at[${i}]`, partKnown);
+    });
   }
 
   // --- Terrain binding: must name a writable length parameter — the engine
