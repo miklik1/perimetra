@@ -18,11 +18,17 @@
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.1.0",
     "@repo/api": "workspace:*",
     "@repo/api-mocks": "workspace:*",
     "@repo/auth": "workspace:*",
     "@repo/config": "workspace:*",
+    "@repo/engine": "workspace:*",
+    "@repo/fixtures": "workspace:*",
     "@repo/flags": "workspace:*",
+    "@repo/model": "workspace:*",
+    "@repo/renderers": "workspace:*",
     "@repo/i18n": "workspace:*",
     "@repo/navigation": "workspace:*",
     "@repo/realtime": "workspace:*",
@@ -40,6 +46,7 @@
     "react": "catalog:react19",
     "react-dom": "catalog:react19",
     "react-hook-form": "catalog:",
+    "three": "^0.171.0",
     "zustand": "catalog:"
   },
   "devDependencies": {
@@ -53,6 +60,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:react19",
     "@types/react-dom": "catalog:react19",
+    "@types/three": "^0.171.0",
     "eslint": "catalog:",
     "msw": "catalog:",
     "tailwindcss": "catalog:tailwind4",

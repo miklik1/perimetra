@@ -45,6 +45,11 @@ export type ParamDomain =
 
 export interface ParameterDef {
   key: string;
+  /** Vendor-authored display label (product language, Czech for CZ tenants) —
+   *  the generated UI (CORE_SPEC §8) falls back to `key` when absent. Domain
+   *  wording is release DATA, not an app i18n catalog: a new family must ship
+   *  its own working wizard without touching app code. */
+  label?: string;
   type: ParamType;
   domain?: ParamDomain;
   /** Literal default. Mutually exclusive with {@link defaultExpr} — a string
@@ -238,6 +243,36 @@ export interface TerrainBinding {
   elevationParam: string;
 }
 
+/** One labeled run of parameters inside a step (CORE_SPEC §8). */
+export interface UiGroup {
+  id: string;
+  /** Vendor-authored display label; falls back to `id`. */
+  label?: string;
+  /** ParameterDef.keys in display order. Validated at publish: every key must
+   *  exist, appear once across the whole spec, and never be vendor-only (I7 —
+   *  the generated surface renders exactly what tenants/users may write). */
+  params: string[];
+}
+
+/** One wizard step (CORE_SPEC §8). */
+export interface UiStep {
+  id: string;
+  label?: string;
+  groups: UiGroup[];
+}
+
+/**
+ * The generated-UI spec (CORE_SPEC §8): steps, groups, ordering, and labels
+ * come from the model — a new product family ships with a working wizard, no
+ * app code. Per-parameter VISIBILITY stays on `ParameterDef.relevance` (the
+ * value-dependent part); the spec is pure structure. Publishing requires every
+ * non-vendor parameter to appear exactly once (an uncovered writable parameter
+ * would be silently uneditable — the I5 spirit applied to the surface).
+ */
+export interface UiSpec {
+  steps: UiStep[];
+}
+
 export type ReleaseStatus = "draft" | "published" | "retired";
 
 /**
@@ -257,7 +292,10 @@ export interface ProductModelRelease {
   ports?: PortDef[];
   /** Stepped-terrain participation (CORE_SPEC §5 / step 4). */
   terrain?: TerrainBinding;
-  // ui, fixtures: reserved (CORE_SPEC §3) — land with later steps.
+  /** Generated-UI structure (CORE_SPEC §8 / step 6). Absent = the consumer
+   *  falls back to one synthesized step over all writable parameters. */
+  ui?: UiSpec;
+  // fixtures: reserved (CORE_SPEC §3) — lands with authoring tooling.
 }
 
 /** A golden fixture (CORE_SPEC I2): a config + its expected outputs. Publishing

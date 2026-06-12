@@ -20,6 +20,8 @@
  *     scope names; piece/anchor exprs check like any other slot
  *   - ports: sharing elements name real part paths; the terrain binding
  *     names a writable length_mm parameter
+ *   - ui (when authored): refs name real parameters, each writable parameter
+ *     appears exactly once, vendor-only parameters never appear (I7)
  *   - against a catalog: every resolve.role exists, and literal
  *     section/material requests name real catalog codes
  */
@@ -330,6 +332,61 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
         where: "terrain.elevationParam",
         message: `"${key}" is vendor-only — the input gate would reject every placement (I7)`,
       });
+    }
+  }
+
+  // --- Generated UI (CORE_SPEC §8): refs resolve, each writable parameter
+  // appears exactly once, vendor-only parameters never appear (I7 — the spec
+  // IS the tenant-facing surface). Coverage is checked only when `ui` is
+  // authored; an absent spec falls back to defaultUi at render time.
+  if (release.ui !== undefined) {
+    const paramByKey = new Map(release.parameters.map((p) => [p.key, p]));
+    const seenStepIds = new Set<string>();
+    const seenUiParams = new Set<string>();
+    for (const step of release.ui.steps) {
+      if (seenStepIds.has(step.id)) defects.push(duplicate("ui step", `ui[${step.id}]`, step.id));
+      seenStepIds.add(step.id);
+      const seenGroupIds = new Set<string>();
+      for (const group of step.groups) {
+        const at = `ui[${step.id}].${group.id}`;
+        if (seenGroupIds.has(group.id)) defects.push(duplicate("ui group", at, group.id));
+        seenGroupIds.add(group.id);
+        for (const key of group.params) {
+          const param = paramByKey.get(key);
+          if (param === undefined) {
+            defects.push({
+              code: "ui.param.unknown",
+              where: at,
+              message: `"${key}" is not a declared parameter`,
+            });
+            continue;
+          }
+          if (seenUiParams.has(key)) {
+            defects.push({
+              code: "ui.param.duplicate",
+              where: at,
+              message: `parameter "${key}" appears more than once in the ui spec`,
+            });
+          }
+          seenUiParams.add(key);
+          if (param.adjustability === "vendor") {
+            defects.push({
+              code: "ui.param.vendor",
+              where: at,
+              message: `"${key}" is vendor-only — it must never reach a tenant surface (I7)`,
+            });
+          }
+        }
+      }
+    }
+    for (const p of release.parameters) {
+      if (p.adjustability !== "vendor" && !seenUiParams.has(p.key)) {
+        defects.push({
+          code: "ui.param.uncovered",
+          where: `ui`,
+          message: `writable parameter "${p.key}" is missing from the ui spec — it would be silently uneditable`,
+        });
+      }
     }
   }
 

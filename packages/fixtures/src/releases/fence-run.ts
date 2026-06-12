@@ -35,26 +35,30 @@ export const fenceRunV1: ProductModelRelease = {
   parameters: [
     {
       key: "run_length_mm",
+      label: "Délka plotu",
       type: "length_mm",
       domain: { kind: "range", min: 1000, max: 30000 },
       adjustability: "user",
     },
     {
       key: "clear_height_mm",
+      label: "Výška plotu",
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2000 },
       adjustability: "user",
     },
     {
       key: "ground_elevation_mm",
+      label: "Výška terénu",
       type: "length_mm",
       domain: { kind: "range", min: -5000, max: 5000 },
       default: 0,
       adjustability: "user",
     },
-    { key: "fill_type_id", type: "select", adjustability: "user" },
+    { key: "fill_type_id", label: "Typ výplně", type: "select", adjustability: "user" },
     {
       key: "frame_material",
+      label: "Materiál rámu",
       type: "select",
       domain: { kind: "enum", values: ["alu", "steel"] },
       default: "alu",
@@ -62,11 +66,18 @@ export const fenceRunV1: ProductModelRelease = {
     },
     {
       key: "manufacturing_hours",
+      label: "Hodiny výroby",
       type: "int",
       defaultExpr: expr("price.manufacturing_multiplier"),
       adjustability: "tenant",
     },
-    { key: "include_installation", type: "bool", default: true, adjustability: "user" },
+    {
+      key: "include_installation",
+      label: "Včetně montáže",
+      type: "bool",
+      default: true,
+      adjustability: "user",
+    },
   ],
 
   optionSets: [
@@ -289,4 +300,34 @@ export const fenceRunV1: ProductModelRelease = {
   ],
 
   terrain: { elevationParam: "ground_elevation_mm" },
+
+  // Generated UI (CORE_SPEC §8 / step 6) — see sliding-gate.ts.
+  ui: {
+    steps: [
+      {
+        id: "rozmery",
+        label: "Rozměry",
+        groups: [
+          { id: "plot", label: "Plot", params: ["run_length_mm", "clear_height_mm"] },
+          { id: "teren", label: "Terén", params: ["ground_elevation_mm"] },
+        ],
+      },
+      {
+        id: "provedeni",
+        label: "Provedení",
+        groups: [{ id: "material", label: "Materiál", params: ["frame_material", "fill_type_id"] }],
+      },
+      {
+        id: "prace",
+        label: "Práce",
+        groups: [
+          {
+            id: "prace",
+            label: "Práce",
+            params: ["manufacturing_hours", "include_installation"],
+          },
+        ],
+      },
+    ],
+  },
 };

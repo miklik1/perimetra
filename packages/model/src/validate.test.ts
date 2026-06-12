@@ -224,3 +224,46 @@ describe("validateRelease — geometry (step 5)", () => {
     ).toContain("ref.unknown");
   });
 });
+
+describe("validateRelease — generated ui (CORE_SPEC §8)", () => {
+  const ui = (params: string[], extra?: Partial<ProductModelRelease>): ProductModelRelease => ({
+    ...base,
+    ...extra,
+    ui: { steps: [{ id: "s", groups: [{ id: "g", params }] }] },
+  });
+
+  it("accepts a spec covering every writable parameter once", () => {
+    expect(codes(ui(["len", "label"]))).toEqual([]);
+  });
+
+  it("rejects unknown and duplicated parameter refs", () => {
+    expect(codes(ui(["len", "label", "nope"]))).toContain("ui.param.unknown");
+    expect(codes(ui(["len", "len", "label"]))).toContain("ui.param.duplicate");
+  });
+
+  it("rejects vendor-only parameters on the surface (I7)", () => {
+    expect(codes(ui(["len", "label", "vendor_len"]))).toContain("ui.param.vendor");
+  });
+
+  it("rejects an uncovered writable parameter (silently uneditable)", () => {
+    expect(codes(ui(["len"]))).toContain("ui.param.uncovered");
+  });
+
+  it("rejects duplicate step and group ids", () => {
+    expect(
+      codes({
+        ...base,
+        ui: {
+          steps: [
+            { id: "s", groups: [{ id: "g", params: ["len"] }] },
+            { id: "s", groups: [{ id: "g", params: ["label"] }] },
+          ],
+        },
+      }),
+    ).toContain("key.duplicate");
+  });
+
+  it("leaves releases without ui untouched (defaultUi is the consumer's job)", () => {
+    expect(codes(base)).toEqual([]);
+  });
+});

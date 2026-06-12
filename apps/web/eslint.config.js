@@ -13,4 +13,11 @@ export default [
     files: ["playwright.config.ts", "playwright.smoke.config.ts", "e2e/**/*.ts"],
     rules: { "turbo/no-undeclared-env-vars": "off" },
   },
+  {
+    // React Three Fiber's JSX (<group position…>, <meshStandardMaterial…>) is
+    // three.js scene-graph vocabulary, not DOM — eslint-plugin-react cannot
+    // know it (the documented R3F lint caveat). Scoped to the 3D adapter dir.
+    files: ["app/configurator/scene/**/*.tsx"],
+    rules: { "react/no-unknown-property": "off" },
+  },
 ];

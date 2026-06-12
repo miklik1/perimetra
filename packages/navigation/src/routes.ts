@@ -26,6 +26,7 @@ export const routes = {
   login: { path: "/login" },
   account: { path: "/account" },
   projects: { path: "/projects" },
+  configurator: { path: "/configurator" },
   // @gen:exports — `pnpm gen route` registers the new route entry here.
 } as const;
 

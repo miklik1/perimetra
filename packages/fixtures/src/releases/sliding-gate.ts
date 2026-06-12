@@ -45,6 +45,7 @@ export const slidingGateV1: ProductModelRelease = {
   parameters: [
     {
       key: "opening_width_mm",
+      label: "Šířka otvoru",
       type: "length_mm",
       domain: { kind: "range", min: 2000, max: 8000 },
       adjustability: "user",
@@ -59,6 +60,7 @@ export const slidingGateV1: ProductModelRelease = {
     },
     {
       key: "clear_height_mm",
+      label: "Průjezdná výška",
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2500 },
       adjustability: "user",
@@ -72,6 +74,7 @@ export const slidingGateV1: ProductModelRelease = {
     },
     {
       key: "ground_elevation_mm",
+      label: "Výška terénu",
       type: "length_mm",
       domain: { kind: "range", min: -5000, max: 5000 },
       default: 0,
@@ -79,19 +82,22 @@ export const slidingGateV1: ProductModelRelease = {
     },
     {
       key: "suspension_angle",
+      label: "Úhel závěsu",
       type: "int",
       domain: { kind: "enum", values: ["35", "40", "45"] },
       adjustability: "user",
     },
     {
       key: "panel_count",
+      label: "Počet polí",
       type: "int",
       domain: { kind: "enum", values: ["2", "3"] },
       adjustability: "user",
     },
-    { key: "fill_type_id", type: "select", adjustability: "user" },
+    { key: "fill_type_id", label: "Typ výplně", type: "select", adjustability: "user" },
     {
       key: "frame_material",
+      label: "Materiál rámu",
       type: "select",
       domain: { kind: "enum", values: ["alu", "steel"] },
       default: "alu",
@@ -99,14 +105,28 @@ export const slidingGateV1: ProductModelRelease = {
     },
     {
       key: "opening_direction",
+      label: "Směr otevírání",
       type: "select",
       domain: { kind: "enum", values: ["left", "right"] },
       adjustability: "user",
     },
-    { key: "include_motor", type: "bool", default: true, adjustability: "user" },
-    { key: "include_installation", type: "bool", default: true, adjustability: "user" },
+    {
+      key: "include_motor",
+      label: "Včetně pohonu",
+      type: "bool",
+      default: true,
+      adjustability: "user",
+    },
+    {
+      key: "include_installation",
+      label: "Včetně montáže",
+      type: "bool",
+      default: true,
+      adjustability: "user",
+    },
     {
       key: "manufacturing_hours",
+      label: "Hodiny výroby",
       type: "int",
       // Estimator-editable (CORE_SPEC §3); defaults to the price-table multiplier
       // as a per-size estimate when the estimator leaves it blank (MVP rule).
@@ -476,4 +496,43 @@ export const slidingGateV1: ProductModelRelease = {
   ],
 
   terrain: { elevationParam: "ground_elevation_mm" },
+
+  // Generated UI (CORE_SPEC §8 / step 6): the wizard structure ships WITH the
+  // model — steps, groups, labels are vendor data, never app code.
+  ui: {
+    steps: [
+      {
+        id: "rozmery",
+        label: "Rozměry",
+        groups: [
+          { id: "otvor", label: "Otvor", params: ["opening_width_mm", "clear_height_mm"] },
+          { id: "teren", label: "Terén", params: ["ground_elevation_mm"] },
+        ],
+      },
+      {
+        id: "konstrukce",
+        label: "Konstrukce",
+        groups: [
+          {
+            id: "ram",
+            label: "Rám",
+            params: ["frame_material", "panel_count", "suspension_angle", "opening_direction"],
+          },
+          { id: "vypln", label: "Výplň", params: ["fill_type_id"] },
+        ],
+      },
+      {
+        id: "vybava",
+        label: "Výbava a práce",
+        groups: [
+          { id: "pohon", label: "Pohon", params: ["include_motor"] },
+          {
+            id: "prace",
+            label: "Práce",
+            params: ["manufacturing_hours", "include_installation"],
+          },
+        ],
+      },
+    ],
+  },
 };

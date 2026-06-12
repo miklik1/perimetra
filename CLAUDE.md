@@ -22,14 +22,17 @@ the core); cross-cutting strategy/decisions live in the vault
 | `packages/renderers` | Cut list / 3D scene / 2D drawings as **pure data** off (Site, SiteResult) only (I4). Presentation (R3F/SVG/PDF) is app-land.                   |
 | `packages/fixtures`  | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine+renderers).                              |
 
-Build order is CORE_SPEC §10. **Step 5 done (2026-06-12):** renderers
-(ADR 0050 — keyed piece geometry + port anchors on PartRule/PortDef, engine
-bakes catalog profile/stock onto parts; `packages/renderers` emits cut list
-with FFD stock nesting, 3D scene, workshop drawing with mandatory §6
-deviation flags, and site plan — all pure data off (Site, SiteResult) only
-(I4), consumed sharing elements vanish render-wide (I6)). Next: app surfaces
-(step 6) — generated configurator, site canvas, quote lifecycle; `~/gates`
-R3F code is the 3D-adapter port reference. Invariants I1–I11 (CORE_SPEC §1)
+Build order is CORE_SPEC §10. **Step 6 slice 1 done (2026-06-12):** generated
+configurator (ADR 0051 — `UiSpec` + `ParameterDef.label` are release data
+validated at publish; `resolveUi` in `@repo/model`; the wizard at
+`apps/web/app/configurator` renders from release data alone, engine runs in
+the browser, R3F walker over `Scene3D` is app-land with Euler order "ZYX";
+`@repo/fixtures` is the ⌛ interim release source via
+`app/configurator/products.ts`). Steps 1–5 shipped before it (ADR 0045–0050).
+Next step-6 slices: site canvas (place/connect/drag off the same viewport),
+admin (`adjustability: tenant`), quote lifecycle (stamps + snapshot via
+`pnpm gen module`), issue-key i18n + deviation-override UX.
+Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
 cascade/overrides ADR 0048, site graph ADR 0049.

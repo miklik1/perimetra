@@ -8,4 +8,4 @@
 export * from "./cutlist";
 export * from "./drawing2d";
 export * from "./scene3d";
-export { consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared";
+export { add, consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared";

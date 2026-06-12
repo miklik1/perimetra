@@ -59,6 +59,12 @@ const nextConfig = {
     "@repo/validators",
     "@repo/utils",
     "@repo/config",
+    // The rebuild core (source-only packages) + the interim release source the
+    // step-6 configurator runs on (ADR 0051).
+    "@repo/model",
+    "@repo/engine",
+    "@repo/renderers",
+    "@repo/fixtures",
   ],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
