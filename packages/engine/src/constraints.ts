@@ -12,17 +12,35 @@ import type { Issue } from "./types";
 
 export interface ConstraintEvaluator {
   evaluate(release: ProductModelRelease, scope: Scope): Issue[];
+  /** Evaluate one connected end's connection-scope constraints against the
+   *  paired site scope (`self.*` = this release's values, `other.*` = the
+   *  opposite end's — built by deriveSite). The caller adds the connection
+   *  addressing to the returned issues' params. */
+  evaluateConnection(release: ProductModelRelease, pairScope: Scope): Issue[];
 }
 
-/** Slice 1: evaluate each instance-scope constraint's expression; a false
- *  result raises an Issue of the declared severity. Connection-scope constraints
- *  (inter-instance) are skipped until the site graph lands (§5 / step 4). */
+/** The forward checker: walk the declarative records, evaluate, raise an Issue
+ *  of the declared severity on a false result. A `self.*`/`other.*` ref missing
+ *  from the pair scope throws — declaring port kinds compatible is the vendor's
+ *  contract that the refs exist (CORE_SPEC §5; vendor-only authoring). */
 export const forwardChecker: ConstraintEvaluator = {
   evaluate(release, scope) {
     const issues: Issue[] = [];
     for (const c of release.constraints) {
       if (c.scope !== "instance") continue;
       const ok = evalBoolean(c.expr, scope);
+      if (!ok) {
+        issues.push({ key: c.key, severity: c.severity, scope: c.scope });
+      }
+    }
+    return issues;
+  },
+
+  evaluateConnection(release, pairScope) {
+    const issues: Issue[] = [];
+    for (const c of release.constraints) {
+      if (c.scope !== "connection") continue;
+      const ok = evalBoolean(c.expr, pairScope);
       if (!ok) {
         issues.push({ key: c.key, severity: c.severity, scope: c.scope });
       }

@@ -7,10 +7,17 @@
  *
  * Checks:
  *   - every expression parses and calls only whitelisted functions
- *   - key uniqueness: parameters, derived, constraints, option sets
+ *   - key uniqueness: parameters, derived, constraints, option sets, ports
  *   - part paths unique (I9 — stable addressing dies on duplicates)
  *   - every expr reference resolves against what its evaluation scope will
- *     actually contain (params, earlier derived, option attrs, price.*)
+ *     actually contain (params, earlier derived, option attrs, price.*).
+ *     Connection-scope constraints are special: refs must be `self.*` /
+ *     `other.*`; `self.X` is checked against this release's full scope
+ *     (params + option attrs + derived), `other.*` cannot be checked
+ *     statically — declaring a port kind compatible is the vendor's contract
+ *     that the refs exist on every release exposing that kind (CORE_SPEC §5)
+ *   - ports: sharing elements name real part paths; the terrain binding
+ *     names a writable length_mm parameter
  *   - against a catalog: every resolve.role exists, and literal
  *     section/material requests name real catalog codes
  */
@@ -40,19 +47,28 @@ export class ReleaseValidationError extends Error {
 interface Slot {
   where: string;
   ast: Ast;
-  /** Names this slot's evaluation scope will contain (besides price.*). */
+  /** Names this slot's evaluation scope will contain. */
   known: ReadonlySet<string>;
+  /** Ref prefixes that are open-keyed in this slot's scope (uncheckable
+   *  statically): `price.` everywhere, `other.` in connection constraints. */
+  openPrefixes: readonly string[];
 }
 
 const PRICE_PREFIX = "price.";
+const OTHER_PREFIX = "other.";
 
 export function validateRelease(release: ProductModelRelease, catalog?: Catalog): ReleaseDefect[] {
   const defects: ReleaseDefect[] = [];
   const slots: Slot[] = [];
 
-  const parseInto = (source: string, where: string, known: ReadonlySet<string>): void => {
+  const parseInto = (
+    source: string,
+    where: string,
+    known: ReadonlySet<string>,
+    openPrefixes: readonly string[] = [PRICE_PREFIX],
+  ): void => {
     try {
-      slots.push({ where, ast: parse(source), known });
+      slots.push({ where, ast: parse(source), known, openPrefixes });
     } catch (error) {
       if (!(error instanceof ExprError)) throw error;
       defects.push({ code: "expr.parse", where, message: error.message });
@@ -140,15 +156,27 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     }
   }
 
-  // --- Constraints: evaluated BEFORE derivation — derived keys are not in scope
+  // --- Constraints. Instance scope is evaluated BEFORE derivation — derived
+  // keys are not in scope. Connection scope is evaluated AFTER derivation on a
+  // paired site scope: `self.*` carries this release's params + option attrs +
+  // derived; `other.*` is the neighbor's and only checkable at connect time.
   const constraintKnown = new Set([...paramKeys, ...optionAttrKeys]);
+  const connectionSelfKnown = new Set(
+    [...paramKeys, ...optionAttrKeys, ...release.derivation.derived.map((d) => d.key)].map(
+      (key) => `self.${key}`,
+    ),
+  );
   const seenConstraintKeys = new Set<string>();
   for (const c of release.constraints) {
     if (seenConstraintKeys.has(c.key)) {
       defects.push(duplicate("constraint", `constraints[${c.key}]`, c.key));
     }
     seenConstraintKeys.add(c.key);
-    parseInto(c.expr, `constraints[${c.key}]`, constraintKnown);
+    if (c.scope === "connection") {
+      parseInto(c.expr, `constraints[${c.key}]`, connectionSelfKnown, [OTHER_PREFIX]);
+    } else {
+      parseInto(c.expr, `constraints[${c.key}]`, constraintKnown);
+    }
   }
 
   // --- Derived: each sees params, option attrs, and EARLIER derived keys
@@ -224,6 +252,46 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     }
   }
 
+  // --- Ports (CORE_SPEC §5): unique ids, sharing elements are real part paths
+  const seenPortIds = new Set<string>();
+  for (const port of release.ports ?? []) {
+    if (seenPortIds.has(port.id)) defects.push(duplicate("port", `ports[${port.id}]`, port.id));
+    seenPortIds.add(port.id);
+    if (port.sharing !== undefined && !seenPaths.has(port.sharing.element)) {
+      defects.push({
+        code: "port.element.unknown",
+        where: `ports[${port.id}].sharing.element`,
+        message: `"${port.sharing.element}" is not a part path of this release`,
+      });
+    }
+  }
+
+  // --- Terrain binding: must name a writable length parameter — the engine
+  // injects elevation through the ordinary input gate (one write path, I7).
+  if (release.terrain !== undefined) {
+    const key = release.terrain.elevationParam;
+    const param = release.parameters.find((p) => p.key === key);
+    if (param === undefined) {
+      defects.push({
+        code: "terrain.param.unknown",
+        where: "terrain.elevationParam",
+        message: `"${key}" is not a declared parameter`,
+      });
+    } else if (param.type !== "length_mm") {
+      defects.push({
+        code: "terrain.param.type",
+        where: "terrain.elevationParam",
+        message: `"${key}" must be a length_mm parameter, is ${param.type}`,
+      });
+    } else if (param.adjustability === "vendor") {
+      defects.push({
+        code: "terrain.param.unwritable",
+        where: "terrain.elevationParam",
+        message: `"${key}" is vendor-only — the input gate would reject every placement (I7)`,
+      });
+    }
+  }
+
   // --- Reference & function checks over every parsed slot ----------------------
   for (const slot of slots) {
     for (const fn of collectCalls(slot.ast)) {
@@ -236,7 +304,7 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
       }
     }
     for (const ref of collectRefs(slot.ast)) {
-      if (ref.startsWith(PRICE_PREFIX)) continue; // the price layer is open-keyed
+      if (slot.openPrefixes.some((prefix) => ref.startsWith(prefix))) continue;
       if (!slot.known.has(ref)) {
         defects.push({
           code: "ref.unknown",

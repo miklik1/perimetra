@@ -52,7 +52,9 @@ export interface AssemblyGraph {
 export interface Issue {
   key: string;
   severity: "error" | "warn";
-  scope: "instance" | "connection";
+  /** `instance` = one configuration; `connection` = an inter-instance
+   *  constraint; `site` = site-structural (placement, terrain, ports). */
+  scope: "instance" | "connection" | "site";
   params?: Record<string, Value>;
 }
 

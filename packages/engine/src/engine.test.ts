@@ -220,7 +220,7 @@ describe("forwardChecker (constraints §3)", () => {
   });
 
   it("is swappable behind the interface", () => {
-    const noop: ConstraintEvaluator = { evaluate: () => [] };
+    const noop: ConstraintEvaluator = { evaluate: () => [], evaluateConnection: () => [] };
     // width 4800 passes the domain gate; only the noop evaluator lets it through.
     const result = deriveInstance(release, { ...validInput, width: 4800 }, prices, catalog, {
       constraintEvaluator: noop,

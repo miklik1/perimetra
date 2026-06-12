@@ -4,7 +4,9 @@
  * emits one rolled-up line, as in the MVP). The cut list / 3D / 2D emitters are
  * later steps and consume the same parts (I4).
  */
-import type { CategoryTotals, Part, PriceTable } from "./types";
+import { toMoneyString } from "@repo/model";
+
+import type { CategoryTotals, MoneyTotals, Part, PriceTable } from "./types";
 
 /** Raised when a part has no resolvable price — never default to 0 (I5). */
 export class PriceError extends Error {
@@ -35,6 +37,17 @@ export function priceParts(parts: Part[], prices: PriceTable): Part[] {
       totalPrice: part.quantity * unitPrice,
     };
   });
+}
+
+/** The I10 boundary: totals leave the engine as decimal strings too. */
+export function toMoneyTotals(totals: CategoryTotals): MoneyTotals {
+  return {
+    material: toMoneyString(totals.material),
+    accessory: toMoneyString(totals.accessory),
+    manufacturing: toMoneyString(totals.manufacturing),
+    installation: toMoneyString(totals.installation),
+    total: toMoneyString(totals.total),
+  };
 }
 
 export function sumByCategory(parts: Part[]): CategoryTotals {

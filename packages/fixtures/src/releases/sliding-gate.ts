@@ -19,6 +19,12 @@
  *
  * Range/enum input rules live on parameter `domain`s — the engine's input gate
  * (I7) enforces them; constraints carry only the judgment calls (warn limits).
+ *
+ * Step 4 (site graph): `ground_elevation_mm` (terrain-driven, default 0 — the
+ * standalone goldens are untouched), the `topLine` reference plane fence
+ * connection rules read via `other.*`, and two `gate.side` ports that OWN the
+ * tower post — a fence run attaching to the gate consumes its own end post
+ * and bolts to the tower post (I6).
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -55,6 +61,13 @@ export const slidingGateV1: ProductModelRelease = {
         bounds: { min: expr("600"), max: expr("2600") },
         note: "frame dimension chain and wind load break outside this envelope",
       },
+    },
+    {
+      key: "ground_elevation_mm",
+      type: "length_mm",
+      domain: { kind: "range", min: -5000, max: 5000 },
+      default: 0,
+      adjustability: "user",
     },
     {
       key: "suspension_angle",
@@ -165,6 +178,9 @@ export const slidingGateV1: ProductModelRelease = {
       { key: "fillCount", expr: expr("floor(hProfileLength / fill.min_spacing_mm)") },
       { key: "totalPieces", expr: expr("fillCount * panel_count") },
       { key: "railMeters", expr: expr("railLength / 1000") },
+      // The site reference plane (step 4): what a connected neighbor's
+      // connection constraints read as `other.topLine`.
+      { key: "topLine", expr: expr("ground_elevation_mm + clear_height_mm") },
     ],
 
     parts: [
@@ -341,4 +357,21 @@ export const slidingGateV1: ProductModelRelease = {
       },
     ],
   },
+
+  ports: [
+    {
+      id: "left",
+      kind: "gate.side",
+      compatibleKinds: ["fence.start", "fence.end"],
+      sharing: { element: "frame.tower_post", policy: "owner" },
+    },
+    {
+      id: "right",
+      kind: "gate.side",
+      compatibleKinds: ["fence.start", "fence.end"],
+      sharing: { element: "frame.tower_post", policy: "owner" },
+    },
+  ],
+
+  terrain: { elevationParam: "ground_elevation_mm" },
 };

@@ -18,17 +18,16 @@
  * Determinism (I1): given the same (release, input, prices, catalog,
  * overrides) the result is byte-identical — the whole path is pure.
  */
-import { toMoneyString } from "@repo/model";
-import type { Catalog, ProductModelRelease } from "@repo/model";
+import type { Catalog, ProductModelRelease, Scope } from "@repo/model";
 
 import { applyArtifactOverrides } from "./artifacts";
 import { resolveCascade, type CascadeLayers } from "./cascade";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints";
 import { derive } from "./derive";
-import { priceParts, sumByCategory } from "./emit";
+import { priceParts, sumByCategory, toMoneyTotals } from "./emit";
 import { buildScope } from "./scope";
 import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types";
-import type { CategoryTotals, MoneyTotals, PriceTable, Stamps } from "./types";
+import type { PriceTable, Stamps } from "./types";
 
 export interface DeriveOptions {
   /** Swap the constraint evaluator (defaults to the forward checker). */
@@ -37,15 +36,13 @@ export interface DeriveOptions {
   overrides?: CascadeLayers;
 }
 
-/** The I10 boundary: totals leave the engine as decimal strings too. */
-function moneyTotals(totals: CategoryTotals): MoneyTotals {
-  return {
-    material: toMoneyString(totals.material),
-    accessory: toMoneyString(totals.accessory),
-    manufacturing: toMoneyString(totals.manufacturing),
-    installation: toMoneyString(totals.installation),
-    total: toMoneyString(totals.total),
-  };
+/** deriveInstance plus the full post-derivation evaluation scope (params +
+ *  option attrs + price.* + derived) — what the site graph pairs into the
+ *  `self.*`/`other.*` connection-constraint scopes (CORE_SPEC §5). `scope` is
+ *  absent when the result is invalid. */
+export interface DetailedDerivation {
+  result: DerivationResult;
+  scope?: Scope;
 }
 
 /** An invalid configuration never emits a BOM/price — typed issues only (I5). */
@@ -56,19 +53,19 @@ function invalid(issues: Issue[], stamps: Stamps): DerivationResult {
     derived: {},
     parts: [],
     totals,
-    money: moneyTotals(totals),
+    money: toMoneyTotals(totals),
     issues,
     stamps,
   };
 }
 
-export function deriveInstance(
+export function deriveInstanceDetailed(
   release: ProductModelRelease,
   input: ConfigInput,
   prices: PriceTable,
   catalog: Catalog,
   options: DeriveOptions = {},
-): DerivationResult {
+): DetailedDerivation {
   const evaluator = options.constraintEvaluator ?? forwardChecker;
 
   const cascade = resolveCascade(release, input, prices, options.overrides ?? {});
@@ -80,14 +77,16 @@ export function deriveInstance(
   };
 
   if (cascade.issues.some((i) => i.severity === "error")) {
-    return invalid(cascade.issues, stamps);
+    return { result: invalid(cascade.issues, stamps) };
   }
 
   let scope;
   try {
     scope = buildScope(release, cascade.effectiveInput, cascade.effectivePrices);
   } catch (error) {
-    if (error instanceof ConfigError) return invalid([...cascade.issues, error.issue], stamps);
+    if (error instanceof ConfigError) {
+      return { result: invalid([...cascade.issues, error.issue], stamps) };
+    }
     throw error;
   }
 
@@ -96,31 +95,44 @@ export function deriveInstance(
   // A failed constraint of severity "error" stops before derivation — we never
   // emit a BOM/price for an invalid configuration (I5).
   if (issues.some((i) => i.severity === "error")) {
-    return invalid(issues, stamps);
+    return { result: invalid(issues, stamps) };
   }
 
   const graph = derive(release, scope, catalog);
   if (graph.issues.length > 0) {
     // Catalog resolution gaps — the full missing-triple worklist, no partial BOM.
-    return invalid([...issues, ...graph.issues], stamps);
+    return { result: invalid([...issues, ...graph.issues], stamps) };
   }
 
   const priced = priceParts(graph.parts, cascade.effectivePrices);
   const artifacts = applyArtifactOverrides(priced, cascade.artifactOverrides);
   issues.push(...artifacts.issues);
   if (artifacts.issues.some((i) => i.severity === "error")) {
-    return invalid(issues, stamps);
+    return { result: invalid(issues, stamps) };
   }
 
   const totals = sumByCategory(artifacts.parts);
 
   return {
-    isValid: true,
-    derived: graph.derived,
-    parts: artifacts.parts,
-    totals,
-    money: moneyTotals(totals),
-    issues,
-    stamps,
+    result: {
+      isValid: true,
+      derived: graph.derived,
+      parts: artifacts.parts,
+      totals,
+      money: toMoneyTotals(totals),
+      issues,
+      stamps,
+    },
+    scope: { ...scope, ...graph.derived },
   };
+}
+
+export function deriveInstance(
+  release: ProductModelRelease,
+  input: ConfigInput,
+  prices: PriceTable,
+  catalog: Catalog,
+  options: DeriveOptions = {},
+): DerivationResult {
+  return deriveInstanceDetailed(release, input, prices, catalog, options).result;
 }

@@ -65,6 +65,7 @@ exists, deliberately not wired — by design).
 | [0046](0046-catalog-role-resolution.md)     | Catalog = versioned engine argument; {role, section, material} resolution is the ONE component mech  | Accepted | Implemented |
 | [0047](0047-error-taxonomy.md)              | Error taxonomy: author-time throws (validateRelease publish gate), config-time typed Issues + params | Accepted | Implemented |
 | [0048](0048-cascade-overrides-ledger.md)    | Cascade/override semantics: one write path, quote-only deviations, ledger as query, 15-sig money     | Accepted | Implemented |
+| [0049](0049-site-graph-composition.md)      | Site graph: port sharing (owner/consumer), terrain via input gate, paired connection scopes          | Accepted | Implemented |
 
 See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for the stack overview and
 the consolidated constraints cheat-sheet.

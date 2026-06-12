@@ -4,5 +4,8 @@
  * @repo/engine; never imported by app or runtime code.
  */
 export { catalogV1 } from "./catalog/catalog-v1";
+export { catalogV2 } from "./catalog/catalog-v2";
+export { fenceRunV1 } from "./releases/fence-run";
 export { slidingGateV1 } from "./releases/sliding-gate";
 export * from "./golden/sliding-gate";
+export * from "./golden/site";

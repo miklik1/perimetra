@@ -87,7 +87,10 @@ export interface ConstraintDef {
   /** Must evaluate true; otherwise an Issue of `severity` is raised. */
   expr: ExprString;
   severity: "error" | "warn";
-  /** instance-scope today; connection-scope (inter-instance) lands with §5. */
+  /** `instance` evaluates against one configuration; `connection` evaluates
+   *  once per connected end against a paired scope where `self.*` is this
+   *  release's values (params + option attrs + derived) and `other.*` the
+   *  opposite end's (CORE_SPEC §5). */
   scope: "instance" | "connection";
 }
 
@@ -151,7 +154,49 @@ export interface DerivationRecipe {
   /** Named dimensions, evaluated in order; each may reference earlier ones. */
   derived: DerivedDef[];
   parts: PartRule[];
-  // joints: reserved for the site graph (CORE_SPEC §5 / step 4).
+  // joints: reserved for the renderers (CORE_SPEC §3 / step 5).
+}
+
+/** Which side of a connection provides the shared element (I6). */
+export type SharingPolicy = "owner" | "consumer";
+
+/**
+ * What a port shares with whatever connects to it (CORE_SPEC §3/§5, I6):
+ * `owner` keeps its element and PROVIDES it to the connection; `consumer`
+ * DROPS its own element (it exists only while the port is unconnected — a
+ * standalone fence run still has its start post) and attaches to the owner's.
+ * Resolution rule: a connection may have at most one consumer end, and a
+ * consumer requires the opposite port to declare an element to consume.
+ */
+export interface PortSharing {
+  /** PartRule.path of the element this port carries (validated at publish). */
+  element: string;
+  policy: SharingPolicy;
+}
+
+/**
+ * A connection point on the assembly (CORE_SPEC §3/§5). Ports connect only
+ * when their kinds are MUTUALLY compatible (each kind listed by the other
+ * port) — vendor-only authoring makes the symmetry enforceable. Declaring a
+ * kind compatible is a contract: your connection-scope constraints must
+ * evaluate against every release exposing that kind (their `other.*` refs
+ * must exist there). `anchor` (expr-driven pose on the assembly) lands with
+ * the renderers (step 5).
+ */
+export interface PortDef {
+  id: string;
+  /** Semantic kind ("fence.end", "gate.side", "post.top"). */
+  kind: string;
+  compatibleKinds: string[];
+  sharing?: PortSharing;
+}
+
+/** Binds the site's stepped terrain to this model: a placement on a terrain
+ *  segment writes the segment's elevation into the named parameter through
+ *  the ordinary input gate — one write path, no side door (CORE_SPEC §5). */
+export interface TerrainBinding {
+  /** Key of a declared length_mm parameter (validated at publish). */
+  elevationParam: string;
 }
 
 export type ReleaseStatus = "draft" | "published" | "retired";
@@ -169,7 +214,11 @@ export interface ProductModelRelease {
   optionSets?: OptionSet[];
   constraints: ConstraintDef[];
   derivation: DerivationRecipe;
-  // ports, ui, fixtures: reserved (CORE_SPEC §3) — land with later steps.
+  /** Connection points for the site graph (CORE_SPEC §5 / step 4). */
+  ports?: PortDef[];
+  /** Stepped-terrain participation (CORE_SPEC §5 / step 4). */
+  terrain?: TerrainBinding;
+  // ui, fixtures: reserved (CORE_SPEC §3) — land with later steps.
 }
 
 /** A golden fixture (CORE_SPEC I2): a config + its expected outputs. Publishing
