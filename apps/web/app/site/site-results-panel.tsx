@@ -1,20 +1,19 @@
 "use client";
 
+import type { SiteResult } from "@repo/engine";
 import { useLocale, useTranslations } from "@repo/i18n/web";
-import type { DerivationResult, Issue } from "@repo/engine";
-import { cn } from "@repo/ui";
 
 import { formatMoney } from "../../lib/format-money";
+import { IssueList } from "./issue-list";
 
 /**
- * Live derivation output: category totals (off the I10 decimal-string money
- * boundary), the BOM, and every surfaced Issue (I5 — an invalid config shows
- * its typed problems, never a silent zero). Issue texts render as
- * `key + params` for now; the issue-key i18n catalog is a step-6 follow-up
- * (ConstraintDef.key doubles as the message key by design).
+ * The aggregate site result (CORE_SPEC §5/§6): the one BOM every connected
+ * instance rolls up into — shared elements counted once (I6), money crossing
+ * the I10 decimal-string boundary, and every site-level issue surfaced (I5). An
+ * invalid site shows its typed problems and no totals, never a partial BOM.
  */
-export function ResultsPanel({ result }: { result: DerivationResult }) {
-  const t = useTranslations("configurator");
+export function SiteResultsPanel({ result }: { result: SiteResult }) {
+  const t = useTranslations("site");
   const locale = useLocale();
   const money = (decimal: string) => formatMoney(decimal, locale);
 
@@ -30,11 +29,7 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
       {result.issues.length > 0 && (
         <div className="border-border flex flex-col gap-1 rounded-md border p-4">
           <h2 className="font-semibold">{t("issues")}</h2>
-          <ul className="flex flex-col gap-1">
-            {result.issues.map((issue, i) => (
-              <IssueLine key={`${issue.key}-${i}`} issue={issue} />
-            ))}
-          </ul>
+          <IssueList issues={result.issues} />
         </div>
       )}
 
@@ -53,6 +48,11 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
               <dt className="font-semibold">{t("totalTotal")}</dt>
               <dd className="text-right font-semibold tabular-nums">{money(result.money.total)}</dd>
             </dl>
+            {result.sharing.length > 0 && (
+              <p className="text-muted-foreground mt-2 text-xs">
+                {t("sharingCount", { count: result.sharing.length })}
+              </p>
+            )}
           </div>
 
           <div className="border-border rounded-md border p-4">
@@ -66,15 +66,24 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
                 </tr>
               </thead>
               <tbody>
-                {result.parts.map((part) => (
-                  <tr key={part.path} className="border-border border-t">
-                    <td className="py-1">{part.name}</td>
-                    <td className="py-1 text-right tabular-nums">
-                      {part.quantity} {part.unit}
+                {result.bom.map((line) => (
+                  <tr
+                    key={`${line.componentCode}|${line.unit}|${line.category}`}
+                    className="border-border border-t"
+                  >
+                    <td className="py-1">
+                      {line.name}
+                      {line.sources.length > 1 && (
+                        <span className="text-muted-foreground text-xs">
+                          {" "}
+                          ×{line.sources.length}
+                        </span>
+                      )}
                     </td>
                     <td className="py-1 text-right tabular-nums">
-                      {part.totalPrice !== undefined ? money(String(part.totalPrice)) : "—"}
+                      {line.quantity} {line.unit}
                     </td>
+                    <td className="py-1 text-right tabular-nums">{money(line.totalPriceMoney)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -83,33 +92,5 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
         </>
       )}
     </section>
-  );
-}
-
-function IssueLine({ issue }: { issue: Issue }) {
-  const t = useTranslations("configurator");
-  const params =
-    issue.params === undefined
-      ? ""
-      : Object.entries(issue.params)
-          .map(([k, v]) => `${k}: ${String(v)}`)
-          .join(", ");
-  return (
-    <li className="flex items-baseline gap-2">
-      <span
-        className={cn(
-          "rounded px-1.5 text-[10px] font-semibold uppercase",
-          issue.severity === "error"
-            ? "bg-destructive/15 text-destructive"
-            : "bg-muted text-muted-foreground",
-        )}
-      >
-        {issue.severity === "error" ? t("issueError") : t("issueWarn")}
-      </span>
-      <span>
-        <code className="text-xs">{issue.key}</code>
-        {params && <span className="text-muted-foreground text-xs"> ({params})</span>}
-      </span>
-    </li>
   );
 }

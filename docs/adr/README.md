@@ -68,6 +68,7 @@ exists, deliberately not wired — by design).
 | [0049](0049-site-graph-composition.md)      | Site graph: port sharing (owner/consumer), terrain via input gate, paired connection scopes          | Accepted | Implemented |
 | [0050](0050-renderer-layer.md)              | Renderer layer: keyed piece geometry on PartRule, baked catalog facts, pure data renderers (I4)      | Accepted | Implemented |
 | [0051](0051-generated-configurator.md)      | Generated configurator: UiSpec on the release, browser-hosted engine, app-land R3F scene adapter     | Accepted | Implemented |
+| [0052](0052-site-canvas.md)                 | Site canvas: generated surface at site scope, two-truths derive (footprints survive an invalid site) | Accepted | Implemented |
 
 See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for the stack overview and
 the consolidated constraints cheat-sheet.

@@ -30,15 +30,17 @@
  * Addressing (I9): site-level artifacts are `<instanceId>/<partPath>` — the
  * instanceId is the site author's stable name, never an array position.
  */
-import type {
-  BomCategory,
-  BomUnit,
-  Catalog,
-  PortDef,
-  ProductModelRelease,
-  Scope,
-  Site,
-  Value,
+import {
+  toMoneyString,
+  type BomCategory,
+  type BomUnit,
+  type Catalog,
+  type MoneyString,
+  type PortDef,
+  type ProductModelRelease,
+  type Scope,
+  type Site,
+  type Value,
 } from "@repo/model";
 
 import type { CascadeLayers } from "./cascade";
@@ -91,7 +93,12 @@ export interface SiteBomLine {
   unit: BomUnit;
   category: BomCategory;
   quantity: number;
+  /** Internal numeric sum used for aggregation; cross the I10 boundary via
+   *  `totalPriceMoney` for any display/serialisation, never this float. */
   totalPrice: number;
+  /** Decimal-as-string mirror of `totalPrice` — the boundary representation
+   *  (I10), canonicalised the same way as `SiteResult.money`. */
+  totalPriceMoney: MoneyString;
   /** Every surviving part folded into this line (I9 site addresses). */
   sources: { instanceId: string; path: string }[];
 }
@@ -401,7 +408,7 @@ export function deriveSite(
 
   // --- Aggregation (dedupe by ownership, merge by component) ----------------------
   const surviving: Part[] = [];
-  const lines = new Map<string, SiteBomLine>();
+  const lines = new Map<string, Omit<SiteBomLine, "totalPriceMoney">>();
   for (const instance of byId.values()) {
     for (const part of instanceResults[instance.instanceId]!.parts) {
       if (consumed.has(`${instance.instanceId}/${part.path}`)) continue;
@@ -433,7 +440,12 @@ export function deriveSite(
     isValid: true,
     instances: instanceResults,
     sharing,
-    bom: [...lines.values()],
+    // Cross the I10 money boundary once per line (decimal string), exactly as
+    // the category totals do — no per-line float ever leaves the engine.
+    bom: [...lines.values()].map((line) => ({
+      ...line,
+      totalPriceMoney: toMoneyString(line.totalPrice),
+    })),
     totals,
     money: toMoneyTotals(totals),
     issues,

@@ -22,16 +22,21 @@ the core); cross-cutting strategy/decisions live in the vault
 | `packages/renderers` | Cut list / 3D scene / 2D drawings as **pure data** off (Site, SiteResult) only (I4). Presentation (R3F/SVG/PDF) is app-land.                   |
 | `packages/fixtures`  | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine+renderers).                              |
 
-Build order is CORE_SPEC §10. **Step 6 slice 1 done (2026-06-12):** generated
-configurator (ADR 0051 — `UiSpec` + `ParameterDef.label` are release data
-validated at publish; `resolveUi` in `@repo/model`; the wizard at
-`apps/web/app/configurator` renders from release data alone, engine runs in
-the browser, R3F walker over `Scene3D` is app-land with Euler order "ZYX";
-`@repo/fixtures` is the ⌛ interim release source via
-`app/configurator/products.ts`). Steps 1–5 shipped before it (ADR 0045–0050).
-Next step-6 slices: site canvas (place/connect/drag off the same viewport),
-admin (`adjustability: tenant`), quote lifecycle (stamps + snapshot via
-`pnpm gen module`), issue-key i18n + deviation-override UX.
+Build order is CORE_SPEC §10. **Step 6 slices 1–2 done.** Slice 1 (2026-06-12,
+ADR 0051): generated configurator — `UiSpec` + `ParameterDef.label` are release
+data validated at publish; `resolveUi` in `@repo/model`; the wizard at
+`apps/web/app/configurator` renders from release data alone, engine runs in the
+browser, R3F walker over `Scene3D` is app-land with Euler order "ZYX". Slice 2
+(2026-06-13, ADR 0052): the site canvas at `apps/web/app/site` (`/site`) — the
+generated surface at site scope: place/connect/drag instances on a 2D plan +
+the multi-instance 3D viewport + aggregate site BOM/price; two-truths derive so
+per-instance footprints stay editable when a connection/terrain failure
+invalidates the whole site (`SiteBomLine.totalPriceMoney` closes the per-line
+I10 boundary). `@repo/fixtures` is the ⌛ interim release/seed source via
+`app/configurator/products.ts` + `app/site/initial.ts`. Steps 1–5 shipped
+before (ADR 0045–0050). Next step-6 slices: quote lifecycle (stamps + snapshot
+via `pnpm gen module`), admin (`adjustability: tenant`), issue-key i18n +
+deviation-override UX, `/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

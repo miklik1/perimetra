@@ -146,8 +146,10 @@ export interface SitePlan {
   terrain: { id: string; elevationMm: number; instanceIds: string[] }[];
 }
 
-/** World-plan point of an instance-local position under a site pose. */
-function toPlan(local: Vec3, pose: { origin: Pt; rotationArcMin: number }): Pt {
+/** World-plan point of an instance-local position under a site pose (plan x =
+ *  world X, plan y = world Z). The single plan-coordinate transform (I4) — the
+ *  site canvas reuses it for connection handles off derived port anchors. */
+export function toPlan(local: Vec3, pose: { origin: Pt; rotationArcMin: number }): Pt {
   const [x, , z] = rotate(local, [0, pose.rotationArcMin, 0]);
   return { x: pose.origin.x + x, y: pose.origin.y + z };
 }
