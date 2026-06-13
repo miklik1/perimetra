@@ -18,4 +18,5 @@ export * from "./projects/index.js";
 export * from "./releases/index.js";
 export * from "./catalog-versions/index.js";
 export * from "./price-tables/index.js";
+export * from "./quotes/index.js";
 // @gen:schema-exports — `pnpm gen module` adds the new schema directory export here.

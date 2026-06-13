@@ -73,6 +73,13 @@ export class PriceTablesService {
     return toDetail(row);
   }
 
+  /** Cross-module: the stamped version's detail — quote reproduction (I3)
+   *  reloads the exact immutable table the stamp points at. */
+  async loadByVersion(scope: RequestScope, version: number): Promise<PriceTableDetail | null> {
+    const row = await this.priceTables.findByVersion(scope, version);
+    return row ? toDetail(row) : null;
+  }
+
   // TODO(roles slice 6.3g): gate to the admin role. Authenticated-only for now.
   @Transactional()
   async publish(scope: RequestScope, input: PublishPriceTableInput): Promise<PriceTableDetail> {

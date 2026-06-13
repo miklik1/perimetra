@@ -350,6 +350,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@repo/flags':
         specifier: workspace:*
         version: link:../../packages/flags
@@ -359,6 +362,9 @@ importers:
       '@repo/model':
         specifier: workspace:*
         version: link:../../packages/model
+      '@repo/renderers':
+        specifier: workspace:*
+        version: link:../../packages/renderers
       '@repo/validators':
         specifier: workspace:*
         version: link:../../packages/validators
@@ -435,9 +441,6 @@ importers:
       '@nestjs/testing':
         specifier: 'catalog:'
         version: 11.1.26(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.26(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      '@repo/engine':
-        specifier: workspace:*
-        version: link:../../packages/engine
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint

@@ -53,13 +53,16 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
     app = await createApiApp();
     admin = await signUpUser(app, "vendor-admin");
 
+    // Global immutable stores are SHARED across itest files — a sibling may
+    // have published these fixtures already (409). Tolerate that; the rows the
+    // assertions need exist either way.
     const cat = await inject(app, {
       method: "POST",
       url: "/v1/catalog-versions",
       headers: { cookie: admin.cookie },
       payload: { body: catalogV2 },
     });
-    expect(cat.statusCode).toBe(201);
+    expect([201, 409]).toContain(cat.statusCode);
 
     for (const body of [slidingGateV1, fenceRunV1]) {
       const res = await inject(app, {
@@ -68,7 +71,7 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
         headers: { cookie: admin.cookie },
         payload: { catalogVersion: 2, body },
       });
-      expect(res.statusCode, JSON.stringify(res.json())).toBe(201);
+      expect([201, 409]).toContain(res.statusCode);
     }
 
     // Resolve the persisted rows for the round-trip + derivation assertions.

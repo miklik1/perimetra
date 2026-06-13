@@ -9,5 +9,6 @@ export * from "./api";
 export * from "./releases";
 export * from "./catalog-versions";
 export * from "./price-tables";
+export * from "./quotes";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";

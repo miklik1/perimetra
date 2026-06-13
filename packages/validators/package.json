@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./quotes": {
+      "types": "./dist/quotes.d.ts",
+      "default": "./dist/quotes.js"
+    },
     "./price-tables": {
       "types": "./dist/price-tables.d.ts",
       "default": "./dist/price-tables.js"

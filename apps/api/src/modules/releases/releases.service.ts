@@ -95,11 +95,13 @@ export class ReleasesService {
     return toDetail(row);
   }
 
-  /** Cross-module load of the typed `ProductModelRelease` for a natural key —
-   *  the quote-issue derivation resolves `SiteStamps.releaseIds` through this. */
-  async loadRelease(releaseId: string): Promise<ProductModelRelease | null> {
+  /** Cross-module load of the persisted release detail (body + its pinned
+   *  catalogVersion) for a natural key — quote-issue resolves the derivation
+   *  release AND its catalog through this; reproduction (I3) reloads the exact
+   *  immutable body the stamp points at. */
+  async loadByReleaseId(releaseId: string): Promise<ReleaseDetail | null> {
     const row = await this.releases.findByReleaseId(releaseId);
-    return row ? (row.body as ProductModelRelease) : null;
+    return row ? toDetail(row) : null;
   }
 
   // TODO(roles slice 6.3g): gate to the admin role. Authenticated-only for now.
