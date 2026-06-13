@@ -579,6 +579,60 @@
         ]
       }
     },
+    "/v1/projects/{id}/site": {
+      "get": {
+        "operationId": "ProjectsController_getSite_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      },
+      "put": {
+        "operationId": "ProjectsController_saveSite_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveProjectSiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
     "/v1/projects/{id}/archive": {
       "post": {
         "operationId": "ProjectsController_archive_v1",
@@ -1124,6 +1178,42 @@
             "maxLength": 2000
           }
         }
+      },
+      "SaveProjectSiteDto": {
+        "type": "object",
+        "properties": {
+          "site": {},
+          "instances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "instanceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "releaseId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "overrides": {}
+              },
+              "required": [
+                "instanceId",
+                "releaseId",
+                "input"
+              ]
+            }
+          }
+        },
+        "required": [
+          "site",
+          "instances"
+        ]
       },
       "PublishReleaseDto": {
         "type": "object",

@@ -13,7 +13,7 @@
  *   index keeps the hot list query (live rows per owner) tight.
  */
 import { sql } from "drizzle-orm";
-import { index, pgTable, text } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { id, softDelete, timestamps } from "../../columns.js";
 import { organization, user } from "../auth/index.js";
@@ -37,6 +37,15 @@ export const project = pgTable(
     /** Max 2000 chars — zod-enforced. */
     description: text("description"),
     status: text("status").notNull().default("active").$type<ProjectStatus>(),
+    /**
+     * The designed Site graph (terrain/placements/connections, step 6.3c) —
+     * the project's one site, full-document replaced on save. NULL until a site
+     * is designed. Opaque JSON: the engine is the validation gate (I5) and the
+     * canvas legitimately persists invalid-but-editable sites, so this is never
+     * shape-validated at the DB boundary (matches the quote `snapshot` stance).
+     * The per-instance roster lives in `project_instance`, keyed by instanceId.
+     */
+    site: jsonb("site"),
     ...timestamps(),
     ...softDelete(),
   },
@@ -51,3 +60,39 @@ export const project = pgTable(
 
 export type ProjectRow = typeof project.$inferSelect;
 export type NewProjectRow = typeof project.$inferInsert;
+
+/**
+ * The project's instance roster (step 6.3c) — one row per placed instance on
+ * the site canvas: which vendor release it pins, its raw config input, and any
+ * cascade overrides. Keyed to the Site graph's placements by `instanceId`
+ * (unique within a project). Child of `project` with ON DELETE CASCADE — the
+ * roster has no independent lifetime, and is always read/written through the
+ * owning project (so it carries no ownership scope of its own; the parent
+ * project's `scoped()` filter is the access gate). Replaced wholesale on save.
+ */
+export const projectInstance = pgTable(
+  "project_instance",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    /** Canvas-local instance id (e.g. "gate", "fence-run-2"). */
+    instanceId: text("instance_id").notNull(),
+    /** "modelId@version" — the immutable release pin (I3). */
+    releaseId: text("release_id").notNull(),
+    /** ConfigInput (raw per-instance values). */
+    input: jsonb("input").notNull(),
+    /** CascadeLayers — opaque overrides, NULL when none. */
+    overrides: jsonb("overrides"),
+    ...timestamps(),
+  },
+  (table) => [
+    // One roster entry per instanceId within a project; also the lookup index
+    // for loading a project's roster (WHERE project_id = ?).
+    uniqueIndex("project_instance_project_id_instance_id_uq").on(table.projectId, table.instanceId),
+  ],
+);
+
+export type ProjectInstanceRow = typeof projectInstance.$inferSelect;
+export type NewProjectInstanceRow = typeof projectInstance.$inferInsert;

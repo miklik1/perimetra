@@ -21,11 +21,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from "@nestjs/common";
 
-import { type Project, type ProjectsPage } from "@repo/validators/projects";
+import { type Project, type ProjectSite, type ProjectsPage } from "@repo/validators/projects";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
@@ -36,7 +37,9 @@ import {
   CreateProjectDto,
   ListProjectsQueryDto,
   ProjectDto,
+  ProjectSiteDto,
   ProjectsPageDto,
+  SaveProjectSiteDto,
   UpdateProjectDto,
 } from "./projects.dto.js";
 import { ProjectsService } from "./projects.service.js";
@@ -79,6 +82,29 @@ export class ProjectsController {
     @Body() body: UpdateProjectDto,
   ): Promise<Project> {
     return this.projects.update(scope, id, body);
+  }
+
+  /** The project's designed site + roster (step 6.3c). `{ site: null }` when
+   *  none designed yet. 404 for a project the scope doesn't own. */
+  @Get(":id/site")
+  @ZodSerializerDto(ProjectSiteDto)
+  getSite(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<ProjectSite> {
+    return this.projects.getSite(scope, id);
+  }
+
+  /** Full-document replace of the project's site + roster. PUT is naturally
+   *  idempotent (same body → same state), so no Idempotency-Key here. */
+  @Put(":id/site")
+  @ZodSerializerDto(ProjectSiteDto)
+  saveSite(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: SaveProjectSiteDto,
+  ): Promise<ProjectSite> {
+    return this.projects.saveSite(scope, id, body);
   }
 
   @Post(":id/archive")

@@ -3,10 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
+import { useApiClient, useMutation } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
-import { resolveUi, type Value } from "@repo/model";
+import { resolveUi, type Site, type Value } from "@repo/model";
+import { Button } from "@repo/ui";
 
+import { errorMessageKey } from "../../lib/error-messages";
+import { createProjectsQueries } from "../../lib/projects-queries";
+import { toast } from "../../lib/toast";
 import { products } from "../configurator/products";
 import { SceneViewport } from "../configurator/scene/scene-viewport";
 import {
@@ -16,9 +21,10 @@ import {
   releaseOf,
   type PlacedInstance,
 } from "./derive";
-import { initialInstances, initialSite } from "./initial";
+import { initialInstances as demoInstances, initialSite as demoSite } from "./initial";
 import { InstancePanel } from "./instance-panel";
 import { Palette } from "./palette";
+import { toSavePayload } from "./persistence";
 import { PlanCanvas } from "./plan-canvas";
 import { SiteResultsPanel } from "./site-results-panel";
 import { TerrainPanel } from "./terrain-panel";
@@ -36,12 +42,26 @@ const PLACE_SPACING_MM = 6000;
  * BOM/price/3D render off the one `deriveSite` when valid, while per-instance
  * footprints stay draggable even when a bad connection invalidates the site.
  * Gated like every tenant surface (proxy prefix + AuthGuard).
+ *
+ * Project-scoped (step 6.3c): the canvas opens on the saved project (loaded by
+ * the RSC and prop-passed as `initialSite` + `initialInstances`) and saves the
+ * whole site + roster back with one PUT. Edits stay local React state until
+ * Save — the engine re-derives per edit (pure, I1), but persistence is explicit.
  */
-export function SiteClient() {
+export function SiteClient({
+  projectId,
+  initialSite,
+  initialInstances,
+}: {
+  projectId: string;
+  initialSite: Site;
+  initialInstances: PlacedInstance[];
+}) {
   const router = useRouter();
   const t = useTranslations("site");
+  const tErrors = useTranslations("errors");
 
-  const [site, setSite] = useState(initialSite);
+  const [site, setSite] = useState<Site>(initialSite);
   const [instances, setInstances] = useState<PlacedInstance[]>(initialInstances);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [connectFrom, setConnectFrom] = useState<
@@ -49,6 +69,45 @@ export function SiteClient() {
   >();
   const [stepByInstance, setStepByInstance] = useState<Record<string, number>>({});
   const idCounter = useRef(0);
+
+  // Dirty tracking against the last-persisted document: serialize the save
+  // payload and compare. The engine already re-serializes the whole site per
+  // edit, so this stringify is cheap at the slice's scale.
+  const projectsQueries = createProjectsQueries(useApiClient());
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify(toSavePayload(initialSite, initialInstances)),
+  );
+  const currentPayload = useMemo(() => toSavePayload(site, instances), [site, instances]);
+  const dirty = JSON.stringify(currentPayload) !== savedSnapshot;
+
+  const saveMutation = useMutation({
+    ...projectsQueries.saveSite(),
+    onError: (error) => toast.error(tErrors(errorMessageKey(error))),
+  });
+
+  const save = () => {
+    const payload = currentPayload;
+    saveMutation.mutate(
+      { projectId, input: payload },
+      {
+        onSuccess: () => {
+          setSavedSnapshot(JSON.stringify(payload));
+          toast.success(t("saved"));
+        },
+      },
+    );
+  };
+
+  // Load demo: drop the golden fixtures roster into this project (unsaved until
+  // the user clicks Save) — the interim convenience while releases live in
+  // @repo/fixtures rather than an api-served catalog.
+  const loadDemo = () => {
+    setSite(demoSite());
+    setInstances(demoInstances());
+    setSelectedId(undefined);
+    setConnectFrom(undefined);
+    setStepByInstance({});
+  };
 
   // One full site re-derivation per edit (incl. each drag frame). The engine is
   // pure and fast, so this is fine at the slice's scale; for large sites the
@@ -250,7 +309,20 @@ export function SiteClient() {
       }
     >
       <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground text-xs">
+              {dirty ? t("unsaved") : t("allSaved")}
+            </span>
+            <Button type="button" variant="outline" onClick={loadDemo}>
+              {t("loadDemo")}
+            </Button>
+            <Button type="button" onClick={save} disabled={!dirty || saveMutation.isPending}>
+              {saveMutation.isPending ? t("saving") : t("save")}
+            </Button>
+          </div>
+        </div>
 
         <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
           <div className="flex flex-col gap-4">

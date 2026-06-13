@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useApiClient, useInfiniteQuery, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { optimisticUpdate } from "@repo/api";
@@ -103,6 +105,12 @@ export function ProjectsList() {
               )}
             </div>
             <div className="flex shrink-0 gap-2">
+              <Link
+                href={`/site/${project.id}`}
+                className="border-border rounded-md border px-2 py-1 text-xs"
+              >
+                {t("openCanvas")}
+              </Link>
               {project.status === "active" ? (
                 <button
                   type="button"

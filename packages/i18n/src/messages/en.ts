@@ -84,6 +84,7 @@ const en: Messages = {
     live: "Live",
     connecting: "Connecting…",
     offline: "Offline",
+    openCanvas: "Open canvas",
   },
   configurator: {
     title: "Configurator",
@@ -146,6 +147,12 @@ const en: Messages = {
     bomItem: "Item",
     bomQuantity: "Quantity",
     bomPrice: "Price",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Site saved.",
+    loadDemo: "Load demo",
+    unsaved: "Unsaved changes",
+    allSaved: "All changes saved",
   },
   errors: {
     title: "Something went wrong",

@@ -265,6 +265,80 @@ describe("projects resource (HTTP, real stack)", () => {
     });
   });
 
+  describe("site persistence (step 6.3c)", () => {
+    let user: TestUser;
+    let projectId: string;
+
+    const site = {
+      id: "plot-1",
+      terrain: [{ id: "t1", elevation_mm: 0 }],
+      placements: [{ instanceId: "gate", pose: { origin_mm: { x: 0, y: 0 } } }],
+      connections: [],
+    };
+    const instances = [
+      { instanceId: "gate", releaseId: "sliding-gate@1", input: { width_mm: 4000 } },
+    ];
+
+    beforeAll(async () => {
+      user = await signUpUser(app, "projects-site");
+      const created = await createProject(user, { name: "Site project" });
+      projectId = (created.json() as ProjectBody).id;
+    });
+
+    const getSite = (cookie: string) =>
+      inject(app, { method: "GET", url: `/v1/projects/${projectId}/site`, headers: { cookie } });
+    const putSite = (cookie: string, payload: unknown) =>
+      inject(app, {
+        method: "PUT",
+        url: `/v1/projects/${projectId}/site`,
+        headers: { cookie },
+        payload: payload as Record<string, unknown>,
+      });
+
+    it("starts empty: { site: null, instances: [] }", async () => {
+      const response = await getSite(user.cookie);
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ site: null, instances: [] });
+    });
+
+    it("PUT then GET round-trips the site graph and roster byte-for-byte", async () => {
+      const saved = await putSite(user.cookie, { site, instances });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json()).toEqual({ site, instances });
+
+      const fetched = await getSite(user.cookie);
+      expect(fetched.json()).toEqual({ site, instances });
+    });
+
+    it("a second PUT fully replaces the roster (no orphan rows accumulate)", async () => {
+      const replacement = {
+        site,
+        instances: [{ instanceId: "fence", releaseId: "fence-run@1", input: { length_mm: 6000 } }],
+      };
+      await putSite(user.cookie, replacement);
+
+      const fetched = await getSite(user.cookie);
+      expect((fetched.json() as { instances: unknown[] }).instances).toEqual(replacement.instances);
+    });
+
+    it("404s for a non-owner on both GET and PUT (no oracle)", async () => {
+      const intruder = await signUpUser(app, "projects-site-intruder");
+      expect((await getSite(intruder.cookie)).statusCode).toBe(404);
+      expect((await putSite(intruder.cookie, { site, instances })).statusCode).toBe(404);
+    });
+
+    it("the roster is cascade-deleted with the project (soft delete leaves no read path)", async () => {
+      await inject(app, {
+        method: "DELETE",
+        url: `/v1/projects/${projectId}`,
+        headers: { cookie: user.cookie },
+      });
+      // The project 404s, so its site is unreachable — the roster's lifetime is
+      // bound to the project (FK cascade backs the hard-delete path).
+      expect((await getSite(user.cookie)).statusCode).toBe(404);
+    });
+  });
+
   describe("idempotency replay (real Redis)", () => {
     let user: TestUser;
 

@@ -85,6 +85,7 @@ const cs = {
     live: "Živě",
     connecting: "Připojování…",
     offline: "Offline",
+    openCanvas: "Otevřít plátno",
   },
   configurator: {
     title: "Konfigurátor",
@@ -147,6 +148,12 @@ const cs = {
     bomItem: "Položka",
     bomQuantity: "Množství",
     bomPrice: "Cena",
+    save: "Uložit",
+    saving: "Ukládání…",
+    saved: "Plocha uložena.",
+    loadDemo: "Načíst ukázku",
+    unsaved: "Neuložené změny",
+    allSaved: "Vše uloženo",
   },
   errors: {
     title: "Něco se pokazilo",

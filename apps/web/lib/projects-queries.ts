@@ -4,10 +4,14 @@ import { appendSearchParams, stableParams, type SearchParamsInput } from "@repo/
 import {
   createProjectSchema,
   projectSchema,
+  projectSiteSchema,
   projectsPageSchema,
+  saveProjectSiteSchema,
   type CreateProjectInput,
   type Project,
+  type ProjectSite,
   type ProjectsPage,
+  type SaveProjectSiteInput,
 } from "@repo/validators";
 
 /**
@@ -57,6 +61,11 @@ export interface CreateProjectVariables {
   idempotencyKey: string;
 }
 
+export interface SaveProjectSiteVariables {
+  projectId: string;
+  input: SaveProjectSiteInput;
+}
+
 export function createProjectsQueries(client: ApiClient) {
   return {
     // GET /v1/projects — keyset pagination by id cursor (uuidv7 IS creation
@@ -101,6 +110,19 @@ export function createProjectsQueries(client: ApiClient) {
         method: "DELETE",
         path: (id) => `/v1/projects/${id}`,
         body: () => undefined,
+      }),
+    // PUT /v1/projects/:id/site — full-document replace of the designed site +
+    // roster (step 6.3c). PUT is naturally idempotent (same body → same state),
+    // so no Idempotency-Key. The initial load is an RSC fetch (prop-passed into
+    // the canvas), so there's no list query to invalidate here.
+    saveSite: () =>
+      mutationOptions({
+        mutationFn: ({ projectId, input }: SaveProjectSiteVariables) =>
+          client.apiFetch<ProjectSite>(`/v1/projects/${projectId}/site`, {
+            method: "PUT",
+            body: saveProjectSiteSchema.parse(input),
+            parse: (data) => projectSiteSchema.parse(data),
+          }),
       }),
   };
 }

@@ -9,12 +9,15 @@
 import { Transactional } from "@nestjs-cls/transactional";
 import { Injectable, NotFoundException } from "@nestjs/common";
 
-import { type ProjectRow } from "@repo/db/schema/projects";
+import { type ProjectInstanceRow, type ProjectRow } from "@repo/db/schema/projects";
 import {
   type CreateProjectInput,
   type ListProjectsQuery,
   type Project,
+  type ProjectInstanceInput,
+  type ProjectSite,
   type ProjectsPage,
+  type SaveProjectSiteInput,
   type UpdateProjectInput,
 } from "@repo/validators/projects";
 
@@ -36,6 +39,17 @@ function toProject(row: ProjectRow): Project {
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** Roster row → contract entry. `null` overrides drop to `undefined` (absent on
+ *  the wire); `input` is opaque ConfigInput, `overrides` opaque CascadeLayers. */
+function toProjectInstance(row: ProjectInstanceRow): ProjectInstanceInput {
+  return {
+    instanceId: row.instanceId,
+    releaseId: row.releaseId,
+    input: row.input as Record<string, unknown>,
+    ...(row.overrides != null && { overrides: row.overrides }),
   };
 }
 
@@ -164,5 +178,55 @@ export class ProjectsService {
       entityId: projectId,
       // No diff: the row state is unchanged except the tombstone.
     });
+  }
+
+  /**
+   * The project's designed site (step 6.3c): the Site graph + instance roster.
+   * 404 covers "doesn't exist" and "not yours" (same as `get`). A project with
+   * no site yet returns `{ site: null, instances: [] }` — a valid empty canvas.
+   */
+  async getSite(scope: RequestScope, projectId: string): Promise<ProjectSite> {
+    const row = await this.projects.findById(scope, projectId);
+    if (!row) throw new NotFoundException("Project not found");
+    const instances = await this.projects.loadInstances(projectId);
+    return { site: row.site ?? null, instances: instances.map(toProjectInstance) };
+  }
+
+  /**
+   * Full-document replace of a project's site + roster (step 6.3c) — the canvas
+   * holds the whole site in memory and saves it wholesale. `updateSite` is the
+   * ownership gate (null → 404); the roster replace runs in the SAME
+   * transaction, so site and roster never diverge. Audited with a light diff
+   * (instance count) — the Site blob itself is too large to diff usefully, and
+   * the immutable quote snapshot is the real reproducibility record (I3).
+   */
+  @Transactional()
+  async saveSite(
+    scope: RequestScope,
+    projectId: string,
+    input: SaveProjectSiteInput,
+  ): Promise<ProjectSite> {
+    const row = await this.projects.updateSite(scope, projectId, input.site);
+    if (!row) throw new NotFoundException("Project not found");
+
+    await this.projects.replaceInstances(
+      projectId,
+      input.instances.map((i) => ({
+        instanceId: i.instanceId,
+        releaseId: i.releaseId,
+        input: i.input,
+        overrides: i.overrides ?? null,
+      })),
+    );
+
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "project.site.save",
+      entityType: "project",
+      entityId: projectId,
+      diff: { before: null, after: { instanceCount: input.instances.length } },
+    });
+
+    return { site: input.site ?? null, instances: input.instances };
   }
 }

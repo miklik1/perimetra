@@ -18,6 +18,23 @@ privacy handler → tests at every layer.
 - `projects.privacy.ts`: registers under `PRIVACY_HANDLERS` for GDPR
   export/erasure fan-out (ADR 0040).
 
+## Site persistence (step 6.3c)
+
+- A project IS a designed site: `project.site` (opaque Site-graph JSONB, NULL
+  until designed) + the `project_instance` roster (release pin + config input +
+  opaque overrides), keyed to the graph's placements by `instanceId`.
+- `project_instance` is a CHILD of `project` (FK `ON DELETE CASCADE`) and has
+  **no ownership scope of its own** — it is only ever read/written through the
+  owning project, whose `scoped()` filter is the access gate. `saveSite`
+  confirms ownership via `updateSite` (404 on miss) BEFORE touching the roster,
+  and replaces site + roster in ONE `@Transactional()` so they never diverge.
+- `GET/PUT :id/site` are full-document (the canvas holds the whole site in
+  memory); PUT is naturally idempotent, so no `Idempotency-Key`. The site blob
+  is never engine-validated at the boundary — the engine is the validation gate
+  (I5) and invalid-but-editable sites are legitimately persisted. The roster
+  entry mirrors `quoteInstanceInputSchema`, so a saved project feeds
+  `quotes.issue` directly.
+
 ## Must never
 
 - Import other modules' schemas (`@repo/db/schema/auth` etc.) or repositories

@@ -24,6 +24,7 @@ function projectRow(overrides: Partial<ProjectRow> = {}): ProjectRow {
     name: "Skeleton",
     description: null,
     status: "active",
+    site: null,
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
@@ -39,6 +40,9 @@ function makeService() {
     insert: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    loadInstances: vi.fn(),
+    updateSite: vi.fn(),
+    replaceInstances: vi.fn().mockResolvedValue(undefined),
   };
   const outbox = { emit: vi.fn().mockResolvedValue("event-id") };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
@@ -188,5 +192,91 @@ describe("ProjectsService reads", () => {
     expect(repo.list).toHaveBeenCalledWith(SCOPE, { limit: 20, sort: "createdAt:desc" });
     expect(page.nextCursor).toBe(row.id);
     expect(page.items[0]).toMatchObject({ id: row.id, createdAt: "2026-06-10T12:00:00.000Z" });
+  });
+});
+
+describe("ProjectsService.getSite", () => {
+  it("returns the stored site + mapped roster (null overrides drop out)", async () => {
+    const { service, repo } = makeService();
+    const site = { id: "s1", terrain: [], placements: [], connections: [] };
+    repo.findById.mockResolvedValue(projectRow({ site }));
+    repo.loadInstances.mockResolvedValue([
+      {
+        id: "i1",
+        projectId: projectRow().id,
+        instanceId: "gate",
+        releaseId: "sliding-gate@1",
+        input: { width_mm: 4000 },
+        overrides: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    ]);
+
+    const result = await service.getSite(SCOPE, projectRow().id);
+
+    expect(result.site).toEqual(site);
+    expect(result.instances).toEqual([
+      { instanceId: "gate", releaseId: "sliding-gate@1", input: { width_mm: 4000 } },
+    ]);
+  });
+
+  it("returns { site: null, instances: [] } for a project with no site yet", async () => {
+    const { service, repo } = makeService();
+    repo.findById.mockResolvedValue(projectRow());
+    repo.loadInstances.mockResolvedValue([]);
+
+    const result = await service.getSite(SCOPE, projectRow().id);
+
+    expect(result).toEqual({ site: null, instances: [] });
+  });
+
+  it("404s for a project the scope doesn't own (no roster read)", async () => {
+    const { service, repo } = makeService();
+    repo.findById.mockResolvedValue(null);
+
+    await expect(service.getSite(SCOPE, "foreign")).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.loadInstances).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProjectsService.saveSite", () => {
+  const site = { id: "s1", terrain: [], placements: [], connections: [] };
+  const instances = [
+    { instanceId: "gate", releaseId: "sliding-gate@1", input: { width_mm: 4000 } },
+  ];
+
+  it("writes the site, replaces the roster and audits the instance count", async () => {
+    const { service, repo, audit } = makeService();
+    repo.updateSite.mockResolvedValue(projectRow({ site }));
+
+    const result = await service.saveSite(SCOPE, projectRow().id, { site, instances });
+
+    expect(repo.updateSite).toHaveBeenCalledWith(SCOPE, projectRow().id, site);
+    expect(repo.replaceInstances).toHaveBeenCalledWith(projectRow().id, [
+      {
+        instanceId: "gate",
+        releaseId: "sliding-gate@1",
+        input: { width_mm: 4000 },
+        overrides: null,
+      },
+    ]);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "project.site.save",
+        diff: { before: null, after: { instanceCount: 1 } },
+      }),
+    );
+    expect(result).toEqual({ site, instances });
+  });
+
+  it("404s (and never touches the roster) when the scope owns no such project", async () => {
+    const { service, repo } = makeService();
+    repo.updateSite.mockResolvedValue(null);
+
+    await expect(service.saveSite(SCOPE, "foreign", { site, instances })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(repo.replaceInstances).not.toHaveBeenCalled();
   });
 });

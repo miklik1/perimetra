@@ -14,7 +14,14 @@ import { Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
-import { project, type ProjectRow, type ProjectStatus } from "@repo/db/schema/projects";
+import {
+  project,
+  projectInstance,
+  type NewProjectInstanceRow,
+  type ProjectInstanceRow,
+  type ProjectRow,
+  type ProjectStatus,
+} from "@repo/db/schema/projects";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 
@@ -137,5 +144,55 @@ export class ProjectsRepository {
       .where(and(this.scoped(scope), eq(project.id, projectId)))
       .returning({ id: project.id });
     return rows.length > 0;
+  }
+
+  /**
+   * The project's instance roster (step 6.3c), keyed by instanceId. Loaded
+   * only after the parent project's ownership is confirmed (the service gates
+   * on `findById(scope, …)` first), so this takes no scope of its own. Ordered
+   * by instanceId for a stable, reproducible roster.
+   */
+  async loadInstances(projectId: string): Promise<ProjectInstanceRow[]> {
+    return this.txHost.tx
+      .select()
+      .from(projectInstance)
+      .where(eq(projectInstance.projectId, projectId))
+      .orderBy(asc(projectInstance.instanceId));
+  }
+
+  /**
+   * Write the designed Site graph onto a project (scoped) — returns the row, or
+   * null when the scope owns no such live project. The roster write
+   * (`replaceInstances`) is a separate call the service sequences in the SAME
+   * `@Transactional()` method, so site + roster commit atomically.
+   */
+  async updateSite(
+    scope: RequestScope,
+    projectId: string,
+    site: unknown,
+  ): Promise<ProjectRow | null> {
+    const [row] = await this.txHost.tx
+      .update(project)
+      .set({ site })
+      .where(and(this.scoped(scope), eq(project.id, projectId)))
+      .returning();
+    return row ?? null;
+  }
+
+  /**
+   * Full-document replace of a project's roster: drop the old rows, insert the
+   * new set. Caller MUST run inside the `@Transactional()` save (and after
+   * `updateSite` confirmed ownership) — there is no scope filter here, the
+   * project ownership gate upstream is the access control.
+   */
+  async replaceInstances(
+    projectId: string,
+    instances: Omit<NewProjectInstanceRow, "projectId">[],
+  ): Promise<void> {
+    await this.txHost.tx.delete(projectInstance).where(eq(projectInstance.projectId, projectId));
+    if (instances.length === 0) return;
+    await this.txHost.tx
+      .insert(projectInstance)
+      .values(instances.map((i) => ({ ...i, projectId })));
   }
 }

@@ -1,11 +1,11 @@
 /**
- * The site canvas's interim seed (ADR 0051, ⌛ transitional): the page opens on
- * the golden three-instance project — gate + two fence runs on stepped terrain,
- * the layout whose aggregate the delta-0 harness locks at 129 891.504 CZK — so
- * the canvas opens on a derivation proven byte-identical to the MVP lineage,
- * exactly as the configurator opens on the Excel anchor. Replaced by a fetch
- * (the loaded project) when project persistence lands; components only ever see
- * `Site` + `PlacedInstance`, so the swap is local to this module.
+ * The site canvas's demo seed (ADR 0051): the golden three-instance project —
+ * gate + two fence runs on stepped terrain, the layout whose aggregate the
+ * delta-0 harness locks at 129 891.504 CZK. Since project persistence landed
+ * (step 6.3c) the canvas LOADS from the saved project, not from here; this is
+ * now the one-click "Load demo" populate — a convenience that drops the golden
+ * roster into the current project (still authored from @repo/fixtures, the ⌛
+ * interim release source that the admin-publish slice retires).
  */
 import type { ConfigInput } from "@repo/engine";
 import {
@@ -17,10 +17,8 @@ import {
 } from "@repo/fixtures";
 import type { Site } from "@repo/model";
 
-import { products } from "../configurator/products";
+import { productIndexByRelease } from "../configurator/products";
 import type { PlacedInstance } from "./derive";
-
-const productIndexByRelease = new Map(products.map((p, i) => [p.release.id, i]));
 
 /** The golden roster: which release + config each placed instance carries (the
  *  Site itself stores only poses/connections/terrain, never releases). Resolved
