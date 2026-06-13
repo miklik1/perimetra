@@ -152,6 +152,8 @@ export const baseConfig = [
                 "!@repo/validators/releases",
                 "!@repo/db/schema/catalog-versions",
                 "!@repo/validators/catalog-versions",
+                "!@repo/db/schema/price-tables",
+                "!@repo/validators/price-tables",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

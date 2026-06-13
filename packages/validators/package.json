@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./price-tables": {
+      "types": "./dist/price-tables.d.ts",
+      "default": "./dist/price-tables.js"
+    },
     "./catalog-versions": {
       "types": "./dist/catalog-versions.d.ts",
       "default": "./dist/catalog-versions.js"
