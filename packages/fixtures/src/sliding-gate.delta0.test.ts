@@ -20,9 +20,9 @@ import { describe, expect, it } from "vitest";
 import { deriveInstance } from "@repo/engine";
 import { validateRelease } from "@repo/model";
 
-import { catalogV1 } from "./catalog/catalog-v1";
-import { slidingGateGoldens, steel_frame_3panel } from "./golden/sliding-gate";
-import { slidingGateV1 } from "./releases/sliding-gate";
+import { catalogV1 } from "./catalog/catalog-v1.js";
+import { slidingGateGoldens, steel_frame_3panel } from "./golden/sliding-gate.js";
+import { slidingGateV1 } from "./releases/sliding-gate.js";
 
 describe("sliding-gate@1 — publish gate (validateRelease)", () => {
   it("has zero defects against catalog@1", () => {

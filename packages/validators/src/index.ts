@@ -6,5 +6,7 @@ export * from "./api-error";
 export * from "./primitives";
 // Shared API semantics (pagination envelope + cursor query pieces, spec §8).
 export * from "./api";
+export * from "./releases";
+export * from "./catalog-versions";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";

@@ -7,6 +7,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./catalog-versions": {
+      "types": "./dist/catalog-versions.d.ts",
+      "default": "./dist/catalog-versions.js"
+    },
+    "./releases": {
+      "types": "./dist/releases.d.ts",
+      "default": "./dist/releases.js"
+    },
     "./projects": {
       "types": "./dist/projects.d.ts",
       "default": "./dist/projects.js"

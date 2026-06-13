@@ -20,14 +20,14 @@
  */
 import type { Catalog, ProductModelRelease, Scope } from "@repo/model";
 
-import { applyArtifactOverrides } from "./artifacts";
-import { resolveCascade, type CascadeLayers } from "./cascade";
-import { forwardChecker, type ConstraintEvaluator } from "./constraints";
-import { derive, evaluateAnchors } from "./derive";
-import { priceParts, sumByCategory, toMoneyTotals } from "./emit";
-import { buildScope } from "./scope";
-import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types";
-import type { PriceTable, Stamps } from "./types";
+import { applyArtifactOverrides } from "./artifacts.js";
+import { resolveCascade, type CascadeLayers } from "./cascade.js";
+import { forwardChecker, type ConstraintEvaluator } from "./constraints.js";
+import { derive, evaluateAnchors } from "./derive.js";
+import { priceParts, sumByCategory, toMoneyTotals } from "./emit.js";
+import { buildScope } from "./scope.js";
+import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types.js";
+import type { PriceTable, Stamps } from "./types.js";
 
 export interface DeriveOptions {
   /** Swap the constraint evaluator (defaults to the forward checker). */

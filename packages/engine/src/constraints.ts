@@ -8,7 +8,7 @@
 import { evalBoolean, type Scope } from "@repo/model";
 import type { ProductModelRelease } from "@repo/model";
 
-import type { Issue } from "./types";
+import type { Issue } from "./types.js";
 
 export interface ConstraintEvaluator {
   evaluate(release: ProductModelRelease, scope: Scope): Issue[];

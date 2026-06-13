@@ -25,9 +25,9 @@
  *   - against a catalog: every resolve.role exists, and literal
  *     section/material requests name real catalog codes
  */
-import type { Catalog } from "./catalog";
-import { collectCalls, collectRefs, ExprError, isKnownFunction, parse, type Ast } from "./expr";
-import type { ProductModelRelease } from "./schema";
+import type { Catalog } from "./catalog.js";
+import { collectCalls, collectRefs, ExprError, isKnownFunction, parse, type Ast } from "./expr.js";
+import type { ProductModelRelease } from "./schema.js";
 
 export interface ReleaseDefect {
   /** Machine code, e.g. "expr.parse", "key.duplicate", "ref.unknown". */

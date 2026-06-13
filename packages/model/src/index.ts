@@ -3,11 +3,11 @@
  * DSL (CORE_SPEC §2/§3). Pure and dependency-free; the engine, catalog, and
  * renderers all build on this barrel (ADR 0008).
  */
-export * from "./catalog";
-export * from "./expr";
-export * from "./money";
-export * from "./override";
-export * from "./schema";
-export * from "./site";
-export * from "./ui";
-export * from "./validate";
+export * from "./catalog.js";
+export * from "./expr.js";
+export * from "./money.js";
+export * from "./override.js";
+export * from "./schema.js";
+export * from "./site.js";
+export * from "./ui.js";
+export * from "./validate.js";

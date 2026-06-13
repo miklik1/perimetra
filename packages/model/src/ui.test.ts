@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { expr } from "./expr";
-import type { ProductModelRelease } from "./schema";
-import { defaultUi, resolveUi } from "./ui";
+import { expr } from "./expr.js";
+import type { ProductModelRelease } from "./schema.js";
+import { defaultUi, resolveUi } from "./ui.js";
 
 const release: ProductModelRelease = {
   id: "t@1",

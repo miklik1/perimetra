@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toMoneyString } from "./money";
+import { toMoneyString } from "./money.js";
 
 describe("toMoneyString (I10 — the lossless money boundary)", () => {
   it("is the 15-sig-digit canonical decimal of the computed double (Excel anchor semantics)", () => {

@@ -19,7 +19,7 @@
 import { evalString, type ParameterDef, type Scope, type Value } from "@repo/model";
 import type { ProductModelRelease } from "@repo/model";
 
-import { ConfigError, type ConfigInput, type Issue, type PriceTable } from "./types";
+import { ConfigError, type ConfigInput, type Issue, type PriceTable } from "./types.js";
 
 function priceScope(prices: PriceTable): Scope {
   const scope: Scope = {};

@@ -10,7 +10,7 @@
  */
 import type { Catalog, Component } from "@repo/model";
 
-import type { Issue } from "./types";
+import type { Issue } from "./types.js";
 
 /** A fully evaluated resolution request (section/material exprs already run). */
 export interface ResolutionRequest {

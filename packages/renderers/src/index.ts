@@ -5,7 +5,7 @@
  * geometry from raw config (I4), no function does I/O (I1). PDF/SVG/R3F are
  * presentation adapters in app land — they draw these shapes, nothing more.
  */
-export * from "./cutlist";
-export * from "./drawing2d";
-export * from "./scene3d";
-export { add, consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared";
+export * from "./cutlist.js";
+export * from "./drawing2d.js";
+export * from "./scene3d.js";
+export { add, consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared.js";

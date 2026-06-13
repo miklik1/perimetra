@@ -14,7 +14,7 @@
  * lands as an explicit policy argument, not a hardcoded default (ADR 0045's
  * open check).
  */
-import type { MoneyString } from "./schema";
+import type { MoneyString } from "./schema.js";
 
 /** Format a computed price for the result boundary. Author/data bugs (NaN,
  *  Infinity, magnitudes with no plain decimal form) throw — a price that

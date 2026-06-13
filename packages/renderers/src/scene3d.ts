@@ -11,7 +11,7 @@
 import type { PieceProfile, SiteResult } from "@repo/engine";
 import type { Site } from "@repo/model";
 
-import { assertRenderable, consumedParts, type Vec3 } from "./shared";
+import { assertRenderable, consumedParts, type Vec3 } from "./shared.js";
 
 export interface ScenePiece {
   /** `<instanceId>/<partPath>/<pieceId>` (I9). */

@@ -11,7 +11,7 @@
  */
 import type { Catalog } from "@repo/model";
 
-import { catalogV1 } from "./catalog-v1";
+import { catalogV1 } from "./catalog-v1.js";
 
 export const catalogV2: Catalog = {
   id: "catalog@2",

@@ -17,17 +17,17 @@ import { describe, expect, it } from "vitest";
 import { deriveInstance, deriveSite, type SiteInstance } from "@repo/engine";
 import { validateRelease, type Site } from "@repo/model";
 
-import { catalogV2 } from "./catalog/catalog-v2";
+import { catalogV2 } from "./catalog/catalog-v2.js";
 import {
   siteFenceConfig,
   siteGateConfig,
   siteGolden,
   sitePrices,
   steppedSite,
-} from "./golden/site";
-import { planka_100_2d_3panel } from "./golden/sliding-gate";
-import { fenceRunV1 } from "./releases/fence-run";
-import { slidingGateV1 } from "./releases/sliding-gate";
+} from "./golden/site.js";
+import { planka_100_2d_3panel } from "./golden/sliding-gate.js";
+import { fenceRunV1 } from "./releases/fence-run.js";
+import { slidingGateV1 } from "./releases/sliding-gate.js";
 
 const instances = (): SiteInstance[] => [
   { instanceId: "gate", release: slidingGateV1, input: siteGateConfig },

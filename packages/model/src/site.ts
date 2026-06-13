@@ -11,7 +11,7 @@
  * through the ordinary input gate, one write path (I7). `boundary` (cadastre
  * import) and mesh terrain are future features on this same shape.
  */
-import type { Mm } from "./schema";
+import type { Mm } from "./schema.js";
 
 /** One stepped-terrain segment ("the left plot is 150 higher"). */
 export interface TerrainSegment {

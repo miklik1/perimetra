@@ -43,10 +43,10 @@ import {
   type Value,
 } from "@repo/model";
 
-import type { CascadeLayers } from "./cascade";
-import { forwardChecker, type ConstraintEvaluator } from "./constraints";
-import { sumByCategory, toMoneyTotals } from "./emit";
-import { deriveInstanceDetailed, type DeriveOptions } from "./pipeline";
+import type { CascadeLayers } from "./cascade.js";
+import { forwardChecker, type ConstraintEvaluator } from "./constraints.js";
+import { sumByCategory, toMoneyTotals } from "./emit.js";
+import { deriveInstanceDetailed, type DeriveOptions } from "./pipeline.js";
 import type {
   CategoryTotals,
   ConfigInput,
@@ -55,7 +55,7 @@ import type {
   MoneyTotals,
   Part,
   PriceTable,
-} from "./types";
+} from "./types.js";
 
 /** One configured instance as the caller's storage hands it over. */
 export interface SiteInstance {

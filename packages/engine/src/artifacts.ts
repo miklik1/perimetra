@@ -14,7 +14,7 @@
 import { parseOverrideTarget } from "@repo/model";
 import type { Override } from "@repo/model";
 
-import type { Issue, Part, PartDeviation } from "./types";
+import type { Issue, Part, PartDeviation } from "./types.js";
 
 export interface ArtifactOutcome {
   parts: Part[];

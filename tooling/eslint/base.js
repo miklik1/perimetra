@@ -148,6 +148,10 @@ export const baseConfig = [
                 "!@repo/vitest-config/*",
                 "!@repo/vitest-config/setup",
                 "!@repo/vitest-config/setup/*",
+                "!@repo/db/schema/releases",
+                "!@repo/validators/releases",
+                "!@repo/db/schema/catalog-versions",
+                "!@repo/validators/catalog-versions",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

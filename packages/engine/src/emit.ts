@@ -6,7 +6,7 @@
  */
 import { toMoneyString } from "@repo/model";
 
-import type { CategoryTotals, MoneyTotals, Part, PriceTable } from "./types";
+import type { CategoryTotals, MoneyTotals, Part, PriceTable } from "./types.js";
 
 /** Raised when a part has no resolvable price — never default to 0 (I5). */
 export class PriceError extends Error {

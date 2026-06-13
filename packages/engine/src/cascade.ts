@@ -23,8 +23,8 @@
 import { evalNumber, parseOverrideTarget } from "@repo/model";
 import type { Override, OverrideScope, ProductModelRelease, Scope } from "@repo/model";
 
-import { buildScope, domainIssue, gateInputKeys, missingParams, typeDefect } from "./scope";
-import { ConfigError, type ConfigInput, type Issue, type PriceTable } from "./types";
+import { buildScope, domainIssue, gateInputKeys, missingParams, typeDefect } from "./scope.js";
+import { ConfigError, type ConfigInput, type Issue, type PriceTable } from "./types.js";
 
 /** Cascade layers 3–5 as the caller's storage hands them over. */
 export interface CascadeLayers {

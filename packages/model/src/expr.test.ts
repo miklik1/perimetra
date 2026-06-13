@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evalNumber, evalString, evaluate, ExprError, parse, type Scope } from "./expr";
+import { evalNumber, evalString, evaluate, ExprError, parse, type Scope } from "./expr.js";
 
 const scope: Scope = {
   opening_width_mm: 4000,

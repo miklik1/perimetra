@@ -10,7 +10,7 @@
  * (catalog/role resolution §2, ports/joints §5, ui/fixtures §3) without
  * breaking authored models.
  */
-import type { ExprString } from "./expr";
+import type { ExprString } from "./expr.js";
 
 /** Lengths are integer mm (I10). A branding seam — enforced at the I/O edge,
  *  not yet at the type level, so derived intermediates (e.g. a fractional fill

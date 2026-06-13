@@ -16,6 +16,7 @@ import { AppThrottleModule } from "./common/throttle/throttle.module.js";
 import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { CatalogVersionsModule } from "./modules/catalog-versions/catalog-versions.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { JobsModule } from "./modules/jobs/jobs.module.js";
@@ -23,6 +24,7 @@ import { OutboxModule } from "./modules/outbox/outbox.module.js";
 import { PrivacyModule } from "./modules/privacy/privacy.module.js";
 import { ProjectsModule } from "./modules/projects/projects.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
+import { ReleasesModule } from "./modules/releases/releases.module.js";
 import { StorageModule } from "./modules/storage/storage.module.js";
 import { OtelMetricsModule } from "./otel/metrics.module.js";
 
@@ -81,6 +83,8 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     PrivacyModule,
     ProjectsModule,
     OtelMetricsModule,
+    ReleasesModule,
+    CatalogVersionsModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

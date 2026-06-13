@@ -17,7 +17,7 @@
  *                                 (field: quantity | lengthMm | pricePerUnit |
  *                                 totalPrice); always flagged on the result.
  */
-import type { Value } from "./expr";
+import type { Value } from "./expr.js";
 
 /** Cascade layers 3–5 (release + catalog are vendor data, not override scopes). */
 export type OverrideScope = "tenant" | "customer" | "quote";

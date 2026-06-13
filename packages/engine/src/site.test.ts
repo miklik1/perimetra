@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import { expr, type Catalog, type ProductModelRelease, type Site } from "@repo/model";
 
-import { deriveInstance } from "./pipeline";
-import { deriveSite, type SiteInstance } from "./site";
-import type { PriceTable } from "./types";
+import { deriveInstance } from "./pipeline.js";
+import { deriveSite, type SiteInstance } from "./site.js";
+import type { PriceTable } from "./types.js";
 
 /** A 1-D "panel": a body with a cap at each end. Caps are the shared element —
  *  `start` consumes (attaches to the neighbor's end cap), `end` owns. */

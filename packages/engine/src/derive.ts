@@ -9,8 +9,8 @@
 import { evalBoolean, evalNumber, evalString, type Catalog, type Scope } from "@repo/model";
 import type { Component, ExprString, PartRule, ProductModelRelease } from "@repo/model";
 
-import { resolveComponent, type ResolutionRequest } from "./resolve";
-import type { AssemblyGraph, Issue, Part, PartGeometry, PartPiece } from "./types";
+import { resolveComponent, type ResolutionRequest } from "./resolve.js";
+import type { AssemblyGraph, Issue, Part, PartGeometry, PartPiece } from "./types.js";
 
 /** Resolution failures are collected (the full vendor worklist, not just the
  *  first gap) and fail the derivation — no partial BOM ever ships (I5). */

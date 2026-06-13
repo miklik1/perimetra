@@ -19,9 +19,9 @@ import { describe, expect, it } from "vitest";
 import { deriveInstance, recurrenceReport, type CascadeLayers } from "@repo/engine";
 import type { Override } from "@repo/model";
 
-import { catalogV1 } from "./catalog/catalog-v1";
-import { planka_100_2d_3panel as anchor, steel_frame_3panel } from "./golden/sliding-gate";
-import { slidingGateV1 } from "./releases/sliding-gate";
+import { catalogV1 } from "./catalog/catalog-v1.js";
+import { planka_100_2d_3panel as anchor, steel_frame_3panel } from "./golden/sliding-gate.js";
+import { slidingGateV1 } from "./releases/sliding-gate.js";
 
 const ov = (patch: Partial<Override> & Pick<Override, "id" | "target" | "value">): Override => ({
   scope: "quote",

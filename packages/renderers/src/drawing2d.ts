@@ -11,7 +11,7 @@
 import type { DerivationResult, SiteResult } from "@repo/engine";
 import type { Site } from "@repo/model";
 
-import { add, assertRenderable, consumedParts, rotate, type Pt, type Vec3 } from "./shared";
+import { add, assertRenderable, consumedParts, rotate, type Pt, type Vec3 } from "./shared.js";
 
 /** A piece's axis face (length × profile width) projected to the view plane.
  *  Quads, not bboxes — a 35° diagonal stays a slanted bar on the drawing. */

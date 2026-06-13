@@ -10,8 +10,8 @@
  * the UI flavor of a silent zero (I5) — the engine's own gates still decide
  * what the value means.
  */
-import { evalBoolean, type Scope } from "./expr";
-import type { ParameterDef, ProductModelRelease, UiSpec } from "./schema";
+import { evalBoolean, type Scope } from "./expr.js";
+import type { ParameterDef, ProductModelRelease, UiSpec } from "./schema.js";
 
 export interface ResolvedUiParam {
   def: ParameterDef;

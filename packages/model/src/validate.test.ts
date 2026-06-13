@@ -6,9 +6,9 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { expr } from "./expr";
-import type { ProductModelRelease } from "./schema";
-import { validateRelease } from "./validate";
+import { expr } from "./expr.js";
+import type { ProductModelRelease } from "./schema.js";
+import { validateRelease } from "./validate.js";
 
 const base: ProductModelRelease = {
   id: "t@1",

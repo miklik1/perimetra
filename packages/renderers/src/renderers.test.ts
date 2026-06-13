@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 import type { DerivationResult, Part, SiteResult } from "@repo/engine";
 import type { Site } from "@repo/model";
 
-import { buildCutList } from "./cutlist";
-import { buildSitePlan, buildWorkshopDrawing } from "./drawing2d";
-import { buildScene } from "./scene3d";
-import { cosArcMin, rotate, sinArcMin } from "./shared";
+import { buildCutList } from "./cutlist.js";
+import { buildSitePlan, buildWorkshopDrawing } from "./drawing2d.js";
+import { buildScene } from "./scene3d.js";
+import { cosArcMin, rotate, sinArcMin } from "./shared.js";
 
 const part = (path: string, overrides: Partial<Part> = {}): Part => ({
   path,

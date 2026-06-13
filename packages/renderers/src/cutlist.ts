@@ -11,7 +11,7 @@
  */
 import type { PieceProfile, SiteResult } from "@repo/engine";
 
-import { assertRenderable, consumedParts } from "./shared";
+import { assertRenderable, consumedParts } from "./shared.js";
 
 /** Identical cuts merged: same component, length, and end angles. */
 export interface CutLine {

@@ -46,6 +46,7 @@
     "@repo/db": "workspace:*",
     "@repo/flags": "workspace:*",
     "@repo/i18n": "workspace:*",
+    "@repo/model": "workspace:*",
     "@repo/validators": "workspace:*",
     "@sentry/node": "catalog:",
     "better-auth": "catalog:",
@@ -73,7 +74,9 @@
   },
   "devDependencies": {
     "@nestjs/testing": "catalog:",
+    "@repo/engine": "workspace:*",
     "@repo/eslint-config": "workspace:*",
+    "@repo/fixtures": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@repo/vitest-config": "workspace:*",
     "@swc/core": "^1.13.0",

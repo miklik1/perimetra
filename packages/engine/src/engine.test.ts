@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { expr, type Catalog, type Override, type ProductModelRelease } from "@repo/model";
 
-import type { CascadeLayers } from "./cascade";
-import { forwardChecker, type ConstraintEvaluator } from "./constraints";
-import { PriceError, priceParts, sumByCategory } from "./emit";
-import { recurrenceReport } from "./ledger";
-import { deriveInstance } from "./pipeline";
-import { CatalogAmbiguityError, resolveComponent } from "./resolve";
-import { buildScope, gateInput } from "./scope";
-import type { Part, PriceTable } from "./types";
+import type { CascadeLayers } from "./cascade.js";
+import { forwardChecker, type ConstraintEvaluator } from "./constraints.js";
+import { PriceError, priceParts, sumByCategory } from "./emit.js";
+import { recurrenceReport } from "./ledger.js";
+import { deriveInstance } from "./pipeline.js";
+import { CatalogAmbiguityError, resolveComponent } from "./resolve.js";
+import { buildScope, gateInput } from "./scope.js";
+import type { Part, PriceTable } from "./types.js";
 
 /** A minimal release exercising every engine seam in isolation. */
 const release: ProductModelRelease = {
