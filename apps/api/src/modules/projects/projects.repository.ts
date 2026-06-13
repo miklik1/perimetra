@@ -43,12 +43,12 @@ export class ProjectsRepository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
   /**
-   * THE ownership filter (ADR 0041): owner scope + live rows. The tenancy
-   * retrofit changes this ONE expression to `organizationId =
-   * scope.organizationId` — every method below inherits it.
+   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope + live
+   * rows. Every method below inherits it; `ownerId` is retained on the row as
+   * the creator/audit ref but is no longer the access boundary.
    */
   private scoped(scope: RequestScope) {
-    return and(eq(project.ownerId, scope.userId), isNull(project.deletedAt));
+    return and(eq(project.organizationId, scope.organizationId), isNull(project.deletedAt));
   }
 
   /**
@@ -111,9 +111,9 @@ export class ProjectsRepository {
     const [row] = await this.txHost.tx
       .insert(project)
       .values({
+        // Creator/audit ref (no longer the access scope, ADR 0055).
         ownerId: scope.userId,
-        // Dormant tenancy seam: persisted from day one so the retrofit
-        // backfill (ADR 0041 playbook step 2) starts mostly done.
+        // THE access scope (ADR 0055) — every read filters on it.
         organizationId: scope.organizationId,
         name: data.name,
         description: data.description ?? null,

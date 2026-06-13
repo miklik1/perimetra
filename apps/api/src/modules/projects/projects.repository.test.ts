@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { ProjectsRepository } from "./projects.repository.js";
 
-const SCOPE = { userId: "user-1", organizationId: null };
+const SCOPE = { userId: "user-1", organizationId: "org-1" };
 // UUIDv7s in creation order (cursor math relies on id ordering).
 const ID_1 = "01890a5d-ac96-774b-bcce-b302099a0001";
 const ID_2 = "01890a5d-ac96-774b-bcce-b302099a0002";
@@ -63,18 +63,18 @@ function makeTxHost(rows: unknown[] = []) {
 
 const row = (id: string) => ({ id, ownerId: SCOPE.userId });
 
-describe("ProjectsRepository scope filtering (ADR 0041)", () => {
-  it("list filters by owner and excludes soft-deleted rows", async () => {
+describe("ProjectsRepository scope filtering (ADR 0041/0055)", () => {
+  it("list filters by organization and excludes soft-deleted rows", async () => {
     const { txHost, captured } = makeTxHost([]);
     await new ProjectsRepository(txHost).list(SCOPE, { limit: 20, sort: "createdAt:desc" });
 
     const { sql, params } = render(captured.where);
-    expect(sql).toContain('"owner_id"');
+    expect(sql).toContain('"organization_id"');
     expect(sql.toLowerCase()).toContain('"deleted_at" is null');
-    expect(params).toContain(SCOPE.userId);
+    expect(params).toContain(SCOPE.organizationId);
   });
 
-  it("findById, update and softDelete all carry the scope filter", async () => {
+  it("findById, update and softDelete all carry the org scope filter", async () => {
     for (const exercise of [
       (repo: ProjectsRepository) => repo.findById(SCOPE, ID_1),
       (repo: ProjectsRepository) => repo.update(SCOPE, ID_1, { name: "x" }),
@@ -84,13 +84,13 @@ describe("ProjectsRepository scope filtering (ADR 0041)", () => {
       await exercise(new ProjectsRepository(txHost));
 
       const { sql, params } = render(captured.where);
-      expect(sql).toContain('"owner_id"');
+      expect(sql).toContain('"organization_id"');
       expect(sql.toLowerCase()).toContain('"deleted_at" is null');
-      expect(params).toEqual(expect.arrayContaining([SCOPE.userId, ID_1]));
+      expect(params).toEqual(expect.arrayContaining([SCOPE.organizationId, ID_1]));
     }
   });
 
-  it("insert stamps ownerId and the (dormant) organizationId from the scope", async () => {
+  it("insert stamps ownerId (audit) and organizationId (scope)", async () => {
     const { txHost, captured } = makeTxHost([row(ID_1)]);
     await new ProjectsRepository(txHost).insert(
       { userId: "user-1", organizationId: "org-1" },

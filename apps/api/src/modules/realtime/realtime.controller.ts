@@ -12,7 +12,7 @@ import { z } from "zod";
 import { CurrentSession } from "../auth/current-session.decorator.js";
 import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
 import { RealtimeService } from "./realtime.service.js";
-import { userChannel } from "./realtime.tokens.js";
+import { orgChannel, userChannel } from "./realtime.tokens.js";
 
 const subscribeSchema = z.object({
   channel: z.string().regex(/^(user|org):[\w-]+$/, "unknown channel scheme"),
@@ -39,16 +39,17 @@ export class RealtimeController {
     }
     const { channel } = parsed.data;
 
-    // user:<id> — own channel only. org:<id> — dormant tenancy seam: DENY
-    // until ADR 0041 lands membership checks (fail closed, not open).
+    // user:<id> — own channel only. org:<id> — the session's active org only
+    // (ADR 0055: membership = the stamped active org; still fail-closed for any
+    // other org or an org-less session).
     if (channel.startsWith("user:") && channel !== userChannel(session.user.id)) {
       throw new ForbiddenException({ message: "Not your channel", code: "forbidden" });
     }
     if (channel.startsWith("org:")) {
-      throw new ForbiddenException({
-        message: "Organization channels are not enabled",
-        code: "forbidden",
-      });
+      const activeOrg = session.session.activeOrganizationId;
+      if (!activeOrg || channel !== orgChannel(activeOrg)) {
+        throw new ForbiddenException({ message: "Not your organization", code: "forbidden" });
+      }
     }
 
     return { token: await this.realtime.subscriptionToken(session.user.id, channel) };

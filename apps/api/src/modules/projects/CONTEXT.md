@@ -13,8 +13,9 @@ privacy handler → tests at every layer.
   serialization, `Idempotency-Key` support on create (ADR 0039).
 - Service: `@Transactional()`; state change + `OutboxService.emit()`
   (IDs-only payload) + `AuditService.record()` in ONE transaction.
-- Repository: scoped by the CLS-carried organization context (ADR 0041 —
-  tenancy dormant but the seam is load-bearing); soft delete via `archived`.
+- Repository: `scoped()` filters on `organizationId = scope.organizationId`
+  (ADR 0041 seam, activated ADR 0055 — `ownerId` retained as creator/audit ref);
+  soft delete via `archived`.
 - `projects.privacy.ts`: registers under `PRIVACY_HANDLERS` for GDPR
   export/erasure fan-out (ADR 0040).
 

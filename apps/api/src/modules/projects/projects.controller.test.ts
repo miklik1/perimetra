@@ -13,7 +13,7 @@ import {
   UpdateProjectDto,
 } from "./projects.dto.js";
 
-const SCOPE = { userId: "user-1", organizationId: null };
+const SCOPE = { userId: "user-1", organizationId: "org-1" };
 
 describe("project DTO validation shape", () => {
   it("CreateProjectDto enforces the name contract (1-200)", () => {

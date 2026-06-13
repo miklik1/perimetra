@@ -2,8 +2,10 @@
 
 Better Auth mounted **manually on the raw Fastify instance** at `/api/auth/*`
 (no NestJS controller for those routes): email/password + verification +
-reset, admin plugin (ban/impersonate), dormant organization plugin (tenancy
-seam, ADR 0041). Drizzle adapter over `@repo/db/schema/auth`; Redis secondary
+reset, admin plugin (ban/impersonate), organization plugin ACTIVE (tenancy
+scope, ADR 0041 seam activated by ADR 0055 — `databaseHooks` auto-provision one
+org + owner membership per user and stamp every session's `activeOrganizationId`;
+self-serve org creation stays off). Drizzle adapter over `@repo/db/schema/auth`; Redis secondary
 storage for session lookups. Sessions are httpOnly cookies (`__Host-` prefix
 in prod, `SameSite=Lax`); a strict per-IP rate limit guards `/api/auth/*`
 (registered in `main.ts`, see `common/throttle`).
@@ -24,4 +26,4 @@ in prod, `SameSite=Lax`); a strict per-IP rate limit guards `/api/auth/*`
   CSRF/origin checks on its own routes.
 - Bypass the email module: verification/reset mail goes through `EmailService`.
 
-Governing ADR: `docs/adr/0033-better-auth.md` (+ 0041 tenancy seam).
+Governing ADR: `docs/adr/0033-better-auth.md` (+ 0041 tenancy seam, 0055 activation).

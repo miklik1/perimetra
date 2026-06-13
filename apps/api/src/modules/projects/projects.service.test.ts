@@ -13,14 +13,14 @@ vi.mock("@nestjs-cls/transactional", async (importOriginal) => ({
   Transactional: () => () => undefined,
 }));
 
-const SCOPE = { userId: "user-1", organizationId: null };
+const SCOPE = { userId: "user-1", organizationId: "org-1" };
 const NOW = new Date("2026-06-10T12:00:00.000Z");
 
 function projectRow(overrides: Partial<ProjectRow> = {}): ProjectRow {
   return {
     id: "01890a5d-ac96-774b-bcce-b302099a0001",
     ownerId: SCOPE.userId,
-    organizationId: null,
+    organizationId: SCOPE.organizationId,
     name: "Skeleton",
     description: null,
     status: "active",

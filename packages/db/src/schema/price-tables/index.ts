@@ -1,15 +1,16 @@
 /**
  * Price-table store (CORE_SPEC §6, I3) — per-tenant, versioned, immutable price
  * tables with effective-date windows (no yearly clones; a new window is a new
- * version row). Owner-scoped today via the ADR-0041 seam (the org retrofit
- * flips `scoped()` to organizationId in one place, with every other module).
+ * version row). Org-scoped via the ADR-0041 seam (activated ADR 0055). Both
+ * `ownerId` and `organizationId` are `onDelete: RESTRICT` — a stamped table an
+ * issued quote depends on (I3) must survive user/tenant deletion.
  *
  * Append-only: no update/delete surface — a version a quote stamped must
  * re-derive forever (I3). `effectiveTo` is the one mutable lifecycle field a
  * later admin flow may set when a successor opens (the price DATA never moves).
  *
  * - `version` is the number stamped on every engine result (`prices.version`);
- *   unique per owner so a stamped `priceTableVersion` resolves to ONE table.
+ *   unique per ORG (ADR 0055) so a stamped `priceTableVersion` resolves to ONE table.
  * - `table` is the engine `PriceTable` JSONB (components + manufacturing +
  *   installation); the engine consumes it as a pure data argument — prices are
  *   NOT money-string here (ADR 0045 numeric domain), they cross the I10
@@ -40,15 +41,15 @@ export const priceTable = pgTable(
   "price_table",
   {
     id: id(),
-    /** Ownership scope (ADR 0041) — the org retrofit flips `scoped()` to org. */
+    /** Creator/audit ref (ADR 0055); RESTRICT so user deletion can't break I3 re-derivation. */
     ownerId: text("owner_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    /** Dormant tenancy seam (ADR 0041) — populated, retrofit flips scope to it. */
-    organizationId: text("organization_id").references(() => organization.id, {
-      onDelete: "set null",
-    }),
-    /** The stamped `prices.version` (I3) — unique per owner. */
+      .references(() => user.id, { onDelete: "restrict" }),
+    /** THE access scope (ADR 0055) — NOT NULL; RESTRICT for I3 durability. */
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    /** The stamped `prices.version` (I3) — unique per ORG (ADR 0055). */
     version: integer("version").notNull(),
     currency: text("currency").notNull().$type<PriceTableCurrency>(),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
@@ -64,10 +65,10 @@ export const priceTable = pgTable(
     ...timestamps(),
   },
   (t) => [
-    // A stamped (owner, version) resolves to exactly one immutable table (I3).
-    uniqueIndex("price_table_owner_version_uq").on(t.ownerId, t.version),
-    // resolveActive(owner, asOf): scan the owner's windows by effectiveFrom.
-    index("price_table_owner_effective_idx").on(t.ownerId, t.effectiveFrom),
+    // A stamped (org, version) resolves to exactly one immutable table (I3).
+    uniqueIndex("price_table_org_version_uq").on(t.organizationId, t.version),
+    // resolveActive(org, asOf): scan the org's windows by effectiveFrom.
+    index("price_table_org_effective_idx").on(t.organizationId, t.effectiveFrom),
   ],
 );
 

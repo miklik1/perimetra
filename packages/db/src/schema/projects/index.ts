@@ -4,13 +4,14 @@
  *
  * - `id()` UUIDv7: time-ordered, so it doubles as the keyset-pagination
  *   cursor (no separate `created_at` cursor column needed).
- * - `ownerId` is the interim ownership scope (ADR 0041): every query in
- *   `projects.repository.ts` filters on it via the RequestScope seam.
- * - `organizationId` is the DORMANT tenancy seam: nullable FK now, flipped
- *   to `NOT NULL` + scope filter when multi-tenancy is retrofitted — a
- *   migration + one repository change, not a project-wide hunt.
+ * - `organizationId` is THE access scope (ADR 0041 seam, activated ADR 0055):
+ *   NOT NULL, every query in `projects.repository.ts` filters on it.
+ * - `ownerId` is retained as the creator/audit ref (who made the row); it is
+ *   no longer the access boundary. `project` stays `onDelete: cascade` on the
+ *   user (mutable user content, unlike the immutable I3 quote/price_table
+ *   stores which are RESTRICT).
  * - `softDelete()`: rows are never hard-deleted by the API; the partial
- *   index keeps the hot list query (live rows per owner) tight.
+ *   index keeps the hot list query (live rows per org) tight.
  */
 import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
@@ -25,13 +26,14 @@ export const project = pgTable(
   "project",
   {
     id: id(),
+    /** Creator/audit ref (ADR 0055) — no longer the access scope. */
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    /** Dormant tenancy seam (ADR 0041) — populated, never filtered on (yet). */
-    organizationId: text("organization_id").references(() => organization.id, {
-      onDelete: "set null",
-    }),
+    /** THE access scope (ADR 0041 seam, activated ADR 0055) — NOT NULL, filtered on. */
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
     /** Length bounds (1–200) live in the zod contract (`@repo/validators/projects`). */
     name: text("name").notNull(),
     /** Max 2000 chars — zod-enforced. */
@@ -50,10 +52,10 @@ export const project = pgTable(
     ...softDelete(),
   },
   (table) => [
-    // THE list query: WHERE owner_id = ? AND deleted_at IS NULL ORDER BY id.
+    // THE list query: WHERE organization_id = ? AND deleted_at IS NULL ORDER BY id.
     // Partial — soft-deleted rows leave the index instead of bloating it.
-    index("project_owner_id_id_idx")
-      .on(table.ownerId, table.id)
+    index("project_org_id_id_idx")
+      .on(table.organizationId, table.id)
       .where(sql`${table.deletedAt} IS NULL`),
   ],
 );

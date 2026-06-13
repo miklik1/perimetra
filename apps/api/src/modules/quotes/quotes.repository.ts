@@ -43,9 +43,12 @@ export type InsertQuoteData = Pick<
 export class QuotesRepository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
-  /** THE ownership filter (ADR 0041) — the org retrofit flips this one line. */
+  /**
+   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope. `ownerId`
+   * stays on the row as the creator/audit ref but is no longer the boundary.
+   */
   private scoped(scope: RequestScope) {
-    return eq(quote.ownerId, scope.userId);
+    return eq(quote.organizationId, scope.organizationId);
   }
 
   async list(scope: RequestScope, params: ListQuotesParams): Promise<QuotesPageRows> {

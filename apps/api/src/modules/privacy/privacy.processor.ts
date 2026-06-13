@@ -146,9 +146,12 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     }
 
     // 2. Built-in core erasures on the Better Auth tables. Anonymize (not
-    //    delete) the user row: FKs like project.owner_id keep pointing at a
-    //    valid, PII-free id. Deterministic value → idempotent on retry, and
-    //    the unique email constraint stays satisfied per user.
+    //    delete) the user row: FKs keep pointing at a valid, PII-free id.
+    //    Deterministic value → idempotent on retry, and the unique email
+    //    constraint stays satisfied per user. This is also what makes the
+    //    quote/price_table `owner_id RESTRICT` (ADR 0055, I3 durability) safe:
+    //    the user row is never hard-deleted, so the frozen commercial records
+    //    survive erasure under legal-retention while their author goes PII-free.
     const erased = `erased-${userId}@erased.invalid`;
     const db = this.txHost.tx; // ambient tx if active, plain client otherwise
     await db

@@ -7,8 +7,12 @@
  * renderers, deep-equals every artifact).
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { type Db } from "@repo/db";
+import { user as userTable } from "@repo/db/schema/auth";
+import { quote as quoteTable } from "@repo/db/schema/quotes";
 import {
   catalogV2,
   fenceRunV1,
@@ -19,6 +23,7 @@ import {
   steppedSite,
 } from "@repo/fixtures";
 
+import { DB } from "../src/common/db/db.module.js";
 import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
 
 interface QuoteDetail {
@@ -32,6 +37,7 @@ interface QuoteDetail {
 
 describe("quote lifecycle (HTTP, real stack)", () => {
   let app: NestFastifyApplication;
+  let db: Db;
   let tenant: TestUser;
 
   const post = (user: TestUser, url: string, payload: Record<string, unknown>) =>
@@ -49,6 +55,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
   beforeAll(async () => {
     app = await createApiApp();
+    db = app.get<Db>(DB);
     tenant = await signUpUser(app, "quote-tenant");
 
     // Seed the immutable stores the quote resolves stamps against. These are
@@ -152,9 +159,11 @@ describe("quote lifecycle (HTTP, real stack)", () => {
     });
   });
 
-  describe("scope isolation", () => {
-    it("another tenant cannot read the quote (404)", async () => {
+  describe("org-scope isolation (ADR 0055)", () => {
+    it("a different org cannot read the quote (404, no existence oracle)", async () => {
       const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      // A fresh user is auto-provisioned a SEPARATE org — so this is now an
+      // org-boundary probe, not just a user one.
       const intruder = await signUpUser(app, "quote-intruder");
       const res = await inject(app, {
         method: "GET",
@@ -162,6 +171,35 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         headers: { cookie: intruder.cookie },
       });
       expect(res.statusCode).toBe(404);
+    });
+  });
+
+  describe("I3 durability (owner_id RESTRICT, ADR 0055)", () => {
+    it("refuses to hard-delete a user who authored a quote (the frozen artifact survives)", async () => {
+      // Fresh user so the destructive delete attempt can't poison the shared tenant.
+      // Releases/catalog are GLOBAL (seeded above); the price table is per-org
+      // (ADR 0055) so this fresh org needs its own before it can issue.
+      const author = await signUpUser(app, "quote-author");
+      expect(
+        (
+          await post(author, "/v1/price-tables", {
+            currency: "CZK",
+            effectiveFrom: "2026-01-01T00:00:00.000Z",
+            dphRate: "21",
+            table: sitePrices,
+          })
+        ).statusCode,
+      ).toBe(201);
+      const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(issued.total).toBe("129891.504");
+
+      // owner_id is ON DELETE RESTRICT: deleting the author must fail at the FK,
+      // proving the I3 commercial record cannot vanish with its creator.
+      await expect(db.delete(userTable).where(eq(userTable.id, author.id))).rejects.toThrow();
+
+      // And the quote is still there.
+      const [row] = await db.select().from(quoteTable).where(eq(quoteTable.id, issued.id)).limit(1);
+      expect(row?.id).toBe(issued.id);
     });
   });
 });

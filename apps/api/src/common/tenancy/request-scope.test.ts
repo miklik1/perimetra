@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { scopeFromSession } from "./request-scope.js";
+import { MissingOrganizationScopeError, scopeFromSession } from "./request-scope.js";
 
 describe("scopeFromSession", () => {
-  it("maps the session user to the scope", () => {
+  it("maps the session user and active org to the scope", () => {
     expect(
       scopeFromSession({
         user: { id: "user-1" },
@@ -12,10 +12,12 @@ describe("scopeFromSession", () => {
     ).toEqual({ userId: "user-1", organizationId: "org-1" });
   });
 
-  it("normalizes a missing active organization to null (dormant seam)", () => {
-    expect(scopeFromSession({ user: { id: "user-1" }, session: {} })).toEqual({
-      userId: "user-1",
-      organizationId: null,
-    });
+  it("rejects a session with no active organization (fail-closed seam, ADR 0055)", () => {
+    expect(() => scopeFromSession({ user: { id: "user-1" }, session: {} })).toThrow(
+      MissingOrganizationScopeError,
+    );
+    expect(() =>
+      scopeFromSession({ user: { id: "user-1" }, session: { activeOrganizationId: null } }),
+    ).toThrow(MissingOrganizationScopeError);
   });
 });

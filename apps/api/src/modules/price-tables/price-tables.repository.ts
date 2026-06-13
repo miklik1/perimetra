@@ -42,9 +42,13 @@ export interface InsertPriceTableData {
 export class PriceTablesRepository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
-  /** THE ownership filter (ADR 0041) — the org retrofit flips this one line. */
+  /**
+   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope. `version`
+   * is now unique per ORG (schema), so `findByVersion`/`resolveActive` resolve a
+   * stamped table within the tenant. `ownerId` stays as the creator/audit ref.
+   */
   private scoped(scope: RequestScope) {
-    return eq(priceTable.ownerId, scope.userId);
+    return eq(priceTable.organizationId, scope.organizationId);
   }
 
   async list(scope: RequestScope, params: ListPriceTablesParams): Promise<PriceTablesPageRows> {

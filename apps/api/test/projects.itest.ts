@@ -203,6 +203,8 @@ describe("projects resource (HTTP, real stack)", () => {
     });
   });
 
+  // ADR 0055: each fresh user is auto-provisioned its own org, so this is now
+  // an ORG-boundary probe (the scope flipped from owner to organization).
   describe("scope isolation", () => {
     let owner: TestUser;
     let intruder: TestUser;

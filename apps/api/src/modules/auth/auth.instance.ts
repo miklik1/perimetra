@@ -35,6 +35,22 @@ export interface CreateAuthDeps {
 
 const REDIS_KEY_PREFIX = "better-auth:";
 
+/**
+ * Deterministic, unique org slug for the auto-provisioned workspace (ADR 0055):
+ * a name-derived prefix plus the user id (already globally unique) as suffix, so
+ * the `organization.slug` UNIQUE constraint can never collide across users.
+ */
+function autoOrgSlug(name: string, userId: string): string {
+  const base =
+    name
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || "workspace";
+  return `${base}-${userId.slice(0, 8)}`;
+}
+
 /** Better Auth's SecondaryStorage over the shared ioredis client (TTLs in seconds). */
 function redisSecondaryStorage(redis: Redis): SecondaryStorage {
   return {
@@ -76,6 +92,59 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
           type: "string",
           required: false,
           input: true,
+        },
+      },
+    },
+    /**
+     * Org-scope activation (ADR 0055). ONE self-healing hook turns the dormant
+     * ADR 0041 tenancy seam live without any switcher UI:
+     *
+     * `session.create.before` stamps every session's `activeOrganizationId`
+     * from the user's owner membership — provisioning the organization + member
+     * lazily on the FIRST session (signup) if none exists yet, and just reading
+     * it on subsequent logins. So the request scope always resolves to the org
+     * (the repositories filter on `organizationId` now); no `setActive` call,
+     * no client round-trip.
+     *
+     * Why here and not `user.create.after`: Better Auth's signup runs
+     * `session.create.before` BEFORE `user.create.after`, so the membership
+     * wouldn't exist yet when the session is stamped. The user row IS already
+     * inserted by this point (its id scopes the session), so provisioning here
+     * satisfies the member→user FK. Self-serve org creation stays OFF
+     * (`allowUserToCreateOrganization` below) — this is the only provisioning path.
+     */
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session, ctx) => {
+            if (!ctx) return; // no endpoint context (e.g. direct adapter create) — skip
+            const adapter = ctx.context.adapter;
+            let membership = await adapter.findOne<{ organizationId: string }>({
+              model: "member",
+              where: [{ field: "userId", value: session.userId }],
+            });
+            if (!membership) {
+              // First session for this user — auto-provision one org + owner
+              // membership (Perimetra tenant = one fabricator company).
+              const user = await adapter.findOne<{ name: string }>({
+                model: "user",
+                where: [{ field: "id", value: session.userId }],
+              });
+              const org = await adapter.create<{ id: string }>({
+                model: "organization",
+                data: {
+                  name: `${user?.name ?? "Workspace"}'s workspace`,
+                  slug: autoOrgSlug(user?.name ?? "workspace", session.userId),
+                },
+              });
+              await adapter.create({
+                model: "member",
+                data: { organizationId: org.id, userId: session.userId, role: "owner" },
+              });
+              membership = { organizationId: org.id };
+            }
+            return { data: { activeOrganizationId: membership.organizationId } };
+          },
         },
       },
     },
@@ -140,7 +209,8 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
     plugins: [
       // Minimal admin surface: ban/unban + impersonation ("log in as the user").
       admin(),
-      // Tenancy seam (design §6): tables exist, feature dormant.
+      // Tenancy scope ACTIVE (ADR 0055): every user is auto-provisioned one org
+      // (databaseHooks above); self-serve creation stays off until a multi-org slice.
       organization({ allowUserToCreateOrganization: false }),
     ],
   });

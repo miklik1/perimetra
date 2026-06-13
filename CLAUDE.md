@@ -50,10 +50,20 @@ RSC + saves explicitly; `app/site/persistence.ts` is the sole `releaseId↔produ
 index` bridge. `@repo/fixtures` is still the ⌛ interim web **release/catalog**
 source via `app/configurator/products.ts` (`app/site/initial.ts` demoted to the
 "Load demo" populate) — retiring it = the admin-publish slice (api-served
-catalog). Steps 1–5 shipped before (ADR 0045–0050). Next: step-6 follow-ups —
-the org-scope retrofit (ADR 0041) across all modules, roles
-(admin/sales/workshop + workshop price-blind + margin-floor guard), admin
-(`adjustability: tenant`), issue-key i18n + deviation-override UX,
+catalog). Slice 3f (2026-06-13, ADR 0055): org-scope activation — the ADR 0041
+tenancy seam went LIVE. Better Auth `databaseHooks` auto-provision one org +
+owner membership per user and stamp every session's `activeOrganizationId`
+(no switcher UI; self-serve org create stays off); `RequestScope.organizationId`
+is now required (`@CurrentScope()` 403s an org-less session); `scoped()` in
+projects/quotes/price-tables flips owner→org (`ownerId` kept as creator/audit);
+`organization_id` NOT NULL + hot indexes re-keyed owner→org + price-table version
+unique per org; the immutable I3 stores (quote, price_table) get `owner_id` +
+`organization_id` ON DELETE RESTRICT (I3 durability; GDPR erasure anonymizes the
+user row, never deletes — so RESTRICT holds); `org:<id>` realtime channel
+unlocked for the session's active org. Steps 1–5 shipped before (ADR 0045–0050).
+Next: step-6 follow-ups — roles (admin/sales/workshop + workshop price-blind +
+margin-floor guard + admin publish gate), org invite/switch UI + same-org member
+sharing, admin (`adjustability: tenant`), issue-key i18n + deviation-override UX,
 `/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is

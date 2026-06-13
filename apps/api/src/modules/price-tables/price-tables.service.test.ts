@@ -16,7 +16,7 @@ vi.mock("@nestjs-cls/transactional", async (importOriginal) => ({
   Transactional: () => () => undefined,
 }));
 
-const SCOPE = { userId: "tenant-1", organizationId: null };
+const SCOPE = { userId: "tenant-1", organizationId: "org-1" };
 const TABLE: PriceTableData = {
   version: 7,
   components: { post: 100 },
