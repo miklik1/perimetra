@@ -22,7 +22,8 @@ the core); cross-cutting strategy/decisions live in the vault
 | `packages/renderers` | Cut list / 3D scene / 2D drawings as **pure data** off (Site, SiteResult) only (I4). Presentation (R3F/SVG/PDF) is app-land.                   |
 | `packages/fixtures`  | Authored releases + golden corpus + the **delta-0 proving harness** (test-only; consumes model+engine+renderers).                              |
 
-Build order is CORE_SPEC §10. **Step 6 slices 1–2 done.** Slice 1 (2026-06-12,
+Build order is CORE_SPEC §10. **Step 6 slices 1–3 done** (slice 3 = the
+quote-lifecycle I3 core). Slice 1 (2026-06-12,
 ADR 0051): generated configurator — `UiSpec` + `ParameterDef.label` are release
 data validated at publish; `resolveUi` in `@repo/model`; the wizard at
 `apps/web/app/configurator` renders from release data alone, engine runs in the
@@ -32,11 +33,22 @@ generated surface at site scope: place/connect/drag instances on a 2D plan +
 the multi-instance 3D viewport + aggregate site BOM/price; two-truths derive so
 per-instance footprints stay editable when a connection/terrain failure
 invalidates the whole site (`SiteBomLine.totalPriceMoney` closes the per-line
-I10 boundary). `@repo/fixtures` is the ⌛ interim release/seed source via
-`app/configurator/products.ts` + `app/site/initial.ts`. Steps 1–5 shipped
-before (ADR 0045–0050). Next step-6 slices: quote lifecycle (stamps + snapshot
-via `pnpm gen module`), admin (`adjustability: tenant`), issue-key i18n +
-deviation-override UX, `/site`↔`/configurator` convergence.
+I10 boundary). Slice 3 (2026-06-13, ADR 0053): quote lifecycle I3 core —
+immutable global `release`/`catalog_version` stores + per-tenant versioned
+`price_table`s (effective-date `resolveActive`) + a `quotes` module whose
+`issue` runs the pure `deriveSite` **server-side** and freezes a stamped,
+re-derivable snapshot; `verifyReproducibility` re-derives byte-identically from
+the stamps (I3 acceptance, golden `129891.504`). To run the engine server-side,
+`@repo/model`/`engine`/`renderers`/`fixtures` became **built (NodeNext dist)**
+packages (were source-only). New modules are owner-scoped (ADR-0041 interim).
+`@repo/fixtures` is still the ⌛ interim web release/seed source via
+`app/configurator/products.ts` + `app/site/initial.ts` (project persistence
+pending). Steps 1–5 shipped before (ADR 0045–0050). Next: step-6 follow-ups —
+project persistence (`project.site` + `project_instance`, retires the fixtures
+⌛), the org-scope retrofit (ADR 0041) across all modules, roles
+(admin/sales/workshop + workshop price-blind + margin-floor guard), admin
+(`adjustability: tenant`), issue-key i18n + deviation-override UX,
+`/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

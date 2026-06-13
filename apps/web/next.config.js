@@ -59,8 +59,9 @@ const nextConfig = {
     "@repo/validators",
     "@repo/utils",
     "@repo/config",
-    // The rebuild core (source-only packages) + the interim release source the
-    // step-6 configurator runs on (ADR 0051).
+    // The rebuild core + the interim release source the step-6 surfaces run on.
+    // Now BUILT (NodeNext dist) packages (ADR 0053) — kept here so Next applies
+    // its transform pipeline uniformly; harmless for pre-compiled ESM.
     "@repo/model",
     "@repo/engine",
     "@repo/renderers",

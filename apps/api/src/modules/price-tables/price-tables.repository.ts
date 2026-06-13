@@ -101,7 +101,9 @@ export class PriceTablesRepository {
           or(isNull(priceTable.effectiveTo), gt(priceTable.effectiveTo, asOf)),
         ),
       )
-      .orderBy(desc(priceTable.effectiveFrom))
+      // Deterministic tiebreak (I3): if two windows share an effectiveFrom, the
+      // higher version wins — a given asOf always resolves to ONE table.
+      .orderBy(desc(priceTable.effectiveFrom), desc(priceTable.version))
       .limit(1);
     return row ?? null;
   }

@@ -84,6 +84,30 @@ function artifactsOf(result: SiteResult, site: Site, kerfMm: number) {
   };
 }
 
+/** Canonical instance order (by instanceId). `deriveSite` produces several
+ *  order-sensitive arrays in instance-iteration order (the `bom` array,
+ *  `bom[].sources`, `stamps.overrideIds`); sorting the roster the same way at
+ *  BOTH issue and re-derivation makes them deterministic regardless of caller
+ *  order or Postgres JSONB key ordering — the I3 deep-equal then holds. */
+const byInstanceId = (a: { instanceId: string }, b: { instanceId: string }): number =>
+  a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0;
+
+/** Project a BOM line to its I3-comparable fields — everything EXCEPT the raw
+ *  `totalPrice` float, which the engine documents as internal-only (the I10
+ *  money is `totalPriceMoney`). The money string canonicalises to 15 sig digits
+ *  and survives JSONB exactly; the raw float need not, so it is not compared. */
+function bomForCompare(bom: SiteBomLine[]) {
+  return bom.map((l) => ({
+    componentCode: l.componentCode,
+    name: l.name,
+    unit: l.unit,
+    category: l.category,
+    quantity: l.quantity,
+    totalPriceMoney: l.totalPriceMoney,
+    sources: l.sources,
+  }));
+}
+
 function toSummary(row: QuoteRow): QuoteSummary {
   return {
     id: row.id,
@@ -156,12 +180,16 @@ export class QuotesService {
     // silent empty price layer (I5).
     const priceTable = await this.priceTables.resolveActive(scope);
 
-    const siteInstances: SiteInstance[] = loaded.map(({ i, detail }) => ({
-      instanceId: i.instanceId,
-      release: detail.body as ProductModelRelease,
-      input: i.input as ConfigInput,
-      ...(i.overrides !== undefined ? { overrides: i.overrides as CascadeLayers } : {}),
-    }));
+    // Canonical instance order (I3) — the snapshot's order-sensitive arrays are
+    // frozen in this order and re-derivation sorts identically.
+    const siteInstances: SiteInstance[] = loaded
+      .map(({ i, detail }) => ({
+        instanceId: i.instanceId,
+        release: detail.body as ProductModelRelease,
+        input: i.input as ConfigInput,
+        ...(i.overrides !== undefined ? { overrides: i.overrides as CascadeLayers } : {}),
+      }))
+      .sort(byInstanceId);
 
     const result = deriveSite(site, siteInstances, priceTable.table as never, catalog);
     if (!result.isValid) {
@@ -216,8 +244,12 @@ export class QuotesService {
   /**
    * I3 acceptance: reload the EXACT immutable inputs the stamps point at, re-run
    * the pure engine + renderers with the stamped kerf, and deep-equal every
-   * frozen artifact (string-exact money). Order-independent comparison
-   * (`isDeepStrictEqual`) because JSONB does not preserve object key order.
+   * frozen artifact. Two robustness rules make this sound across the JSONB
+   * round-trip: (1) the roster is sorted by instanceId (canonical order) so the
+   * engine's order-sensitive arrays match — Postgres JSONB does NOT preserve
+   * object key order; (2) the comparison trusts the I10 money STRINGS, never the
+   * raw internal floats (`totals`, `bom[].totalPrice`) which need not survive
+   * JSONB exactly.
    */
   async verifyReproducibility(scope: RequestScope, quoteId: string): Promise<QuoteReproduction> {
     const row = await this.quotes.findById(scope, quoteId);
@@ -240,6 +272,7 @@ export class QuotesService {
         ...(snap.overrides !== undefined ? { overrides: snap.overrides } : {}),
       });
     }
+    siteInstances.sort(byInstanceId); // canonical order — JSONB dropped the issue-time order
     const catalog = await this.catalogVersions.loadCatalog(stamps.catalogVersion);
     if (!catalog) mismatches.push(`catalog@${stamps.catalogVersion}:missing`);
     const priceTable = await this.priceTables.loadByVersion(scope, stamps.priceTableVersion);
@@ -253,10 +286,17 @@ export class QuotesService {
       return { quoteId, reproduced: false, mismatches: ["re-derivation:invalid"] };
     const fresh = artifactsOf(result, snapshot.site, snapshot.cutOptions.kerfMm);
 
-    for (const key of ["bom", "totals", "money", "cutList", "drawings"] as const) {
-      if (!isDeepStrictEqual(fresh[key], snapshot[key])) mismatches.push(key);
-    }
-    // Stamps must re-derive identically too (release pins + versions).
+    // Compare the I10-canonical representation (money strings), never the raw
+    // internal floats: `money` (MoneyTotals) stands in for `totals`, and the BOM
+    // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`).
+    const checks: Array<readonly [string, unknown, unknown]> = [
+      ["bom", bomForCompare(fresh.bom), bomForCompare(snapshot.bom)],
+      ["money", fresh.money, snapshot.money],
+      ["cutList", fresh.cutList, snapshot.cutList],
+      ["drawings", fresh.drawings, snapshot.drawings],
+    ];
+    for (const [key, a, b] of checks) if (!isDeepStrictEqual(a, b)) mismatches.push(key);
+    // Stamps must re-derive identically too (release pins + versions + override set).
     if (!isDeepStrictEqual(result.stamps, stamps)) mismatches.push("stamps");
 
     return { quoteId, reproduced: mismatches.length === 0, mismatches };

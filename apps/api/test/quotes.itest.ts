@@ -131,6 +131,25 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       expect(verify.statusCode).toBe(200);
       expect(verify.json()).toEqual({ quoteId: issued.id, reproduced: true, mismatches: [] });
     });
+
+    it("reproduces regardless of the caller's instance order (canonical sort, I3)", async () => {
+      // Reversed caller order — without the canonical instance sort, JSONB key
+      // reordering on re-derivation would flip the bom/sources/overrideIds array
+      // order and false-negative the deep-equal.
+      const reordered = { ...issueBody, instances: [...issueBody.instances].reverse() };
+      const issued = (await post(tenant, "/v1/quotes", reordered)).json() as QuoteDetail;
+      const verify = await inject(app, {
+        method: "POST",
+        url: `/v1/quotes/${issued.id}/verify`,
+        headers: { cookie: tenant.cookie },
+      });
+      expect(verify.statusCode).toBe(200);
+      expect(verify.json() as { reproduced: boolean; mismatches: string[] }).toEqual({
+        quoteId: issued.id,
+        reproduced: true,
+        mismatches: [],
+      });
+    });
   });
 
   describe("scope isolation", () => {

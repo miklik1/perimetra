@@ -1171,10 +1171,12 @@
             "nullable": true
           },
           "marginFloorPct": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$"
           },
           "dphRate": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$"
           },
           "reverseCharge": {
             "type": "boolean"

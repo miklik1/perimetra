@@ -13,6 +13,10 @@ export const PRICE_TABLE_CURRENCIES = ["CZK", "EUR"] as const;
 export const priceTableCurrencySchema = z.enum(PRICE_TABLE_CURRENCIES);
 export type PriceTableCurrency = z.infer<typeof priceTableCurrencySchema>;
 
+/** A non-negative decimal as a string (rates, percents) — matches the drizzle
+ *  `numeric` representation so a bad value is a 422, not a DB 500. */
+const decimalString = z.string().regex(/^\d+(\.\d+)?$/, "must be a decimal string");
+
 /** The engine price layer (mirrors @repo/engine `PriceTable`) — the JSONB body
  *  the engine consumes as a pure data argument. */
 export const priceTableDataSchema = z.object({
@@ -48,8 +52,8 @@ export const publishPriceTableSchema = z.object({
   currency: priceTableCurrencySchema,
   effectiveFrom: z.iso.datetime(),
   effectiveTo: z.iso.datetime().nullable().optional(),
-  marginFloorPct: z.string().optional(),
-  dphRate: z.string(),
+  marginFloorPct: decimalString.optional(),
+  dphRate: decimalString,
   reverseCharge: z.boolean().optional(),
   table: priceTableDataSchema,
 });
