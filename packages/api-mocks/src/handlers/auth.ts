@@ -91,7 +91,8 @@ export const authRoutes: MockRoute[] = [
       }
       const user = findUserById(decoded.sub);
       if (!user) throw new MockHttpError(401, "UNAUTHENTICATED", "User not found");
-      return { data: user };
+      // Mock mode is single-tenant: the mock user is their org's admin (ADR 0056).
+      return { data: { ...user, role: "admin" } };
     },
   },
 ];

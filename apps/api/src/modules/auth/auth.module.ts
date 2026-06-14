@@ -32,6 +32,8 @@ import { EmailService } from "../email/email.service.js";
 import { createAuth, type Auth } from "./auth.instance.js";
 import { AUTH, REDIS } from "./auth.tokens.js";
 import { MeController } from "./me.controller.js";
+import { MembershipService } from "./membership.service.js";
+import { RolesGuard } from "./roles.guard.js";
 import { SessionGuard } from "./session.guard.js";
 
 @Module({
@@ -54,8 +56,10 @@ import { SessionGuard } from "./session.guard.js";
       inject: [DB, REDIS, ENV, EmailService],
     },
     SessionGuard,
+    MembershipService,
+    RolesGuard,
   ],
-  exports: [AUTH, REDIS, SessionGuard],
+  exports: [AUTH, REDIS, SessionGuard, MembershipService, RolesGuard],
 })
 export class AuthModule implements OnModuleInit, OnApplicationShutdown {
   constructor(

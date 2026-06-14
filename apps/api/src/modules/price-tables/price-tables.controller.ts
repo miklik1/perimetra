@@ -1,9 +1,9 @@
 /**
  * Price-tables controller (ADR 0053). SessionGuard authenticates; @ZodSerializerDto
  * strips responses (spec §8). Append-only surface: list + get + publish +
- * resolve-active, NO update/delete (a stamped version is immutable, I3).
- * `publish` is authenticated-only for now — the admin RoleGuard lands with the
- * roles slice.
+ * resolve-active, NO update/delete (a stamped version is immutable, I3). The
+ * whole surface IS prices, so it is role-gated to admin + sales (ADR 0056) —
+ * the price-blind `workshop` role is 403'd outright; publish is admin-only.
  */
 import {
   Body,
@@ -20,8 +20,10 @@ import { type PriceTableDetail, type PriceTablesPage } from "@repo/validators/pr
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
+import { RolesGuard } from "../auth/roles.guard.js";
 import { SessionGuard } from "../auth/session.guard.js";
 import {
   ActivePriceTableQueryDto,
@@ -33,7 +35,8 @@ import {
 import { PriceTablesService } from "./price-tables.service.js";
 
 @Controller("price-tables")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, RolesGuard)
+@RequireRole("admin", "sales")
 export class PriceTablesController {
   constructor(private readonly priceTables: PriceTablesService) {}
 
@@ -46,7 +49,9 @@ export class PriceTablesController {
     return this.priceTables.list(scope, query);
   }
 
+  /** Setting prices is admin-only (overrides the class admin+sales gate). */
   @Post()
+  @RequireRole("admin")
   @Idempotent()
   @ZodSerializerDto(PriceTableDto)
   publish(

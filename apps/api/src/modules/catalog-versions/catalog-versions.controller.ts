@@ -24,8 +24,10 @@ import {
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
+import { RolesGuard } from "../auth/roles.guard.js";
 import { SessionGuard } from "../auth/session.guard.js";
 import {
   CatalogVersionDto,
@@ -36,7 +38,7 @@ import {
 import { CatalogVersionsService } from "./catalog-versions.service.js";
 
 @Controller("catalog-versions")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class CatalogVersionsController {
   constructor(private readonly catalogVersions: CatalogVersionsService) {}
 
@@ -46,7 +48,9 @@ export class CatalogVersionsController {
     return this.catalogVersions.list(query);
   }
 
+  /** Publishing an immutable catalog version is an admin-only gate (ADR 0056). */
   @Post()
+  @RequireRole("admin")
   @Idempotent()
   @ZodSerializerDto(CatalogVersionDto)
   publish(

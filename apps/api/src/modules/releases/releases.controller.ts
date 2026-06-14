@@ -20,8 +20,10 @@ import { type ReleaseDetail, type ReleasesPage } from "@repo/validators/releases
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
+import { RolesGuard } from "../auth/roles.guard.js";
 import { SessionGuard } from "../auth/session.guard.js";
 import {
   ListReleasesQueryDto,
@@ -32,7 +34,7 @@ import {
 import { ReleasesService } from "./releases.service.js";
 
 @Controller("releases")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class ReleasesController {
   constructor(private readonly releases: ReleasesService) {}
 
@@ -42,7 +44,10 @@ export class ReleasesController {
     return this.releases.list(query);
   }
 
+  /** Publishing an immutable release is an admin-only gate (ADR 0056 — closes
+   *  the slot-poisoning hole the authenticated-only surface left open). */
   @Post()
+  @RequireRole("admin")
   @Idempotent()
   @ZodSerializerDto(ReleaseDto)
   publish(

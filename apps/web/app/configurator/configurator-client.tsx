@@ -8,6 +8,7 @@ import type { ConfigInput } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
 import { resolveUi, type Value } from "@repo/model";
 
+import { usePriceBlind } from "../../lib/use-role";
 import { deriveForUi } from "./derive";
 import { products } from "./products";
 import { ResultsPanel } from "./results-panel";
@@ -26,6 +27,8 @@ export function ConfiguratorClient() {
   const router = useRouter();
   const t = useTranslations("configurator");
   const productSelectId = useId();
+
+  const priceBlind = usePriceBlind();
 
   const [productIndex, setProductIndex] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -96,7 +99,7 @@ export function ConfiguratorClient() {
           />
           <div key={product.release.id} className="flex flex-col gap-4">
             <SceneViewport scene={derivation.scene} />
-            <ResultsPanel result={derivation.result} />
+            <ResultsPanel result={derivation.result} priceBlind={priceBlind} />
           </div>
         </div>
       </main>

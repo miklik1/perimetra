@@ -1,9 +1,9 @@
 import {
   loginResponseSchema,
-  userSchema,
+  meResponseSchema,
   type LoginInput,
   type LoginResponse,
-  type User,
+  type MeResponse,
 } from "@repo/validators";
 
 import { defineMutation, defineQuery } from "../builders/define-endpoints";
@@ -37,10 +37,11 @@ export function createAuthQueries(client: ApiClient) {
     // session-validation probe — runs through the refresh middleware, so a
     // stale access token is transparently re-minted.
     me: () =>
-      defineQuery<User>(client, {
+      defineQuery<MeResponse>(client, {
         queryKey: keys.auth.me(),
         path: "/v1/me",
-        schema: (data) => userSchema.parse(data),
+        // Carries the active-org role (ADR 0056) — the FE role mirror reads it here.
+        schema: (data) => meResponseSchema.parse(data),
       }),
   };
 }

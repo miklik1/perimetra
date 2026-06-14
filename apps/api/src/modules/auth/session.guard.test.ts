@@ -12,6 +12,8 @@ import { GlobalExceptionFilter } from "../../common/filters/global-exception.fil
 import { type Auth } from "./auth.instance.js";
 import { AUTH } from "./auth.tokens.js";
 import { MeController } from "./me.controller.js";
+import { MembershipService } from "./membership.service.js";
+import { RolesGuard } from "./roles.guard.js";
 import { SessionGuard } from "./session.guard.js";
 
 const getSession = vi.fn();
@@ -21,6 +23,10 @@ async function bootApp(): Promise<NestFastifyApplication> {
     controllers: [MeController],
     providers: [
       SessionGuard,
+      // /me now runs RolesGuard too (ADR 0056); stub the membership read so this
+      // DB-less wiring test still only exercises guard → filter → envelope.
+      RolesGuard,
+      { provide: MembershipService, useValue: { resolveRole: async () => "admin" } },
       { provide: AUTH, useValue: { api: { getSession } } as unknown as Auth },
       { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     ],
@@ -57,7 +63,10 @@ describe("SessionGuard", () => {
 
   it("passes the session user through to @CurrentSession() consumers", async () => {
     const user = { id: "u_1", email: "ada@example.com", name: "Ada" };
-    getSession.mockResolvedValue({ session: { id: "s_1", userId: "u_1" }, user });
+    getSession.mockResolvedValue({
+      session: { id: "s_1", userId: "u_1", activeOrganizationId: "org_1" },
+      user,
+    });
     app = await bootApp();
 
     const response = await app

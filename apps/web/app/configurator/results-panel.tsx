@@ -12,8 +12,18 @@ import { formatMoney } from "../../lib/format-money";
  * its typed problems, never a silent zero). Issue texts render as
  * `key + params` for now; the issue-key i18n catalog is a step-6 follow-up
  * (ConstraintDef.key doubles as the message key by design).
+ *
+ * `priceBlind` (ADR 0056) mirrors the server price-blind rule for the `workshop`
+ * role: BOM items + quantities stay, all money (totals card + price column) is
+ * hidden. Defence in depth — the server is the price authority.
  */
-export function ResultsPanel({ result }: { result: DerivationResult }) {
+export function ResultsPanel({
+  result,
+  priceBlind = false,
+}: {
+  result: DerivationResult;
+  priceBlind?: boolean;
+}) {
   const t = useTranslations("configurator");
   const locale = useLocale();
   const money = (decimal: string) => formatMoney(decimal, locale);
@@ -40,20 +50,24 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
 
       {result.isValid && (
         <>
-          <div className="border-border rounded-md border p-4">
-            <h2 className="mb-2 font-semibold">{t("totals")}</h2>
-            <dl className="grid grid-cols-2 gap-y-1">
-              {categories.map(([key, value]) => (
-                <div key={key} className="contents">
-                  <dt className="text-muted-foreground">{t(key)}</dt>
-                  <dd className="text-right tabular-nums">{money(value)}</dd>
-                </div>
-              ))}
-              <div className="border-border col-span-2 mt-1 border-t pt-1" />
-              <dt className="font-semibold">{t("totalTotal")}</dt>
-              <dd className="text-right font-semibold tabular-nums">{money(result.money.total)}</dd>
-            </dl>
-          </div>
+          {!priceBlind && (
+            <div className="border-border rounded-md border p-4">
+              <h2 className="mb-2 font-semibold">{t("totals")}</h2>
+              <dl className="grid grid-cols-2 gap-y-1">
+                {categories.map(([key, value]) => (
+                  <div key={key} className="contents">
+                    <dt className="text-muted-foreground">{t(key)}</dt>
+                    <dd className="text-right tabular-nums">{money(value)}</dd>
+                  </div>
+                ))}
+                <div className="border-border col-span-2 mt-1 border-t pt-1" />
+                <dt className="font-semibold">{t("totalTotal")}</dt>
+                <dd className="text-right font-semibold tabular-nums">
+                  {money(result.money.total)}
+                </dd>
+              </dl>
+            </div>
+          )}
 
           <div className="border-border rounded-md border p-4">
             <h2 className="mb-2 font-semibold">{t("bom")}</h2>
@@ -62,7 +76,7 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
                 <tr className="text-muted-foreground text-xs uppercase">
                   <th className="py-1 font-medium">{t("bomItem")}</th>
                   <th className="py-1 text-right font-medium">{t("bomQuantity")}</th>
-                  <th className="py-1 text-right font-medium">{t("bomPrice")}</th>
+                  {!priceBlind && <th className="py-1 text-right font-medium">{t("bomPrice")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -72,9 +86,11 @@ export function ResultsPanel({ result }: { result: DerivationResult }) {
                     <td className="py-1 text-right tabular-nums">
                       {part.quantity} {part.unit}
                     </td>
-                    <td className="py-1 text-right tabular-nums">
-                      {part.totalPrice !== undefined ? money(String(part.totalPrice)) : "—"}
-                    </td>
+                    {!priceBlind && (
+                      <td className="py-1 text-right tabular-nums">
+                        {part.totalPrice !== undefined ? money(String(part.totalPrice)) : "—"}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

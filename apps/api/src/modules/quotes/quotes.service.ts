@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from "node:util";
 import { Transactional } from "@nestjs-cls/transactional";
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -49,11 +50,13 @@ import {
   type QuoteSummary,
 } from "@repo/validators/quotes";
 
+import { isPriceBlind, type OrgRole } from "../../common/rbac/org-role.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
+import { QUOTE_MARGIN_FLOOR_PCT, quoteMarginPct } from "./margin.js";
 import { QuotesRepository } from "./quotes.repository.js";
 
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
@@ -108,13 +111,40 @@ function bomForCompare(bom: SiteBomLine[]) {
   }));
 }
 
-function toSummary(row: QuoteRow): QuoteSummary {
+/**
+ * PRICE-BLIND projection of a frozen snapshot for the `workshop` role (ADR 0056).
+ * A WHITELIST, not a blacklist: only the geometry/specs the workshop needs are
+ * copied through (bom components/quantities, cut list, drawings, site, inputs),
+ * so the money rollups (`money`, `totals`) and every per-line price are dropped —
+ * AND a future snapshot field that happens to carry a price can't leak by being
+ * forgotten. Stripping happens HERE, server-side, never merely FE-hidden.
+ */
+function blindSnapshot(snapshot: QuoteSnapshot): Record<string, unknown> {
+  return {
+    bom: snapshot.bom.map((line) => ({
+      componentCode: line.componentCode,
+      name: line.name,
+      unit: line.unit,
+      category: line.category,
+      quantity: line.quantity,
+      sources: line.sources,
+    })),
+    cutList: snapshot.cutList,
+    drawings: snapshot.drawings,
+    inputs: snapshot.inputs,
+    site: snapshot.site,
+    cutOptions: snapshot.cutOptions,
+  };
+}
+
+function toSummary(row: QuoteRow, role: OrgRole): QuoteSummary {
   return {
     id: row.id,
     projectId: row.projectId,
     status: row.status,
     currency: row.currency,
-    total: row.totalMoney,
+    // Workshop is price-blind: the total is nulled server-side (I10 string otherwise).
+    total: isPriceBlind(role) ? null : row.totalMoney,
     validUntil: row.validUntil ? row.validUntil.toISOString() : null,
     shareToken: row.shareToken,
     createdAt: row.createdAt.toISOString(),
@@ -122,8 +152,9 @@ function toSummary(row: QuoteRow): QuoteSummary {
   };
 }
 
-function toDetail(row: QuoteRow): QuoteDetail {
-  return { ...toSummary(row), stamps: row.stamps as QuoteStamps, snapshot: row.snapshot };
+function toDetail(row: QuoteRow, role: OrgRole): QuoteDetail {
+  const snapshot = isPriceBlind(role) ? blindSnapshot(row.snapshot as QuoteSnapshot) : row.snapshot;
+  return { ...toSummary(row, role), stamps: row.stamps as QuoteStamps, snapshot };
 }
 
 @Injectable()
@@ -134,21 +165,22 @@ export class QuotesService {
     private readonly catalogVersions: CatalogVersionsService,
     private readonly priceTables: PriceTablesService,
     private readonly audit: AuditService,
+    @Inject(QUOTE_MARGIN_FLOOR_PCT) private readonly marginFloorPct: number,
   ) {}
 
-  async list(scope: RequestScope, query: ListQuotesQuery): Promise<QuotesPage> {
+  async list(scope: RequestScope, role: OrgRole, query: ListQuotesQuery): Promise<QuotesPage> {
     const { items, nextCursor } = await this.quotes.list(scope, query);
-    return { items: items.map(toSummary), nextCursor };
+    return { items: items.map((row) => toSummary(row, role)), nextCursor };
   }
 
-  async get(scope: RequestScope, quoteId: string): Promise<QuoteDetail> {
+  async get(scope: RequestScope, role: OrgRole, quoteId: string): Promise<QuoteDetail> {
     const row = await this.quotes.findById(scope, quoteId);
     if (!row) throw new NotFoundException("Quote not found");
-    return toDetail(row);
+    return toDetail(row, role);
   }
 
   @Transactional()
-  async issue(scope: RequestScope, input: IssueQuoteInput): Promise<QuoteDetail> {
+  async issue(scope: RequestScope, role: OrgRole, input: IssueQuoteInput): Promise<QuoteDetail> {
     const site = input.site as Site;
 
     // Resolve every instance's release (+ its pinned catalog version) from the
@@ -200,6 +232,23 @@ export class QuotesService {
       });
     }
 
+    // Margin-floor guard (ADR 0056). Below the org floor, issuing is blocked
+    // (422) — UNLESS an admin supplies an override reason (audited below, once
+    // the quote id exists). Sales gets no override path. Pure read of the
+    // derived totals: the guard never touches derivation, so reproducibility
+    // (golden 129891.504) holds.
+    const marginPct = quoteMarginPct(result.totals);
+    const override = role === "admin" ? input.marginOverride : undefined;
+    if (marginPct < this.marginFloorPct && !override) {
+      throw new UnprocessableEntityException({
+        message: "quote margin is below the floor",
+        code: "margin_below_floor",
+        marginPct,
+        floorPct: this.marginFloorPct,
+      });
+    }
+    const overrideApplied = marginPct < this.marginFloorPct ? override : undefined;
+
     const kerfMm = input.kerfMm ?? 0;
     const snapshot: QuoteSnapshot = {
       ...artifactsOf(result, site, kerfMm),
@@ -238,7 +287,24 @@ export class QuotesService {
       entityId: row.id,
       diff: { before: null, after: { total: result.money.total, releaseIds: stamps.releaseIds } },
     });
-    return toDetail(row);
+    // Admin margin-floor override (ADR 0056) — a distinct, attributable audit
+    // entry on the now-existing quote (CORE_SPEC §7: margin floor is the single
+    // approval mechanism, every breach is on the ledger).
+    if (overrideApplied) {
+      await this.audit.record({
+        actorId: scope.userId,
+        action: "quote.margin_override",
+        entityType: "quote",
+        entityId: row.id,
+        diff: {
+          before: null,
+          after: { marginPct, floorPct: this.marginFloorPct, reason: overrideApplied.reason },
+        },
+      });
+    }
+    // The issuer (admin/sales) is never price-blind, but route the response
+    // through the same role-aware mapper for one consistent projection path.
+    return toDetail(row, role);
   }
 
   /**

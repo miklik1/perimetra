@@ -68,6 +68,15 @@ const envSchema = z.object({
   /** Strict tier for the raw /api/auth/* routes (per IP). */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
 
+  // ---- commercial guards (ADR 0056) -------------------------------------
+  /**
+   * Minimum acceptable quote margin, percent. `issue` blocks (422) below it
+   * unless an admin overrides (audited). A single org-wide constant for now —
+   * a per-org floor + a real cost-based margin land with the cost-model slice;
+   * default 0 = guard inert (no value-add proxy ever falls below 0%).
+   */
+  QUOTE_MARGIN_FLOOR_PCT: z.coerce.number().min(0).max(100).default(0),
+
   // ---- observability & analytics (ADR 0036) — all opt-in ---------------
   /** Errors-only Sentry (traces belong to OTel). Unset = disabled. Read pre-DI by sentry/init.ts. */
   SENTRY_DSN: z.string().optional(),

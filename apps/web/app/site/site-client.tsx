@@ -12,6 +12,7 @@ import { Button } from "@repo/ui";
 import { errorMessageKey } from "../../lib/error-messages";
 import { createProjectsQueries } from "../../lib/projects-queries";
 import { toast } from "../../lib/toast";
+import { usePriceBlind } from "../../lib/use-role";
 import { products } from "../configurator/products";
 import { SceneViewport } from "../configurator/scene/scene-viewport";
 import {
@@ -115,6 +116,8 @@ export function SiteClient({
   // live. The selected instance is derived once more below for its form scope —
   // the same split the configurator uses (scope isn't on SiteResult).
   const derivation = useMemo(() => deriveSiteForUi(site, instances), [site, instances]);
+  // FE mirror of the server price-blind rule (ADR 0056) — workshop sees no money.
+  const priceBlind = usePriceBlind();
 
   const selectedPlaced = instances.find((i) => i.instanceId === selectedId);
   const selectedUi = derivation.instances.find((i) => i.instanceId === selectedId);
@@ -369,7 +372,7 @@ export function SiteClient({
               onRemoveConnection={removeConnection}
             />
             <SceneViewport scene={derivation.scene} />
-            <SiteResultsPanel result={derivation.result} />
+            <SiteResultsPanel result={derivation.result} priceBlind={priceBlind} />
           </div>
         </div>
       </main>

@@ -10,15 +10,21 @@
 import { randomUUID } from "node:crypto";
 import { VersioningType } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
-import { Test } from "@nestjs/testing";
+import { Test, type TestingModuleBuilder } from "@nestjs/testing";
 import { type FastifyInstance, type InjectOptions, type LightMyRequestResponse } from "fastify";
 
 import { AppModule } from "../../src/app.module.js";
 
-export async function createApiApp(): Promise<NestFastifyApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
+/**
+ * `configure` lets a test override providers before compile (e.g. the ADR 0056
+ * margin floor) — the standard Nest testing hook, so itests don't resort to
+ * mutating `process.env` between boots.
+ */
+export async function createApiApp(
+  configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
+): Promise<NestFastifyApplication> {
+  const base = Test.createTestingModule({ imports: [AppModule] });
+  const moduleRef = await (configure ? configure(base) : base).compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
