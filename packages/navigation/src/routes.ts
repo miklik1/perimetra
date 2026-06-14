@@ -25,6 +25,11 @@ export const routes = {
   user: { path: "/users/:id", params: { id: "string" } },
   login: { path: "/login" },
   account: { path: "/account" },
+  team: { path: "/team" },
+  acceptInvitation: {
+    path: "/accept-invitation/:invitationId",
+    params: { invitationId: "string" },
+  },
   projects: { path: "/projects" },
   configurator: { path: "/configurator" },
   site: { path: "/site/:projectId", params: { projectId: "string" } },

@@ -8,9 +8,11 @@ import type {
   Role,
 } from "better-auth/client";
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import { adminClient } from "better-auth/client/plugins";
+import { adminClient, organizationClient } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import type { BetterAuthClientOptions } from "better-auth/types";
+
+import { ac, orgAccessRoles } from "./permissions";
 
 export interface AuthClientOptions {
   /**
@@ -37,7 +39,12 @@ export function createAuthClient(options: AuthClientOptions = {}) {
   return createBetterAuthClient({
     baseURL: options.baseURL,
     fetchOptions: options.fetchOptions,
-    plugins: [adminClient()],
+    // organizationClient (ADR 0057): the invite + member-management surface
+    // (`organization.inviteMember / acceptInvitation / listMembers /
+    // updateMemberRole / removeMember / setActive`, `useListOrganizations`),
+    // carrying the SAME ac/roles as the server (`./permissions`) so role-typed
+    // calls + any client `checkRolePermission` agree with server enforcement.
+    plugins: [adminClient(), organizationClient({ ac, roles: orgAccessRoles })],
   });
 }
 

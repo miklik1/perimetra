@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useAuthQueries, useQuery } from "@repo/api/react";
 import { AuthGuard, useAuth } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, buttonVariants } from "@repo/ui";
 
 /**
  * Client subtree of the protected account page. `<AuthGuard>` resolves the
@@ -33,6 +34,7 @@ export function AccountClient() {
 function AccountContent() {
   const router = useRouter();
   const t = useTranslations("account");
+  const tTeam = useTranslations("team");
   const { logout } = useAuth();
   const authQueries = useAuthQueries();
   // Consumes the SAME `me()` queryOptions the RSC parent prefetched (with the
@@ -44,6 +46,9 @@ function AccountContent() {
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
       <p className="text-muted-foreground">{t("signedInAs", { email: user?.email ?? "" })}</p>
+      <Link href="/team" className={buttonVariants({ variant: "outline" })}>
+        {tTeam("title")}
+      </Link>
       <Button
         onClick={async () => {
           await logout();

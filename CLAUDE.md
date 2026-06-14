@@ -61,10 +61,24 @@ unique per org; the immutable I3 stores (quote, price_table) get `owner_id` +
 `organization_id` ON DELETE RESTRICT (I3 durability; GDPR erasure anonymizes the
 user row, never deletes — so RESTRICT holds); `org:<id>` realtime channel
 unlocked for the session's active org. Steps 1–5 shipped before (ADR 0045–0050).
-Next: step-6 follow-ups — roles (admin/sales/workshop + workshop price-blind +
-margin-floor guard + admin publish gate), org invite/switch UI + same-org member
-sharing, admin (`adjustability: tenant`), issue-key i18n + deviation-override UX,
-`/site`↔`/configurator` convergence.
+Roles slice (ADR 0056): membership-scoped RBAC (admin/sales/workshop on
+`member.role` + `RolesGuard` + workshop price-blind DTO + margin-floor guard +
+admin publish gate). Org invite/sharing slice (2026-06-15, ADR 0057): multi-member
+orgs are reachable through the UI — the Better Auth org plugin owns the invite/
+accept/member lifecycle (endpoints at `/api/auth/organization/*`, NO `/v1/*`
+module); custom `ac` roles gate it (owner/admin can invite, sales/workshop can't),
+**duplicated** server (`modules/auth/org-access.ts`) ↔ client (`@repo/auth`
+`permissions.ts`) — same precedent as the `OrgRole` tuple, kept in lockstep;
+invite email via the email module; session hook now stamps a DETERMINISTIC active
+org (prefers the owner membership); web `/team` (roster, admin invite/role-mgmt,
+org switcher) plus `/accept-invitation/:id`. Wart: every user still gets a
+personal auto-org, so an invitee carries a dead org and lands there on login
+(switch per session) — onboarding fix deferred.
+Next: step-6 follow-ups — cost-model slice (real `(price−cost)/price` margin and
+per-org floor, retires the `QUOTE_MARGIN_FLOOR_PCT` default-0 proxy), admin-
+publish slice (api-served catalog + publish UI, retires the ⌛ `@repo/fixtures`
+web source), admin (`adjustability: tenant`), issue-key i18n + deviation-override
+UX, `/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

@@ -15,6 +15,7 @@ import { type Db } from "@repo/db";
 import * as authSchema from "@repo/db/schema/auth";
 
 import { type Env } from "../../common/config/env.js";
+import { ac, orgAccessRoles } from "./org-access.js";
 
 export interface CreateAuthDeps {
   db: Db;
@@ -26,6 +27,14 @@ export interface CreateAuthDeps {
       to: string;
       name: string;
       verifyUrl: string;
+      locale?: string | null;
+    }): Promise<void>;
+    /** Org-invitation delivery (ADR 0057) — Better Auth's `sendInvitationEmail` hook. */
+    sendInvitationEmail(input: {
+      to: string;
+      inviterName: string;
+      orgName: string;
+      acceptUrl: string;
       locale?: string | null;
     }): Promise<void>;
   };
@@ -119,7 +128,21 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
           before: async (session, ctx) => {
             if (!ctx) return; // no endpoint context (e.g. direct adapter create) — skip
             const adapter = ctx.context.adapter;
+            // Active-org default is DETERMINISTIC (ADR 0057): prefer the user's
+            // OWN org (their `owner` membership) so a multi-org user — anyone who
+            // has accepted an invite into a second org — always lands in their
+            // home org on login rather than an arbitrary `findOne`. An explicit
+            // `setActive` (the switcher) overrides it for the rest of the session.
             let membership = await adapter.findOne<{ organizationId: string }>({
+              model: "member",
+              where: [
+                { field: "userId", value: session.userId },
+                { field: "role", value: "owner" },
+              ],
+            });
+            // Fall back to ANY membership (covers a future invite-only user with
+            // no owner org), then to fresh provisioning below.
+            membership ??= await adapter.findOne<{ organizationId: string }>({
               model: "member",
               where: [{ field: "userId", value: session.userId }],
             });
@@ -210,8 +233,26 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
       // Minimal admin surface: ban/unban + impersonation ("log in as the user").
       admin(),
       // Tenancy scope ACTIVE (ADR 0055): every user is auto-provisioned one org
-      // (databaseHooks above); self-serve creation stays off until a multi-org slice.
-      organization({ allowUserToCreateOrganization: false }),
+      // (databaseHooks above); self-serve creation stays off (provisioning is the
+      // only org-create path). Member sharing is via INVITE (ADR 0057): the
+      // custom `ac`/roles (`@repo/auth/permissions`) gate the invite + member-
+      // management lifecycle — owner/admin can invite, sales/workshop cannot —
+      // and `sendInvitationEmail` routes through the email module (locale-aware).
+      organization({
+        allowUserToCreateOrganization: false,
+        ac,
+        roles: orgAccessRoles,
+        invitationExpiresIn: 60 * 60 * 48, // 48h
+        sendInvitationEmail: async (data) => {
+          await email.sendInvitationEmail({
+            to: data.email,
+            inviterName: data.inviter.user.name,
+            orgName: data.organization.name,
+            acceptUrl: `${env.WEB_ORIGIN}/accept-invitation/${data.id}`,
+            locale: (data.inviter.user as { locale?: string | null }).locale ?? null,
+          });
+        },
+      }),
     ],
   });
 }
