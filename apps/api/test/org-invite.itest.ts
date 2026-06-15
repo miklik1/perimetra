@@ -125,4 +125,75 @@ describe("org invite + member sharing (HTTP, real stack)", () => {
     expect(me.statusCode).toBe(200);
     expect((me.json() as { role: string }).role).toBe("admin");
   });
+
+  it("invite-first: a user invited BEFORE signup gets no personal org and lands in the inviting org", async () => {
+    // The ADR 0057 wart, fixed (ADR 0058): when the invite exists at signup
+    // time, the session hook suppresses personal-org provisioning, so the
+    // invitee never carries a dead workspace and lands straight in the org.
+    const email = `invitefirst-${adminOrgId.slice(0, 6)}@itest.example`;
+
+    // 1) admin invites the email FIRST — no account exists for it yet.
+    const invited = await authPost(admin, "/api/auth/organization/invite-member", {
+      email,
+      role: "sales",
+    });
+    expect(invited.statusCode, invited.body).toBe(200);
+    const invitationId = (invited.json() as { id: string }).id;
+
+    // 2) the invitee signs up at THAT email — provisioning is suppressed, so
+    //    they have ZERO memberships (no personal org) right after signup…
+    const invitee = await signUpUser(app, "invitefirst", { email });
+    const before = await db.select().from(member).where(eq(member.userId, invitee.id));
+    expect(before.length).toBe(0);
+
+    // …and their org-less first session fail-closed 403s on a scoped endpoint.
+    const meBefore = await inject(app, {
+      method: "GET",
+      url: "/v1/me",
+      headers: { cookie: invitee.cookie },
+    });
+    expect(meBefore.statusCode).toBe(403);
+
+    // 3) accept → exactly ONE membership: the inviting org, as sales.
+    const accepted = await authPost(invitee, "/api/auth/organization/accept-invitation", {
+      invitationId,
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    const after = await db.select().from(member).where(eq(member.userId, invitee.id));
+    expect(after.length).toBe(1);
+    expect(after[0]!.organizationId).toBe(adminOrgId);
+    expect(after[0]!.role).toBe("sales");
+
+    // 3b) Same-session recovery (ADR 0058): acceptInvitation stamps the active
+    //     org on the session ROW but not the cached `session_data` cookie, so a
+    //     suppressed invitee's stale cookie is still org-less. The web client
+    //     forces a cache-bypassing session read after accept to re-stamp it;
+    //     prove that read resolves the invited org (the scope the re-stamped
+    //     cookie carries — so `/team` is correctly scoped, no stale 403).
+    const refreshed = await inject(app, {
+      method: "GET",
+      url: "/api/auth/get-session?disableCookieCache=true",
+      headers: { cookie: invitee.cookie },
+    });
+    expect(refreshed.statusCode, refreshed.body).toBe(200);
+    expect(
+      (refreshed.json() as { session: { activeOrganizationId: string } }).session
+        .activeOrganizationId,
+    ).toBe(adminOrgId);
+
+    // 4) a FRESH login lands them in the inviting org (no owner org to prefer),
+    //    so `/v1/me` reads their sales role there — never a dead personal org.
+    const signIn = await authPost(null, "/api/auth/sign-in/email", {
+      email: invitee.email,
+      password: invitee.password,
+    });
+    expect(signIn.statusCode, signIn.body).toBe(200);
+    const me = await inject(app, {
+      method: "GET",
+      url: "/v1/me",
+      headers: { cookie: cookieFrom(signIn) },
+    });
+    expect(me.statusCode).toBe(200);
+    expect((me.json() as { role: string }).role).toBe("sales");
+  });
 });

@@ -111,9 +111,12 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
      * `session.create.before` stamps every session's `activeOrganizationId`
      * from the user's owner membership — provisioning the organization + member
      * lazily on the FIRST session (signup) if none exists yet, and just reading
-     * it on subsequent logins. So the request scope always resolves to the org
-     * (the repositories filter on `organizationId` now); no `setActive` call,
-     * no client round-trip.
+     * it on subsequent logins. UNLESS the user was invited to an org BEFORE they
+     * signed up: then provisioning is suppressed so they never carry a throwaway
+     * personal org (invite-first onboarding, ADR 0058) — they land in the
+     * inviting org once they accept. So the request scope resolves to the org for
+     * any provisioned/joined user (the repositories filter on `organizationId`
+     * now); no `setActive` call, no client round-trip.
      *
      * Why here and not `user.create.after`: Better Auth's signup runs
      * `session.create.before` BEFORE `user.create.after`, so the membership
@@ -147,12 +150,39 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
               where: [{ field: "userId", value: session.userId }],
             });
             if (!membership) {
-              // First session for this user — auto-provision one org + owner
-              // membership (Perimetra tenant = one fabricator company).
-              const user = await adapter.findOne<{ name: string }>({
+              // First session for this user, no membership yet. Fetch the user
+              // row (already inserted — its id scopes the session) for the `name`
+              // used in provisioning AND the `email` used in the invite-first check.
+              const user = await adapter.findOne<{ name: string; email: string }>({
                 model: "user",
                 where: [{ field: "id", value: session.userId }],
               });
+              // Invite-first onboarding (ADR 0058): a user invited to an org
+              // BEFORE they signed up must NOT get a throwaway personal org — they
+              // belong in the inviting org. When an unexpired `pending` invitation
+              // exists for their email, skip provisioning entirely and leave the
+              // session org-less: scoped `/v1/*` fail-closed 403 until they accept
+              // (the accept page is a Better Auth route, so it works org-less),
+              // then `acceptInvitation` stamps the invited org on this session and
+              // the `any membership` fallback above re-stamps it on every later
+              // login — so no dead workspace, ever. Invitations are keyed by
+              // lowercased email from creation (the invitee need not have had an
+              // account); Better Auth lowercases both sides, we lowercase too.
+              if (user?.email) {
+                const pendingInvites = await adapter.findMany<{ expiresAt: Date | string }>({
+                  model: "invitation",
+                  where: [
+                    { field: "email", value: user.email.toLowerCase() },
+                    { field: "status", value: "pending" },
+                  ],
+                });
+                const now = Date.now();
+                if (pendingInvites.some((inv) => new Date(inv.expiresAt).getTime() > now)) {
+                  return; // invite-first: provision nothing; land in the invited org on accept
+                }
+              }
+              // Genuine new owner — auto-provision one org + owner membership
+              // (Perimetra tenant = one fabricator company).
               const org = await adapter.create<{ id: string }>({
                 model: "organization",
                 data: {

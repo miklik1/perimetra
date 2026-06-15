@@ -40,7 +40,15 @@ function AcceptContent({ invitationId }: { invitationId: string }) {
       const { error } = await authClient.organization.acceptInvitation({ invitationId });
       if (error) throw new Error(error.message ?? "failed");
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // `acceptInvitation` stamps the active org on the session ROW but does NOT
+      // re-issue the signed `session_data` cookie. With cookieCache on, a
+      // same-session read keeps serving the stale cookie for up to its maxAge —
+      // and for an invite-first invitee (ADR 0058) that stale cookie is
+      // ORG-LESS, so `/team`'s `/v1/me` would 403 for minutes. A cache-bypassing
+      // session read re-reads the DB (now the invited org) and re-stamps the
+      // cookie, so the very next request is correctly scoped.
+      await authClient.getSession({ query: { disableCookieCache: true } });
       queryClient.clear();
       refetch();
       router.push("/team");

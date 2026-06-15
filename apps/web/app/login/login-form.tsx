@@ -20,8 +20,12 @@ import { authErrorMessageKey } from "../../lib/error-messages";
  * the same-origin proxy and flips every `useSession` subscriber to signed-in —
  * no token to store, no `setAuth`. The mutation wrapper keeps TanStack's
  * pending/error state driving the UI exactly like the other forms.
+ *
+ * `next` is the validated post-login destination (default `/account`) — the
+ * page sanitises `?next=` before passing it, so an invitee bounced here from
+ * `/accept-invitation` returns there after signing in.
  */
-export function LoginForm() {
+export function LoginForm({ next = "/account" }: { next?: string }) {
   const router = useRouter();
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
@@ -53,7 +57,7 @@ export function LoginForm() {
       }
     },
     onSuccess: () => {
-      router.push("/account");
+      router.push(next);
     },
   });
 

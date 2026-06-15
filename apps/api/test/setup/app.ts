@@ -70,10 +70,16 @@ export interface TestUser {
 
 /**
  * Real sign-up through the Better Auth Fastify mount (`/api/auth/sign-up/
- * email`) — autoSignIn returns the session cookie with the 200.
+ * email`) — autoSignIn returns the session cookie with the 200. Pass
+ * `opts.email` to sign up at a KNOWN address (e.g. to match an invitation sent
+ * before the account existed — the invite-first path); otherwise it is random.
  */
-export async function signUpUser(app: NestFastifyApplication, label: string): Promise<TestUser> {
-  const email = `${label}-${randomUUID()}@itest.example`;
+export async function signUpUser(
+  app: NestFastifyApplication,
+  label: string,
+  opts: { email?: string } = {},
+): Promise<TestUser> {
+  const email = opts.email ?? `${label}-${randomUUID()}@itest.example`;
   const password = `pw-${randomUUID()}`;
   const name = `Itest ${label}`;
 
