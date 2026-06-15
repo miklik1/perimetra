@@ -1,26 +1,25 @@
 /**
- * The margin-floor guard's margin model (ADR 0056). The engine has no cost
- * basis yet — the price table carries SELL prices only (components/manufacturing/
- * installation), no cost columns — so a true `(price − cost)/price` margin is not
- * computable today. As an honest, byte-stable PROXY we treat the fabricator's
- * value-add (manufacturing + installation) over revenue as the margin: bought
- * material/accessory is the cost-like pass-through, labour is the margin lever.
+ * The margin-floor guard's margin model (ADR 0056 → ADR 0059). Now a REAL gross
+ * margin: `(price − cost) / price`, off the engine's derived sell totals and the
+ * cost-of-goods totals the cost layer produces. This retires the value-add proxy
+ * (manufacturing+installation over revenue) the engine used before a cost basis
+ * existed, AND the env-backed org-wide floor — the floor is now per-org, read
+ * from the active price table's `marginFloorPct` (see quotes.service).
  *
- * This is deliberately isolated so the cost-model slice can swap it for a real
- * margin without touching the guard/override/audit machinery. It reads
- * `result.totals` (the raw engine floats), never the I10 money strings — a
- * ratio, not a boundary amount, so it stays out of the money seam.
+ * It reads `result.totals` / `result.costTotals` (the raw engine floats), never
+ * the I10 money strings — a ratio, not a boundary amount, so it stays out of the
+ * money seam.
  */
 import { type CategoryTotals } from "@repo/engine";
 
-/** Injection token for the org margin floor (percent) — env-backed, see env.ts. */
-export const QUOTE_MARGIN_FLOOR_PCT = Symbol("QUOTE_MARGIN_FLOOR_PCT");
-
 /**
- * Margin percent = value-add share of revenue. Returns 100 for a zero/negative
- * total (no revenue to erode — never blocks a free/empty quote on a div-by-zero).
+ * Gross margin percent = (revenue − cost) / revenue × 100. A loss-making quote
+ * (cost > revenue) returns a negative percent so the floor guard catches it.
+ * Zero/negative revenue can't divide: a truly free quote (no cost either) is
+ * 100 % and never blocked, but zero revenue with real cost is a total loss →
+ * −Infinity so any non-negative floor rejects it (never a silent pass).
  */
-export function quoteMarginPct(totals: CategoryTotals): number {
-  if (totals.total <= 0) return 100;
-  return ((totals.manufacturing + totals.installation) / totals.total) * 100;
+export function quoteMarginPct(totals: CategoryTotals, costTotals: CategoryTotals): number {
+  if (totals.total <= 0) return costTotals.total > 0 ? -Infinity : 100;
+  return ((totals.total - costTotals.total) / totals.total) * 100;
 }

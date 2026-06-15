@@ -10,6 +10,14 @@
  * the override's explicit `pricingResolution` ("keep_price" pins the derived
  * line total, "reprice" recomputes quantity × unit); pricePerUnit/totalPrice
  * patches ARE the pricing resolution; lengthMm is geometry-only.
+ *
+ * Cost-of-goods (ADR 0059) is physical, not commercial: on a quantity patch a
+ * RATE-priced line (has `costPerUnit`) rescales `totalCost` (more units cost
+ * more, whatever the price does — so keep_price erodes margin and the floor
+ * guard sees it); a fixed-total cost line (no `costPerUnit`) keeps its total,
+ * exactly as keep_price pins a fixed-total price. A price patch
+ * (pricePerUnit/totalPrice) never touches cost. The cost branches are inert when
+ * no cost table was supplied (parts then carry no `costPerUnit`/`totalCost`).
  */
 import { parseOverrideTarget } from "@repo/model";
 import type { Override } from "@repo/model";
@@ -57,6 +65,11 @@ export function applyArtifactOverrides(parts: Part[], overrides: Override[]): Ar
     switch (target.field) {
       case "quantity":
         part.quantity = value;
+        // Cost always follows the physical quantity (a rate-priced line only —
+        // a fixed-total cost line has no unit cost to scale from).
+        if (part.costPerUnit !== undefined) {
+          part.totalCost = value * part.costPerUnit;
+        }
         if (override.pricingResolution === "reprice") {
           if (part.pricePerUnit === undefined) {
             // A fixed-total line has no unit price to reprice from.

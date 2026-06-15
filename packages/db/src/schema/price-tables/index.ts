@@ -15,9 +15,13 @@
  *   installation); the engine consumes it as a pure data argument — prices are
  *   NOT money-string here (ADR 0045 numeric domain), they cross the I10
  *   boundary only as result totals.
+ * - `cost` is the engine `CostTable` JSONB (same shape as `table`, cost-of-goods
+ *   numbers) — co-located so the SAME `version` stamps it (I3, ADR 0059); null
+ *   on pre-cost-model rows. A real `(price − cost)/price` margin needs it.
  * - `currency`, `marginFloorPct`, `dphRate`, `reverseCharge` are the commercial
  *   guardrails (CORE_SPEC §6); margin floor + DPH are applied APP-side at quote
- *   issue / invoice, never inside the deterministic engine.
+ *   issue / invoice, never inside the deterministic engine. The per-org margin
+ *   floor (ADR 0059) reads `marginFloorPct` from the active table here.
  */
 import {
   boolean,
@@ -62,6 +66,9 @@ export const priceTable = pgTable(
     reverseCharge: boolean("reverse_charge").notNull().default(false),
     /** Engine `PriceTable` payload (JSONB); typed at the apps/api edge. */
     table: jsonb("table").notNull(),
+    /** Engine `CostTable` payload (JSONB, ADR 0059); null until cost authored.
+     *  Same `version` (this row) stamps it for I3 — no separate cost version. */
+    cost: jsonb("cost"),
     ...timestamps(),
   },
   (t) => [

@@ -14,7 +14,6 @@ import { isDeepStrictEqual } from "node:util";
 import { Transactional } from "@nestjs-cls/transactional";
 import {
   BadRequestException,
-  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -26,6 +25,7 @@ import {
   type CascadeLayers,
   type CategoryTotals,
   type ConfigInput,
+  type CostTable,
   type MoneyTotals,
   type SiteBomLine,
   type SiteInstance,
@@ -56,7 +56,7 @@ import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
-import { QUOTE_MARGIN_FLOOR_PCT, quoteMarginPct } from "./margin.js";
+import { quoteMarginPct } from "./margin.js";
 import { QuotesRepository } from "./quotes.repository.js";
 
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
@@ -64,6 +64,10 @@ interface QuoteSnapshot {
   bom: SiteBomLine[];
   totals: CategoryTotals;
   money: MoneyTotals;
+  /** Cost-of-goods totals (ADR 0059) — present only when the stamped price table
+   *  carried cost data; frozen so verifyReproducibility re-derives them (I3). */
+  costTotals?: CategoryTotals;
+  costMoney?: MoneyTotals;
   cutList: CutList;
   drawings: { site: SitePlan; instances: Record<string, WorkshopDrawing> };
   inputs: Record<string, { releaseId: string; input: ConfigInput; overrides?: CascadeLayers }>;
@@ -71,12 +75,17 @@ interface QuoteSnapshot {
   cutOptions: { kerfMm: number };
 }
 
-/** The frozen artifacts (bom/totals/money/cutList/drawings) off a site result. */
+/** The frozen artifacts (bom/totals/money/cost/cutList/drawings) off a site result. */
 function artifactsOf(result: SiteResult, site: Site, kerfMm: number) {
   return {
     bom: result.bom,
     totals: result.totals,
     money: result.money,
+    // Cost is optional — only when the price table carried a cost layer (ADR 0059).
+    ...(result.costTotals !== undefined && {
+      costTotals: result.costTotals,
+      costMoney: result.costMoney,
+    }),
     cutList: buildCutList(result, { kerfMm }),
     drawings: {
       site: buildSitePlan(site, result),
@@ -165,7 +174,6 @@ export class QuotesService {
     private readonly catalogVersions: CatalogVersionsService,
     private readonly priceTables: PriceTablesService,
     private readonly audit: AuditService,
-    @Inject(QUOTE_MARGIN_FLOOR_PCT) private readonly marginFloorPct: number,
   ) {}
 
   async list(scope: RequestScope, role: OrgRole, query: ListQuotesQuery): Promise<QuotesPage> {
@@ -223,7 +231,12 @@ export class QuotesService {
       }))
       .sort(byInstanceId);
 
-    const result = deriveSite(site, siteInstances, priceTable.table as never, catalog);
+    // The cost layer (ADR 0059), co-located on the stamped price table row, so
+    // `priceTableVersion` covers it for I3. Absent on pre-cost-model tables.
+    const costs = (priceTable.cost ?? undefined) as CostTable | undefined;
+    const result = deriveSite(site, siteInstances, priceTable.table as never, catalog, {
+      ...(costs !== undefined && { costs }),
+    });
     if (!result.isValid) {
       throw new UnprocessableEntityException({
         message: "site did not derive to a valid result",
@@ -232,22 +245,34 @@ export class QuotesService {
       });
     }
 
-    // Margin-floor guard (ADR 0056). Below the org floor, issuing is blocked
-    // (422) — UNLESS an admin supplies an override reason (audited below, once
-    // the quote id exists). Sales gets no override path. Pure read of the
-    // derived totals: the guard never touches derivation, so reproducibility
-    // (golden 129891.504) holds.
-    const marginPct = quoteMarginPct(result.totals);
-    const override = role === "admin" ? input.marginOverride : undefined;
-    if (marginPct < this.marginFloorPct && !override) {
-      throw new UnprocessableEntityException({
-        message: "quote margin is below the floor",
-        code: "margin_below_floor",
-        marginPct,
-        floorPct: this.marginFloorPct,
-      });
+    // Margin-floor guard (ADR 0056 → ADR 0059): the floor is per-org, read from
+    // the active price table; margin is the REAL (price − cost)/price. The guard
+    // is a pure read of the derived totals — it never touches derivation, so
+    // reproducibility (golden 129891.504) holds. A floor with no cost data is a
+    // misconfiguration surfaced, never silently passed (I5).
+    const floorPct = priceTable.marginFloorPct !== null ? Number(priceTable.marginFloorPct) : null;
+    let marginAudit: { marginPct: number; floorPct: number; reason: string } | undefined;
+    if (floorPct !== null) {
+      if (result.costTotals === undefined) {
+        throw new UnprocessableEntityException({
+          message: "a margin floor is set but the active price table has no cost data",
+          code: "margin_floor_without_cost",
+        });
+      }
+      const marginPct = quoteMarginPct(result.totals, result.costTotals);
+      const override = role === "admin" ? input.marginOverride : undefined;
+      if (marginPct < floorPct && !override) {
+        throw new UnprocessableEntityException({
+          message: "quote margin is below the floor",
+          code: "margin_below_floor",
+          marginPct,
+          floorPct,
+        });
+      }
+      if (marginPct < floorPct && override) {
+        marginAudit = { marginPct, floorPct, reason: override.reason };
+      }
     }
-    const overrideApplied = marginPct < this.marginFloorPct ? override : undefined;
 
     const kerfMm = input.kerfMm ?? 0;
     const snapshot: QuoteSnapshot = {
@@ -289,17 +314,15 @@ export class QuotesService {
     });
     // Admin margin-floor override (ADR 0056) — a distinct, attributable audit
     // entry on the now-existing quote (CORE_SPEC §7: margin floor is the single
-    // approval mechanism, every breach is on the ledger).
-    if (overrideApplied) {
+    // approval mechanism, every breach is on the ledger). Records the REAL
+    // margin and per-org floor that were in effect (ADR 0059).
+    if (marginAudit) {
       await this.audit.record({
         actorId: scope.userId,
         action: "quote.margin_override",
         entityType: "quote",
         entityId: row.id,
-        diff: {
-          before: null,
-          after: { marginPct, floorPct: this.marginFloorPct, reason: overrideApplied.reason },
-        },
+        diff: { before: null, after: marginAudit },
       });
     }
     // The issuer (admin/sales) is never price-blind, but route the response
@@ -346,18 +369,26 @@ export class QuotesService {
 
     if (mismatches.length > 0) return { quoteId, reproduced: false, mismatches };
 
-    // Re-run the SAME pure path against the stamped immutable inputs (I3).
-    const result = deriveSite(snapshot.site, siteInstances, priceTable!.table as never, catalog!);
+    // Re-run the SAME pure path against the stamped immutable inputs (I3) — the
+    // cost layer rides the same stamped price-table row (ADR 0059), so it
+    // re-derives from the reloaded table with no extra stamp.
+    const costs = (priceTable!.cost ?? undefined) as CostTable | undefined;
+    const result = deriveSite(snapshot.site, siteInstances, priceTable!.table as never, catalog!, {
+      ...(costs !== undefined && { costs }),
+    });
     if (!result.isValid)
       return { quoteId, reproduced: false, mismatches: ["re-derivation:invalid"] };
     const fresh = artifactsOf(result, snapshot.site, snapshot.cutOptions.kerfMm);
 
     // Compare the I10-canonical representation (money strings), never the raw
     // internal floats: `money` (MoneyTotals) stands in for `totals`, and the BOM
-    // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`).
+    // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`). Cost
+    // is compared the same way — `costMoney` strings, not the raw cost floats
+    // (both undefined when no cost layer → deep-equal holds).
     const checks: Array<readonly [string, unknown, unknown]> = [
       ["bom", bomForCompare(fresh.bom), bomForCompare(snapshot.bom)],
       ["money", fresh.money, snapshot.money],
+      ["costMoney", fresh.costMoney, snapshot.costMoney],
       ["cutList", fresh.cutList, snapshot.cutList],
       ["drawings", fresh.drawings, snapshot.drawings],
     ];

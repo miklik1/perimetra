@@ -137,15 +137,21 @@ export function derive(
   release: ProductModelRelease,
   baseScope: Scope,
   catalog: Catalog,
+  costScope?: Scope,
 ): DeriveOutcome {
   // Work on a copy so the caller's scope is not mutated (determinism hygiene).
   const scope: Scope = { ...baseScope };
+  // The cost layer (ADR 0059): the same scope with `price.*` swapped for cost
+  // numbers. Derived dimensions are physical — computed once against the real
+  // scope and mirrored in, so only the recipe's value exprs see cost numbers.
+  const costS: Scope | undefined = costScope ? { ...costScope } : undefined;
   const derived: Record<string, number> = {};
 
   for (const def of release.derivation.derived) {
     const value = evalNumber(def.expr, scope);
     scope[def.key] = value;
     derived[def.key] = value;
+    if (costS) costS[def.key] = value;
   }
 
   const parts: Part[] = [];
@@ -186,9 +192,11 @@ export function derive(
     }
     if (rule.bom.pricePerUnit !== undefined) {
       part.pricePerUnit = evalNumber(rule.bom.pricePerUnit, scope);
+      if (costS) part.costPerUnit = evalNumber(rule.bom.pricePerUnit, costS);
     }
     if (rule.bom.totalPrice !== undefined) {
       part.totalPrice = evalNumber(rule.bom.totalPrice, scope);
+      if (costS) part.totalCost = evalNumber(rule.bom.totalPrice, costS);
     }
     if (rule.geometry !== undefined && rule.geometry.length > 0) {
       part.geometry = buildGeometry(rule, scope, component, catalog);

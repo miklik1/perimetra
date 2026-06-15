@@ -45,11 +45,12 @@ import {
 
 import type { CascadeLayers } from "./cascade.js";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints.js";
-import { sumByCategory, toMoneyTotals } from "./emit.js";
+import { sumByCategory, sumCostByCategory, toMoneyTotals } from "./emit.js";
 import { deriveInstanceDetailed, type DeriveOptions } from "./pipeline.js";
 import type {
   CategoryTotals,
   ConfigInput,
+  CostTable,
   DerivationResult,
   Issue,
   MoneyTotals,
@@ -70,6 +71,9 @@ export interface SiteInstance {
 export interface SiteDeriveOptions {
   /** Swap the constraint evaluator (defaults to the forward checker). */
   constraintEvaluator?: ConstraintEvaluator;
+  /** Cost-of-goods layer (ADR 0059) — applied to every instance; the site
+   *  result then carries `costTotals`/`costMoney` over the SHARED parts (I6). */
+  costs?: CostTable;
 }
 
 /** A resolved shared element (I6): the consumer's part is not counted; the
@@ -124,6 +128,11 @@ export interface SiteResult {
   totals: CategoryTotals;
   /** Decimal-as-string mirror of `totals` — the boundary representation (I10). */
   money: MoneyTotals;
+  /** Cost-of-goods totals over the shared parts — present only when a cost
+   *  table was supplied (ADR 0059). Shares are costed once, like the price. */
+  costTotals?: CategoryTotals;
+  /** Decimal-as-string mirror of {@link costTotals} (I10). */
+  costMoney?: MoneyTotals;
   /** Site-level issues only (structure, terrain, connection constraints). */
   issues: Issue[];
   stamps: SiteStamps;
@@ -339,6 +348,7 @@ export function deriveSite(
         constraintEvaluator: options.constraintEvaluator,
       }),
       ...(instance.overrides !== undefined && { overrides: instance.overrides }),
+      ...(options.costs !== undefined && { costs: options.costs }),
     };
     const { result, scope } = deriveInstanceDetailed(
       instance.release,
@@ -435,6 +445,9 @@ export function deriveSite(
   }
 
   const totals = sumByCategory(surviving);
+  // Cost rides the SAME surviving (post-sharing) parts, so shared elements are
+  // costed once — exactly like the price total (ADR 0059, I6).
+  const costTotals = options.costs ? sumCostByCategory(surviving) : undefined;
 
   return {
     isValid: true,
@@ -448,6 +461,10 @@ export function deriveSite(
     })),
     totals,
     money: toMoneyTotals(totals),
+    ...(costTotals !== undefined && {
+      costTotals,
+      costMoney: toMoneyTotals(costTotals),
+    }),
     issues,
     stamps,
   };

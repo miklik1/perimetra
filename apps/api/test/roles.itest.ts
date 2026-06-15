@@ -21,6 +21,7 @@ import { member } from "@repo/db/schema/auth";
 import {
   catalogV2,
   fenceRunV1,
+  siteCosts,
   siteFenceConfig,
   siteGateConfig,
   sitePrices,
@@ -29,7 +30,6 @@ import {
 } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
-import { QUOTE_MARGIN_FLOOR_PCT } from "../src/modules/quotes/margin.js";
 import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
 
 /** The golden three-instance site, roster by release natural key. */
@@ -47,12 +47,17 @@ const priceTableBody = {
   effectiveFrom: "2026-01-01T00:00:00.000Z",
   dphRate: "21",
   table: sitePrices,
+  cost: siteCosts,
 };
+
+/** Same table with a floor pinned above any real margin (~39%) so the per-org
+ *  guard always fires (ADR 0059) — replaces the old env/DI overrideProvider. */
+const marginFloorPriceTableBody = { ...priceTableBody, marginFloorPct: "99" };
 
 interface QuoteResponse {
   id: string;
   total: string | null;
-  snapshot: { money?: unknown };
+  snapshot: { money?: unknown; costMoney?: unknown };
 }
 
 describe("RBAC role matrix (HTTP, real stack)", () => {
@@ -135,9 +140,11 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
     const read = await get(user, `/v1/quotes/${quoteId}`);
     expect(read.statusCode).toBe(200);
     const quote = read.json() as QuoteResponse;
-    // The price is stripped SERVER-SIDE — total null, snapshot money gone.
+    // The price is stripped SERVER-SIDE — total null, snapshot money + cost gone
+    // (the blind whitelist drops cost too, ADR 0059).
     expect(quote.total).toBeNull();
     expect(quote.snapshot.money).toBeUndefined();
+    expect(quote.snapshot.costMoney).toBeUndefined();
 
     expect((await post(user, "/v1/quotes", issueBody)).statusCode).toBe(403);
     expect(
@@ -147,7 +154,7 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
   });
 });
 
-describe("margin-floor guard (floor 99%, ADR 0056)", () => {
+describe("margin-floor guard (per-org floor 99%, ADR 0059)", () => {
   let app: NestFastifyApplication;
   let db: Db;
   let user: TestUser;
@@ -158,13 +165,13 @@ describe("margin-floor guard (floor 99%, ADR 0056)", () => {
     db.update(member).set({ role }).where(eq(member.userId, user.id));
 
   beforeAll(async () => {
-    // Pin the floor above any real margin so the guard always fires.
-    app = await createApiApp((b) => b.overrideProvider(QUOTE_MARGIN_FLOOR_PCT).useValue(99));
+    app = await createApiApp();
     db = app.get<Db>(DB);
     user = await signUpUser(app, "rbac-margin"); // owner → admin, own org
-    // Releases/catalog are global (seeded by the matrix describe). This org needs
-    // its own price table before it can issue.
-    expect((await post(user, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // Releases/catalog are global (seeded by the matrix describe). This org
+    // publishes its own price table with the floor pinned high (the floor is
+    // now per-org data, ADR 0059 — no provider override).
+    expect((await post(user, "/v1/price-tables", marginFloorPriceTableBody)).statusCode).toBe(201);
   });
 
   afterAll(async () => {

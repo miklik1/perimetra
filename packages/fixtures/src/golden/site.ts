@@ -20,7 +20,7 @@
  * 1 500 / 1 650, every step ≤ the fence model's 200 mm rule. The negative
  * corpus raises s2 to +400 and the connection constraint must kill the site.
  */
-import type { ConfigInput, PriceTable } from "@repo/engine";
+import type { ConfigInput, CostTable, PriceTable } from "@repo/engine";
 import type { Site } from "@repo/model";
 
 /** The site price table: the alu gate table (golden/sliding-gate.ts) plus the
@@ -49,6 +49,36 @@ export const sitePrices: PriceTable = {
   },
   manufacturing: { rate: 790, multiplier: 16 },
   installation: 10500,
+};
+
+/** Cost-of-goods for the site price table (ADR 0059): per-component buy cost,
+ *  the manufacturing wage `rate` (420 vs the 790 billed), and the installation
+ *  cost (6200 vs 10500 billed). Same shape as the sell table, shares its version
+ *  (co-located row, I3). `manufacturing.multiplier` is unused for cost (labour
+ *  hours are physical, fixed from the sell side) — mirrored only for shape. */
+export const siteCosts: CostTable = {
+  components: {
+    sloupek_l_50: 270,
+    sloupek_t_50: 310,
+    h_profile_50: 120,
+    top_guide_beam: 175,
+    tower_post: 1800,
+    gear_rack: 110,
+    diagonal_tensioner: 950,
+    rail_set_enzo: 8000,
+    rail_set_enzo_long: 16000,
+    frame_kit: 820,
+    motor: 8800,
+    fill_connector: 3,
+    gsm_module: 310,
+    rack_mount: 120,
+    guide_roller: 210,
+    planka_100: 155,
+    fence_post_60: 210,
+    fence_rail_40x20: 58,
+  },
+  manufacturing: { rate: 420, multiplier: 16 },
+  installation: 6200,
 };
 
 /** The Excel-anchored gate config (golden/sliding-gate.ts), elevation via s1. */
@@ -105,6 +135,9 @@ export const siteGolden = {
       topLine: 1500,
     },
     moneyTotal: "24570",
+    /** Cost-of-goods (ADR 0059, siteCosts): posts 3×210 + rails 10×58 + fill
+     *  65×155 = 11 285 material; 8 h × 420 wage = 3 360 manufacturing. */
+    costMoneyTotal: "14645",
   },
   /** The aggregate (delta-0 lineage: gate anchor + 2 fences − 2 shared posts). */
   site: {
@@ -114,6 +147,15 @@ export const siteGolden = {
       manufacturing: "26860",
       installation: "10500",
       total: "129891.504",
+    },
+    /** Cost-of-goods over the SAME shared parts (I6): shares costed once, like
+     *  the price. Margin = (129891.504 − 79039.86)/129891.504 ≈ 39.15 %. */
+    costMoney: {
+      material: "37847.5",
+      accessory: "20712.36",
+      manufacturing: "14280",
+      installation: "6200",
+      total: "79039.86",
     },
     /** fence_post_60 across both runs after sharing: 2 + 2 (each run keeps
      *  end + line; both start posts are consumed). */

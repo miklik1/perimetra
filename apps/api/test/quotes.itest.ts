@@ -16,6 +16,7 @@ import { quote as quoteTable } from "@repo/db/schema/quotes";
 import {
   catalogV2,
   fenceRunV1,
+  siteCosts,
   siteFenceConfig,
   siteGateConfig,
   sitePrices,
@@ -32,8 +33,18 @@ interface QuoteDetail {
   currency: string;
   total: string;
   stamps: { releaseIds: Record<string, string>; catalogVersion: number; priceTableVersion: number };
-  snapshot: { money: { total: string } };
+  snapshot: { money: { total: string }; costMoney?: { total: string } };
 }
+
+/** The active price table the quote stamps against — with a cost layer (ADR
+ *  0059) so the snapshot freezes cost and verify re-derives it (I3). */
+const priceTableBody = {
+  currency: "CZK",
+  effectiveFrom: "2026-01-01T00:00:00.000Z",
+  dphRate: "21",
+  table: sitePrices,
+  cost: siteCosts,
+};
 
 describe("quote lifecycle (HTTP, real stack)", () => {
   let app: NestFastifyApplication;
@@ -70,16 +81,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       );
     }
     // Active price table (open-ended window covering now).
-    expect(
-      (
-        await post(tenant, "/v1/price-tables", {
-          currency: "CZK",
-          effectiveFrom: "2026-01-01T00:00:00.000Z",
-          dphRate: "21",
-          table: sitePrices,
-        })
-      ).statusCode,
-    ).toBe(201);
+    expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
   });
 
   afterAll(async () => {
@@ -96,6 +98,8 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       expect(quote.currency).toBe("CZK");
       expect(quote.total).toBe("129891.504");
       expect(quote.snapshot.money.total).toBe("129891.504");
+      // Cost-of-goods is frozen in the snapshot (ADR 0059) — verify re-derives it.
+      expect(quote.snapshot.costMoney?.total).toBe("79039.86");
       expect(quote.stamps.releaseIds).toEqual({
         gate: "sliding-gate@1",
         fenceA: "fence-run@1",
@@ -180,16 +184,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // Releases/catalog are GLOBAL (seeded above); the price table is per-org
       // (ADR 0055) so this fresh org needs its own before it can issue.
       const author = await signUpUser(app, "quote-author");
-      expect(
-        (
-          await post(author, "/v1/price-tables", {
-            currency: "CZK",
-            effectiveFrom: "2026-01-01T00:00:00.000Z",
-            dphRate: "21",
-            table: sitePrices,
-          })
-        ).statusCode,
-      ).toBe(201);
+      expect((await post(author, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
       const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
       expect(issued.total).toBe("129891.504");
 

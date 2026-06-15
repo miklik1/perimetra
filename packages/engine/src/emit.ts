@@ -6,9 +6,9 @@
  */
 import { toMoneyString } from "@repo/model";
 
-import type { CategoryTotals, MoneyTotals, Part, PriceTable } from "./types.js";
+import type { CategoryTotals, CostTable, MoneyTotals, Part, PriceTable } from "./types.js";
 
-/** Raised when a part has no resolvable price — never default to 0 (I5). */
+/** Raised when a part has no resolvable price or cost — never default to 0 (I5). */
 export class PriceError extends Error {
   constructor(message: string) {
     super(`${message} (I5: no silent zeros)`);
@@ -35,6 +35,30 @@ export function priceParts(parts: Part[], prices: PriceTable): Part[] {
       ...part,
       pricePerUnit: unitPrice,
       totalPrice: part.quantity * unitPrice,
+    };
+  });
+}
+
+/**
+ * Resolve each part's cost-of-goods — the exact mirror of {@link priceParts}
+ * against the cost layer (ADR 0059). A part with an explicit `totalCost` (the
+ * recipe's labour expr already evaluated against cost numbers in `derive`) keeps
+ * it; otherwise the unit cost comes from the part's own `costPerUnit` or the
+ * cost layer keyed by component code, and the total is `quantity × unit cost`.
+ */
+export function costParts(parts: Part[], costs: CostTable): Part[] {
+  return parts.map((part) => {
+    if (part.totalCost !== undefined) return part;
+
+    const unitCost = part.costPerUnit ?? costs.components[part.componentCode];
+    if (unitCost === undefined) {
+      throw new PriceError(`No cost for component "${part.componentCode}"`);
+    }
+
+    return {
+      ...part,
+      costPerUnit: unitCost,
+      totalCost: part.quantity * unitCost,
     };
   });
 }
@@ -66,6 +90,26 @@ export function sumByCategory(parts: Part[]): CategoryTotals {
     }
     totals[part.category] += part.totalPrice;
     totals.total += part.totalPrice;
+  }
+  return totals;
+}
+
+/** Cost-of-goods rollup — the mirror of {@link sumByCategory} over `totalCost`
+ *  (ADR 0059). Only costed parts (post-{@link costParts}) may be aggregated. */
+export function sumCostByCategory(parts: Part[]): CategoryTotals {
+  const totals: CategoryTotals = {
+    material: 0,
+    accessory: 0,
+    manufacturing: 0,
+    installation: 0,
+    total: 0,
+  };
+  for (const part of parts) {
+    if (part.totalCost === undefined) {
+      throw new PriceError(`Uncosted part "${part.path}" in aggregation`);
+    }
+    totals[part.category] += part.totalCost;
+    totals.total += part.totalCost;
   }
   return totals;
 }

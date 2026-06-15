@@ -1282,17 +1282,20 @@
               "components": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "number"
+                  "type": "number",
+                  "minimum": 0
                 }
               },
               "manufacturing": {
                 "type": "object",
                 "properties": {
                   "rate": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0
                   },
                   "multiplier": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0
                   }
                 },
                 "required": [
@@ -1301,11 +1304,50 @@
                 ]
               },
               "installation": {
-                "type": "number"
+                "type": "number",
+                "minimum": 0
               }
             },
             "required": [
               "version",
+              "components",
+              "manufacturing",
+              "installation"
+            ]
+          },
+          "cost": {
+            "type": "object",
+            "properties": {
+              "components": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "manufacturing": {
+                "type": "object",
+                "properties": {
+                  "rate": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "multiplier": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "rate",
+                  "multiplier"
+                ]
+              },
+              "installation": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
               "components",
               "manufacturing",
               "installation"

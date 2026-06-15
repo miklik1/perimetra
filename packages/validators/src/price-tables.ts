@@ -19,13 +19,26 @@ const decimalString = z.string().regex(/^\d+(\.\d+)?$/, "must be a decimal strin
 
 /** The engine price layer (mirrors @repo/engine `PriceTable`) — the JSONB body
  *  the engine consumes as a pure data argument. */
+/** Values are non-negative numbers — negative price/cost is nonsense money; zero
+ *  is legitimate (a free or no-cost-of-goods line). A MISSING component is the
+ *  I5 case the engine throws on, not validated away here. */
+const layerValue = z.number().nonnegative();
+const priceLayerShape = {
+  components: z.record(z.string(), layerValue),
+  manufacturing: z.object({ rate: layerValue, multiplier: layerValue }),
+  installation: layerValue,
+};
+
 export const priceTableDataSchema = z.object({
   version: z.number().int(),
-  components: z.record(z.string(), z.number()),
-  manufacturing: z.object({ rate: z.number(), multiplier: z.number() }),
-  installation: z.number(),
+  ...priceLayerShape,
 });
 export type PriceTableData = z.infer<typeof priceTableDataSchema>;
+
+/** The engine cost layer (mirrors @repo/engine `CostTable`) — same shape as the
+ *  price body minus `version` (cost shares the price table's version, ADR 0059). */
+export const costTableDataSchema = z.object(priceLayerShape);
+export type CostTableData = z.infer<typeof costTableDataSchema>;
 
 /** List item — metadata only (the price body is fetched via GET/resolve). */
 export const priceTableSummarySchema = z.object({
@@ -39,12 +52,13 @@ export const priceTableSummarySchema = z.object({
 });
 export type PriceTableSummary = z.infer<typeof priceTableSummarySchema>;
 
-/** Detail — the commercial guardrails + the engine price body. */
+/** Detail — the commercial guardrails + the engine price body (+ cost body). */
 export const priceTableSchema = priceTableSummarySchema.extend({
   marginFloorPct: z.string().nullable(),
   dphRate: z.string(),
   reverseCharge: z.boolean(),
   table: priceTableDataSchema,
+  cost: costTableDataSchema.nullable(),
 });
 export type PriceTableDetail = z.infer<typeof priceTableSchema>;
 
@@ -56,6 +70,7 @@ export const publishPriceTableSchema = z.object({
   dphRate: decimalString,
   reverseCharge: z.boolean().optional(),
   table: priceTableDataSchema,
+  cost: costTableDataSchema.optional(),
 });
 export type PublishPriceTableInput = z.infer<typeof publishPriceTableSchema>;
 

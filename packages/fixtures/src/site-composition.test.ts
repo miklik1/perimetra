@@ -19,6 +19,7 @@ import { validateRelease, type Site } from "@repo/model";
 
 import { catalogV2 } from "./catalog/catalog-v2.js";
 import {
+  siteCosts,
   siteFenceConfig,
   siteGateConfig,
   siteGolden,
@@ -62,6 +63,18 @@ describe("fence-run@1 — standalone derivation (the new family's own lock)", ()
   it("a standalone run keeps BOTH end posts (sharing is connection-scoped)", () => {
     const posts = result.parts.filter((p) => p.componentCode === "fence_post_60");
     expect(posts.map((p) => p.path)).toEqual(["posts.start", "posts.end", "posts.line"]);
+  });
+
+  it("costs the run against the cost layer without moving the price (ADR 0059)", () => {
+    const costed = deriveInstance(fenceRunV1, siteFenceConfig, sitePrices, catalogV2, {
+      costs: siteCosts,
+    });
+    // The sell side is byte-identical with or without a cost layer.
+    expect(costed.money.total).toBe(siteGolden.fence.moneyTotal);
+    // Cost-of-goods: real buy costs + the wage rate (not the billed rate).
+    expect(costed.costMoney?.total).toBe(siteGolden.fence.costMoneyTotal);
+    // No cost layer → no cost output at all (the field is optional, not zero).
+    expect(result.costMoney).toBeUndefined();
   });
 });
 
@@ -117,6 +130,21 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
 
   it("aggregate money is string-exact: anchor + 2 fences − 2 shared posts (I10)", () => {
     expect(result.money).toEqual(siteGolden.site.moneyTotals);
+  });
+
+  it("aggregate cost shares the cost once and never moves the price (ADR 0059, I6)", () => {
+    const costed = deriveSite(steppedSite, instances(), sitePrices, catalogV2, {
+      costs: siteCosts,
+    });
+    // Adding cost is purely additive — the sell totals are unchanged.
+    expect(costed.money).toEqual(siteGolden.site.moneyTotals);
+    // Cost rolls up over the SAME post-sharing parts (shared posts costed once).
+    expect(costed.costMoney).toEqual(siteGolden.site.costMoney);
+    const marginPct =
+      ((Number(costed.money.total) - Number(costed.costMoney!.total)) /
+        Number(costed.money.total)) *
+      100;
+    expect(marginPct).toBeCloseTo(39.15, 2);
   });
 
   it("stamps every release pin + catalog@2 + the site price table (I3)", () => {

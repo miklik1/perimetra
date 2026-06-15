@@ -13,6 +13,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 
 import { type PriceTableRow } from "@repo/db/schema/price-tables";
 import {
+  type CostTableData,
   type ListPriceTablesQuery,
   type PriceTableData,
   type PriceTableDetail,
@@ -44,6 +45,7 @@ function toDetail(row: PriceTableRow): PriceTableDetail {
     dphRate: row.dphRate,
     reverseCharge: row.reverseCharge,
     table: row.table as PriceTableData,
+    cost: (row.cost as CostTableData | null) ?? null,
   };
 }
 
@@ -97,6 +99,7 @@ export class PriceTablesService {
       dphRate: input.dphRate,
       reverseCharge: input.reverseCharge ?? false,
       table: input.table,
+      cost: input.cost ?? null,
     });
     await this.audit.record({
       actorId: scope.userId,

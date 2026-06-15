@@ -12,7 +12,7 @@ import { and, asc, desc, eq, gt, isNull, lt, lte, or } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { priceTable, type PriceTableRow } from "@repo/db/schema/price-tables";
-import { type PriceTableData } from "@repo/validators/price-tables";
+import { type CostTableData, type PriceTableData } from "@repo/validators/price-tables";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 
@@ -36,6 +36,7 @@ export interface InsertPriceTableData {
   dphRate: string;
   reverseCharge: boolean;
   table: PriceTableData;
+  cost: CostTableData | null;
 }
 
 @Injectable()
@@ -126,6 +127,7 @@ export class PriceTablesRepository {
         dphRate: data.dphRate,
         reverseCharge: data.reverseCharge,
         table: data.table,
+        cost: data.cost,
       })
       .returning();
     return row!;

@@ -74,6 +74,12 @@ export interface Part {
   pricePerUnit?: number;
   /** quantity × pricePerUnit, or an explicit override. */
   totalPrice?: number;
+  /** Resolved unit cost-of-goods (from the cost layer) — absent unless a cost
+   *  table was supplied; the SELL-side fields above are never cost. */
+  costPerUnit?: number;
+  /** quantity × costPerUnit (or the recipe's price expr evaluated against cost
+   *  numbers, for labour). Absent unless costed. */
+  totalCost?: number;
   /** Applied artifact overrides — rendered as deviation flags (CORE_SPEC §6). */
   deviations?: PartDeviation[];
   /** Physical pieces (step 5) — absent on BOM-only parts (labor, kits). */
@@ -143,24 +149,43 @@ export interface DerivationResult {
   totals: CategoryTotals;
   /** Decimal-as-string mirror of `totals` — the boundary representation (I10). */
   money: MoneyTotals;
+  /** Cost-of-goods totals — present only when a {@link CostTable} was supplied.
+   *  Same buckets as {@link totals}; margin = (total − costTotals.total)/total. */
+  costTotals?: CategoryTotals;
+  /** Decimal-as-string mirror of {@link costTotals} (I10). */
+  costMoney?: MoneyTotals;
   issues: Issue[];
   stamps: Stamps;
 }
 
 /**
- * The price layer fed into derivation — component unit prices plus the
- * manufacturing rate/multiplier and installation price. Injected into the
- * evaluation scope under `price.*` (CORE_SPEC §4: a tenant-overridable cascade
- * layer; slice 1 takes it as a single table).
+ * The numeric layer fed into derivation — component unit values plus the
+ * manufacturing rate/multiplier and installation. Injected into the evaluation
+ * scope under `price.*` (CORE_SPEC §4). Both the SELL price table and the
+ * cost-of-goods table share this shape: the recipe is value-source-agnostic, so
+ * evaluating it against cost numbers yields cost (the cost-model slice, ADR 0059).
  */
-export interface PriceTable {
-  /** Stamped on every result (I3) — price tables are versioned data, like the
-   *  catalog; effective-date windows resolve to a version upstream. */
-  version: number;
+export interface PriceLayer {
   components: Record<string, number>;
   manufacturing: { rate: number; multiplier: number };
   installation: number;
 }
+
+export interface PriceTable extends PriceLayer {
+  /** Stamped on every result (I3) — price tables are versioned data, like the
+   *  catalog; effective-date windows resolve to a version upstream. */
+  version: number;
+}
+
+/**
+ * Cost-of-goods, same shape as the sell-price layer. It shares the price
+ * table's version (co-located on the same immutable row) — never independently
+ * versioned, so the existing `priceTableVersion` stamp covers it (I3). The
+ * `manufacturing.multiplier` is unused for cost: labour hours are physical,
+ * already derived from the sell-side multiplier and held fixed while the
+ * recipe's labour exprs re-evaluate against the cost `rate`.
+ */
+export type CostTable = PriceLayer;
 
 /** Post-cascade input values for one instance. */
 export type ConfigInput = Record<string, Value>;

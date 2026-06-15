@@ -19,9 +19,12 @@
 import { evalString, type ParameterDef, type Scope, type Value } from "@repo/model";
 import type { ProductModelRelease } from "@repo/model";
 
-import { ConfigError, type ConfigInput, type Issue, type PriceTable } from "./types.js";
+import { ConfigError, type ConfigInput, type Issue, type PriceLayer } from "./types.js";
 
-function priceScope(prices: PriceTable): Scope {
+/** The `price.*` slice of an evaluation scope. Used for the SELL price table
+ *  and — overlaid onto the same scope — for the cost-of-goods layer, which
+ *  re-evaluates the recipe's value exprs against cost numbers (ADR 0059). */
+export function priceScope(prices: PriceLayer): Scope {
   const scope: Scope = {};
   for (const [code, value] of Object.entries(prices.components)) {
     scope[`price.${code}`] = value;
@@ -160,7 +163,7 @@ export function missingParams(
 export function buildScope(
   release: ProductModelRelease,
   input: ConfigInput,
-  prices: PriceTable,
+  prices: PriceLayer,
 ): Scope {
   const scope: Scope = priceScope(prices);
 

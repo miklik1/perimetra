@@ -24,16 +24,19 @@ import { applyArtifactOverrides } from "./artifacts.js";
 import { resolveCascade, type CascadeLayers } from "./cascade.js";
 import { forwardChecker, type ConstraintEvaluator } from "./constraints.js";
 import { derive, evaluateAnchors } from "./derive.js";
-import { priceParts, sumByCategory, toMoneyTotals } from "./emit.js";
-import { buildScope } from "./scope.js";
+import { costParts, priceParts, sumByCategory, sumCostByCategory, toMoneyTotals } from "./emit.js";
+import { buildScope, priceScope } from "./scope.js";
 import { ConfigError, type ConfigInput, type DerivationResult, type Issue } from "./types.js";
-import type { PriceTable, Stamps } from "./types.js";
+import type { CostTable, PriceTable, Stamps } from "./types.js";
 
 export interface DeriveOptions {
   /** Swap the constraint evaluator (defaults to the forward checker). */
   constraintEvaluator?: ConstraintEvaluator;
   /** Cascade layers 3–5 (CORE_SPEC §4); omitted layers are empty. */
   overrides?: CascadeLayers;
+  /** Cost-of-goods layer (ADR 0059). When supplied the result carries
+   *  `costTotals`/`costMoney`; `price:` overrides never patch it. */
+  costs?: CostTable;
 }
 
 /** deriveInstance plus the full post-derivation evaluation scope (params +
@@ -98,13 +101,21 @@ export function deriveInstanceDetailed(
     return { result: invalid(issues, stamps) };
   }
 
-  const graph = derive(release, scope, catalog);
+  // The cost layer overlays the SELL scope with cost numbers (ADR 0059): same
+  // params/derived dims, `price.*` swapped — so the recipe's value exprs price
+  // labour against the cost rate. `price:` overrides stay on the sell side only.
+  const costScope: Scope | undefined = options.costs
+    ? { ...scope, ...priceScope(options.costs) }
+    : undefined;
+
+  const graph = derive(release, scope, catalog, costScope);
   if (graph.issues.length > 0) {
     // Catalog resolution gaps — the full missing-triple worklist, no partial BOM.
     return { result: invalid([...issues, ...graph.issues], stamps) };
   }
 
-  const priced = priceParts(graph.parts, cascade.effectivePrices);
+  let priced = priceParts(graph.parts, cascade.effectivePrices);
+  if (options.costs) priced = costParts(priced, options.costs);
   const artifacts = applyArtifactOverrides(priced, cascade.artifactOverrides);
   issues.push(...artifacts.issues);
   if (artifacts.issues.some((i) => i.severity === "error")) {
@@ -112,6 +123,7 @@ export function deriveInstanceDetailed(
   }
 
   const totals = sumByCategory(artifacts.parts);
+  const costTotals = options.costs ? sumCostByCategory(artifacts.parts) : undefined;
   const fullScope: Scope = { ...scope, ...graph.derived };
   const anchors = evaluateAnchors(release, fullScope);
 
@@ -123,6 +135,10 @@ export function deriveInstanceDetailed(
       ...(anchors !== undefined && { anchors }),
       totals,
       money: toMoneyTotals(totals),
+      ...(costTotals !== undefined && {
+        costTotals,
+        costMoney: toMoneyTotals(costTotals),
+      }),
       issues,
       stamps,
     },
