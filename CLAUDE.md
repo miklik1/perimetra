@@ -73,12 +73,23 @@ invite email via the email module; session hook now stamps a DETERMINISTIC activ
 org (prefers the owner membership); web `/team` (roster, admin invite/role-mgmt,
 org switcher) plus `/accept-invitation/:id`. Wart: every user still gets a
 personal auto-org, so an invitee carries a dead org and lands there on login
-(switch per session) — onboarding fix deferred.
-Next: step-6 follow-ups — cost-model slice (real `(price−cost)/price` margin and
-per-org floor, retires the `QUOTE_MARGIN_FLOOR_PCT` default-0 proxy), admin-
-publish slice (api-served catalog + publish UI, retires the ⌛ `@repo/fixtures`
-web source), admin (`adjustability: tenant`), issue-key i18n + deviation-override
-UX, `/site`↔`/configurator` convergence.
+(switch per session) — onboarding fix deferred (fixed by ADR 0058). Cost-model
+slice (2026-06-15, ADR 0059): pure engine cost layer (recipe re-evaluated against
+a co-located `price_table.cost`), real `(price−cost)/price` margin + per-org
+floor, retires the `QUOTE_MARGIN_FLOOR_PCT` proxy. Admin-publish slice
+(2026-06-16): **api-served catalog** (ADR 0060) — the web reads releases/catalog/
+active-price-table from the api (an RSC `fetchCatalogBundle` prop-passed into the
+configurator/site; engine still client-side), `initialInput` is gated publish
+metadata on the release row, a standalone `apps/api/src/seed.ts` publishes the
+golden corpus via the services (idempotent, setup.mjs step); **retires the ⌛
+`@repo/fixtures` web runtime source** (now web test-only). Plus the **admin
+publish UI** (ADR 0061): admin-gated `/admin` (JSON paste for catalog/release,
+structured price-table form, renders I2 `defects[]`). Workshop is price-blind by
+absence (403 on `/price-tables/active` → notice, not the engine).
+Next: step-6 follow-ups — per-tenant release visibility/assignment (CORE_SPEC §3;
+interim: all published releases visible to every org), new-org default price-table
+auto-provision, admin (`adjustability: tenant`), issue-key i18n + deviation-
+override UX, `/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

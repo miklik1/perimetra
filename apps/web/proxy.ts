@@ -24,7 +24,7 @@ import { env } from "@repo/config/env/web";
  */
 
 /** Routes that require a session cookie to be present. */
-const PROTECTED_PREFIXES = ["/account", "/projects", "/configurator", "/site"];
+const PROTECTED_PREFIXES = ["/account", "/projects", "/configurator", "/site", "/admin"];
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== "production";
