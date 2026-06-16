@@ -95,7 +95,7 @@ export class CatalogVersionsService {
     return row ? (row.body as Catalog) : null;
   }
 
-  // TODO(roles slice 6.3g): gate to the admin role. Authenticated-only for now.
+  // Admin-only publish — `@RequireRole('admin')` on the controller (ADR 0056).
   @Transactional()
   async publish(
     scope: RequestScope,

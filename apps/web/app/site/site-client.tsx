@@ -13,7 +13,7 @@ import { errorMessageKey } from "../../lib/error-messages";
 import { createProjectsQueries } from "../../lib/projects-queries";
 import { toast } from "../../lib/toast";
 import { usePriceBlind } from "../../lib/use-role";
-import type { CatalogBundle } from "../configurator/products";
+import { buildProductIndex, type CatalogBundle } from "../configurator/products";
 import { SceneViewport } from "../configurator/scene/scene-viewport";
 import {
   deriveInstanceScope,
@@ -23,7 +23,7 @@ import {
   type PlacedInstance,
   type SiteDeriveContext,
 } from "./derive";
-import { demoInstances, demoSite } from "./initial";
+import { DEMO_RELEASE_IDS, demoInstances, demoSite } from "./initial";
 import { InstancePanel } from "./instance-panel";
 import { Palette } from "./palette";
 import { toSavePayload } from "./persistence";
@@ -170,6 +170,13 @@ function SiteCanvas({
   const derivation = useMemo(() => deriveSiteForUi(ctx, site, instances), [ctx, site, instances]);
   // FE mirror of the server price-blind rule (ADR 0056) — workshop sees no money.
   const priceBlind = usePriceBlind();
+
+  // "Load demo" only works when every demo release is in the api-served roster;
+  // hide the button otherwise so it can never trigger demoInstances' throw.
+  const canDemo = useMemo(() => {
+    const index = buildProductIndex(ctx.products);
+    return DEMO_RELEASE_IDS.every((id) => index.has(id));
+  }, [ctx.products]);
 
   const selectedPlaced = instances.find((i) => i.instanceId === selectedId);
   const selectedUi = derivation.instances.find((i) => i.instanceId === selectedId);
@@ -362,9 +369,11 @@ function SiteCanvas({
           <span className="text-muted-foreground text-xs">
             {dirty ? t("unsaved") : t("allSaved")}
           </span>
-          <Button type="button" variant="outline" onClick={loadDemo}>
-            {t("loadDemo")}
-          </Button>
+          {canDemo && (
+            <Button type="button" variant="outline" onClick={loadDemo}>
+              {t("loadDemo")}
+            </Button>
+          )}
           <Button type="button" onClick={save} disabled={!dirty || saveMutation.isPending}>
             {saveMutation.isPending ? t("saving") : t("save")}
           </Button>

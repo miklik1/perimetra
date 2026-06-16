@@ -109,7 +109,7 @@ export class ReleasesService {
     return row ? toDetail(row) : null;
   }
 
-  // TODO(roles slice 6.3g): gate to the admin role. Authenticated-only for now.
+  // Admin-only publish — `@RequireRole('admin')` on the controller (ADR 0056).
   @Transactional()
   async publish(scope: RequestScope, input: PublishReleaseInput): Promise<ReleaseDetail> {
     const body = assertReleaseEnvelope(input.body);

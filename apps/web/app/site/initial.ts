@@ -43,6 +43,10 @@ const DEMO_ROSTER: { instanceId: string; releaseId: string }[] = [
   { instanceId: "fenceB", releaseId: "fence-run@1" },
 ];
 
+/** The releases the demo needs — the canvas hides "Load demo" unless every one
+ *  is in the api-served roster (so the button never triggers the throw below). */
+export const DEMO_RELEASE_IDS = [...new Set(DEMO_ROSTER.map((r) => r.releaseId))];
+
 export function demoSite(): Site {
   // Clone — the canvas mutates placements/connections/terrain.
   return structuredClone(STEPPED_SITE);

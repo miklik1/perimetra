@@ -724,6 +724,9 @@ importers:
       react-hook-form:
         specifier: 'catalog:'
         version: 7.77.0(react@19.2.3)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       three:
         specifier: ^0.171.0
         version: 0.171.0

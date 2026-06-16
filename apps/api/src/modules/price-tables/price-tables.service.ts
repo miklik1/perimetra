@@ -82,7 +82,7 @@ export class PriceTablesService {
     return row ? toDetail(row) : null;
   }
 
-  // TODO(roles slice 6.3g): gate to the admin role. Authenticated-only for now.
+  // Admin-only publish — `@RequireRole('admin')` on the controller (ADR 0056).
   @Transactional()
   async publish(scope: RequestScope, input: PublishPriceTableInput): Promise<PriceTableDetail> {
     const version = input.table.version;

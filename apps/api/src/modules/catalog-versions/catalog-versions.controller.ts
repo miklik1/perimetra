@@ -2,8 +2,8 @@
  * Catalog-versions controller (ADR 0053) — the immutable vendor catalog store
  * over HTTP. SessionGuard authenticates every route; @ZodSerializerDto strips
  * responses (spec §8). Append-only surface: list + get + publish, NO update/
- * delete (a published catalog version is immutable, I3). `publish` is
- * authenticated-only for now — the admin RoleGuard lands with the roles slice.
+ * delete (a published catalog version is immutable, I3). `publish` is admin-only
+ * (`@RequireRole('admin')`, ADR 0056).
  */
 import {
   Body,

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { isForbidden, isNotFound, type ApiClient } from "@repo/api";
 import type { ConfigInput, PriceTable } from "@repo/engine";
 import type { Catalog, ProductModelRelease } from "@repo/model";
@@ -56,8 +58,19 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     initialInput: (d.initialInput as ConfigInput | null) ?? {},
   }));
 
-  // 3. The shared catalog every release pins (one version this slice).
+  // 3. The shared catalog every release pins (one version this slice — the
+  // engine's `deriveSite` takes a single catalog). A release pinning a different
+  // version is unsupported here, so FAIL LOUD rather than silently serving the
+  // wrong catalog (mirrors the quotes `mixed_catalog` guard; per-release catalog
+  // is the deferred ADR 0060 follow-up). I5: no silent wrong result.
   const catalogVersion = summaries[0]!.catalogVersion;
+  const mixed = summaries.some((s) => s.catalogVersion !== catalogVersion);
+  if (mixed) {
+    const versions = [...new Set(summaries.map((s) => s.catalogVersion))].sort((a, b) => a - b);
+    throw new Error(
+      `Published releases pin different catalog versions (${versions.join(", ")}) — cannot assemble one catalog. Retire or re-pin the conflicting release.`,
+    );
+  }
   const catalogDetail = await client.apiFetch(`/v1/catalog-versions/by-version/${catalogVersion}`, {
     parse: (d) => catalogVersionSchema.parse(d),
   });
