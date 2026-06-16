@@ -9,6 +9,7 @@
     "start": "node --enable-source-maps --import ./dist/otel/loader.js --env-file-if-exists=.env.local dist/main.js",
     "start:worker": "node --enable-source-maps --import ./dist/otel/loader.js --env-file-if-exists=.env.local dist/worker.js",
     "migrate": "node --enable-source-maps --import ./dist/otel/loader.js --env-file-if-exists=.env.local dist/migrate.js",
+    "seed": "node --enable-source-maps --env-file-if-exists=.env.local dist/seed.js",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
@@ -45,6 +46,7 @@
     "@react-email/render": "^2.0.8",
     "@repo/db": "workspace:*",
     "@repo/engine": "workspace:*",
+    "@repo/fixtures": "workspace:*",
     "@repo/flags": "workspace:*",
     "@repo/i18n": "workspace:*",
     "@repo/model": "workspace:*",
@@ -77,7 +79,6 @@
   "devDependencies": {
     "@nestjs/testing": "catalog:",
     "@repo/eslint-config": "workspace:*",
-    "@repo/fixtures": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@repo/vitest-config": "workspace:*",
     "@swc/core": "^1.13.0",

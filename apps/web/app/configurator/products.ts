@@ -1,44 +1,47 @@
 /**
- * The configurator's interim release source (ADR 0051): the vendor-authored
- * releases + catalog + price table come straight from @repo/fixtures until the
- * release-assignment/persistence slice of step 6 lands. ⌛ Transitional — when
- * tenants get release pins served by the api, this file is replaced by a
- * fetch; the components only ever see `ConfigurableProduct`, so the swap is
- * local to this module.
+ * The configurator/site catalog SHAPES (ADR 0060). Releases + catalog + the
+ * active price table are served by the api (`./catalog-bundle`): an RSC fetches
+ * the bundle and prop-passes it to the client surfaces, which only ever see the
+ * `ConfigurableProduct` / `CatalogBundle` types below. This retired the ⌛ interim
+ * `@repo/fixtures` runtime source — fixtures is now test-only (its proper role).
  *
- * Initial inputs are the golden-corpus configs: the page opens on a derivation
- * the delta-0 harness proves byte-identical to the MVP's Excel anchor.
+ * `initialInput` is the vendor's canonical example config, authored at publish
+ * and served on the release (the configurator opens on it). `catalog` is the one
+ * version every published release pins (catalog@2 in this slice). `prices` is the
+ * org's active price table — `null` for a price-blind/workshop session (the API
+ * 403s) or an org with no active table; the surfaces render a notice instead of
+ * running the engine when it is absent (the engine requires a price table).
+ *
+ * Pure types + one helper here (no `@repo/api`), so the engine-side `derive`
+ * modules and unit tests import shapes without dragging the fetch layer in.
  */
 import type { ConfigInput, PriceTable } from "@repo/engine";
-import {
-  catalogV2,
-  fenceRunV1,
-  siteFenceConfig,
-  siteGateConfig,
-  sitePrices,
-  slidingGateV1,
-} from "@repo/fixtures";
 import type { Catalog, ProductModelRelease } from "@repo/model";
 
 export interface ConfigurableProduct {
   release: ProductModelRelease;
-  /** Starting values — a config the golden corpus locks. */
+  /** Vendor's canonical example config — the configurator's starting values. */
   initialInput: ConfigInput;
 }
 
-export const catalog: Catalog = catalogV2;
-export const prices: PriceTable = sitePrices;
-
-export const products: ConfigurableProduct[] = [
-  { release: slidingGateV1, initialInput: siteGateConfig },
-  { release: fenceRunV1, initialInput: siteFenceConfig },
-];
+/** Everything the configurator/site need at load, served by the api. */
+export interface CatalogBundle {
+  /** Published products in api order (ordering is cosmetic — the palette list). */
+  products: ConfigurableProduct[];
+  /** The catalog every release pins (one shared version this slice). Null only
+   *  when nothing is published yet. */
+  catalog: Catalog | null;
+  /** The org's active price table; null for a price-blind/workshop session or an
+   *  org with no active table. */
+  prices: PriceTable | null;
+}
 
 /**
- * Release id → product index: the canvas addresses placed instances by product
- * index (the interim source's addressing), but persistence pins them by the
- * durable release id. This map is the one bridge between the two — resolved by
- * id so a reorder of `products` can never silently mispair a release. A
- * persisted release id absent here is an unknown release (dropped on load).
+ * Release id → product index. The canvas addresses placed instances by index;
+ * persistence pins them by the durable release id. Rebuilt from the api response
+ * so a reorder of the list can never silently mispair a release. A persisted
+ * release id absent here is an unknown release (dropped on load).
  */
-export const productIndexByRelease = new Map(products.map((p, i) => [p.release.id, i]));
+export function buildProductIndex(products: ConfigurableProduct[]): Map<string, number> {
+  return new Map(products.map((p, i) => [p.release.id, i]));
+}

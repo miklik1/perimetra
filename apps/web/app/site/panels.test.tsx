@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { cs } from "@repo/i18n";
 import { I18nProvider } from "@repo/i18n/web";
 
-import { products } from "../configurator/products";
+import { goldenCtx, goldenProducts } from "../configurator/golden-bundle";
 import { deriveSiteForUi } from "./derive";
-import { initialInstances, initialSite } from "./initial";
+import { demoInstances, demoSite } from "./initial";
 import { Palette } from "./palette";
 import { PlanCanvas } from "./plan-canvas";
 import { SiteResultsPanel } from "./site-results-panel";
@@ -19,7 +19,7 @@ import { SiteResultsPanel } from "./site-results-panel";
  * exposes draggable/connectable ports off engine anchors, and the connect/remove
  * intents fire. Numeric delta-0 locks live in derive.test.ts.
  */
-const seeded = () => deriveSiteForUi(initialSite(), initialInstances());
+const seeded = () => deriveSiteForUi(goldenCtx, demoSite(), demoInstances(goldenProducts));
 
 function ui(node: ReactNode) {
   return render(
@@ -56,7 +56,7 @@ describe("palette", () => {
     const onRemove = vi.fn();
     ui(
       <Palette
-        products={products}
+        products={goldenProducts}
         instances={d.instances}
         onAdd={onAdd}
         onSelect={onSelect}
@@ -102,12 +102,12 @@ describe("plan canvas", () => {
   });
 
   it("still outlines instances when the site is invalid (editing survives I5)", () => {
-    const site = initialSite();
+    const site = demoSite();
     const tooSteep = {
       ...site,
       terrain: site.terrain.map((s) => (s.id === "s2" ? { ...s, elevation_mm: 400 } : s)),
     };
-    const d = deriveSiteForUi(tooSteep, initialInstances());
+    const d = deriveSiteForUi(goldenCtx, tooSteep, demoInstances(goldenProducts));
     expect(d.result.isValid).toBe(false);
     ui(
       <PlanCanvas

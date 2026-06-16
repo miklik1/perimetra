@@ -146,6 +146,13 @@ run("pnpm", ["--filter", "api", "migrate"], {
   hint: "Connection refused? If docker/.env overrides POSTGRES_HOST_PORT, apps/api/.env.local must set a matching DATABASE_URL.",
 });
 
+// --- [6] Seed the golden corpus -----------------------------------------------
+
+step("Seeding the golden corpus (idempotent — already-published data is skipped)");
+run("pnpm", ["--filter", "api", "seed"], {
+  hint: "Seed publishes catalog/release/price-table fixtures via the publish services. Safe to re-run.",
+});
+
 // --- Done ---------------------------------------------------------------------
 
 // Host ports for the summary: compose reads docker/.env (gitignored,

@@ -59,13 +59,14 @@ const nextConfig = {
     "@repo/validators",
     "@repo/utils",
     "@repo/config",
-    // The rebuild core + the interim release source the step-6 surfaces run on.
-    // Now BUILT (NodeNext dist) packages (ADR 0053) — kept here so Next applies
-    // its transform pipeline uniformly; harmless for pre-compiled ESM.
+    // The rebuild core the step-6 surfaces run on. Now BUILT (NodeNext dist)
+    // packages (ADR 0053) — kept here so Next applies its transform pipeline
+    // uniformly; harmless for pre-compiled ESM. (@repo/fixtures is no longer a
+    // runtime source — ADR 0060 serves the catalog from the api; it remains a
+    // test-only devDependency.)
     "@repo/model",
     "@repo/engine",
     "@repo/renderers",
-    "@repo/fixtures",
   ],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

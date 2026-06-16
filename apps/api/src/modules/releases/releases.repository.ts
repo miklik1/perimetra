@@ -34,6 +34,8 @@ export interface InsertReleaseData {
   catalogVersion: number;
   status: ReleaseStatus;
   body: ProductModelRelease;
+  /** The configurator's starting config (publish metadata, gated server-side). */
+  initialInput?: Record<string, unknown> | null;
 }
 
 @Injectable()
@@ -95,6 +97,7 @@ export class ReleasesRepository {
         catalogVersion: data.catalogVersion,
         status: data.status,
         body: data.body,
+        initialInput: data.initialInput ?? null,
       })
       .returning();
     return row!;

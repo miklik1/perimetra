@@ -125,6 +125,37 @@ describe("ReleasesService.publish", () => {
     expect(repo.insert).not.toHaveBeenCalled();
   });
 
+  it("gates a valid initialInput through and stores it", async () => {
+    const { service, repo } = makeService();
+    const now = new Date("2026-06-13T00:00:00.000Z");
+    repo.insert.mockImplementation(async (data) => ({
+      id: "01890a5d-ac96-774b-bcce-b302099a0002",
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const result = await service.publish(SCOPE, {
+      catalogVersion: 1,
+      body: validBody(),
+      initialInput: { w: 1500 },
+    });
+
+    expect(repo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ initialInput: { w: 1500 } }),
+    );
+    expect(result.initialInput).toEqual({ w: 1500 });
+  });
+
+  it("rejects a broken initialInput with 422 (the I7 input gate)", async () => {
+    const { service, repo } = makeService();
+    // `zzz` names no parameter — gateInput flags an unknown input key.
+    await expect(
+      service.publish(SCOPE, { catalogVersion: 1, body: validBody(), initialInput: { zzz: 1 } }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(repo.insert).not.toHaveBeenCalled();
+  });
+
   it("refuses to re-publish an existing release (409 — immutable, I3)", async () => {
     const { service, repo } = makeService();
     repo.findByReleaseId.mockResolvedValue({ id: "existing" });

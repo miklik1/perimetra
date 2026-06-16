@@ -19,10 +19,11 @@ import {
   type ConfigInput,
   type DerivationResult,
   type Issue,
+  type PriceTable,
   type SiteInstance,
   type SiteResult,
 } from "@repo/engine";
-import type { Scope, Site, SitePlacement } from "@repo/model";
+import type { Catalog, Scope, Site, SitePlacement } from "@repo/model";
 import {
   buildScene,
   buildSitePlan,
@@ -33,10 +34,20 @@ import {
   type Vec3,
 } from "@repo/renderers";
 
-import { catalog, prices, products, type ConfigurableProduct } from "../configurator/products";
+import { type ConfigurableProduct } from "../configurator/products";
+
+/** The api-served catalog context the canvas derives against (ADR 0060):
+ *  the published products (indexed roster), the shared catalog every release
+ *  pins, and the org's active price table. Prop-passed in (the engine requires
+ *  a price table, so the canvas only renders when `prices` is present). */
+export interface SiteDeriveContext {
+  products: ConfigurableProduct[];
+  catalog: Catalog;
+  prices: PriceTable;
+}
 
 /** One placed instance as the canvas stores it: which release (by product
- *  index, the interim source's addressing) and the user's config input. The
+ *  index into the context's roster) and the user's config input. The
  *  pose/terrain live on the Site's placement, keyed by the same instanceId. */
 export interface PlacedInstance {
   instanceId: string;
@@ -92,11 +103,16 @@ export interface SiteUiDerivation {
   scene?: Scene3D;
 }
 
-export const releaseOf = (i: PlacedInstance) => products[i.productIndex]!.release;
+export const releaseOf = (ctx: SiteDeriveContext, i: PlacedInstance) =>
+  ctx.products[i.productIndex]!.release;
 
 /** Map the canvas's placed instances to the engine's SiteInstance roster. */
-function siteInstances(placed: PlacedInstance[]): SiteInstance[] {
-  return placed.map((p) => ({ instanceId: p.instanceId, release: releaseOf(p), input: p.input }));
+function siteInstances(ctx: SiteDeriveContext, placed: PlacedInstance[]): SiteInstance[] {
+  return placed.map((p) => ({
+    instanceId: p.instanceId,
+    release: releaseOf(ctx, p),
+    input: p.input,
+  }));
 }
 
 /** Inject a placement's terrain-segment elevation into the release's declared
@@ -104,9 +120,9 @@ function siteInstances(placed: PlacedInstance[]): SiteInstance[] {
  *  selected instance's wizard scope matches what the site composes. Best-effort
  *  for display: a genuine conflict is surfaced authoritatively on the site
  *  result, so here the terrain value simply wins for the form's scope. */
-function terrainInput(site: Site, instance: PlacedInstance): ConfigInput {
+function terrainInput(ctx: SiteDeriveContext, site: Site, instance: PlacedInstance): ConfigInput {
   const placement = site.placements.find((p) => p.instanceId === instance.instanceId);
-  const release = releaseOf(instance);
+  const release = releaseOf(ctx, instance);
   if (placement?.terrainSegmentId === undefined || release.terrain === undefined) {
     return instance.input;
   }
@@ -119,14 +135,15 @@ function terrainInput(site: Site, instance: PlacedInstance): ConfigInput {
  *  `relevance` and effective-value badges read. Computed on demand for the one
  *  instance whose wizard is open, terrain-injected to match the site. */
 export function deriveInstanceScope(
+  ctx: SiteDeriveContext,
   site: Site,
   instance: PlacedInstance,
 ): { result: DerivationResult; scope?: Scope } {
   const { result, scope } = deriveInstanceDetailed(
-    releaseOf(instance),
-    terrainInput(site, instance),
-    prices,
-    catalog,
+    releaseOf(ctx, instance),
+    terrainInput(ctx, site, instance),
+    ctx.prices,
+    ctx.catalog,
   );
   return { result, ...(scope && { scope }) };
 }
@@ -171,8 +188,12 @@ function footprintFor(
   return buildSitePlan(soloSite, solo).instances[0];
 }
 
-export function deriveSiteForUi(site: Site, placed: PlacedInstance[]): SiteUiDerivation {
-  const result = deriveSite(site, siteInstances(placed), prices, catalog);
+export function deriveSiteForUi(
+  ctx: SiteDeriveContext,
+  site: Site,
+  placed: PlacedInstance[],
+): SiteUiDerivation {
+  const result = deriveSite(site, siteInstances(ctx, placed), ctx.prices, ctx.catalog);
 
   const placementOf = new Map(site.placements.map((p) => [p.instanceId, p]));
   const usedPorts = new Set(
@@ -187,7 +208,7 @@ export function deriveSiteForUi(site: Site, placed: PlacedInstance[]): SiteUiDer
       const placement = placementOf.get(p.instanceId)!;
       const instanceResult = result.instances[p.instanceId];
       const anchors = instanceResult?.anchors ?? {};
-      const ports: PortUi[] = (releaseOf(p).ports ?? []).map((port) => {
+      const ports: PortUi[] = (releaseOf(ctx, p).ports ?? []).map((port) => {
         const anchor = anchors[port.id];
         return {
           portId: port.id,
@@ -199,7 +220,7 @@ export function deriveSiteForUi(site: Site, placed: PlacedInstance[]): SiteUiDer
       });
       return {
         instanceId: p.instanceId,
-        product: products[p.productIndex]!,
+        product: ctx.products[p.productIndex]!,
         placement,
         ...(instanceResult !== undefined && { result: instanceResult }),
         footprint: footprintFor(site, result, placement),

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { goldenCtx, goldenProducts } from "../configurator/golden-bundle";
 import { deriveSiteForUi, issuesByConnection, portsCompatible } from "./derive";
-import { initialInstances, initialSite } from "./initial";
+import { demoInstances, demoSite } from "./initial";
 
 /**
  * The site-canvas compute proof (step 6 slice 2): the seeded three-instance
@@ -13,7 +14,7 @@ import { initialInstances, initialSite } from "./initial";
  */
 describe("site canvas derive", () => {
   it("derives the golden three-instance aggregate (delta-0 at site scope)", () => {
-    const d = deriveSiteForUi(initialSite(), initialInstances());
+    const d = deriveSiteForUi(goldenCtx, demoSite(), demoInstances(goldenProducts));
     expect(d.result.isValid).toBe(true);
     expect(d.result.money.total).toBe("129891.504");
     expect(d.instances).toHaveLength(3);
@@ -24,23 +25,23 @@ describe("site canvas derive", () => {
   });
 
   it("counts shared posts once (I6): removing the fence joint restores a post", () => {
-    const site = initialSite();
-    const instances = initialInstances();
+    const site = demoSite();
+    const instances = demoInstances(goldenProducts);
     // Drop connection 1 (fenceA—fenceB): fenceB's start post is no longer
     // consumed, so the aggregate goes up by exactly one fence post.
     const unjoined = { ...site, connections: site.connections.filter((_, i) => i !== 1) };
-    const d = deriveSiteForUi(unjoined, instances);
+    const d = deriveSiteForUi(goldenCtx, unjoined, instances);
     expect(d.result.isValid).toBe(true);
     expect(d.result.money.total).toBe("130241.504");
   });
 
   it("surfaces a connection issue and keeps footprints when a terrain step is too steep (I5)", () => {
-    const site = initialSite();
+    const site = demoSite();
     const tooSteep = {
       ...site,
       terrain: site.terrain.map((s) => (s.id === "s2" ? { ...s, elevation_mm: 400 } : s)),
     };
-    const d = deriveSiteForUi(tooSteep, initialInstances());
+    const d = deriveSiteForUi(goldenCtx, tooSteep, demoInstances(goldenProducts));
     expect(d.result.isValid).toBe(false);
     expect(d.scene).toBeUndefined();
     expect(d.result.issues.some((i) => i.severity === "error")).toBe(true);
@@ -52,9 +53,9 @@ describe("site canvas derive", () => {
   });
 
   it("forms a connection from scratch and resolves its plan endpoints", () => {
-    const noConn = { ...initialSite(), connections: [] };
-    const instances = initialInstances();
-    const before = deriveSiteForUi(noConn, instances);
+    const noConn = { ...demoSite(), connections: [] };
+    const instances = demoInstances(goldenProducts);
+    const before = deriveSiteForUi(goldenCtx, noConn, instances);
     expect(before.connections).toHaveLength(0);
     expect(before.result.sharing).toHaveLength(0);
     const gateRightFree = before.instances
@@ -71,7 +72,7 @@ describe("site canvas derive", () => {
         },
       ],
     };
-    const d = deriveSiteForUi(connected, instances);
+    const d = deriveSiteForUi(goldenCtx, connected, instances);
     expect(d.connections).toHaveLength(1);
     expect(d.connections[0]!.valid).toBe(true);
     expect(Number.isFinite(d.connections[0]!.from.x)).toBe(true);
@@ -86,7 +87,7 @@ describe("site canvas derive", () => {
   });
 
   it("rotates port anchors with the pose (arc-minute transform, I10)", () => {
-    const base = deriveSiteForUi(initialSite(), initialInstances());
+    const base = deriveSiteForUi(goldenCtx, demoSite(), demoInstances(goldenProducts));
     const flat = base.instances.find((i) => i.instanceId === "fenceA")!;
     const flatStart = flat.ports.find((p) => p.portId === "start")!.at!;
     const flatEnd = flat.ports.find((p) => p.portId === "end")!.at!;
@@ -94,13 +95,15 @@ describe("site canvas derive", () => {
     // Flat: the run lies along plan-x (the two end anchors share a plan-y).
     expect(Math.round(flatEnd.y - flatStart.y)).toBe(0);
 
-    const rotated = initialSite();
+    const rotated = demoSite();
     rotated.placements = rotated.placements.map((p) =>
       p.instanceId === "fenceA" ? { ...p, pose: { ...p.pose, rotationArcMin: 5400 } } : p,
     );
-    const turned = deriveSiteForUi(rotated, initialInstances()).instances.find(
-      (i) => i.instanceId === "fenceA",
-    )!;
+    const turned = deriveSiteForUi(
+      goldenCtx,
+      rotated,
+      demoInstances(goldenProducts),
+    ).instances.find((i) => i.instanceId === "fenceA")!;
     const start = turned.ports.find((p) => p.portId === "start")!.at!;
     const end = turned.ports.find((p) => p.portId === "end")!.at!;
     // After a quarter turn the run points along plan-y (x unchanged), length kept.
@@ -109,7 +112,7 @@ describe("site canvas derive", () => {
   });
 
   it("offers only mutually-compatible ports and marks used ones (I7)", () => {
-    const d = deriveSiteForUi(initialSite(), initialInstances());
+    const d = deriveSiteForUi(goldenCtx, demoSite(), demoInstances(goldenProducts));
     const gate = d.instances.find((i) => i.instanceId === "gate")!;
     const fenceA = d.instances.find((i) => i.instanceId === "fenceA")!;
     const gateRight = gate.ports.find((p) => p.portId === "right")!;

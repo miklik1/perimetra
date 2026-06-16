@@ -6,7 +6,7 @@ import { I18nProvider } from "@repo/i18n/web";
 import { resolveUi } from "@repo/model";
 
 import { deriveForUi } from "./derive";
-import { products } from "./products";
+import { goldenCatalog, goldenPrices, goldenProducts } from "./golden-bundle";
 import { Wizard } from "./wizard";
 
 /**
@@ -16,10 +16,10 @@ import { Wizard } from "./wizard";
  * (delta-0 reaching the UI layer). The 3D canvas itself stays untested here —
  * jsdom has no WebGL; frame/walker math is pure and lives outside it.
  */
-const gate = products[0]!;
+const gate = goldenProducts[0]!;
 
 function renderWizard(onValueChange = vi.fn(), stepIndex = 0) {
-  const derivation = deriveForUi(gate, gate.initialInput);
+  const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalog);
   const steps = resolveUi(gate.release, derivation.scope ?? gate.initialInput);
   render(
     <I18nProvider locale="cs" messages={cs}>
@@ -39,7 +39,7 @@ function renderWizard(onValueChange = vi.fn(), stepIndex = 0) {
 
 describe("configurator (step 6 slice 1)", () => {
   it("derives the Excel-anchored golden total in the UI compute path", () => {
-    const derivation = deriveForUi(gate, gate.initialInput);
+    const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalog);
     expect(derivation.result.isValid).toBe(true);
     expect(derivation.result.money.total).toBe("81451.504");
     // The degenerate one-instance site renders: pieces present, none shared away.
@@ -48,7 +48,12 @@ describe("configurator (step 6 slice 1)", () => {
   });
 
   it("surfaces typed issues instead of partial output on invalid input (I5)", () => {
-    const derivation = deriveForUi(gate, { ...gate.initialInput, clear_height_mm: 100 });
+    const derivation = deriveForUi(
+      gate,
+      { ...gate.initialInput, clear_height_mm: 100 },
+      goldenPrices,
+      goldenCatalog,
+    );
     expect(derivation.result.isValid).toBe(false);
     expect(derivation.scene).toBeUndefined();
     expect(derivation.result.issues.some((i) => i.severity === "error")).toBe(true);

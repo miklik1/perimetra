@@ -13,7 +13,7 @@ import { errorMessageKey } from "../../lib/error-messages";
 import { createProjectsQueries } from "../../lib/projects-queries";
 import { toast } from "../../lib/toast";
 import { usePriceBlind } from "../../lib/use-role";
-import { products } from "../configurator/products";
+import type { CatalogBundle } from "../configurator/products";
 import { SceneViewport } from "../configurator/scene/scene-viewport";
 import {
   deriveInstanceScope,
@@ -21,8 +21,9 @@ import {
   portsCompatible,
   releaseOf,
   type PlacedInstance,
+  type SiteDeriveContext,
 } from "./derive";
-import { initialInstances as demoInstances, initialSite as demoSite } from "./initial";
+import { demoInstances, demoSite } from "./initial";
 import { InstancePanel } from "./instance-panel";
 import { Palette } from "./palette";
 import { toSavePayload } from "./persistence";
@@ -36,29 +37,78 @@ const PLACE_SPACING_MM = 6000;
 
 /**
  * The site canvas (CORE_SPEC §8, step 6 slice 2): the generated configurator at
- * SITE scope (I11). The user places vendor releases, drags their poses,
- * connects their ports, and assigns terrain — and the whole site re-derives in
- * the browser per edit (the engine is pure — I1 — so the client is a valid
- * host). Two truths kept apart so editing never dead-ends: the aggregate
- * BOM/price/3D render off the one `deriveSite` when valid, while per-instance
- * footprints stay draggable even when a bad connection invalidates the site.
- * Gated like every tenant surface (proxy prefix + AuthGuard).
+ * SITE scope (I11). The user places vendor releases, drags their poses, connects
+ * their ports, and assigns terrain — and the whole site re-derives in the browser
+ * per edit (the engine is pure — I1). Gated like every tenant surface (proxy
+ * prefix + AuthGuard).
  *
  * Project-scoped (step 6.3c): the canvas opens on the saved project (loaded by
- * the RSC and prop-passed as `initialSite` + `initialInstances`) and saves the
- * whole site + roster back with one PUT. Edits stay local React state until
- * Save — the engine re-derives per edit (pure, I1), but persistence is explicit.
+ * the RSC, resolved against the api-served roster, and prop-passed). The catalog
+ * bundle (releases/catalog/active price table) is served by the api (ADR 0060);
+ * the engine needs a price table, so a price-blind/workshop session (no `prices`,
+ * ADR 0056) or an unpublished catalog renders a notice instead of the canvas.
  */
 export function SiteClient({
   projectId,
   initialSite,
   initialInstances,
+  bundle,
 }: {
   projectId: string;
   initialSite: Site;
   initialInstances: PlacedInstance[];
+  bundle: CatalogBundle | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("site");
+
+  const notice = (message: string) => (
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
+      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center">
+        {message}
+      </p>
+    </main>
+  );
+
+  return (
+    <AuthGuard
+      redirect={() => router.push("/login")}
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">
+          {t("checkingSession")}
+        </main>
+      }
+    >
+      {bundle === null || bundle.products.length === 0 || bundle.catalog === null ? (
+        notice(t("noProducts"))
+      ) : bundle.prices === null ? (
+        notice(t("noPrices"))
+      ) : (
+        <SiteCanvas
+          projectId={projectId}
+          initialSite={initialSite}
+          initialInstances={initialInstances}
+          ctx={{ products: bundle.products, catalog: bundle.catalog, prices: bundle.prices }}
+        />
+      )}
+    </AuthGuard>
+  );
+}
+
+/** The stateful canvas, rendered once the bundle has products + a catalog + a
+ *  price table (the engine's required inputs). */
+function SiteCanvas({
+  projectId,
+  initialSite,
+  initialInstances,
+  ctx,
+}: {
+  projectId: string;
+  initialSite: Site;
+  initialInstances: PlacedInstance[];
+  ctx: SiteDeriveContext;
+}) {
   const t = useTranslations("site");
   const tErrors = useTranslations("errors");
 
@@ -76,9 +126,12 @@ export function SiteClient({
   // edit, so this stringify is cheap at the slice's scale.
   const projectsQueries = createProjectsQueries(useApiClient());
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
-    JSON.stringify(toSavePayload(initialSite, initialInstances)),
+    JSON.stringify(toSavePayload(initialSite, initialInstances, ctx.products)),
   );
-  const currentPayload = useMemo(() => toSavePayload(site, instances), [site, instances]);
+  const currentPayload = useMemo(
+    () => toSavePayload(site, instances, ctx.products),
+    [site, instances, ctx.products],
+  );
   const dirty = JSON.stringify(currentPayload) !== savedSnapshot;
 
   const saveMutation = useMutation({
@@ -99,12 +152,11 @@ export function SiteClient({
     );
   };
 
-  // Load demo: drop the golden fixtures roster into this project (unsaved until
-  // the user clicks Save) — the interim convenience while releases live in
-  // @repo/fixtures rather than an api-served catalog.
+  // Load demo: drop the golden roster into this project (unsaved until Save). The
+  // configs come from the api-served products' `initialInput` (ADR 0060).
   const loadDemo = () => {
     setSite(demoSite());
-    setInstances(demoInstances());
+    setInstances(demoInstances(ctx.products));
     setSelectedId(undefined);
     setConnectFrom(undefined);
     setStepByInstance({});
@@ -115,22 +167,22 @@ export function SiteClient({
   // aggregate (BOM/3D) could be deferred to drag-end while footprints update
   // live. The selected instance is derived once more below for its form scope —
   // the same split the configurator uses (scope isn't on SiteResult).
-  const derivation = useMemo(() => deriveSiteForUi(site, instances), [site, instances]);
+  const derivation = useMemo(() => deriveSiteForUi(ctx, site, instances), [ctx, site, instances]);
   // FE mirror of the server price-blind rule (ADR 0056) — workshop sees no money.
   const priceBlind = usePriceBlind();
 
   const selectedPlaced = instances.find((i) => i.instanceId === selectedId);
   const selectedUi = derivation.instances.find((i) => i.instanceId === selectedId);
   const selectedDerive = useMemo(
-    () => (selectedPlaced ? deriveInstanceScope(site, selectedPlaced) : undefined),
-    [site, selectedPlaced],
+    () => (selectedPlaced ? deriveInstanceScope(ctx, site, selectedPlaced) : undefined),
+    [ctx, site, selectedPlaced],
   );
   const selectedSteps = useMemo(
     () =>
       selectedPlaced
-        ? resolveUi(releaseOf(selectedPlaced), selectedDerive?.scope ?? selectedPlaced.input)
+        ? resolveUi(releaseOf(ctx, selectedPlaced), selectedDerive?.scope ?? selectedPlaced.input)
         : [],
-    [selectedPlaced, selectedDerive],
+    [ctx, selectedPlaced, selectedDerive],
   );
 
   const newId = (modelId: string) => {
@@ -147,7 +199,7 @@ export function SiteClient({
   };
 
   const addInstance = (productIndex: number) => {
-    const product = products[productIndex]!;
+    const product = ctx.products[productIndex]!;
     const id = newId(product.release.modelId);
     setInstances((prev) => [
       ...prev,
@@ -303,79 +355,70 @@ export function SiteClient({
   };
 
   return (
-    <AuthGuard
-      redirect={() => router.push("/login")}
-      fallback={
-        <main className="flex min-h-screen items-center justify-center">
-          {t("checkingSession")}
-        </main>
-      }
-    >
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">{t("title")}</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-xs">
-              {dirty ? t("unsaved") : t("allSaved")}
-            </span>
-            <Button type="button" variant="outline" onClick={loadDemo}>
-              {t("loadDemo")}
-            </Button>
-            <Button type="button" onClick={save} disabled={!dirty || saveMutation.isPending}>
-              {saveMutation.isPending ? t("saving") : t("save")}
-            </Button>
-          </div>
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-xs">
+            {dirty ? t("unsaved") : t("allSaved")}
+          </span>
+          <Button type="button" variant="outline" onClick={loadDemo}>
+            {t("loadDemo")}
+          </Button>
+          <Button type="button" onClick={save} disabled={!dirty || saveMutation.isPending}>
+            {saveMutation.isPending ? t("saving") : t("save")}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="flex flex-col gap-4">
+          <Palette
+            products={ctx.products}
+            instances={derivation.instances}
+            selectedId={selectedId}
+            onAdd={addInstance}
+            onSelect={selectInstance}
+            onRemove={removeInstance}
+          />
+          {selectedPlaced !== undefined && selectedUi !== undefined && (
+            <InstancePanel
+              instance={selectedUi}
+              input={selectedPlaced.input}
+              site={site}
+              steps={selectedSteps}
+              stepIndex={stepByInstance[selectedPlaced.instanceId] ?? 0}
+              scope={selectedDerive?.scope}
+              onStepChange={setStep}
+              onValueChange={setValue}
+              onRotate={rotateSelected}
+              onAssignSegment={assignSegment}
+              onRemove={() => removeInstance(selectedPlaced.instanceId)}
+            />
+          )}
+          <TerrainPanel terrain={site.terrain} onElevationChange={setSegmentElevation} />
         </div>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
-          <div className="flex flex-col gap-4">
-            <Palette
-              products={products}
-              instances={derivation.instances}
-              selectedId={selectedId}
-              onAdd={addInstance}
-              onSelect={selectInstance}
-              onRemove={removeInstance}
-            />
-            {selectedPlaced !== undefined && selectedUi !== undefined && (
-              <InstancePanel
-                instance={selectedUi}
-                input={selectedPlaced.input}
-                site={site}
-                steps={selectedSteps}
-                stepIndex={stepByInstance[selectedPlaced.instanceId] ?? 0}
-                scope={selectedDerive?.scope}
-                onStepChange={setStep}
-                onValueChange={setValue}
-                onRotate={rotateSelected}
-                onAssignSegment={assignSegment}
-                onRemove={() => removeInstance(selectedPlaced.instanceId)}
-              />
-            )}
-            <TerrainPanel terrain={site.terrain} onElevationChange={setSegmentElevation} />
-          </div>
-
-          <div className="flex flex-col gap-4">
-            {connectFrom !== undefined && (
-              <p className="border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm">
-                {t("connectHint", { instance: connectFrom.instanceId, port: connectFrom.portId })}
-              </p>
-            )}
-            <PlanCanvas
-              instances={derivation.instances}
-              connections={derivation.connections}
-              selectedId={selectedId}
-              connectFrom={connectFrom}
-              onSelect={selectInstance}
-              onMove={moveInstance}
-              onPortClick={handlePortClick}
-              onRemoveConnection={removeConnection}
-            />
-            <SceneViewport scene={derivation.scene} />
-            <SiteResultsPanel result={derivation.result} priceBlind={priceBlind} />
-          </div>
+        <div className="flex flex-col gap-4">
+          {connectFrom !== undefined && (
+            <p className="border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm">
+              {t("connectHint", { instance: connectFrom.instanceId, port: connectFrom.portId })}
+            </p>
+          )}
+          <PlanCanvas
+            instances={derivation.instances}
+            connections={derivation.connections}
+            selectedId={selectedId}
+            connectFrom={connectFrom}
+            onSelect={selectInstance}
+            onMove={moveInstance}
+            onPortClick={handlePortClick}
+            onRemoveConnection={removeConnection}
+          />
+          <SceneViewport scene={derivation.scene} />
+          <SiteResultsPanel result={derivation.result} priceBlind={priceBlind} />
         </div>
-      </main>
-    </AuthGuard>
+      </div>
+    </main>
   );
 }

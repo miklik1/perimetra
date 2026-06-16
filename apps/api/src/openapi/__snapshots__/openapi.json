@@ -1223,7 +1223,11 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "body": {}
+          "body": {},
+          "initialInput": {
+            "type": "object",
+            "additionalProperties": {}
+          }
         },
         "required": [
           "catalogVersion",

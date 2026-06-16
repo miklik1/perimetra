@@ -19,6 +19,7 @@ import {
 } from "@nestjs/common";
 
 import { type ReleaseRow } from "@repo/db/schema/releases";
+import { gateInput, type ConfigInput } from "@repo/engine";
 import { assertValidRelease, ReleaseValidationError, type ProductModelRelease } from "@repo/model";
 import {
   type ListReleasesQuery,
@@ -73,7 +74,11 @@ function toSummary(row: ReleaseRow): ReleaseSummary {
 }
 
 function toDetail(row: ReleaseRow): ReleaseDetail {
-  return { ...toSummary(row), body: row.body };
+  return {
+    ...toSummary(row),
+    body: row.body,
+    initialInput: (row.initialInput as ConfigInput) ?? null,
+  };
 }
 
 @Injectable()
@@ -130,6 +135,20 @@ export class ReleasesService {
       throw error;
     }
 
+    // The configurator opens on `initialInput`; a bad example would render an
+    // invalid/blank product. Gate it against the release (the same I7 input gate
+    // the engine runs) so a broken starting config can never be frozen in.
+    if (input.initialInput) {
+      const issues = gateInput(body, input.initialInput as ConfigInput);
+      if (issues.length > 0) {
+        throw new UnprocessableEntityException({
+          message: "initialInput is not a valid configuration for this release",
+          code: "initial_input_invalid",
+          issues,
+        });
+      }
+    }
+
     const existing = await this.releases.findByReleaseId(body.id);
     if (existing) {
       throw new ConflictException(`${body.id} is already published (immutable, I3)`);
@@ -143,6 +162,7 @@ export class ReleasesService {
       catalogVersion: input.catalogVersion,
       status: "published",
       body: published,
+      initialInput: input.initialInput ?? null,
     });
 
     await this.audit.record({

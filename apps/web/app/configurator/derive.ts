@@ -14,11 +14,12 @@ import {
   deriveSite,
   type ConfigInput,
   type DerivationResult,
+  type PriceTable,
 } from "@repo/engine";
-import type { Scope, Site } from "@repo/model";
+import type { Catalog, Scope, Site } from "@repo/model";
 import { buildScene, type Scene3D } from "@repo/renderers";
 
-import { catalog, prices, type ConfigurableProduct } from "./products";
+import { type ConfigurableProduct } from "./products";
 
 export interface UiDerivation {
   result: DerivationResult;
@@ -41,7 +42,12 @@ const previewSite: Site = {
   connections: [],
 };
 
-export function deriveForUi(product: ConfigurableProduct, input: ConfigInput): UiDerivation {
+export function deriveForUi(
+  product: ConfigurableProduct,
+  input: ConfigInput,
+  prices: PriceTable,
+  catalog: Catalog,
+): UiDerivation {
   const { release } = product;
   const detailed = deriveInstanceDetailed(release, input, prices, catalog);
   if (!detailed.result.isValid) {

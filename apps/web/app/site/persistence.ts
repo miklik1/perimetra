@@ -1,10 +1,12 @@
 /**
  * The seam between the persisted project (the api's `ProjectSite` contract) and
  * the canvas's editable state (`Site` + `PlacedInstance[]`, step 6.3c). The
- * canvas addresses instances by product index (the interim fixtures source's
- * addressing); persistence pins them by the durable release id — these two
- * functions are the only place that translation happens, so the rest of the
- * canvas stays unaware that a save/load round-trips through a release id.
+ * canvas addresses instances by product index (into the api-served roster);
+ * persistence pins them by the durable release id — these two functions are the
+ * only place that translation happens, so the rest of the canvas stays unaware
+ * that a save/load round-trips through a release id. The product roster +
+ * release-id index are passed in (ADR 0060: served by the api, not a module
+ * singleton).
  *
  * The Site graph crosses opaquely (the engine is the validation gate, I5), so a
  * loaded `site` is cast back to `Site` and a half-built/invalid site round-trips
@@ -14,7 +16,7 @@ import type { ConfigInput } from "@repo/engine";
 import type { Site } from "@repo/model";
 import type { ProjectSite, SaveProjectSiteInput } from "@repo/validators";
 
-import { productIndexByRelease, products } from "../configurator/products";
+import type { ConfigurableProduct } from "../configurator/products";
 import type { PlacedInstance } from "./derive";
 
 /** A fresh, valid empty site for a project with nothing designed yet. */
@@ -24,14 +26,14 @@ export function emptySite(projectId: string): Site {
 
 /**
  * Persisted `ProjectSite` → canvas state. A null `site` (never designed) opens
- * an empty plot. A roster entry whose release id is unknown to the interim
- * source is dropped (it has no product to render) — once releases are
- * api-served this can't happen, but until then it keeps a stale pin from
- * crashing the canvas; its placement is pruned to match so no orphan draws.
+ * an empty plot. A roster entry whose release id is absent from the api-served
+ * roster is dropped (it has no product to render — e.g. a release retired or not
+ * yet published); its placement is pruned to match so no orphan draws.
  */
 export function fromProjectSite(
   projectId: string,
   data: ProjectSite,
+  productIndexByRelease: Map<string, number>,
 ): { site: Site; instances: PlacedInstance[] } {
   const instances: PlacedInstance[] = [];
   for (const entry of data.instances) {
@@ -57,10 +59,14 @@ export function fromProjectSite(
 
 /**
  * Canvas state → save payload: the Site graph as-is plus the roster pinned by
- * release id (resolved from each instance's product index). Matches
- * `quoteInstanceInputSchema`, so a saved project is issue-ready.
+ * release id (resolved from each instance's product index against the api-served
+ * roster). Matches `quoteInstanceInputSchema`, so a saved project is issue-ready.
  */
-export function toSavePayload(site: Site, instances: PlacedInstance[]): SaveProjectSiteInput {
+export function toSavePayload(
+  site: Site,
+  instances: PlacedInstance[],
+  products: ConfigurableProduct[],
+): SaveProjectSiteInput {
   return {
     site,
     instances: instances.map((p) => ({

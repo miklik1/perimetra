@@ -22,6 +22,9 @@
         "src/main.ts",
         "src/worker.ts",
         "src/migrate.ts",
+        // Golden-corpus seed (admin-publish slice, WS4): the one legitimate
+        // runtime consumer of @repo/fixtures in apps/api.
+        "src/seed.ts",
         "src/otel/loader.ts",
         "src/otel/register.ts",
         // Testcontainers integration suite (spec §14): knip's vitest plugin

@@ -28,17 +28,27 @@ export const releaseSummarySchema = z.object({
 });
 export type ReleaseSummary = z.infer<typeof releaseSummarySchema>;
 
-/** Detail — includes the full `ProductModelRelease` body (the engine runs on it). */
+/** A `ConfigInput` (`@repo/engine`: `Record<string, Value>`) — the configurator's
+ *  starting values. Crosses opaquely (values are `unknown`); `gateInput` validates
+ *  it against the release server-side at publish, so no brittle zod mirror here. */
+export const configInputSchema = z.record(z.string(), z.unknown());
+export type ConfigInputDto = z.infer<typeof configInputSchema>;
+
+/** Detail — includes the full `ProductModelRelease` body (the engine runs on it)
+ *  and the vendor's `initialInput` example (the configurator's starting config). */
 export const releaseSchema = releaseSummarySchema.extend({
   body: z.unknown(),
+  initialInput: configInputSchema.nullable(),
 });
 export type ReleaseDetail = z.infer<typeof releaseSchema>;
 
 /** Publish an immutable release. `body` is a `ProductModelRelease` validated
- *  deeply server-side against the named catalog version. */
+ *  deeply server-side against the named catalog version; `initialInput` (the
+ *  configurator's starting config) is gated against the release via `gateInput`. */
 export const publishReleaseSchema = z.object({
   catalogVersion: z.number().int().nonnegative(),
   body: z.unknown(),
+  initialInput: configInputSchema.optional(),
 });
 export type PublishReleaseInput = z.infer<typeof publishReleaseSchema>;
 

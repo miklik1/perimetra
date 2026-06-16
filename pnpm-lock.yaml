@@ -353,6 +353,9 @@ importers:
       '@repo/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@repo/fixtures':
+        specifier: workspace:*
+        version: link:../../packages/fixtures
       '@repo/flags':
         specifier: workspace:*
         version: link:../../packages/flags
@@ -444,9 +447,6 @@ importers:
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@repo/fixtures':
-        specifier: workspace:*
-        version: link:../../packages/fixtures
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../tooling/typescript
@@ -664,9 +664,6 @@ importers:
       '@repo/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@repo/fixtures':
-        specifier: workspace:*
-        version: link:../../packages/fixtures
       '@repo/flags':
         specifier: workspace:*
         version: link:../../packages/flags
@@ -740,6 +737,9 @@ importers:
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
+      '@repo/fixtures':
+        specifier: workspace:*
+        version: link:../../packages/fixtures
       '@repo/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier-config

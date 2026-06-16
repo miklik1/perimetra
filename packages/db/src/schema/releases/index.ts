@@ -37,6 +37,12 @@ export const release = pgTable(
     status: text("status").notNull().$type<ReleaseStatus>(),
     /** Full `ProductModelRelease` payload (JSONB); typed at the apps/api edge. */
     body: jsonb("body").notNull(),
+    /** The vendor's canonical example config (a valid `ConfigInput`) — the
+     *  configurator's starting point, gated at publish via `gateInput`. Publish
+     *  METADATA (like `catalogVersion`), NOT part of the immutable derivation
+     *  body / I3 stamp; nullable (a release may ship no UI example). Typed at
+     *  the apps/api edge (kept dep-free here, like `body`). */
+    initialInput: jsonb("initial_input"),
     ...timestamps(),
   },
   (table) => [
