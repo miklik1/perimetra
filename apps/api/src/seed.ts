@@ -5,7 +5,12 @@
  * Idempotent: each publish call is wrapped in a try/catch that silently skips
  * ConflictException (409) — re-running is always safe.
  *
- * Catalog versions + releases are global vendor data (no org scope).
+ * Catalog versions + releases are global vendor data (no org scope) — published
+ * via the services (bypassing the HTTP `PlatformGuard`, ADR 0062). Per-tenant
+ * VISIBILITY (ADR 0062) is then provisioned: every org is ASSIGNED the golden
+ * corpus so dev `/configurator`·`/site` keep working (a fresh signup made AFTER
+ * the seed starts with NO assignments — the vendor assigns explicitly). If
+ * `PLATFORM_ADMIN_EMAIL` is set, that user is promoted to the platform operator.
  * Price tables are per-org: we query every org that lacks a price-table row at
  * `sitePrices.version` and publish one using that org's owner's userId.
  *
@@ -23,7 +28,7 @@ import { and, eq } from "drizzle-orm";
 import { ClsService } from "nestjs-cls";
 
 import { type Db } from "@repo/db";
-import { member, organization } from "@repo/db/schema/auth";
+import { member, organization, user } from "@repo/db/schema/auth";
 import {
   catalogV1,
   catalogV2,
@@ -96,8 +101,26 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // --- 5: Per-org price tables ------------------------------------------------
-  console.log("\n[seed] Publishing per-org price tables...");
+  // --- 5: Platform operator (ADR 0062) ---------------------------------------
+  // Promote the configured user so they can publish + assign through the /platform
+  // console in dev. Idempotent — re-setting the same role is a no-op.
+  const platformEmail = process.env.PLATFORM_ADMIN_EMAIL?.toLowerCase();
+  if (platformEmail) {
+    console.log("\n[seed] Promoting platform operator...");
+    const promoted = await db
+      .update(user)
+      .set({ role: "admin" })
+      .where(eq(user.email, platformEmail))
+      .returning({ id: user.id });
+    console.log(
+      promoted.length > 0
+        ? `  ✓ platform operator: ${platformEmail}`
+        : `  – platform operator ${platformEmail} not found (sign up first), skipping`,
+    );
+  }
+
+  // --- 6: Per-org release assignment + price tables --------------------------
+  console.log("\n[seed] Provisioning per-org assignments + price tables...");
 
   // Fetch all organizations + their owner member (role = "owner").
   const orgs = await db
@@ -113,6 +136,15 @@ async function bootstrap(): Promise<void> {
   } else {
     for (const { orgId, ownerId } of orgs) {
       const orgScope = { userId: ownerId, organizationId: orgId };
+
+      // Per-tenant VISIBILITY (ADR 0062): assign the golden corpus to this org
+      // so the configurator/site see it. assign() is idempotent (the unique
+      // index no-ops a re-assign), so re-running the seed is safe.
+      for (const releaseId of [slidingGateV1.id, fenceRunV1.id]) {
+        await withSkip(`assign ${releaseId} → org ${orgId}`, () =>
+          releases.assign(SYSTEM_SCOPE.userId, orgId, releaseId),
+        );
+      }
 
       // Idempotency check: skip if this org already has a table at this version.
       const existing = await cls.run(() => priceTables.loadByVersion(orgScope, sitePrices.version));

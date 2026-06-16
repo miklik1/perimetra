@@ -18,6 +18,7 @@
 import { index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { id, timestamps } from "../../columns.js";
+import { organization } from "../auth/index.js";
 
 /** Mirrors `ReleaseStatus` in @repo/model (draft authoring is vendor-internal;
  *  the store only ever holds published/retired rows in this slice). */
@@ -55,3 +56,46 @@ export const release = pgTable(
 
 export type ReleaseRow = typeof release.$inferSelect;
 export type NewReleaseRow = typeof release.$inferInsert;
+
+/**
+ * Per-tenant release ASSIGNMENT (CORE_SPEC §3, ADR 0062) — which immutable
+ * releases an organization may SEE/configure. The vendor (platform operator)
+ * assigns; a tenant's release LIST filters through this join, so an org sees
+ * only its assigned releases (closing the interim "all published visible to
+ * every org" leak). DISCOVERY metadata, NOT I3 data:
+ *
+ *  - `releaseId` is the natural key ("modelId@version"), deliberately NOT a DB
+ *    FK to `release`: the release store is append-only (the key never vanishes)
+ *    and the assign service validates existence + published on write, so a soft
+ *    reference is sound — and it keeps assignments DISPOSABLE. A quote stamped
+ *    on a release re-derives forever via the GLOBAL `findByReleaseId` whether or
+ *    not the assignment still exists (I3 ≠ visibility — the asymmetry is the point).
+ *  - `organizationId` CASCADEs (unlike the I3 stores' RESTRICT): dropping an org
+ *    drops its disposable assignments, never any durable data.
+ *  - unique `(organizationId, releaseId)`: assignment is idempotent set-membership.
+ *  - `assignedBy` is the platform operator's user id — a soft audit ref (like
+ *    `audit.actorId`), no FK.
+ */
+export const orgReleaseAssignment = pgTable(
+  "org_release_assignment",
+  {
+    id: id(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Natural release key ("modelId@version") — soft reference (see above). */
+    releaseId: text("release_id").notNull(),
+    /** Platform operator who made the assignment (soft audit ref). */
+    assignedBy: text("assigned_by").notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    // Idempotent set-membership: one row per (org, release).
+    uniqueIndex("org_release_assignment_org_release_uq").on(t.organizationId, t.releaseId),
+    // Reverse lookup — which orgs see a given release (the platform view).
+    index("org_release_assignment_release_idx").on(t.releaseId),
+  ],
+);
+
+export type OrgReleaseAssignmentRow = typeof orgReleaseAssignment.$inferSelect;
+export type NewOrgReleaseAssignmentRow = typeof orgReleaseAssignment.$inferInsert;

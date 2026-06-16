@@ -13,5 +13,7 @@ export * from "./releases";
 export * from "./catalog-versions";
 export * from "./price-tables";
 export * from "./quotes";
+// Platform/vendor console contracts (ADR 0062): tenant list + release assignment.
+export * from "./platform";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";

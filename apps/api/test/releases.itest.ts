@@ -12,6 +12,7 @@
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { type Db } from "@repo/db";
 import { deriveInstance, deriveSite, type SiteInstance } from "@repo/engine";
 import {
   catalogV2,
@@ -26,7 +27,16 @@ import {
 } from "@repo/fixtures";
 import { type Catalog, type ProductModelRelease, type Site } from "@repo/model";
 
-import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
+import { DB } from "../src/common/db/db.module.js";
+import {
+  assignReleases,
+  createApiApp,
+  inject,
+  orgIdOf,
+  promotePlatformAdmin,
+  signUpUser,
+  type TestUser,
+} from "./setup/app.js";
 
 interface ReleaseDetail {
   id: string;
@@ -51,7 +61,12 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
 
   beforeAll(async () => {
     app = await createApiApp();
+    const db = app.get<Db>(DB);
     admin = await signUpUser(app, "vendor-admin");
+    // Publishing is VENDOR-only (ADR 0062): the publisher must be the platform
+    // operator. Promote, then assign to its own org so the tenant-scoped list +
+    // GET /:id (also ADR 0062) resolve the rows below.
+    await promotePlatformAdmin(db, admin.id);
 
     // Global immutable stores are SHARED across itest files — a sibling may
     // have published these fixtures already (409). Tolerate that; the rows the
@@ -73,6 +88,11 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
       });
       expect([201, 409]).toContain(res.statusCode);
     }
+
+    await assignReleases(app, admin, await orgIdOf(db, admin.id), [
+      "sliding-gate@1",
+      "fence-run@1",
+    ]);
 
     // Resolve the persisted rows for the round-trip + derivation assertions.
     const list = (

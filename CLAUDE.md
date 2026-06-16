@@ -85,11 +85,23 @@ golden corpus via the services (idempotent, setup.mjs step); **retires the ⌛
 `@repo/fixtures` web runtime source** (now web test-only). Plus the **admin
 publish UI** (ADR 0061): admin-gated `/admin` (JSON paste for catalog/release,
 structured price-table form, renders I2 `defects[]`). Workshop is price-blind by
-absence (403 on `/price-tables/active` → notice, not the engine).
-Next: step-6 follow-ups — per-tenant release visibility/assignment (CORE_SPEC §3;
-interim: all published releases visible to every org), new-org default price-table
-auto-provision, admin (`adjustability: tenant`), issue-key i18n + deviation-
-override UX, `/site`↔`/configurator` convergence.
+absence (403 on `/price-tables/active` → notice, not the engine). Per-tenant
+release visibility (2026-06-16, ADR 0062): **vendor-assigns via a platform actor**
+— Better Auth `user.role='admin'` wired as a `PlatformGuard` (resolved fresh per
+request, like `RolesGuard`); authoring (release/catalog **publish**) retiered
+org-admin→**vendor-only** (CORE_SPEC §3); a new `org_release_assignment(org,
+releaseId)` join (soft natural-key ref, disposable — owned by the releases module)
+filters the tenant `GET /v1/releases` to assigned-only (and `/:id` 404s an
+unassigned one — no body leak); quote `issue` gates on assignment (defense-in-depth)
+but re-derivation does NOT — **I3 ≠ visibility** (a quote on a since-unassigned
+release still reproduces `129891.504`); `/v1/platform/*` vendor console (assign/
+unassign/list orgs) + web `/platform` (publish moved off `/admin`, which keeps
+price tables). Seed promotes `PLATFORM_ADMIN_EMAIL` + assigns the corpus to seeded
+orgs; a fresh org starts with NO assignments (vendor assigns explicitly).
+Next: step-6 follow-ups — new-org default price-table auto-provision, release
+version-pin / opt-in-upgrade UX + new-org default release assignment, admin
+(`adjustability: tenant`), issue-key i18n + deviation-override UX,
+`/site`↔`/configurator` convergence.
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

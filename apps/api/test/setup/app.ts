@@ -11,7 +11,12 @@ import { randomUUID } from "node:crypto";
 import { VersioningType } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
+import { eq } from "drizzle-orm";
 import { type FastifyInstance, type InjectOptions, type LightMyRequestResponse } from "fastify";
+
+import { type Db } from "@repo/db";
+import { member, user as userTable } from "@repo/db/schema/auth";
+import { catalogV2, fenceRunV1, slidingGateV1 } from "@repo/fixtures";
 
 import { AppModule } from "../../src/app.module.js";
 
@@ -98,6 +103,80 @@ export async function signUpUser(
   if (!cookie) throw new Error("sign-up returned no session cookie");
 
   return { id: body.user.id, email, password, name, cookie };
+}
+
+/**
+ * Promote a user to the Better Auth platform/vendor operator (ADR 0062 —
+ * `user.role='admin'`): the actor allowed to PUBLISH releases/catalog and ASSIGN
+ * releases to orgs. `PlatformGuard` resolves this fresh from the DB per request,
+ * so the promotion takes effect on the user's next request (no re-login).
+ */
+export async function promotePlatformAdmin(db: Db, userId: string): Promise<void> {
+  await db.update(userTable).set({ role: "admin" }).where(eq(userTable.id, userId));
+}
+
+/** A user's (sole) active org id — the auto-provisioned workspace (ADR 0055). */
+export async function orgIdOf(db: Db, userId: string): Promise<string> {
+  const [row] = await db
+    .select({ orgId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1);
+  if (!row) throw new Error(`no membership for user ${userId}`);
+  return row.orgId;
+}
+
+/** Assign published releases to an org over HTTP, as a platform operator (ADR 0062). */
+export async function assignReleases(
+  app: NestFastifyApplication,
+  platformUser: TestUser,
+  orgId: string,
+  releaseIds: string[],
+): Promise<void> {
+  for (const releaseId of releaseIds) {
+    const res = await inject(app, {
+      method: "POST",
+      url: `/v1/platform/organizations/${orgId}/releases`,
+      headers: { cookie: platformUser.cookie },
+      payload: { releaseId },
+    });
+    if (![200, 201].includes(res.statusCode)) {
+      throw new Error(`assign ${releaseId}→${orgId} failed (${res.statusCode}): ${res.body}`);
+    }
+  }
+}
+
+/**
+ * Seed the golden corpus (catalog@2 + sliding-gate@1 + fence-run@1) GLOBALLY via
+ * a throwaway platform operator, then ASSIGN it to `orgUser`'s org (ADR 0062) so
+ * that org can configure/issue. The global publish is idempotent across itest
+ * files (tolerates 409 — the stores are shared). Returns nothing; throws on an
+ * unexpected status.
+ */
+export async function seedGoldenCorpusFor(
+  app: NestFastifyApplication,
+  db: Db,
+  orgUser: TestUser,
+): Promise<void> {
+  const platform = await signUpUser(app, "platform-seed");
+  await promotePlatformAdmin(db, platform.id);
+  const post = (url: string, payload: Record<string, unknown>) =>
+    inject(app, { method: "POST", url, headers: { cookie: platform.cookie }, payload });
+
+  const cat = await post("/v1/catalog-versions", { body: catalogV2 });
+  if (![201, 409].includes(cat.statusCode)) {
+    throw new Error(`seed catalog@2 failed (${cat.statusCode}): ${cat.body}`);
+  }
+  for (const body of [slidingGateV1, fenceRunV1]) {
+    const rel = await post("/v1/releases", { catalogVersion: 2, body });
+    if (![201, 409].includes(rel.statusCode)) {
+      throw new Error(`seed release failed (${rel.statusCode}): ${rel.body}`);
+    }
+  }
+  await assignReleases(app, platform, await orgIdOf(db, orgUser.id), [
+    "sliding-gate@1",
+    "fence-run@1",
+  ]);
 }
 
 /** Poll until `predicate` resolves true — for worker-processed effects. */

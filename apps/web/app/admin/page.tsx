@@ -4,9 +4,11 @@ import { createServerApiClient } from "../../lib/server-api";
 import { AdminClient } from "./admin-client";
 
 /**
- * Admin publish page (ADR 0061). Prefetches `me()` so the client leaf renders
- * the role-correct UI (admin gate) without a refetch flash. The publish POSTs
- * are `@RequireRole('admin')` — the server enforces; the client gate is UX only.
+ * Tenant admin page (ADR 0061, retiered by ADR 0062): the org's price tables.
+ * Catalog/release publishing + per-tenant assignment moved to `/platform`
+ * (vendor console). Prefetches `me()` so the client leaf renders the role-correct
+ * UI (admin gate) without a refetch flash. The price-table POST is
+ * `@RequireRole('admin')` — the server enforces; the client gate is UX only.
  */
 export default async function AdminPage() {
   const authQueries = createAuthQueries(await createServerApiClient());

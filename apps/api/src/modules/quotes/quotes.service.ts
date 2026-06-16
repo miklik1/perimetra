@@ -203,6 +203,17 @@ export class QuotesService {
       }),
     );
 
+    // Defense-in-depth (ADR 0062): every roster release must be ASSIGNED to this
+    // org. The configurator only offers assigned releases (the `listForOrg`
+    // filter); this closes the direct-API seam at issue. 403 `release_not_assigned`
+    // on a published-but-unassigned release (an UNpublished one already 400'd
+    // above). Re-derivation/verify deliberately does NOT check — a quote on a
+    // since-unassigned release must still reproduce byte-identically (I3).
+    await this.releases.assertAssigned(
+      scope,
+      input.instances.map((i) => i.releaseId),
+    );
+
     // A site derives against ONE catalog version (I3 — a single catalog stamp).
     const catalogVersions = [...new Set(loaded.map((l) => l.detail.catalogVersion))];
     if (catalogVersions.length !== 1) {

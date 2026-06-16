@@ -1,17 +1,26 @@
 /**
- * Releases repository (ADR 0053) — the immutable vendor release store. Like the
- * catalog-versions repository (and unlike `modules/projects`) there is NO
- * RequestScope and NO `scoped()` filter: releases are GLOBAL vendor data. The
- * store is append-only — no update or delete surface (a published release is
- * immutable forever, I3).
+ * Releases repository (ADR 0053) — the immutable vendor release store. The store
+ * itself is GLOBAL vendor data: `list`/`findById`/`findByReleaseId`/`insert`
+ * carry NO scope (a published release is immutable forever and re-derives for
+ * ANY org via the natural key — I3). Tenant VISIBILITY (ADR 0062) is a separate
+ * layer: the `org_release_assignment` join records which releases an org may
+ * SEE, and `listAssignedTo`/`isAssigned`/`findAssignedReleaseIds` filter through
+ * it. `assign`/`unassign` are the platform operator's writes to that join.
+ * Crucially, the GLOBAL lookups stay unscoped — visibility gates discovery, NOT
+ * re-derivation (a quote on a since-unassigned release still reproduces).
  */
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gt, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
-import { release, type ReleaseRow, type ReleaseStatus } from "@repo/db/schema/releases";
+import {
+  orgReleaseAssignment,
+  release,
+  type ReleaseRow,
+  type ReleaseStatus,
+} from "@repo/db/schema/releases";
 import { type ProductModelRelease } from "@repo/model";
 
 export interface ListReleasesParams {
@@ -84,6 +93,100 @@ export class ReleasesRepository {
       .where(eq(release.releaseId, releaseId))
       .limit(1);
     return row ?? null;
+  }
+
+  /**
+   * Tenant-facing list (ADR 0062): only releases ASSIGNED to `organizationId`,
+   * keyset-paginated by id like {@link list}. The inner join to
+   * `org_release_assignment` is the single place the per-tenant visibility
+   * filter lives — the analogue of `scoped()` for this otherwise-global store.
+   */
+  async listAssignedTo(
+    organizationId: string,
+    params: ListReleasesParams,
+  ): Promise<ReleasesPageRows> {
+    const ascending = params.sort === "createdAt:asc";
+    const rows = await this.txHost.tx
+      .select(getTableColumns(release))
+      .from(release)
+      .innerJoin(
+        orgReleaseAssignment,
+        and(
+          eq(orgReleaseAssignment.releaseId, release.releaseId),
+          eq(orgReleaseAssignment.organizationId, organizationId),
+        ),
+      )
+      .where(
+        and(
+          params.status ? eq(release.status, params.status) : undefined,
+          params.cursor
+            ? ascending
+              ? gt(release.id, params.cursor)
+              : lt(release.id, params.cursor)
+            : undefined,
+        ),
+      )
+      .orderBy(ascending ? asc(release.id) : desc(release.id))
+      .limit(params.limit + 1);
+
+    const items = rows.slice(0, params.limit);
+    const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
+    return { items, nextCursor };
+  }
+
+  /** Whether `releaseId` is assigned to `organizationId` (quote-issue gate). */
+  async isAssigned(organizationId: string, releaseId: string): Promise<boolean> {
+    const [row] = await this.txHost.tx
+      .select({ id: orgReleaseAssignment.id })
+      .from(orgReleaseAssignment)
+      .where(
+        and(
+          eq(orgReleaseAssignment.organizationId, organizationId),
+          eq(orgReleaseAssignment.releaseId, releaseId),
+        ),
+      )
+      .limit(1);
+    return row !== undefined;
+  }
+
+  /** The natural release keys an org is assigned (the platform console view). */
+  async findAssignedReleaseIds(organizationId: string): Promise<string[]> {
+    const rows = await this.txHost.tx
+      .select({ releaseId: orgReleaseAssignment.releaseId })
+      .from(orgReleaseAssignment)
+      .where(eq(orgReleaseAssignment.organizationId, organizationId))
+      .orderBy(asc(orgReleaseAssignment.releaseId));
+    return rows.map((r) => r.releaseId);
+  }
+
+  /** Assign a release to an org (platform write). Idempotent — re-assigning the
+   *  same (org, release) is a no-op via the unique index. Returns whether a row
+   *  was actually inserted (false on a conflict) so the service only audits a
+   *  real state change. */
+  async assign(organizationId: string, releaseId: string, assignedBy: string): Promise<boolean> {
+    const inserted = await this.txHost.tx
+      .insert(orgReleaseAssignment)
+      .values({ organizationId, releaseId, assignedBy })
+      .onConflictDoNothing({
+        target: [orgReleaseAssignment.organizationId, orgReleaseAssignment.releaseId],
+      })
+      .returning({ id: orgReleaseAssignment.id });
+    return inserted.length > 0;
+  }
+
+  /** Remove an assignment (platform write). Returns how many rows were deleted
+   *  (0 when the org was not assigned the release). */
+  async unassign(organizationId: string, releaseId: string): Promise<number> {
+    const deleted = await this.txHost.tx
+      .delete(orgReleaseAssignment)
+      .where(
+        and(
+          eq(orgReleaseAssignment.organizationId, organizationId),
+          eq(orgReleaseAssignment.releaseId, releaseId),
+        ),
+      )
+      .returning({ id: orgReleaseAssignment.id });
+    return deleted.length;
   }
 
   /** Append a new immutable release. */

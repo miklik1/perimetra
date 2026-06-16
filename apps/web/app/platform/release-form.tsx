@@ -7,7 +7,8 @@ import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
 
-import { adminKeys, createAdminQueries } from "../../lib/admin-queries";
+import { createAdminQueries } from "../../lib/admin-queries";
+import { platformKeys } from "../../lib/platform-queries";
 import { toast } from "../../lib/toast";
 
 const inputClass =
@@ -28,7 +29,7 @@ export function ReleaseForm() {
   const mutation = useMutation({
     ...adminQueries.publishRelease(),
     onSuccess: () => {
-      void invalidateKeys(queryClient, [adminKeys.releasesList()]);
+      void invalidateKeys(queryClient, [platformKeys.releasesList()]);
       setCatalogVersion("");
       setBodyJson("");
       setInitialInputJson("");

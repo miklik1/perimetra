@@ -156,6 +156,10 @@ export const baseConfig = [
                 "!@repo/validators/price-tables",
                 "!@repo/db/schema/quotes",
                 "!@repo/validators/quotes",
+                // Platform/vendor console contracts (ADR 0062). The assignment
+                // table lives in `@repo/db/schema/releases` (already allowed) —
+                // no new db subpath; only the validators subpath is new.
+                "!@repo/validators/platform",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

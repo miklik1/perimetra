@@ -13,6 +13,7 @@ import { Transactional } from "@nestjs-cls/transactional";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -21,6 +22,7 @@ import {
 import { type ReleaseRow } from "@repo/db/schema/releases";
 import { gateInput, type ConfigInput } from "@repo/engine";
 import { assertValidRelease, ReleaseValidationError, type ProductModelRelease } from "@repo/model";
+import { type ReleaseAssignments } from "@repo/validators/platform";
 import {
   type ListReleasesQuery,
   type PublishReleaseInput,
@@ -89,14 +91,32 @@ export class ReleasesService {
     private readonly audit: AuditService,
   ) {}
 
+  /** GLOBAL list of every release (the platform/vendor picker — ADR 0062). NOT
+   *  tenant-scoped; reachable only behind `PlatformGuard`. Tenant surfaces use
+   *  {@link listForOrg}. */
   async list(query: ListReleasesQuery): Promise<ReleasesPage> {
     const { items, nextCursor } = await this.releases.list(query);
     return { items: items.map(toSummary), nextCursor };
   }
 
-  async get(releaseRowId: string): Promise<ReleaseDetail> {
+  /** Tenant-facing list (ADR 0062): only the releases ASSIGNED to the caller's
+   *  org — the per-tenant visibility filter (`/v1/releases` for the configurator/
+   *  site bundle resolves through here). */
+  async listForOrg(scope: RequestScope, query: ListReleasesQuery): Promise<ReleasesPage> {
+    const { items, nextCursor } = await this.releases.listAssignedTo(scope.organizationId, query);
+    return { items: items.map(toSummary), nextCursor };
+  }
+
+  /** Detail by surrogate id — TENANT-scoped (ADR 0062): 404 unless the release
+   *  is assigned to the caller's org, so a tenant reads only bodies it can see
+   *  (and an unassigned id is indistinguishable from a missing one — no existence
+   *  leak). The configurator bundle only ever fetches ids the assigned list gave
+   *  it. Internal re-derivation uses {@link loadByReleaseId} (global), not this. */
+  async get(scope: RequestScope, releaseRowId: string): Promise<ReleaseDetail> {
     const row = await this.releases.findById(releaseRowId);
-    if (!row) throw new NotFoundException("Release not found");
+    if (!row || !(await this.releases.isAssigned(scope.organizationId, row.releaseId))) {
+      throw new NotFoundException("Release not found");
+    }
     return toDetail(row);
   }
 
@@ -109,7 +129,9 @@ export class ReleasesService {
     return row ? toDetail(row) : null;
   }
 
-  // Admin-only publish — `@RequireRole('admin')` on the controller (ADR 0056).
+  // Vendor-only publish — authoring is the platform operator's, permanently
+  // (CORE_SPEC §3); `PlatformGuard` on the controller (ADR 0062, was the org
+  // `@RequireRole('admin')` of ADR 0056). `scope.userId` is the audit actor.
   @Transactional()
   async publish(scope: RequestScope, input: PublishReleaseInput): Promise<ReleaseDetail> {
     const body = assertReleaseEnvelope(input.body);
@@ -176,5 +198,73 @@ export class ReleasesService {
       },
     });
     return toDetail(row);
+  }
+
+  // --- Per-tenant release assignment (ADR 0062) ------------------------------
+  // The vendor (platform operator) controls which releases each tenant org may
+  // see/configure. These are CROSS-ORG writes (the target `organizationId` is a
+  // parameter, not the actor's own org), so they take explicit args rather than
+  // a `RequestScope` and are reachable only behind `PlatformGuard`. Audited as a
+  // catalog-access mutation (CORE_SPEC §7).
+
+  /** Assign a published release to an org. The release must exist and be
+   *  published (a retired/absent one is not assignable). Idempotent. */
+  @Transactional()
+  async assign(actorUserId: string, organizationId: string, releaseId: string): Promise<void> {
+    const row = await this.releases.findByReleaseId(releaseId);
+    if (!row) throw new NotFoundException(`release ${releaseId} not found`);
+    if (row.status !== "published") {
+      throw new ConflictException(`release ${releaseId} is ${row.status}, not assignable`);
+    }
+    const inserted = await this.releases.assign(organizationId, releaseId, actorUserId);
+    if (!inserted) return; // idempotent re-assign — no real change, no audit row
+    await this.audit.record({
+      actorId: actorUserId,
+      action: "release.assign",
+      entityType: "org_release_assignment",
+      entityId: `${organizationId}:${releaseId}`,
+      diff: { before: null, after: { organizationId, releaseId } },
+    });
+  }
+
+  /** Remove a release assignment from an org. A no-op (not assigned) writes no
+   *  audit row — the ledger records real state changes only. */
+  @Transactional()
+  async unassign(actorUserId: string, organizationId: string, releaseId: string): Promise<void> {
+    const removed = await this.releases.unassign(organizationId, releaseId);
+    if (removed === 0) return;
+    await this.audit.record({
+      actorId: actorUserId,
+      action: "release.unassign",
+      entityType: "org_release_assignment",
+      entityId: `${organizationId}:${releaseId}`,
+      diff: { before: { organizationId, releaseId }, after: null },
+    });
+  }
+
+  /** The release keys an org is currently assigned (the platform console view). */
+  async listAssignments(organizationId: string): Promise<ReleaseAssignments> {
+    const releaseIds = await this.releases.findAssignedReleaseIds(organizationId);
+    return { organizationId, releaseIds };
+  }
+
+  /**
+   * Defense-in-depth gate (ADR 0062): every release in `releaseIds` MUST be
+   * assigned to the caller's org, else 403 `release_not_assigned`. The
+   * configurator only OFFERS assigned releases (the `listForOrg` filter); this
+   * closes the direct-API seam at quote `issue`. Re-derivation
+   * (`verifyReproducibility`) deliberately does NOT call this — a quote stamped
+   * on a since-unassigned release must still reproduce byte-identically
+   * (I3 ≠ visibility).
+   */
+  async assertAssigned(scope: RequestScope, releaseIds: string[]): Promise<void> {
+    for (const releaseId of new Set(releaseIds)) {
+      if (!(await this.releases.isAssigned(scope.organizationId, releaseId))) {
+        throw new ForbiddenException({
+          message: `release ${releaseId} is not assigned to your organization`,
+          code: "release_not_assigned",
+        });
+      }
+    }
   }
 }

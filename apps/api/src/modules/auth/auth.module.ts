@@ -33,6 +33,8 @@ import { createAuth, type Auth } from "./auth.instance.js";
 import { AUTH, REDIS } from "./auth.tokens.js";
 import { MeController } from "./me.controller.js";
 import { MembershipService } from "./membership.service.js";
+import { OrganizationsService } from "./organizations.service.js";
+import { PlatformGuard } from "./platform.guard.js";
 import { RolesGuard } from "./roles.guard.js";
 import { SessionGuard } from "./session.guard.js";
 
@@ -58,8 +60,18 @@ import { SessionGuard } from "./session.guard.js";
     SessionGuard,
     MembershipService,
     RolesGuard,
+    PlatformGuard,
+    OrganizationsService,
   ],
-  exports: [AUTH, REDIS, SessionGuard, MembershipService, RolesGuard],
+  exports: [
+    AUTH,
+    REDIS,
+    SessionGuard,
+    MembershipService,
+    RolesGuard,
+    PlatformGuard,
+    OrganizationsService,
+  ],
 })
 export class AuthModule implements OnModuleInit, OnApplicationShutdown {
   constructor(

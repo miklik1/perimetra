@@ -23,10 +23,14 @@ async function bootApp(): Promise<NestFastifyApplication> {
     controllers: [MeController],
     providers: [
       SessionGuard,
-      // /me now runs RolesGuard too (ADR 0056); stub the membership read so this
+      // /me now runs RolesGuard too (ADR 0056); stub the membership reads so this
       // DB-less wiring test still only exercises guard → filter → envelope.
+      // `isPlatformAdmin` (ADR 0062) is resolved fresh from the DB — stub false.
       RolesGuard,
-      { provide: MembershipService, useValue: { resolveRole: async () => "admin" } },
+      {
+        provide: MembershipService,
+        useValue: { resolveRole: async () => "admin", isPlatformOperator: async () => false },
+      },
       { provide: AUTH, useValue: { api: { getSession } } as unknown as Auth },
       { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     ],

@@ -23,6 +23,10 @@
       "types": "./dist/releases.d.ts",
       "default": "./dist/releases.js"
     },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
+    },
     "./projects": {
       "types": "./dist/projects.d.ts",
       "default": "./dist/projects.js"

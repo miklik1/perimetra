@@ -25,3 +25,15 @@ export function usePriceBlind(): boolean {
   const role = useRole();
   return role !== "admin" && role !== "sales";
 }
+
+/**
+ * FE mirror of the platform/vendor operator flag (ADR 0062), read from the SAME
+ * `/v1/me` source the BE `PlatformGuard` enforces. Gates the vendor console
+ * (publish + release assignment). FAIL-CLOSED: `false` while loading/anonymous.
+ * Defence in depth — the authoritative gate is server-side.
+ */
+export function usePlatformAdmin(): boolean {
+  const authQueries = useAuthQueries();
+  const { data } = useQuery(authQueries.me());
+  return data?.isPlatformAdmin ?? false;
+}

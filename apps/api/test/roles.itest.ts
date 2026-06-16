@@ -4,10 +4,16 @@
  * between cases, the boot contract's bar: flip the role, assert the behaviour.
  *
  * The matrix (BE enforcement — the FE mirrors the SAME role from `/v1/me`):
- *   admin    → issues · publishes · sees prices · may override the margin floor
+ *   admin    → issues · sees prices · may override the margin floor · price-tables
  *   sales    → issues · sees prices · publish 403 · no override
  *   workshop → price-blind reads (total null, snapshot money stripped) · issue 403
  *              · publish 403 · price-tables 403
+ *
+ * Note (ADR 0062): publishing releases/catalog is no longer an ORG-role power —
+ * it is VENDOR-only (PlatformGuard). NO org role grants it; an org admin gets
+ * 403, same as sales/workshop. The vendor tier + assignment matrix lives in
+ * release-visibility.itest.ts. Here the corpus is seeded + assigned by a
+ * throwaway platform operator (`seedGoldenCorpusFor`) so the quote paths work.
  *
  * A second app pins the margin floor high to exercise the guard + admin override.
  */
@@ -20,7 +26,6 @@ import { audit } from "@repo/db/schema/audit";
 import { member } from "@repo/db/schema/auth";
 import {
   catalogV2,
-  fenceRunV1,
   siteCosts,
   siteFenceConfig,
   siteGateConfig,
@@ -30,7 +35,13 @@ import {
 } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
-import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
+import {
+  createApiApp,
+  inject,
+  seedGoldenCorpusFor,
+  signUpUser,
+  type TestUser,
+} from "./setup/app.js";
 
 /** The golden three-instance site, roster by release natural key. */
 const issueBody = {
@@ -78,17 +89,11 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
   beforeAll(async () => {
     app = await createApiApp();
     db = app.get<Db>(DB);
-    user = await signUpUser(app, "rbac-admin"); // owner → admin
+    user = await signUpUser(app, "rbac-admin"); // owner → admin (org role), NOT platform
 
-    // Global immutable stores (shared across itest files — tolerate a sibling's 409).
-    expect([201, 409]).toContain(
-      (await post(user, "/v1/catalog-versions", { body: catalogV2 })).statusCode,
-    );
-    for (const body of [slidingGateV1, fenceRunV1]) {
-      expect([201, 409]).toContain(
-        (await post(user, "/v1/releases", { catalogVersion: 2, body })).statusCode,
-      );
-    }
+    // A platform operator seeds the GLOBAL corpus + assigns it to this org (ADR
+    // 0062) — publishing is vendor-only now, so the matrix user can't do it.
+    await seedGoldenCorpusFor(app, db, user);
     // This org's price table (admin publishes it), then issue one quote to read back.
     expect((await post(user, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
     const issued = await post(user, "/v1/quotes", issueBody);
@@ -110,11 +115,12 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
     const read = await get(user, `/v1/quotes/${quoteId}`);
     expect((read.json() as QuoteResponse).total).toBe("129891.504");
 
-    // Re-publishing the same immutable release is a 409, but it PASSED the gate
-    // (not a 403) — that is what proves admin may publish.
+    // Publishing is VENDOR-only now (ADR 0062 — PlatformGuard): an org admin who
+    // is NOT the platform operator is 403'd (not 409), proving org role no longer
+    // grants publish. The vendor-can-publish case is in release-visibility.itest.ts.
     expect(
       (await post(user, "/v1/releases", { catalogVersion: 2, body: slidingGateV1 })).statusCode,
-    ).toBe(409);
+    ).toBe(403);
     expect((await get(user, "/v1/price-tables")).statusCode).toBe(200);
   });
 
@@ -168,9 +174,10 @@ describe("margin-floor guard (per-org floor 99%, ADR 0059)", () => {
     app = await createApiApp();
     db = app.get<Db>(DB);
     user = await signUpUser(app, "rbac-margin"); // owner → admin, own org
-    // Releases/catalog are global (seeded by the matrix describe). This org
-    // publishes its own price table with the floor pinned high (the floor is
-    // now per-org data, ADR 0059 — no provider override).
+    // Seed the corpus + assign it to this org (ADR 0062), then publish this org's
+    // price table with the floor pinned high (the floor is per-org data, ADR 0059
+    // — no provider override).
+    await seedGoldenCorpusFor(app, db, user);
     expect((await post(user, "/v1/price-tables", marginFloorPriceTableBody)).statusCode).toBe(201);
   });
 

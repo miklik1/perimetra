@@ -28,5 +28,14 @@ export type OrgRole = z.infer<typeof orgRoleSchema>;
  */
 export const meResponseSchema = userSchema.extend({
   role: orgRoleSchema,
+  /**
+   * Platform/vendor operator flag (ADR 0062) — Better Auth's `user.role==='admin'`,
+   * resolved FRESH from the DB per request (not the cached session role), so a
+   * grant/revoke takes effect on the caller's NEXT request. Gates the vendor
+   * console (publish releases/catalog + per-tenant release assignment).
+   * ORTHOGONAL to the org `role` above: a tenant admin is not a platform admin,
+   * and the platform operator is (also) an org admin of their own workspace.
+   */
+  isPlatformAdmin: z.boolean(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;

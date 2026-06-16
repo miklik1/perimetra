@@ -71,6 +71,15 @@ const envSchema = z.object({
   // The quote margin floor is per-org (ADR 0059): read from the active price
   // table's `marginFloorPct` at issue, no longer an env-backed constant.
 
+  /**
+   * Platform/vendor operator designation (ADR 0062). When set, the seed promotes
+   * this user (by email) to Better Auth `user.role='admin'` — the operator who
+   * publishes releases/catalog and assigns them to tenant orgs. Unset = no
+   * auto-promotion (promote manually, or in tests). Authoring is vendor-only
+   * (CORE_SPEC §3); this is how the vendor is named in a deployment.
+   */
+  PLATFORM_ADMIN_EMAIL: z.string().optional(),
+
   // ---- observability & analytics (ADR 0036) — all opt-in ---------------
   /** Errors-only Sentry (traces belong to OTel). Unset = disabled. Read pre-DI by sentry/init.ts. */
   SENTRY_DSN: z.string().optional(),

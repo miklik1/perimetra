@@ -15,7 +15,7 @@ import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
-import { member } from "@repo/db/schema/auth";
+import { member, user } from "@repo/db/schema/auth";
 
 import { mapMemberRole, type OrgRole } from "../../common/rbac/org-role.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
@@ -37,5 +37,22 @@ export class MembershipService {
       .where(and(eq(member.userId, scope.userId), eq(member.organizationId, scope.organizationId)))
       .limit(1);
     return row ? mapMemberRole(row.role) : null;
+  }
+
+  /**
+   * Whether the user is the platform/vendor operator (Better Auth's
+   * `user.role==='admin'`, ADR 0062) — read FRESH from the DB per request, like
+   * {@link resolveRole}, never the cached session role, so a grant/revoke takes
+   * effect on the user's NEXT request. One indexed PK lookup. The `user` table
+   * is auth-module-owned schema (ADR 0032), so — like the membership role — this
+   * is the ONLY place the platform role is read.
+   */
+  async isPlatformOperator(userId: string): Promise<boolean> {
+    const [row] = await this.txHost.tx
+      .select({ role: user.role })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return row?.role === "admin";
   }
 }

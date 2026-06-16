@@ -14,18 +14,21 @@ import { type Db } from "@repo/db";
 import { user as userTable } from "@repo/db/schema/auth";
 import { quote as quoteTable } from "@repo/db/schema/quotes";
 import {
-  catalogV2,
-  fenceRunV1,
   siteCosts,
   siteFenceConfig,
   siteGateConfig,
   sitePrices,
-  slidingGateV1,
   steppedSite,
 } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
-import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
+import {
+  createApiApp,
+  inject,
+  seedGoldenCorpusFor,
+  signUpUser,
+  type TestUser,
+} from "./setup/app.js";
 
 interface QuoteDetail {
   id: string;
@@ -69,18 +72,10 @@ describe("quote lifecycle (HTTP, real stack)", () => {
     db = app.get<Db>(DB);
     tenant = await signUpUser(app, "quote-tenant");
 
-    // Seed the immutable stores the quote resolves stamps against. These are
-    // GLOBAL and shared across itest files — tolerate a sibling having already
-    // published the same fixtures (409); the rows exist for resolution either way.
-    expect([201, 409]).toContain(
-      (await post(tenant, "/v1/catalog-versions", { body: catalogV2 })).statusCode,
-    );
-    for (const body of [slidingGateV1, fenceRunV1]) {
-      expect([201, 409]).toContain(
-        (await post(tenant, "/v1/releases", { catalogVersion: 2, body })).statusCode,
-      );
-    }
-    // Active price table (open-ended window covering now).
+    // Seed the GLOBAL immutable stores (catalog/releases — published by a platform
+    // operator, ADR 0062) AND assign the corpus to this org so it can issue.
+    await seedGoldenCorpusFor(app, db, tenant);
+    // Active price table (open-ended window covering now) — org-admin publishes.
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
   });
 
@@ -184,6 +179,8 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // Releases/catalog are GLOBAL (seeded above); the price table is per-org
       // (ADR 0055) so this fresh org needs its own before it can issue.
       const author = await signUpUser(app, "quote-author");
+      // Fresh org: assign the corpus (ADR 0062) + its own price table before issuing.
+      await seedGoldenCorpusFor(app, db, author);
       expect((await post(author, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
       const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
       expect(issued.total).toBe("129891.504");
