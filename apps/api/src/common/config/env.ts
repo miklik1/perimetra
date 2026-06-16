@@ -80,6 +80,29 @@ const envSchema = z.object({
    */
   PLATFORM_ADMIN_EMAIL: z.string().optional(),
 
+  /**
+   * Default release set auto-assigned to every genuinely-new org at provision
+   * time (ADR 0063) — a comma-separated list of release ids (e.g.
+   * `sliding-gate@1,fence-run@1`). Keeps new-tenant visibility VENDOR-controlled
+   * per CORE_SPEC §3 (the vendor decides the starter set) while automating
+   * onboarding, rather than leaking every published release to every future org.
+   * Empty/unset = no default assignment (a fresh org starts empty — the ADR 0062
+   * default). Ids that aren't published yet are skipped fail-soft at provision
+   * time. Note: the seed assigns the golden corpus to EXISTING orgs; set this so
+   * orgs created AFTER the seed (fresh signups) also get a starter set.
+   */
+  PLATFORM_DEFAULT_RELEASE_IDS: z
+    .string()
+    .default("")
+    .transform((v) =>
+      // Split on comma OR any whitespace, so a multi-line Docker secret can't
+      // smuggle a newline INTO an id (which would 404 every signup fail-soft).
+      v
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+
   // ---- observability & analytics (ADR 0036) — all opt-in ---------------
   /** Errors-only Sentry (traces belong to OTel). Unset = disabled. Read pre-DI by sentry/init.ts. */
   SENTRY_DSN: z.string().optional(),

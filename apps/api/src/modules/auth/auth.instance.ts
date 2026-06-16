@@ -40,6 +40,14 @@ export interface CreateAuthDeps {
   };
   /** Password-reset delivery stays a log stub — no template shipped; projects own the flow. */
   logger: { log(message: string): void };
+  /**
+   * Invoked once for each genuinely-new org auto-provisioned below (ADR 0063):
+   * assigns the vendor-configured default release set so a fresh tenant isn't
+   * empty. FAIL-SOFT by contract (never throws — see `OrgProvisioningHook.run`),
+   * so it never blocks this session. Wired in the HTTP app only; undefined in
+   * worker/seed/CLI contexts → no-op (those never auto-provision).
+   */
+  onOrgProvisioned?: (organizationId: string, ownerUserId: string) => Promise<void>;
 }
 
 const REDIS_KEY_PREFIX = "better-auth:";
@@ -76,7 +84,7 @@ function redisSecondaryStorage(redis: Redis): SecondaryStorage {
   };
 }
 
-export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
+export function createAuth({ db, redis, env, email, logger, onOrgProvisioned }: CreateAuthDeps) {
   const isProd = env.NODE_ENV === "production";
 
   return betterAuth({
@@ -85,6 +93,13 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
     secret: env.BETTER_AUTH_SECRET,
     /** Origin/CSRF check allowlist — the web app reaches us through its same-origin proxy. */
     trustedOrigins: [env.WEB_ORIGIN],
+    // No `transaction` option → the BA drizzle adapter runs each write
+    // auto-committed (default `transaction: false`). LOAD-BEARING for ADR 0063:
+    // the org + member rows the session hook creates below must be COMMITTED
+    // before `onOrgProvisioned` runs — its default-release `assign` opens a
+    // SEPARATE connection (`cls.run`, outside any BA tx), and the
+    // `org_release_assignment → organization` FK would fail if the org were
+    // still uncommitted. Do NOT enable `transaction: true` without revisiting it.
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: { ...authSchema },
@@ -195,6 +210,13 @@ export function createAuth({ db, redis, env, email, logger }: CreateAuthDeps) {
                 data: { organizationId: org.id, userId: session.userId, role: "owner" },
               });
               membership = { organizationId: org.id };
+              // Default provisioning (ADR 0063): assign the vendor-configured
+              // default release set so a fresh tenant lands with a populated
+              // catalog, not an empty palette. INSIDE the genuine-new-owner
+              // branch only — invitees returned at the invite-first early-exit
+              // above and are never provisioned a personal org. Fail-soft by the
+              // hook's contract, so it never blocks this first session.
+              await onOrgProvisioned?.(org.id, session.userId);
             }
             return { data: { activeOrganizationId: membership.organizationId } };
           },

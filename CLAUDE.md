@@ -98,10 +98,20 @@ release still reproduces `129891.504`); `/v1/platform/*` vendor console (assign/
 unassign/list orgs) + web `/platform` (publish moved off `/admin`, which keeps
 price tables). Seed promotes `PLATFORM_ADMIN_EMAIL` + assigns the corpus to seeded
 orgs; a fresh org starts with NO assignments (vendor assigns explicitly).
-Next: step-6 follow-ups — new-org default price-table auto-provision, release
-version-pin / opt-in-upgrade UX + new-org default release assignment, admin
-(`adjustability: tenant`), issue-key i18n + deviation-override UX,
-`/site`↔`/configurator` convergence.
+New-org default provisioning (2026-06-16, ADR 0063): a genuinely-new org is
+auto-assigned the **vendor-configured** default release set (`PLATFORM_DEFAULT_RELEASE_IDS`
+env list) at provision time — wired into the Better Auth `session.create.before`
+hook via a mutable `OrgProvisioningHook` registry that lives in the (leaf) auth
+module, so AuthModule never imports ReleasesModule (the `OrgProvisioningModule`
+registers the closure on init); fail-soft + idempotent + CLS-wrapped per assign.
+**No default price-table** — "empty-but-honest": a fabricator's prices are their
+own data, so the configurator degrades to a notice until they publish (the
+vendor-starter-layer option was considered and rejected).
+Next: step-6 follow-ups (ADR 0063 shipped new-org default **release assignment**;
+default price-table **rejected**) — release version-pin / opt-in-upgrade UX,
+per-release catalog (mixed-version), admin (`adjustability: tenant`), issue-key
+i18n + deviation-override UX, `/site`↔`/configurator` convergence; then ADR 0058
+deferreds (sticky last-active org, Decline / web self-registration).
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

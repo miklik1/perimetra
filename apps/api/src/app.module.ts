@@ -25,6 +25,7 @@ import { PlatformModule } from "./modules/platform/platform.module.js";
 import { PriceTablesModule } from "./modules/price-tables/price-tables.module.js";
 import { PrivacyModule } from "./modules/privacy/privacy.module.js";
 import { ProjectsModule } from "./modules/projects/projects.module.js";
+import { OrgProvisioningModule } from "./modules/provisioning/org-provisioning.module.js";
 import { QuotesModule } from "./modules/quotes/quotes.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
 import { ReleasesModule } from "./modules/releases/releases.module.js";
@@ -92,6 +93,9 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     QuotesModule,
     // Platform/vendor console (ADR 0062): per-tenant release assignment.
     PlatformModule,
+    // New-org default provisioning (ADR 0063): assigns the vendor-configured
+    // default release set when a fresh org is auto-provisioned. HTTP app only.
+    OrgProvisioningModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

@@ -33,6 +33,7 @@ import { createAuth, type Auth } from "./auth.instance.js";
 import { AUTH, REDIS } from "./auth.tokens.js";
 import { MeController } from "./me.controller.js";
 import { MembershipService } from "./membership.service.js";
+import { OrgProvisioningHook } from "./org-provisioning-hook.js";
 import { OrganizationsService } from "./organizations.service.js";
 import { PlatformGuard } from "./platform.guard.js";
 import { RolesGuard } from "./roles.guard.js";
@@ -51,11 +52,30 @@ import { SessionGuard } from "./session.guard.js";
         new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 2 }),
       inject: [ENV],
     },
+    OrgProvisioningHook,
     {
       provide: AUTH,
-      useFactory: (db: Db, redis: Redis, env: Env, email: EmailService) =>
-        createAuth({ db, redis, env, email, logger: new Logger("AuthEmailStub") }),
-      inject: [DB, REDIS, ENV, EmailService],
+      // `onOrgProvisioned` bridges to default-assignment provisioning (ADR 0063)
+      // via the AuthModule-owned hook registry — kept here so AuthModule stays a
+      // cycle-free leaf (it must never import ReleasesModule). The closure is a
+      // no-op until OrgProvisioningModule registers a handler (HTTP app only).
+      useFactory: (
+        db: Db,
+        redis: Redis,
+        env: Env,
+        email: EmailService,
+        provisioning: OrgProvisioningHook,
+      ) =>
+        createAuth({
+          db,
+          redis,
+          env,
+          email,
+          logger: new Logger("AuthEmailStub"),
+          onOrgProvisioned: (organizationId, ownerUserId) =>
+            provisioning.run(organizationId, ownerUserId),
+        }),
+      inject: [DB, REDIS, ENV, EmailService, OrgProvisioningHook],
     },
     SessionGuard,
     MembershipService,
@@ -71,6 +91,7 @@ import { SessionGuard } from "./session.guard.js";
     RolesGuard,
     PlatformGuard,
     OrganizationsService,
+    OrgProvisioningHook,
   ],
 })
 export class AuthModule implements OnModuleInit, OnApplicationShutdown {
