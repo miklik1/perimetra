@@ -27,7 +27,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
-import { type PlatformOrganizations, type ReleaseAssignments } from "@repo/validators/platform";
+import {
+  type BroadcastAssignResult,
+  type PlatformOrganizations,
+  type ReleaseAssignments,
+} from "@repo/validators/platform";
 import { type ReleasesPage } from "@repo/validators/releases";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
@@ -38,6 +42,7 @@ import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import {
   AssignReleaseDto,
+  BroadcastAssignResultDto,
   PlatformOrganizationsDto,
   PlatformReleasesPageDto,
   PlatformReleasesQueryDto,
@@ -57,6 +62,21 @@ export class PlatformController {
   @ZodSerializerDto(PlatformReleasesPageDto)
   listReleases(@Query() query: PlatformReleasesQueryDto): Promise<ReleasesPage> {
     return this.releases.list(query);
+  }
+
+  /** Broadcast a published release to EVERY org currently on an OLDER version of
+   *  its model (CORE_SPEC §3 vendor fan-out, the ADR 0064-deferred half): one
+   *  action makes the new version available to all orgs behind, each getting an
+   *  opt-in upgrade offer. NEVER moves a pin. Idempotent (a re-broadcast reports
+   *  already-assigned orgs as skipped). 404/409 on an unknown/unpublished release
+   *  (before any write). `releaseId` is the natural key (path-encoded by the web). */
+  @Post("releases/:releaseId/broadcast")
+  @ZodSerializerDto(BroadcastAssignResultDto)
+  broadcast(
+    @CurrentSession() session: SessionContext,
+    @Param("releaseId") releaseId: string,
+  ): Promise<BroadcastAssignResult> {
+    return this.releases.broadcastAssign(session.user.id, releaseId);
   }
 
   /** Every tenant org (vendor-scale, unpaginated). */

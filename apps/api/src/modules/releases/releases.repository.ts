@@ -274,6 +274,24 @@ export class ReleasesRepository {
       );
   }
 
+  /**
+   * Org ids pinned to a version of `modelId` OLDER than `newVersion` — the
+   * targets of a vendor upgrade BROADCAST (every org still ACTIVE on a prior
+   * version of the model gets the new one made available, surfacing an opt-in
+   * offer). Joins the pin to its release for the version compare; the modelId
+   * index keeps it off a full scan. An org already pinned to `newVersion` (or
+   * newer) is correctly excluded — it is not "behind".
+   */
+  async findOrgsBehindOnModel(modelId: string, newVersion: number): Promise<string[]> {
+    const rows = await this.txHost.tx
+      .select({ organizationId: orgModelPin.organizationId })
+      .from(orgModelPin)
+      .innerJoin(release, eq(release.releaseId, orgModelPin.pinnedReleaseId))
+      .where(and(eq(orgModelPin.modelId, modelId), lt(release.version, newVersion)))
+      .orderBy(asc(orgModelPin.organizationId));
+    return rows.map((r) => r.organizationId);
+  }
+
   /** An org's active pins (one per model it uses). */
   async findPins(organizationId: string): Promise<ModelPin[]> {
     return this.txHost.tx

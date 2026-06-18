@@ -8,6 +8,7 @@
 import {
   BadRequestException,
   ConflictException,
+  NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
@@ -53,11 +54,37 @@ function makeService() {
     findById: vi.fn(),
     findByReleaseId: vi.fn().mockResolvedValue(null),
     insert: vi.fn(),
+    // Assignment / pin surface (ADR 0062/0064) — safe defaults; the broadcast
+    // suite overrides them. `assign` returns whether a NEW row was inserted.
+    assign: vi.fn().mockResolvedValue(true),
+    ensurePin: vi.fn().mockResolvedValue(false),
+    movePin: vi.fn().mockResolvedValue(undefined),
+    findOrgsBehindOnModel: vi.fn().mockResolvedValue([]),
+    findPins: vi.fn().mockResolvedValue([]),
   };
   const catalogVersions = { loadCatalog: vi.fn().mockResolvedValue(EMPTY_CATALOG) };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
   const service = new ReleasesService(repo as never, catalogVersions as never, audit as never);
   return { service, repo, catalogVersions, audit };
+}
+
+/** A published release row (the shape `findByReleaseId` returns). */
+function publishedRow(
+  overrides: Partial<{ releaseId: string; modelId: string; version: number }> = {},
+) {
+  return {
+    id: "row-1",
+    releaseId: "gate@2",
+    modelId: "gate",
+    version: 2,
+    catalogVersion: 1,
+    status: "published" as const,
+    body: validBody(),
+    initialInput: null,
+    createdAt: new Date("2026-06-18T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+    ...overrides,
+  };
 }
 
 describe("ReleasesService.publish", () => {
@@ -163,5 +190,65 @@ describe("ReleasesService.publish", () => {
       service.publish(SCOPE, { catalogVersion: 1, body: validBody() }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(repo.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReleasesService.broadcastAssign", () => {
+  it("fans the new version out to every org behind, NEVER moving a pin", async () => {
+    const { service, repo } = makeService();
+    repo.findByReleaseId.mockResolvedValue(publishedRow()); // gate@2, published
+    repo.findOrgsBehindOnModel.mockResolvedValue(["org-a", "org-b"]);
+    // org-a is a fresh assign (inserted=true); org-b already had it (false).
+    repo.assign.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const result = await service.broadcastAssign("vendor-1", "gate@2");
+
+    // Targets resolved by model + version (orgs on an OLDER version of "gate").
+    expect(repo.findOrgsBehindOnModel).toHaveBeenCalledWith("gate", 2);
+    // Each org went through the SAME assign path → ensurePin (lazy first-pin),
+    // never movePin: the broadcast must not silently change a tenant's active
+    // version (§3 — upgrades are explicit opt-in). This is the load-bearing
+    // invariant of the whole feature.
+    expect(repo.assign).toHaveBeenCalledTimes(2);
+    expect(repo.ensurePin).toHaveBeenCalledTimes(2);
+    expect(repo.movePin).not.toHaveBeenCalled();
+    // The immutable release is validated ONCE up front and the row reused for
+    // every org — NOT re-fetched per org (would be an N+1 on an append-only row).
+    expect(repo.findByReleaseId).toHaveBeenCalledTimes(1);
+    // Assigned vs already-assigned reported off the real-insert flag.
+    expect(result).toEqual({
+      releaseId: "gate@2",
+      assignedOrgIds: ["org-a"],
+      skippedOrgIds: ["org-b"],
+    });
+  });
+
+  it("fails HARD (404) on an unknown release — before reading any target org", async () => {
+    const { service, repo } = makeService();
+    repo.findByReleaseId.mockResolvedValue(null);
+    await expect(service.broadcastAssign("vendor-1", "ghost@9")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(repo.findOrgsBehindOnModel).not.toHaveBeenCalled();
+    expect(repo.assign).not.toHaveBeenCalled();
+  });
+
+  it("fails HARD (409) on an unpublished release — nothing is assigned", async () => {
+    const { service, repo } = makeService();
+    repo.findByReleaseId.mockResolvedValue({ ...publishedRow(), status: "draft" });
+    await expect(service.broadcastAssign("vendor-1", "gate@2")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(repo.findOrgsBehindOnModel).not.toHaveBeenCalled();
+    expect(repo.assign).not.toHaveBeenCalled();
+  });
+
+  it("is a clean no-op when no org is behind", async () => {
+    const { service, repo } = makeService();
+    repo.findByReleaseId.mockResolvedValue(publishedRow());
+    repo.findOrgsBehindOnModel.mockResolvedValue([]);
+    const result = await service.broadcastAssign("vendor-1", "gate@2");
+    expect(repo.assign).not.toHaveBeenCalled();
+    expect(result).toEqual({ releaseId: "gate@2", assignedOrgIds: [], skippedOrgIds: [] });
   });
 });

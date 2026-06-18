@@ -51,3 +51,18 @@ export const assignReleaseSchema = z.object({
   releaseId: z.string().min(1),
 });
 export type AssignReleaseInput = z.infer<typeof assignReleaseSchema>;
+
+/**
+ * Result of a vendor BROADCAST (CORE_SPEC §3, ADR 0064 fan-out): a newly
+ * published release is made available to EVERY org currently on an older
+ * version of its model, in one operation — each gets an opt-in upgrade offer
+ * (the broadcast NEVER moves a pin). The release key is the path param;
+ * `assignedOrgIds` gained the assignment, `skippedOrgIds` already had it (the
+ * broadcast is idempotent, so a re-run reports every org as skipped).
+ */
+export const broadcastAssignResultSchema = z.object({
+  releaseId: z.string().min(1),
+  assignedOrgIds: z.array(z.string()),
+  skippedOrgIds: z.array(z.string()),
+});
+export type BroadcastAssignResult = z.infer<typeof broadcastAssignResultSchema>;

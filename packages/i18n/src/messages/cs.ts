@@ -291,6 +291,12 @@ const cs = {
     assignError: "Přiřazení se nepodařilo aktualizovat.",
     loadingList: "Načítání…",
     pinned: "Aktivní",
+    broadcast: "Rozeslat",
+    broadcasting: "Rozesílání…",
+    broadcastFor: "Rozeslat {releaseId}",
+    broadcastingFor: "Rozesílání {releaseId}…",
+    broadcastResult: "Nabídnuto {assigned} org. · {skipped} již mělo.",
+    broadcastError: "Vydání se nepodařilo rozeslat.",
   },
   emails: {
     verification: {

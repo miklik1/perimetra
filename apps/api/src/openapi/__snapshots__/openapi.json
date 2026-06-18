@@ -1230,6 +1230,29 @@
         ]
       }
     },
+    "/v1/platform/releases/{releaseId}/broadcast": {
+      "post": {
+        "operationId": "PlatformController_broadcast_v1",
+        "parameters": [
+          {
+            "name": "releaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
     "/v1/platform/organizations": {
       "get": {
         "operationId": "PlatformController_listOrganizations_v1",

@@ -22,7 +22,7 @@ import {
 import { type ReleaseRow } from "@repo/db/schema/releases";
 import { gateInput, type ConfigInput } from "@repo/engine";
 import { assertValidRelease, ReleaseValidationError, type ProductModelRelease } from "@repo/model";
-import { type ReleaseAssignments } from "@repo/validators/platform";
+import { type BroadcastAssignResult, type ReleaseAssignments } from "@repo/validators/platform";
 import {
   type ListReleasesQuery,
   type PinVersionInput,
@@ -216,29 +216,96 @@ export class ReleasesService {
   // catalog-access mutation (CORE_SPEC §7).
 
   /** Assign a published release to an org. The release must exist and be
-   *  published (a retired/absent one is not assignable). Idempotent. */
+   *  published (a retired/absent one is not assignable). Idempotent. Returns
+   *  whether a NEW assignment was created (false on an idempotent re-assign) —
+   *  the broadcast fan-out uses this to report assigned-vs-already-assigned. */
   @Transactional()
-  async assign(actorUserId: string, organizationId: string, releaseId: string): Promise<void> {
+  async assign(actorUserId: string, organizationId: string, releaseId: string): Promise<boolean> {
     const row = await this.releases.findByReleaseId(releaseId);
     if (!row) throw new NotFoundException(`release ${releaseId} not found`);
     if (row.status !== "published") {
       throw new ConflictException(`release ${releaseId} is ${row.status}, not assignable`);
     }
-    const inserted = await this.releases.assign(organizationId, releaseId, actorUserId);
-    // Lazily pin the model to this version when the org has no pin for it yet
-    // (the §3 default: the first assigned version is the active one). A NEWER
-    // version of an already-pinned model NEVER moves the pin here — that is the
-    // tenant's explicit opt-in (`pinVersion`). Idempotent + self-healing (runs
-    // even on a re-assign, so an assignment can never lack its pin).
-    await this.releases.ensurePin(organizationId, row.modelId, releaseId, actorUserId);
-    if (!inserted) return; // idempotent re-assign — no real change, no audit row
+    return this.assignValidated(actorUserId, organizationId, row);
+  }
+
+  /**
+   * Assign an ALREADY-validated published release row to an org. Splits the
+   * write off {@link assign}'s fetch+validate so the broadcast fan-out validates
+   * the immutable release ONCE up front and reuses the row for every org (no
+   * per-org re-read — the row never changes, I3). Its own `@Transactional()`
+   * unit: `assign` joins it (REQUIRED propagation), while a broadcast loop runs
+   * each org as an isolated, idempotent transaction with atomic
+   * state-change-plus-audit (ADR 0037). Lazily pins the model (the §3 first-
+   * assign default); a NEWER version NEVER moves an existing pin — that stays
+   * the tenant's explicit opt-in (`pinVersion`).
+   */
+  @Transactional()
+  private async assignValidated(
+    actorUserId: string,
+    organizationId: string,
+    row: ReleaseRow,
+  ): Promise<boolean> {
+    const inserted = await this.releases.assign(organizationId, row.releaseId, actorUserId);
+    await this.releases.ensurePin(organizationId, row.modelId, row.releaseId, actorUserId);
+    if (!inserted) return false; // idempotent re-assign — no real change, no audit row
     await this.audit.record({
       actorId: actorUserId,
       action: "release.assign",
       entityType: "org_release_assignment",
-      entityId: `${organizationId}:${releaseId}`,
-      diff: { before: null, after: { organizationId, releaseId } },
+      entityId: `${organizationId}:${row.releaseId}`,
+      diff: { before: null, after: { organizationId, releaseId: row.releaseId } },
     });
+    return true;
+  }
+
+  /**
+   * Vendor BROADCAST of an upgrade offer (CORE_SPEC §3) — the fan-out half
+   * ADR 0064 deferred. Make a newly published release available to EVERY org
+   * currently on an OLDER version of its model, in ONE operation, so each gets
+   * an opt-in "upgrade available" offer (`getUpgradeOffers`) instead of the
+   * vendor assigning per org by hand.
+   *
+   * It NEVER moves a pin: it calls the SAME {@link assign} a single per-org
+   * assignment uses (→ `ensurePin` ON CONFLICT DO NOTHING), so a targeted org
+   * keeps its active version and the new one surfaces only as an explicit
+   * opt-in (§3 "upgrades are explicit opt-in per tenant"). I3 ≠ visibility ≠
+   * pin is untouched — assignment is disposable; a quote re-derives via the
+   * GLOBAL store regardless of what is assigned or pinned.
+   *
+   * The new release is validated ONCE up front (exists + published → fail HARD
+   * 404/409, before any write) and the row is reused for every org. Targets are
+   * read from the DB (orgs pinned to an older version of the model), NEVER the
+   * caller. Deliberately NOT wrapped in one outer `@Transactional()`: each
+   * `assignValidated` is its own transactional unit, so the fan-out is per-org
+   * isolated and idempotent (a re-broadcast is a no-op).
+   *
+   * Per-org errors PROPAGATE rather than being swallowed: a bulk op must never
+   * mask an infra fault (DB down, pool exhausted) as success. The one benign
+   * case this also surfaces is a concurrent org hard-delete — the pin is read,
+   * then the org (and its pin) CASCADE-deleted, so that org's assign FK-fails.
+   * Rather than couple this service to the pg driver's error codes to skip it
+   * (an FK-violation translation is a repository concern, not a service one),
+   * we let it propagate: partial progress is already committed, the run is
+   * idempotent, and a retry completes cleanly (the deleted org has dropped out
+   * of the target set). The race window is sub-second over a small trusted-
+   * tenant fleet, so the imprecision costs nothing in practice.
+   */
+  async broadcastAssign(actorUserId: string, newReleaseId: string): Promise<BroadcastAssignResult> {
+    const row = await this.releases.findByReleaseId(newReleaseId);
+    if (!row) throw new NotFoundException(`release ${newReleaseId} not found`);
+    if (row.status !== "published") {
+      throw new ConflictException(`release ${newReleaseId} is ${row.status}, not assignable`);
+    }
+
+    const targetOrgIds = await this.releases.findOrgsBehindOnModel(row.modelId, row.version);
+    const assignedOrgIds: string[] = [];
+    const skippedOrgIds: string[] = [];
+    for (const organizationId of targetOrgIds) {
+      const inserted = await this.assignValidated(actorUserId, organizationId, row);
+      (inserted ? assignedOrgIds : skippedOrgIds).push(organizationId);
+    }
+    return { releaseId: newReleaseId, assignedOrgIds, skippedOrgIds };
   }
 
   /** Remove a release assignment from an org. A no-op (not assigned) writes no

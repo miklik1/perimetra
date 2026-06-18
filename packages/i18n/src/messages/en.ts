@@ -288,6 +288,12 @@ const en: Messages = {
     assignError: "Could not update the assignment.",
     loadingList: "Loading…",
     pinned: "Pinned",
+    broadcast: "Broadcast",
+    broadcasting: "Broadcasting…",
+    broadcastFor: "Broadcast {releaseId}",
+    broadcastingFor: "Broadcasting {releaseId}…",
+    broadcastResult: "Offered to {assigned} org(s) · {skipped} already had it.",
+    broadcastError: "Could not broadcast the release.",
   },
   emails: {
     verification: {

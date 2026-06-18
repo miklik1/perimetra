@@ -145,6 +145,11 @@ export const orgModelPin = pgTable(
   (t) => [
     // One active pin per (org, model) — the opt-in moves this row, never adds.
     uniqueIndex("org_model_pin_org_model_uq").on(t.organizationId, t.modelId),
+    // Vendor BROADCAST fan-out (ADR 0065-followup): "every org pinned to an
+    // OLDER version of model X" filters this table by modelId, then version-
+    // compares the joined release. The unique index leads with organizationId,
+    // so a modelId-only predicate had no usable index — this was a full scan.
+    index("org_model_pin_model_idx").on(t.modelId),
   ],
 );
 

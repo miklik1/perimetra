@@ -3,9 +3,11 @@ import type { ApiClient } from "@repo/api";
 import { appendSearchParams } from "@repo/utils";
 import {
   assignReleaseSchema,
+  broadcastAssignResultSchema,
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
   releasesPageSchema,
+  type BroadcastAssignResult,
   type PlatformOrganizations,
   type ReleaseAssignments,
   type ReleasesPage,
@@ -76,6 +78,19 @@ export function createPlatformQueries(client: ApiClient) {
         path: ({ orgId, releaseId }) =>
           `/v1/platform/organizations/${orgId}/releases/${encodeURIComponent(releaseId)}`,
         schema: (data) => releaseAssignmentsSchema.parse(data),
+      }),
+
+    /** Broadcast a release to every org on an older version of its model (§3
+     *  vendor fan-out): one call raises an opt-in upgrade offer for all of them,
+     *  never moving a pin. Returns which orgs gained it vs already had it. */
+    broadcast: () =>
+      defineMutation<BroadcastAssignResult, { releaseId: string }>(client, {
+        method: "POST",
+        path: ({ releaseId }) => `/v1/platform/releases/${encodeURIComponent(releaseId)}/broadcast`,
+        // All input is in the path; send no body (the endpoint takes no @Body()).
+        // Without this, defineMutation defaults the body to the variables object.
+        body: () => undefined,
+        schema: (data) => broadcastAssignResultSchema.parse(data),
       }),
   };
 }

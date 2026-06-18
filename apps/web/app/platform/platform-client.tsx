@@ -99,22 +99,65 @@ function CatalogVersionsList() {
   );
 }
 
-/** Every published release (global) — the vendor's catalog. */
+/**
+ * Every published release (global) — the vendor's catalog. Each PUBLISHED row
+ * carries a "broadcast" action (ADR 0064 fan-out, §3): offer this version to
+ * every org currently on an older version of its model in one shot, raising an
+ * opt-in upgrade offer for each (the broadcast never moves a tenant's pin).
+ */
 function ReleasesList() {
   const t = useTranslations("platform");
-  const { data, isLoading } = useInfiniteQuery(
-    createPlatformQueries(useApiClient()).listReleases(),
-  );
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const platformQueries = createPlatformQueries(client);
+  const { data, isLoading } = useInfiniteQuery(platformQueries.listReleases());
   const items = data?.pages.flatMap((p) => p.items) ?? [];
+
+  const broadcast = useMutation({
+    ...platformQueries.broadcast(),
+    onSuccess: (result) => {
+      // Assignments changed for many orgs; refresh the whole platform surface.
+      invalidateKeys(queryClient, [platformKeys.all]);
+      toast.success(
+        t("broadcastResult", {
+          assigned: result.assignedOrgIds.length,
+          skipped: result.skippedOrgIds.length,
+        }),
+      );
+    },
+    onError: () => toast.error(t("broadcastError")),
+  });
+
   if (isLoading) return <p className={listClass}>{t("loadingList")}</p>;
   if (items.length === 0) return <p className={listClass}>{t("noReleases")}</p>;
   return (
     <ul className={listClass}>
-      {items.map((r) => (
-        <li key={r.id} className="font-mono text-xs">
-          {r.releaseId} · {r.status} · catalog@{r.catalogVersion}
-        </li>
-      ))}
+      {items.map((r) => {
+        const broadcasting = broadcast.isPending && broadcast.variables?.releaseId === r.releaseId;
+        return (
+          <li key={r.id} className="flex items-center justify-between gap-3">
+            <span className="font-mono text-xs">
+              {r.releaseId} · {r.status} · catalog@{r.catalogVersion}
+            </span>
+            {r.status === "published" && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={broadcast.isPending}
+                // Per-release accessible name: every row's button reads the same
+                // visible label, so name it by release for AT (cf. palette.tsx).
+                aria-label={t(broadcasting ? "broadcastingFor" : "broadcastFor", {
+                  releaseId: r.releaseId,
+                })}
+                aria-busy={broadcasting}
+                onClick={() => broadcast.mutate({ releaseId: r.releaseId })}
+              >
+                {broadcasting ? t("broadcasting") : t("broadcast")}
+              </Button>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

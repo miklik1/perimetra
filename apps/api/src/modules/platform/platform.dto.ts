@@ -6,6 +6,7 @@
  */
 import {
   assignReleaseSchema,
+  broadcastAssignResultSchema,
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
 } from "@repo/validators/platform";
@@ -20,3 +21,4 @@ export class AssignReleaseDto extends createZodDto(assignReleaseSchema) {}
 export class PlatformReleasesPageDto extends createZodDto(releasesPageSchema) {}
 export class PlatformOrganizationsDto extends createZodDto(platformOrganizationsSchema) {}
 export class ReleaseAssignmentsDto extends createZodDto(releaseAssignmentsSchema) {}
+export class BroadcastAssignResultDto extends createZodDto(broadcastAssignResultSchema) {}
