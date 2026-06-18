@@ -48,14 +48,14 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
         </main>
       }
     >
-      {bundle === null || bundle.products.length === 0 || bundle.catalog === null ? (
+      {bundle === null || bundle.products.length === 0 || bundle.catalogs.size === 0 ? (
         notice(t("noProducts"))
       ) : bundle.prices === null ? (
         notice(t("noPrices"))
       ) : (
         <ConfiguratorInner
           products={bundle.products}
-          catalog={bundle.catalog}
+          catalogs={bundle.catalogs}
           prices={bundle.prices}
         />
       )}
@@ -63,15 +63,15 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
   );
 }
 
-/** The stateful configurator, rendered once the bundle has products + a catalog +
+/** The stateful configurator, rendered once the bundle has products + catalogs +
  *  a price table (the engine's required inputs). */
 function ConfiguratorInner({
   products,
-  catalog,
+  catalogs,
   prices,
 }: {
   products: ConfigurableProduct[];
-  catalog: Catalog;
+  catalogs: ReadonlyMap<string, Catalog>;
   prices: PriceTable;
 }) {
   const t = useTranslations("configurator");
@@ -85,8 +85,8 @@ function ConfiguratorInner({
 
   const product = products[productIndex]!;
   const derivation = useMemo(
-    () => deriveForUi(product, input, prices, catalog),
-    [product, input, prices, catalog],
+    () => deriveForUi(product, input, prices, catalogs),
+    [product, input, prices, catalogs],
   );
   const steps = useMemo(
     () => resolveUi(product.release, derivation.scope ?? input),

@@ -105,7 +105,16 @@ describe("price-table store (HTTP, real stack)", () => {
     it("the API-resolved v2 table reproduces the site golden 129 891.504", async () => {
       const resolved = await resolveActive("2026-03-01T00:00:00.000Z");
       expect(resolved.table.version).toBe(2);
-      const result = deriveSite(steppedSite, instances(), resolved.table, catalogV2);
+      const result = deriveSite(
+        steppedSite,
+        instances(),
+        resolved.table,
+        // Per-release catalog map (ADR 0065) — both products on catalog@2.
+        new Map([
+          ["sliding-gate@1", catalogV2],
+          ["fence-run@1", catalogV2],
+        ]),
+      );
       expect(result.isValid).toBe(true);
       expect(result.money.total).toBe("129891.504");
       expect(result.stamps.priceTableVersion).toBe(2);

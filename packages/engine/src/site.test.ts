@@ -113,6 +113,14 @@ const prices: PriceTable = {
   installation: 0,
 };
 
+/** Per-release catalog map (ADR 0065), keyed by release id — every panel release
+ *  in these tests derives against catalog@7 (`panel@2` is the terrain-unbound
+ *  clone). deriveSite routes each instance to its release's catalog. */
+const catalogs = new Map<string, Catalog>([
+  ["panel@1", catalog],
+  ["panel@2", catalog],
+]);
+
 const flat: Site["terrain"] = [{ id: "s0", elevation_mm: 0 }];
 
 const place = (...ids: string[]): Site["placements"] =>
@@ -137,7 +145,7 @@ describe("deriveSite — sharing & aggregation (I6)", () => {
     ],
   };
 
-  const result = deriveSite(site, twoPanels(), prices, catalog);
+  const result = deriveSite(site, twoPanels(), prices, catalogs);
 
   it("is valid and resolves the shared element to one owner", () => {
     expect(result.isValid).toBe(true);
@@ -180,7 +188,7 @@ describe("deriveSite — sharing & aggregation (I6)", () => {
       { id: "site-2", terrain: flat, placements: place("A"), connections: [] },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expect(standalone.bom.find((l) => l.componentCode === "cap")?.quantity).toBe(2);
   });
@@ -194,7 +202,7 @@ describe("deriveSite — sharing & aggregation (I6)", () => {
         { instanceId: "B", release: panel, input: { len: 1100 } },
       ],
       prices,
-      catalog,
+      catalogs,
     );
     expect(result.isValid).toBe(true);
     expect(result.sharing).toHaveLength(1);
@@ -202,17 +210,17 @@ describe("deriveSite — sharing & aggregation (I6)", () => {
     expect(result.bom.find((l) => l.componentCode === "cap")?.quantity).toBe(3);
   });
 
-  it("stamps every instance's release pin (I3)", () => {
+  it("stamps every instance's release pin + each release's catalog version (I3)", () => {
     expect(result.stamps).toEqual({
       releaseIds: { A: "panel@1", B: "panel@1" },
-      catalogVersion: 7,
+      catalogVersions: { "panel@1": 7 },
       priceTableVersion: 3,
       overrideIds: [],
     });
   });
 
   it("is deterministic — re-derivation is byte-identical (I1)", () => {
-    expect(JSON.stringify(deriveSite(site, twoPanels(), prices, catalog))).toBe(
+    expect(JSON.stringify(deriveSite(site, twoPanels(), prices, catalogs))).toBe(
       JSON.stringify(result),
     );
   });
@@ -230,7 +238,7 @@ describe("deriveSite — the degenerate single-instance site (I11)", () => {
       },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expect(result.isValid).toBe(true);
     expect(result.totals).toEqual(alone.totals);
@@ -256,7 +264,7 @@ describe("deriveSite — stepped terrain & connection constraints", () => {
   };
 
   it("injects the segment elevation into the declared parameter", () => {
-    const result = deriveSite(stepped, twoPanels(), prices, catalog);
+    const result = deriveSite(stepped, twoPanels(), prices, catalogs);
     expect(result.isValid).toBe(true);
     expect(result.instances.A!.derived.top).toBe(1000);
     expect(result.instances.B!.derived.top).toBe(1080);
@@ -270,7 +278,7 @@ describe("deriveSite — stepped terrain & connection constraints", () => {
         { id: "hi", elevation_mm: 250 },
       ],
     };
-    const result = deriveSite(tooSteep, twoPanels(), prices, catalog);
+    const result = deriveSite(tooSteep, twoPanels(), prices, catalogs);
     expect(result.isValid).toBe(false);
     expect(result.bom).toEqual([]);
     expect(result.totals.total).toBe(0);
@@ -299,7 +307,7 @@ describe("deriveSite — stepped terrain & connection constraints", () => {
         { instanceId: "B", release: panel, input: { len: 2000, elev: 500 } },
       ],
       prices,
-      catalog,
+      catalogs,
     );
     expect(result.isValid).toBe(false);
     expect(result.issues).toEqual([
@@ -320,7 +328,7 @@ describe("deriveSite — stepped terrain & connection constraints", () => {
         { instanceId: "B", release: panel, input: { len: 2000, elev: 80 } },
       ],
       prices,
-      catalog,
+      catalogs,
     );
     expect(result.isValid).toBe(true);
   });
@@ -341,7 +349,7 @@ describe("deriveSite — structural validation", () => {
         { instanceId: "A", release: panel, input: { len: 3000 } },
       ],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.duplicate_instance");
   });
@@ -351,7 +359,7 @@ describe("deriveSite — structural validation", () => {
       { id: "s", terrain: flat, placements: place("A", "GHOST"), connections: [] },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.unknown_instance");
   });
@@ -361,7 +369,7 @@ describe("deriveSite — structural validation", () => {
       { id: "s", terrain: flat, placements: place("A", "A"), connections: [] },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.duplicate_placement");
   });
@@ -371,7 +379,7 @@ describe("deriveSite — structural validation", () => {
       { id: "s", terrain: flat, placements: [], connections: [] },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.unplaced_instance");
   });
@@ -388,7 +396,7 @@ describe("deriveSite — structural validation", () => {
       },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.unknown_terrain_segment");
   });
@@ -400,7 +408,7 @@ describe("deriveSite — structural validation", () => {
       { id: "s", terrain: flat, placements: place("A"), connections: [] },
       [{ instanceId: "A", release: unbound, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.terrain_unbound");
   });
@@ -415,7 +423,7 @@ describe("deriveSite — structural validation", () => {
       },
       [{ instanceId: "A", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.duplicate_terrain_segment");
   });
@@ -432,7 +440,7 @@ describe("deriveSite — structural validation", () => {
       },
       twoPanels(),
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.unknown_port");
   });
@@ -450,7 +458,7 @@ describe("deriveSite — structural validation", () => {
       },
       [...twoPanels(), { instanceId: "C", release: panel, input: { len: 2000 } }],
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.port_reused");
   });
@@ -467,7 +475,7 @@ describe("deriveSite — structural validation", () => {
       },
       twoPanels(),
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.port_incompatible");
   });
@@ -484,7 +492,7 @@ describe("deriveSite — structural validation", () => {
       },
       twoPanels(),
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.sharing_conflict");
   });
@@ -501,7 +509,7 @@ describe("deriveSite — structural validation", () => {
       },
       twoPanels(),
       prices,
-      catalog,
+      catalogs,
     );
     expectSingleIssue(result, "engine.site.sharing_unprovided");
   });
@@ -533,7 +541,7 @@ describe("deriveSite — per-instance cascade layers", () => {
         { instanceId: "B", release: panel, input: { len: 2000 } },
       ],
       prices,
-      catalog,
+      catalogs,
     );
     expect(result.isValid).toBe(true);
     expect(result.stamps.overrideIds).toEqual(["ovr-1"]);

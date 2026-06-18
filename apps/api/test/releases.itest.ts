@@ -160,8 +160,15 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
       ).body;
     });
 
+    // Per-release catalog map (ADR 0065) — both products on catalog@2 here.
+    const siteCatalogs = (): ReadonlyMap<string, Catalog> =>
+      new Map([
+        ["sliding-gate@1", catalog],
+        ["fence-run@1", catalog],
+      ]);
+
     it("the GATE — fenceA — fenceB aggregate is string-exact 129 891.504", () => {
-      const result = deriveSite(steppedSite, instances(), sitePrices, catalog);
+      const result = deriveSite(steppedSite, instances(), sitePrices, siteCatalogs());
       expect(result.isValid).toBe(true);
       expect(result.money).toEqual(siteGolden.site.moneyTotals);
       expect(result.money.total).toBe("129891.504");
@@ -170,12 +177,15 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
         fenceA: "fence-run@1",
         fenceB: "fence-run@1",
       });
-      expect(result.stamps.catalogVersion).toBe(2);
+      expect(result.stamps.catalogVersions).toEqual({
+        "sliding-gate@1": 2,
+        "fence-run@1": 2,
+      });
     });
 
     it("removing the fence joint restores fenceB's post: 130 241.504 (I8)", () => {
       const unjoined: Site = { ...steppedSite, connections: [steppedSite.connections[0]!] };
-      const result = deriveSite(unjoined, instances(), sitePrices, catalog);
+      const result = deriveSite(unjoined, instances(), sitePrices, siteCatalogs());
       expect(result.money.total).toBe(siteGolden.siteWithoutFenceJoint.moneyTotal);
     });
 

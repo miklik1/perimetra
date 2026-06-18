@@ -119,8 +119,17 @@ mixed-catalog blast radius); tenant admin opts in via `POST /v1/releases/pin` (+
 authz — a still-assigned old version is quotable); **I3 ≠ pin** (a quote on @1
 reproduces forever after opting into @2). `/platform` console groups by model +
 badges the pin; migration backfills pins to the highest assigned version (N-1 safe).
-Next: step-6 follow-ups — per-release catalog (mixed-version; the real fix behind
-ADR 0064's `upgrade_catalog_conflict` guard) + a vendor-broadcast upgrade offer,
+Per-release catalog (2026-06-18, ADR 0065): the mixed-version fix behind ADR 0064's
+`upgrade_catalog_conflict` guard. `deriveSite` now takes a `ReadonlyMap<releaseId,
+Catalog>` (each instance derives against its OWN pinned catalog — the engine was
+already per-instance); `SiteStamps.catalogVersion` scalar → `catalogVersions`
+map; `quote.catalog_version` denorm DROPPED (authoritative copy in
+`stamps.catalogVersions` JSONB). Deleted the three single-catalog guards
+(`mixed_catalog`, `upgrade_catalog_conflict`+`catalogConflict`, the web throw) —
+they refused a now-legal state; `MissingCatalogError` is the new structural I5
+backstop. `pinVersion` is now a pure version move (no catalog pre-flight). I3 holds
+across mixed catalogs (`per-release-catalog.itest`: a catalog@1+@2 quote reproduces).
+Next: step-6 follow-ups — vendor-broadcast upgrade offer (fan-out the assign+offer),
 admin (`adjustability: tenant`), issue-key i18n + deviation-override UX,
 `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
 org, Decline / web self-registration).

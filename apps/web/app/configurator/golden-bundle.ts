@@ -19,7 +19,6 @@ import type { Catalog } from "@repo/model";
 import type { SiteDeriveContext } from "../site/derive";
 import type { ConfigurableProduct } from "./products";
 
-export const goldenCatalog: Catalog = catalogV2;
 export const goldenPrices: PriceTable = sitePrices;
 
 export const goldenProducts: ConfigurableProduct[] = [
@@ -27,8 +26,15 @@ export const goldenProducts: ConfigurableProduct[] = [
   { release: fenceRunV1, initialInput: siteFenceConfig },
 ];
 
+/** Per-release catalog map (ADR 0065), keyed by release id — both golden
+ *  products on catalog@2 (the delta-0 lineage). */
+export const goldenCatalogs: ReadonlyMap<string, Catalog> = new Map([
+  [slidingGateV1.id, catalogV2],
+  [fenceRunV1.id, catalogV2],
+]);
+
 export const goldenCtx: SiteDeriveContext = {
   products: goldenProducts,
-  catalog: goldenCatalog,
+  catalogs: goldenCatalogs,
   prices: goldenPrices,
 };

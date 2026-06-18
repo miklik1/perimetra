@@ -28,9 +28,11 @@ export interface ConfigurableProduct {
 export interface CatalogBundle {
   /** Published products in api order (ordering is cosmetic — the palette list). */
   products: ConfigurableProduct[];
-  /** The catalog every release pins (one shared version this slice). Null only
-   *  when nothing is published yet. */
-  catalog: Catalog | null;
+  /** Each release's catalog, keyed by release id — per-release catalog (ADR 0065):
+   *  different products may pin different catalog versions, so the engine routes
+   *  each instance to its own (releases sharing a version share the Catalog
+   *  reference). Empty only when nothing is published yet. */
+  catalogs: ReadonlyMap<string, Catalog>;
   /** The org's active price table; null for a price-blind/workshop session or an
    *  org with no active table. */
   prices: PriceTable | null;

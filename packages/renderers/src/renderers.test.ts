@@ -52,7 +52,7 @@ const siteResult = (
   issues: [],
   stamps: {
     releaseIds: Object.fromEntries(Object.keys(instances).map((id) => [id, "m@1"])),
-    catalogVersion: 1,
+    catalogVersions: { "m@1": 1 },
     priceTableVersion: 1,
     overrideIds: [],
   },

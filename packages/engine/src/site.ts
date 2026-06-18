@@ -107,11 +107,15 @@ export interface SiteBomLine {
   sources: { instanceId: string; path: string }[];
 }
 
-/** What the site derivation ran against (I3) — per-instance release pins plus
- *  the shared catalog/price versions and every applied override, in order. */
+/** What the site derivation ran against (I3) — per-instance release pins, the
+ *  catalog version EACH release derived against (per-release catalog, ADR 0065),
+ *  the shared price version and every applied override, in order. */
 export interface SiteStamps {
   releaseIds: Record<string, string>;
-  catalogVersion: number;
+  /** releaseId → the catalog version that release's parts resolved against.
+   *  Per-release because two products can pin different catalog versions in one
+   *  site; recorded from the catalog actually used, never a claimed number. */
+  catalogVersions: Record<string, number>;
   priceTableVersion: number;
   overrideIds: string[];
 }
@@ -163,11 +167,34 @@ function prefixScope(into: Scope, prefix: string, scope: Scope): void {
   }
 }
 
+/** A site roster release whose catalog the caller did not supply in the catalog
+ *  map (keyed by releaseId, deduped by reference across shared versions). An
+ *  AUTHOR-time throw — the API/web assemble a complete map — and the structural
+ *  I5 backstop that replaces the old single-catalog de-dupe guards (ADR 0065). */
+export class MissingCatalogError extends Error {
+  constructor(readonly releaseId: string) {
+    super(`No catalog supplied for release "${releaseId}"`);
+    this.name = "MissingCatalogError";
+  }
+}
+
+/** The catalog a release resolves against — each instance derives against its
+ *  own pinned version, so two products on different catalog versions coexist in
+ *  one site (ADR 0065). */
+function catalogFor(release: ProductModelRelease, catalogs: ReadonlyMap<string, Catalog>): Catalog {
+  const catalog = catalogs.get(release.id);
+  if (catalog === undefined) throw new MissingCatalogError(release.id);
+  return catalog;
+}
+
 export function deriveSite(
   site: Site,
   instances: SiteInstance[],
   prices: PriceTable,
-  catalog: Catalog,
+  /** releaseId → catalog (per-release catalog, ADR 0065). Distinct releases on
+   *  the same version may share one Catalog object reference (deduped upstream);
+   *  every roster release must have an entry or {@link MissingCatalogError}. */
+  catalogs: ReadonlyMap<string, Catalog>,
   options: SiteDeriveOptions = {},
 ): SiteResult {
   const evaluator = options.constraintEvaluator ?? forwardChecker;
@@ -186,7 +213,12 @@ export function deriveSite(
 
   const stamps: SiteStamps = {
     releaseIds: Object.fromEntries([...byId.values()].map((i) => [i.instanceId, i.release.id])),
-    catalogVersion: catalog.version,
+    // Read from the catalog each release ACTUALLY used (never a claimed number);
+    // throws MissingCatalogError now if the map is incomplete — the structural
+    // I5 backstop, before any work.
+    catalogVersions: Object.fromEntries(
+      [...byId.values()].map((i) => [i.release.id, catalogFor(i.release, catalogs).version]),
+    ),
     priceTableVersion: prices.version,
     overrideIds: [],
   };
@@ -354,7 +386,7 @@ export function deriveSite(
       instance.release,
       input,
       prices,
-      catalog,
+      catalogFor(instance.release, catalogs),
       instanceOptions,
     );
     instanceResults[instance.instanceId] = result;

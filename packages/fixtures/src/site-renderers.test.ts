@@ -20,7 +20,7 @@
 import { describe, expect, it } from "vitest";
 
 import { deriveInstance, deriveSite, type SiteInstance } from "@repo/engine";
-import type { Override } from "@repo/model";
+import type { Catalog, Override } from "@repo/model";
 import { buildCutList, buildScene, buildSitePlan, buildWorkshopDrawing } from "@repo/renderers";
 
 import { catalogV2 } from "./catalog/catalog-v2.js";
@@ -34,7 +34,13 @@ const instances = (): SiteInstance[] => [
   { instanceId: "fenceB", release: fenceRunV1, input: siteFenceConfig },
 ];
 
-const siteResult = deriveSite(steppedSite, instances(), sitePrices, catalogV2);
+// Both releases on catalog@2, keyed by releaseId (per-release catalog, ADR 0065).
+const siteCatalogs = new Map<string, Catalog>([
+  ["sliding-gate@1", catalogV2],
+  ["fence-run@1", catalogV2],
+]);
+
+const siteResult = deriveSite(steppedSite, instances(), sitePrices, siteCatalogs);
 
 describe("scene 3D — the site as placed pieces (I4/I6/§5)", () => {
   const scene = buildScene(steppedSite, siteResult);

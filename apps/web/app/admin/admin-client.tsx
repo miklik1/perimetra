@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-import { invalidateKeys, isHttpError } from "@repo/api";
+import { invalidateKeys } from "@repo/api";
 import {
   useApiClient,
   useAuthQueries,
@@ -74,9 +74,10 @@ const listClass = "text-muted-foreground flex flex-col gap-1 text-sm";
 /**
  * Opt-in upgrade surface (ADR 0064). Lists the models the org is pinned to for
  * which the vendor has assigned a newer version; "Upgrade" moves the org's pin
- * (explicit opt-in, CORE_SPEC §3). A cross-catalog opt-in is refused server-side
- * (422 `upgrade_catalog_conflict`) — surfaced as a specific message, not a generic
- * failure. Old quotes/saved sites on the prior version are untouched (I3).
+ * (explicit opt-in, CORE_SPEC §3). Per-release catalog (ADR 0065) means a newer
+ * version may carry a different catalog version and still be opted into freely —
+ * there is no cross-catalog refusal. Old quotes/saved sites on the prior version
+ * are untouched (I3).
  */
 function ProductVersions() {
   const t = useTranslations("admin");
@@ -93,7 +94,7 @@ function ProductVersions() {
       void invalidateKeys(queryClient, [adminKeys.upgrades()]);
       toast.success(t("upgraded"));
     },
-    onError: (error) => toast.error(t(upgradeErrorKey(error))),
+    onError: () => toast.error(t("upgradeError")),
   });
 
   if (isLoading) return <p className={listClass}>{t("loadingList")}</p>;
@@ -124,16 +125,6 @@ function ProductVersions() {
       })}
     </ul>
   );
-}
-
-/** A cross-catalog opt-in is the one domain-specific failure worth its own copy;
- *  everything else is a generic "couldn't upgrade". Returns an `admin.*` key. The
- *  `@repo/api` client already extracts the typed `code` off the error envelope. */
-function upgradeErrorKey(error: unknown): "upgradeCatalogConflict" | "upgradeError" {
-  if (isHttpError(error) && error.code === "upgrade_catalog_conflict") {
-    return "upgradeCatalogConflict";
-  }
-  return "upgradeError";
 }
 
 function PriceTablesList() {

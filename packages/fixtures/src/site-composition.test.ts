@@ -14,9 +14,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { deriveInstance, deriveSite, type SiteInstance } from "@repo/engine";
-import { validateRelease, type Site } from "@repo/model";
+import { deriveInstance, deriveSite, MissingCatalogError, type SiteInstance } from "@repo/engine";
+import { validateRelease, type Catalog, type Site } from "@repo/model";
 
+import { catalogV1 } from "./catalog/catalog-v1.js";
 import { catalogV2 } from "./catalog/catalog-v2.js";
 import {
   siteCosts,
@@ -35,6 +36,13 @@ const instances = (): SiteInstance[] => [
   { instanceId: "fenceA", release: fenceRunV1, input: siteFenceConfig },
   { instanceId: "fenceB", release: fenceRunV1, input: siteFenceConfig },
 ];
+
+/** Both releases on catalog@2 (the existing golden) — keyed by releaseId, the
+ *  per-release catalog map deriveSite now takes (ADR 0065). */
+const siteCatalogs = new Map<string, Catalog>([
+  ["sliding-gate@1", catalogV2],
+  ["fence-run@1", catalogV2],
+]);
 
 describe("fence-run@1 — publish gate (validateRelease)", () => {
   it("has zero defects against catalog@2", () => {
@@ -79,7 +87,7 @@ describe("fence-run@1 — standalone derivation (the new family's own lock)", ()
 });
 
 describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)", () => {
-  const result = deriveSite(steppedSite, instances(), sitePrices, catalogV2);
+  const result = deriveSite(steppedSite, instances(), sitePrices, siteCatalogs);
 
   it("is valid: every step within the fence model's 200 mm rule", () => {
     expect(result.isValid).toBe(true);
@@ -133,7 +141,7 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
   });
 
   it("aggregate cost shares the cost once and never moves the price (ADR 0059, I6)", () => {
-    const costed = deriveSite(steppedSite, instances(), sitePrices, catalogV2, {
+    const costed = deriveSite(steppedSite, instances(), sitePrices, siteCatalogs, {
       costs: siteCosts,
     });
     // Adding cost is purely additive — the sell totals are unchanged.
@@ -147,24 +155,24 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
     expect(marginPct).toBeCloseTo(39.15, 2);
   });
 
-  it("stamps every release pin + catalog@2 + the site price table (I3)", () => {
+  it("stamps every release pin + each release's catalog version + the site price table (I3)", () => {
     expect(result.stamps).toEqual({
       releaseIds: { gate: "sliding-gate@1", fenceA: "fence-run@1", fenceB: "fence-run@1" },
-      catalogVersion: 2,
+      catalogVersions: { "sliding-gate@1": 2, "fence-run@1": 2 },
       priceTableVersion: 2,
       overrideIds: [],
     });
   });
 
   it("is deterministic — re-derivation is byte-identical (I1)", () => {
-    expect(JSON.stringify(deriveSite(steppedSite, instances(), sitePrices, catalogV2))).toBe(
+    expect(JSON.stringify(deriveSite(steppedSite, instances(), sitePrices, siteCatalogs))).toBe(
       JSON.stringify(result),
     );
   });
 
   it("removing the fence joint restores fenceB's start post (layering, I8)", () => {
     const unjoined: Site = { ...steppedSite, connections: [steppedSite.connections[0]!] };
-    const result = deriveSite(unjoined, instances(), sitePrices, catalogV2);
+    const result = deriveSite(unjoined, instances(), sitePrices, siteCatalogs);
     expect(result.isValid).toBe(true);
     expect(result.bom.find((l) => l.componentCode === "fence_post_60")?.quantity).toBe(
       siteGolden.siteWithoutFenceJoint.fencePostCount,
@@ -190,12 +198,56 @@ describe("site graph — the degenerate single-gate site (I11)", () => {
       },
       [{ instanceId: "gate", release: slidingGateV1, input: planka_100_2d_3panel.config }],
       planka_100_2d_3panel.prices,
-      catalogV2,
+      siteCatalogs,
     );
     expect(result.isValid).toBe(true);
     expect(result.money.total).toBe(String(planka_100_2d_3panel.expectedTotalPrice));
     expect(result.totals).toEqual(alone.totals);
     expect(result.instances.gate).toEqual(alone);
+  });
+});
+
+describe("site graph — per-release catalog (mixed versions coexist, ADR 0065)", () => {
+  // The gate release resolves against BOTH catalog versions; the fence needs @2.
+  // The SAME stepped site, with the gate pinned to catalog@1 and the fences to
+  // catalog@2 — each instance derives against its OWN catalog, the site composes
+  // and re-derives per release. This is the real fix behind ADR 0064's old
+  // `upgrade_catalog_conflict` guard (now removed).
+  const mixedCatalogs = new Map<string, Catalog>([
+    ["sliding-gate@1", catalogV1],
+    ["fence-run@1", catalogV2],
+  ]);
+
+  it("the gate release resolves against catalog@1 (the precondition)", () => {
+    expect(validateRelease(slidingGateV1, catalogV1)).toEqual([]);
+  });
+
+  it("derives valid with each instance against its own catalog version", () => {
+    const result = deriveSite(steppedSite, instances(), sitePrices, mixedCatalogs);
+    expect(result.isValid).toBe(true);
+    expect(result.issues.filter((i) => i.severity === "error")).toHaveLength(0);
+    // The site-level stamp records each release's OWN catalog version (I3).
+    expect(result.stamps.catalogVersions).toEqual({
+      "sliding-gate@1": 1,
+      "fence-run@1": 2,
+    });
+    // Per-instance stamps stay scalar — one release derives against one catalog.
+    expect(result.instances.gate!.stamps.catalogVersion).toBe(1);
+    expect(result.instances.fenceA!.stamps.catalogVersion).toBe(2);
+    expect(result.instances.fenceB!.stamps.catalogVersion).toBe(2);
+  });
+
+  it("re-derivation is byte-identical across mixed catalogs (I1/I3)", () => {
+    expect(JSON.stringify(deriveSite(steppedSite, instances(), sitePrices, mixedCatalogs))).toBe(
+      JSON.stringify(deriveSite(steppedSite, instances(), sitePrices, mixedCatalogs)),
+    );
+  });
+
+  it("throws MissingCatalogError when a roster release has no catalog (structural I5 backstop)", () => {
+    const incomplete = new Map<string, Catalog>([["fence-run@1", catalogV2]]);
+    expect(() => deriveSite(steppedSite, instances(), sitePrices, incomplete)).toThrow(
+      MissingCatalogError,
+    );
   });
 });
 
@@ -208,7 +260,7 @@ describe("site graph — the invalid step (connection constraints kill the site)
         { id: "s2", elevation_mm: 400 },
       ],
     };
-    const result = deriveSite(tooSteep, instances(), sitePrices, catalogV2);
+    const result = deriveSite(tooSteep, instances(), sitePrices, siteCatalogs);
     expect(result.isValid).toBe(false);
     expect(result.bom).toEqual([]);
     expect(result.totals.total).toBe(0);

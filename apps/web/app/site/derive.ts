@@ -37,12 +37,13 @@ import {
 import { type ConfigurableProduct } from "../configurator/products";
 
 /** The api-served catalog context the canvas derives against (ADR 0060):
- *  the published products (indexed roster), the shared catalog every release
- *  pins, and the org's active price table. Prop-passed in (the engine requires
- *  a price table, so the canvas only renders when `prices` is present). */
+ *  the published products (indexed roster), each release's catalog keyed by
+ *  release id (per-release catalog, ADR 0065 — products may pin different catalog
+ *  versions), and the org's active price table. Prop-passed in (the engine
+ *  requires a price table, so the canvas only renders when `prices` is present). */
 export interface SiteDeriveContext {
   products: ConfigurableProduct[];
-  catalog: Catalog;
+  catalogs: ReadonlyMap<string, Catalog>;
   prices: PriceTable;
 }
 
@@ -106,6 +107,19 @@ export interface SiteUiDerivation {
 export const releaseOf = (ctx: SiteDeriveContext, i: PlacedInstance) =>
   ctx.products[i.productIndex]!.release;
 
+/** The catalog a placed instance derives against — its release's own pinned
+ *  catalog (per-release catalog, ADR 0065). The bundle always includes it; a miss
+ *  is a bundle-assembly bug surfaced loudly (mirrors the engine's
+ *  MissingCatalogError), never a silent wrong-catalog derivation (I5). */
+function catalogOf(ctx: SiteDeriveContext, i: PlacedInstance): Catalog {
+  const release = releaseOf(ctx, i);
+  const catalog = ctx.catalogs.get(release.id);
+  if (catalog === undefined) {
+    throw new Error(`No catalog for release "${release.id}" in the bundle`);
+  }
+  return catalog;
+}
+
 /** Map the canvas's placed instances to the engine's SiteInstance roster. */
 function siteInstances(ctx: SiteDeriveContext, placed: PlacedInstance[]): SiteInstance[] {
   return placed.map((p) => ({
@@ -143,7 +157,7 @@ export function deriveInstanceScope(
     releaseOf(ctx, instance),
     terrainInput(ctx, site, instance),
     ctx.prices,
-    ctx.catalog,
+    catalogOf(ctx, instance),
   );
   return { result, ...(scope && { scope }) };
 }
@@ -193,7 +207,7 @@ export function deriveSiteForUi(
   site: Site,
   placed: PlacedInstance[],
 ): SiteUiDerivation {
-  const result = deriveSite(site, siteInstances(ctx, placed), ctx.prices, ctx.catalog);
+  const result = deriveSite(site, siteInstances(ctx, placed), ctx.prices, ctx.catalogs);
 
   const placementOf = new Map(site.placements.map((p) => [p.instanceId, p]));
   const usedPorts = new Set(

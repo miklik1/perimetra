@@ -52,8 +52,10 @@ export const quote = pgTable(
     /** snapshot.money.total — the decimal-string total (I10), denormalized for
      *  list display and the margin-floor check. */
     totalMoney: text("total_money").notNull(),
-    /** Stamp denormalizations for queries (the authoritative copies live in `stamps`). */
-    catalogVersion: integer("catalog_version").notNull(),
+    /** Price-table version denormalized for queries (authoritative copy in
+     *  `stamps`). The catalog version is NO LONGER a scalar denorm: per-release
+     *  catalog (ADR 0065) means a quote spans a MAP of releaseId→version, which
+     *  has no single-column form — `stamps.catalogVersions` is the only copy. */
     priceTableVersion: integer("price_table_version").notNull(),
     /** Engine `SiteStamps` (I3 addressing). */
     stamps: jsonb("stamps").notNull(),

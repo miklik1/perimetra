@@ -46,9 +46,17 @@ export function deriveForUi(
   product: ConfigurableProduct,
   input: ConfigInput,
   prices: PriceTable,
-  catalog: Catalog,
+  catalogs: ReadonlyMap<string, Catalog>,
 ): UiDerivation {
   const { release } = product;
+  // Per-release catalog (ADR 0065): resolve THIS product's catalog from the
+  // bundle map (keyed by release id). The bundle always includes it; a miss is a
+  // bundle-assembly bug, surfaced loudly rather than deriving against the wrong
+  // catalog (I5).
+  const catalog = catalogs.get(release.id);
+  if (catalog === undefined) {
+    throw new Error(`No catalog for release "${release.id}" in the bundle`);
+  }
   const detailed = deriveInstanceDetailed(release, input, prices, catalog);
   if (!detailed.result.isValid) {
     return { result: detailed.result, ...(detailed.scope && { scope: detailed.scope }) };
@@ -57,7 +65,7 @@ export function deriveForUi(
     previewSite,
     [{ instanceId: PREVIEW_INSTANCE, release, input }],
     prices,
-    catalog,
+    catalogs,
   );
   return {
     result: detailed.result,

@@ -270,8 +270,6 @@ const en: Messages = {
     upgrading: "Upgrading…",
     upgraded: "Upgraded.",
     upgradeError: "Could not upgrade.",
-    upgradeCatalogConflict:
-      "That version uses a different catalog than your other products — it can't be combined with them yet.",
     noUpgrades: "All your products are on their latest available version.",
   },
   platform: {

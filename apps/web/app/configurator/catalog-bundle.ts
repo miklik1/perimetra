@@ -21,17 +21,18 @@ import type { CatalogBundle, ConfigurableProduct } from "./products";
  * to the client surfaces (never import this from a client component).
  *
  * Steps: list published releases (follow the keyset cursor) → fetch each body and
- * its `initialInput` (the list ships metadata only) and the one catalog version
- * they pin → fetch the org's active price table. A 403 on the price table
+ * its `initialInput` (the list ships metadata only) → fetch each DISTINCT catalog
+ * version the pinned set references and key it by release id (per-release catalog,
+ * ADR 0065) → fetch the org's active price table. A 403 on the price table
  * (workshop, ADR 0056) or a 404 (no active table) yields `prices: null` — never a
  * throw, so the surface degrades to price-blind instead of erroring.
  *
  * `/v1/releases` returns the org's PINNED version per model (ADR 0064 — assigned
  * AND the active pin), so the configurator picker shows ONE version per product;
  * a newer assigned version is an opt-in offer (`/admin`), never a parallel entry.
- * The mixed-catalog guard below therefore spans only the PINNED set — narrower
- * than "all assigned", so an available-upgrade on a new catalog can't break the
- * bundle until the tenant opts in (the opt-in pre-flights that conflict, I5).
+ * Per-release catalog (ADR 0065) means those pinned products may carry DIFFERENT
+ * catalog versions — each release derives against its own catalog, so there is no
+ * longer a single-catalog guard (a referenced version that 404s still throws, I5).
  */
 const RELEASES_PAGE_LIMIT = 100;
 
@@ -52,7 +53,7 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
 
-  if (summaries.length === 0) return { products: [], catalog: null, prices: null };
+  if (summaries.length === 0) return { products: [], catalogs: new Map(), prices: null };
 
   // 2. Each release body + initialInput (the list ships metadata only).
   const details = await Promise.all(
@@ -65,23 +66,26 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     initialInput: (d.initialInput as ConfigInput | null) ?? {},
   }));
 
-  // 3. The shared catalog every release pins (one version this slice — the
-  // engine's `deriveSite` takes a single catalog). A release pinning a different
-  // version is unsupported here, so FAIL LOUD rather than silently serving the
-  // wrong catalog (mirrors the quotes `mixed_catalog` guard; per-release catalog
-  // is the deferred ADR 0060 follow-up). I5: no silent wrong result.
-  const catalogVersion = summaries[0]!.catalogVersion;
-  const mixed = summaries.some((s) => s.catalogVersion !== catalogVersion);
-  if (mixed) {
-    const versions = [...new Set(summaries.map((s) => s.catalogVersion))].sort((a, b) => a - b);
-    throw new Error(
-      `Published releases pin different catalog versions (${versions.join(", ")}) — cannot assemble one catalog. Retire or re-pin the conflicting release.`,
-    );
-  }
-  const catalogDetail = await client.apiFetch(`/v1/catalog-versions/by-version/${catalogVersion}`, {
-    parse: (d) => catalogVersionSchema.parse(d),
-  });
-  const catalog = catalogDetail.body as Catalog;
+  // 3. Per-release catalog (ADR 0065): each release derives against its OWN pinned
+  // catalog version — mixed versions coexist. Fetch each DISTINCT version once,
+  // then key by release id so the engine routes every instance to its catalog
+  // (products sharing a version share the Catalog object). A referenced version
+  // that 404s still throws (a published release must reference a published
+  // catalog, I5) — there is no longer a single-catalog guard.
+  const distinctVersions = [...new Set(summaries.map((s) => s.catalogVersion))];
+  const catalogByVersion = new Map<number, Catalog>(
+    await Promise.all(
+      distinctVersions.map(async (v): Promise<[number, Catalog]> => {
+        const detail = await client.apiFetch(`/v1/catalog-versions/by-version/${v}`, {
+          parse: (d) => catalogVersionSchema.parse(d),
+        });
+        return [v, detail.body as Catalog];
+      }),
+    ),
+  );
+  const catalogs = new Map<string, Catalog>(
+    products.map((p, i) => [p.release.id, catalogByVersion.get(summaries[i]!.catalogVersion)!]),
+  );
 
   // 4. The org's active price table (price-blind / none → null, not an error).
   let prices: PriceTable | null = null;
@@ -94,5 +98,5 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     if (!isForbidden(error) && !isNotFound(error)) throw error;
   }
 
-  return { products, catalog, prices };
+  return { products, catalogs, prices };
 }

@@ -35,7 +35,11 @@ interface QuoteDetail {
   status: string;
   currency: string;
   total: string;
-  stamps: { releaseIds: Record<string, string>; catalogVersion: number; priceTableVersion: number };
+  stamps: {
+    releaseIds: Record<string, string>;
+    catalogVersions: Record<string, number>;
+    priceTableVersion: number;
+  };
   snapshot: { money: { total: string }; costMoney?: { total: string } };
 }
 
@@ -100,7 +104,10 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         fenceA: "fence-run@1",
         fenceB: "fence-run@1",
       });
-      expect(quote.stamps.catalogVersion).toBe(2);
+      expect(quote.stamps.catalogVersions).toEqual({
+        "sliding-gate@1": 2,
+        "fence-run@1": 2,
+      });
       expect(quote.stamps.priceTableVersion).toBe(2);
     });
 

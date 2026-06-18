@@ -66,8 +66,9 @@ export type ReleasesPage = z.infer<typeof releasesPageSchema>;
 /** A model an org is pinned to for which a NEWER assigned version exists — the
  *  explicit opt-in-upgrade offer the tenant `/admin` surface renders. The pinned
  *  vs latest split lets the UI say "you are on v{pinnedVersion}, v{latestVersion}
- *  is available". `latestCatalogVersion` lets the UI warn before an opt-in that
- *  would cross catalog versions (the engine derives against one catalog, I5). */
+ *  is available". `latestCatalogVersion` is an informational badge ("new version,
+ *  catalog@N") — per-release catalog (ADR 0065) means a newer version may carry a
+ *  different catalog version and still be opted into freely. */
 export const upgradeOfferSchema = z.object({
   modelId: z.string(),
   pinnedReleaseId: z.string(),
@@ -86,8 +87,10 @@ export const upgradeOffersSchema = z.object({
 export type UpgradeOffers = z.infer<typeof upgradeOffersSchema>;
 
 /** Opt into a version: move the org's pin for THAT release's model to
- *  `releaseId` (the explicit §3 opt-in). The target must be assigned + published;
- *  the engine's single-catalog rule is pre-flight-checked server-side. */
+ *  `releaseId` (the explicit §3 opt-in). The target must be assigned + published.
+ *  Per-release catalog (ADR 0065): each release derives against its OWN catalog
+ *  version, so there is no cross-catalog pre-flight — a mixed-version pinned set is
+ *  fully supported. */
 export const pinVersionSchema = z.object({
   releaseId: z.string().min(1),
 });

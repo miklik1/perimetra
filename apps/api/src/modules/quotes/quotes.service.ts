@@ -31,7 +31,7 @@ import {
   type SiteInstance,
   type SiteResult,
 } from "@repo/engine";
-import { type ProductModelRelease, type Site } from "@repo/model";
+import { type Catalog, type ProductModelRelease, type Site } from "@repo/model";
 import {
   buildCutList,
   buildSitePlan,
@@ -214,18 +214,27 @@ export class QuotesService {
       input.instances.map((i) => i.releaseId),
     );
 
-    // A site derives against ONE catalog version (I3 — a single catalog stamp).
-    const catalogVersions = [...new Set(loaded.map((l) => l.detail.catalogVersion))];
-    if (catalogVersions.length !== 1) {
-      throw new UnprocessableEntityException({
-        message: "instances reference different catalog versions",
-        code: "mixed_catalog",
-        catalogVersions,
-      });
-    }
-    const catalogVersion = catalogVersions[0]!;
-    const catalog = await this.catalogVersions.loadCatalog(catalogVersion);
-    if (!catalog) throw new BadRequestException(`catalog@${catalogVersion} is not published`);
+    // Per-release catalog (ADR 0065): each release derives against its OWN pinned
+    // catalog version — mixed versions coexist in one site. Load each DISTINCT
+    // version once, then key by releaseId so the engine routes every instance to
+    // its catalog (instances sharing a version share the Catalog object). This
+    // replaces the old single-catalog `mixed_catalog` 422.
+    const distinctVersions = [...new Set(loaded.map((l) => l.detail.catalogVersion))];
+    const catalogByVersion = new Map<number, Catalog>(
+      await Promise.all(
+        distinctVersions.map(async (v): Promise<[number, Catalog]> => {
+          const c = await this.catalogVersions.loadCatalog(v);
+          if (!c) throw new BadRequestException(`catalog@${v} is not published`);
+          return [v, c];
+        }),
+      ),
+    );
+    const catalogs = new Map<string, Catalog>(
+      loaded.map(({ detail }) => [
+        (detail.body as ProductModelRelease).id,
+        catalogByVersion.get(detail.catalogVersion)!,
+      ]),
+    );
 
     // The active price table (app-layer clock; the engine stays pure). 404 → no
     // silent empty price layer (I5).
@@ -245,7 +254,7 @@ export class QuotesService {
     // The cost layer (ADR 0059), co-located on the stamped price table row, so
     // `priceTableVersion` covers it for I3. Absent on pre-cost-model tables.
     const costs = (priceTable.cost ?? undefined) as CostTable | undefined;
-    const result = deriveSite(site, siteInstances, priceTable.table as never, catalog, {
+    const result = deriveSite(site, siteInstances, priceTable.table as never, catalogs, {
       ...(costs !== undefined && { costs }),
     });
     if (!result.isValid) {
@@ -310,7 +319,6 @@ export class QuotesService {
       shareToken: randomUUID(),
       validUntil: input.validUntil ? new Date(input.validUntil) : null,
       totalMoney: result.money.total,
-      catalogVersion: stamps.catalogVersion,
       priceTableVersion: stamps.priceTableVersion,
       stamps,
       snapshot,
@@ -373,18 +381,33 @@ export class QuotesService {
       });
     }
     siteInstances.sort(byInstanceId); // canonical order — JSONB dropped the issue-time order
-    const catalog = await this.catalogVersions.loadCatalog(stamps.catalogVersion);
-    if (!catalog) mismatches.push(`catalog@${stamps.catalogVersion}:missing`);
+    // Per-release catalog (ADR 0065): load each DISTINCT stamped catalog version,
+    // then key by releaseId for the engine. A stamped version that no longer
+    // loads is a reproduction failure, surfaced per missing version. I3 ≠
+    // visibility/pin holds — re-derivation never re-checks assignment or the pin.
+    const catalogByVersion = new Map<number, Catalog>();
+    for (const v of new Set(Object.values(stamps.catalogVersions))) {
+      const c = await this.catalogVersions.loadCatalog(v);
+      if (c) catalogByVersion.set(v, c);
+      else mismatches.push(`catalog@${v}:missing`);
+    }
     const priceTable = await this.priceTables.loadByVersion(scope, stamps.priceTableVersion);
     if (!priceTable) mismatches.push(`priceTable@${stamps.priceTableVersion}:missing`);
 
     if (mismatches.length > 0) return { quoteId, reproduced: false, mismatches };
 
+    const catalogs = new Map<string, Catalog>(
+      Object.entries(stamps.catalogVersions).map(([releaseId, v]) => [
+        releaseId,
+        catalogByVersion.get(v)!,
+      ]),
+    );
+
     // Re-run the SAME pure path against the stamped immutable inputs (I3) — the
     // cost layer rides the same stamped price-table row (ADR 0059), so it
     // re-derives from the reloaded table with no extra stamp.
     const costs = (priceTable!.cost ?? undefined) as CostTable | undefined;
-    const result = deriveSite(snapshot.site, siteInstances, priceTable!.table as never, catalog!, {
+    const result = deriveSite(snapshot.site, siteInstances, priceTable!.table as never, catalogs, {
       ...(costs !== undefined && { costs }),
     });
     if (!result.isValid)

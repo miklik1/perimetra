@@ -273,8 +273,6 @@ const cs = {
     upgrading: "Povyšování…",
     upgraded: "Povýšeno.",
     upgradeError: "Povýšení se nezdařilo.",
-    upgradeCatalogConflict:
-      "Tato verze používá jiný katalog než vaše ostatní produkty — zatím ji s nimi nelze kombinovat.",
     noUpgrades: "Všechny vaše produkty jsou na nejnovější dostupné verzi.",
   },
   platform: {

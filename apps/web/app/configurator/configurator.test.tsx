@@ -6,7 +6,7 @@ import { I18nProvider } from "@repo/i18n/web";
 import { resolveUi } from "@repo/model";
 
 import { deriveForUi } from "./derive";
-import { goldenCatalog, goldenPrices, goldenProducts } from "./golden-bundle";
+import { goldenCatalogs, goldenPrices, goldenProducts } from "./golden-bundle";
 import { Wizard } from "./wizard";
 
 /**
@@ -19,7 +19,7 @@ import { Wizard } from "./wizard";
 const gate = goldenProducts[0]!;
 
 function renderWizard(onValueChange = vi.fn(), stepIndex = 0) {
-  const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalog);
+  const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalogs);
   const steps = resolveUi(gate.release, derivation.scope ?? gate.initialInput);
   render(
     <I18nProvider locale="cs" messages={cs}>
@@ -39,7 +39,7 @@ function renderWizard(onValueChange = vi.fn(), stepIndex = 0) {
 
 describe("configurator (step 6 slice 1)", () => {
   it("derives the Excel-anchored golden total in the UI compute path", () => {
-    const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalog);
+    const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalogs);
     expect(derivation.result.isValid).toBe(true);
     expect(derivation.result.money.total).toBe("81451.504");
     // The degenerate one-instance site renders: pieces present, none shared away.
@@ -52,7 +52,7 @@ describe("configurator (step 6 slice 1)", () => {
       gate,
       { ...gate.initialInput, clear_height_mm: 100 },
       goldenPrices,
-      goldenCatalog,
+      goldenCatalogs,
     );
     expect(derivation.result.isValid).toBe(false);
     expect(derivation.scene).toBeUndefined();

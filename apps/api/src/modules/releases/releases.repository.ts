@@ -39,14 +39,6 @@ export interface ModelPin {
   pinnedReleaseId: string;
 }
 
-/** An org's active pin for one model, with the pinned release's catalog version
- *  — a single consistent read for the opt-in catalog pre-flight (ADR 0064). */
-export interface PinnedReleaseCatalog {
-  modelId: string;
-  pinnedReleaseId: string;
-  catalogVersion: number;
-}
-
 export interface ListReleasesParams {
   cursor?: string | undefined;
   limit: number;
@@ -289,21 +281,6 @@ export class ReleasesRepository {
       .from(orgModelPin)
       .where(eq(orgModelPin.organizationId, organizationId))
       .orderBy(asc(orgModelPin.modelId));
-  }
-
-  /** An org's active pins joined to each pinned release's catalog version — ONE
-   *  statement, so the opt-in pre-flight reads a single consistent snapshot of
-   *  pins + their catalogs (no TOCTOU vs. a concurrent assign). */
-  async findPinnedReleaseCatalogs(organizationId: string): Promise<PinnedReleaseCatalog[]> {
-    return this.txHost.tx
-      .select({
-        modelId: orgModelPin.modelId,
-        pinnedReleaseId: orgModelPin.pinnedReleaseId,
-        catalogVersion: release.catalogVersion,
-      })
-      .from(orgModelPin)
-      .innerJoin(release, eq(release.releaseId, orgModelPin.pinnedReleaseId))
-      .where(eq(orgModelPin.organizationId, organizationId));
   }
 
   /** Create the active pin for a model IF the org has none yet (lazy default on

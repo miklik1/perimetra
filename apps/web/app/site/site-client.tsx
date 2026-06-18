@@ -80,7 +80,7 @@ export function SiteClient({
         </main>
       }
     >
-      {bundle === null || bundle.products.length === 0 || bundle.catalog === null ? (
+      {bundle === null || bundle.products.length === 0 || bundle.catalogs.size === 0 ? (
         notice(t("noProducts"))
       ) : bundle.prices === null ? (
         notice(t("noPrices"))
@@ -89,7 +89,7 @@ export function SiteClient({
           projectId={projectId}
           initialSite={initialSite}
           initialInstances={initialInstances}
-          ctx={{ products: bundle.products, catalog: bundle.catalog, prices: bundle.prices }}
+          ctx={{ products: bundle.products, catalogs: bundle.catalogs, prices: bundle.prices }}
         />
       )}
     </AuthGuard>

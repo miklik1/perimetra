@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type Catalog, type ProductModelRelease } from "@repo/model";
 
-import { catalogConflict, ReleasesService } from "./releases.service.js";
+import { ReleasesService } from "./releases.service.js";
 
 // `@Transactional()` resolves a live TransactionHost at call time — neutralize
 // the wrapper so the unit under test is the service orchestration.
@@ -163,18 +163,5 @@ describe("ReleasesService.publish", () => {
       service.publish(SCOPE, { catalogVersion: 1, body: validBody() }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(repo.insert).not.toHaveBeenCalled();
-  });
-});
-
-describe("catalogConflict (ADR 0064 opt-in pre-flight)", () => {
-  it("returns null when the pinned set shares one catalog version", () => {
-    expect(catalogConflict([2, 2, 2])).toBeNull();
-    expect(catalogConflict([2])).toBeNull();
-    expect(catalogConflict([])).toBeNull();
-  });
-
-  it("returns the sorted distinct versions when an opt-in would split catalogs", () => {
-    expect(catalogConflict([2, 1, 2])).toEqual([1, 2]);
-    expect(catalogConflict([3, 1, 2, 1])).toEqual([1, 2, 3]);
   });
 });

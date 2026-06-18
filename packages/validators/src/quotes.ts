@@ -48,10 +48,12 @@ export const issueQuoteSchema = z.object({
 });
 export type IssueQuoteInput = z.infer<typeof issueQuoteSchema>;
 
-/** Engine `SiteStamps` — the exact versioned inputs a quote re-derives from (I3). */
+/** Engine `SiteStamps` — the exact versioned inputs a quote re-derives from (I3).
+ *  `catalogVersions` is releaseId → catalog version (per-release catalog,
+ *  ADR 0065): each release re-derives against its OWN pinned catalog. */
 export const quoteStampsSchema = z.object({
   releaseIds: z.record(z.string(), z.string()),
-  catalogVersion: z.number().int(),
+  catalogVersions: z.record(z.string(), z.number().int()),
   priceTableVersion: z.number().int(),
   overrideIds: z.array(z.string()),
 });

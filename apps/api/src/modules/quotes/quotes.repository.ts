@@ -33,7 +33,6 @@ export type InsertQuoteData = Pick<
   | "shareToken"
   | "validUntil"
   | "totalMoney"
-  | "catalogVersion"
   | "priceTableVersion"
   | "stamps"
   | "snapshot"

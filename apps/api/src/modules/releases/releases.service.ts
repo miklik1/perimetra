@@ -39,18 +39,6 @@ import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { ReleasesRepository, type AssignedReleaseMeta } from "./releases.repository.js";
 
-/**
- * The engine derives a site against ONE catalog version (I5 `mixed_catalog`, and
- * the web bundle's loud guard). The PINNED releases an org configures together
- * must therefore share a catalog version — an opt-in that would split them is
- * refused LOUD (vs. silently breaking the configurator). Returns the conflicting
- * versions (sorted), or null when ≤1 distinct. Pure — unit-tested directly.
- */
-export function catalogConflict(catalogVersions: number[]): number[] | null {
-  const distinct = [...new Set(catalogVersions)].sort((a, b) => a - b);
-  return distinct.length > 1 ? distinct : null;
-}
-
 /** Structural gate for an incoming release body (the publish input is opaque
  *  `unknown`). Guards the top-level shape `validateRelease` assumes before the
  *  deep semantic gate runs (so malformed input is a clean 400, not a 500). */
@@ -325,9 +313,12 @@ export class ReleasesService {
   /**
    * Opt into a version (CORE_SPEC §3): move the org's active pin for the target
    * release's model to `releaseId`. The target must be PUBLISHED and ASSIGNED to
-   * the org (you can only pin a version the vendor made available). Pre-flight:
-   * the post-move pinned set must still share one catalog version, else 422
-   * `upgrade_catalog_conflict` (vs. silently breaking the configurator, I5).
+   * the org (you can only pin a version the vendor made available). There is NO
+   * catalog pre-flight: per-release catalog (ADR 0065) lets the newly pinned
+   * version carry a different catalog version than the org's other products —
+   * each release derives against its OWN catalog, so a mixed pinned set is a
+   * fully supported state (this completes ADR 0064, retiring its
+   * `upgrade_catalog_conflict` guard, which would now refuse a VALID state).
    *
    * I3 is untouched: a quote stamps the exact "modelId@version" and re-derives
    * forever via the GLOBAL store regardless of where the pin later points. Old
@@ -351,24 +342,10 @@ export class ReleasesService {
       throw new ConflictException(`release ${input.releaseId} is ${row.status}, not pinnable`);
     }
 
-    // ONE consistent read of the org's pins + each pinned release's catalog (a
-    // single JOIN, not two statements), so a concurrent assign can't make the
-    // pre-flight weigh a stale pin set against fresh catalogs (TOCTOU).
-    const pinned = await this.releases.findPinnedReleaseCatalogs(scope.organizationId);
-    const current = pinned.find((p) => p.modelId === row.modelId)?.pinnedReleaseId ?? null;
+    const current =
+      (await this.releases.findPins(scope.organizationId)).find((p) => p.modelId === row.modelId)
+        ?.pinnedReleaseId ?? null;
     if (current === input.releaseId) return this.getUpgradeOffers(scope); // no-op, no audit
-
-    // Pre-flight: the post-move pinned set must still derive against ONE catalog.
-    const postMoveCatalogs = new Map(pinned.map((p) => [p.modelId, p.catalogVersion]));
-    postMoveCatalogs.set(row.modelId, row.catalogVersion);
-    const conflict = catalogConflict([...postMoveCatalogs.values()]);
-    if (conflict) {
-      throw new UnprocessableEntityException({
-        message: `pinning ${input.releaseId} (catalog@${row.catalogVersion}) would split your active products across catalog versions (${conflict.join(", ")}) — the configurator derives against one catalog`,
-        code: "upgrade_catalog_conflict",
-        catalogVersions: conflict,
-      });
-    }
 
     await this.releases.movePin(scope.organizationId, row.modelId, input.releaseId, scope.userId);
     await this.audit.record({
