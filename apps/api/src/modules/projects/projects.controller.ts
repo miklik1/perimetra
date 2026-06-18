@@ -26,7 +26,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
-import { type Project, type ProjectSite, type ProjectsPage } from "@repo/validators/projects";
+import { type ProjectSite } from "@repo/validators/project-site";
+import { type Project, type ProjectsPage } from "@repo/validators/projects";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";

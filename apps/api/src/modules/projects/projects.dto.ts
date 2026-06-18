@@ -3,13 +3,12 @@
  * the classes give Nest something to hang pipe/serializer metadata (and,
  * later, OpenAPI) on; the zod schemas stay the single source of truth.
  */
+import { projectSiteSchema, saveProjectSiteSchema } from "@repo/validators/project-site";
 import {
   createProjectSchema,
   listProjectsQuerySchema,
   projectSchema,
-  projectSiteSchema,
   projectsPageSchema,
-  saveProjectSiteSchema,
   updateProjectSchema,
 } from "@repo/validators/projects";
 

@@ -11,13 +11,15 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 
 import { type ProjectInstanceRow, type ProjectRow } from "@repo/db/schema/projects";
 import {
+  type ProjectInstanceInput,
+  type ProjectSite,
+  type SaveProjectSiteInput,
+} from "@repo/validators/project-site";
+import {
   type CreateProjectInput,
   type ListProjectsQuery,
   type Project,
-  type ProjectInstanceInput,
-  type ProjectSite,
   type ProjectsPage,
-  type SaveProjectSiteInput,
   type UpdateProjectInput,
 } from "@repo/validators/projects";
 

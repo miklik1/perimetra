@@ -17,3 +17,6 @@ export * from "./quotes";
 export * from "./platform";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";
+// Project site persistence (ADR 0054) — kept OUT of the skeleton-owned projects.ts
+// so that file stays byte-comparable for channel-A drains (ADR 0042).
+export * from "./project-site";

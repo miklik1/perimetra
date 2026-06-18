@@ -30,6 +30,10 @@
     "./projects": {
       "types": "./dist/projects.d.ts",
       "default": "./dist/projects.js"
+    },
+    "./project-site": {
+      "types": "./dist/project-site.d.ts",
+      "default": "./dist/project-site.js"
     }
   },
   "scripts": {

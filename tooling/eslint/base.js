@@ -164,6 +164,9 @@ export const baseConfig = [
                 // table lives in `@repo/db/schema/releases` (already allowed) —
                 // no new db subpath; only the validators subpath is new.
                 "!@repo/validators/platform",
+                // Project site-persistence contract (ADR 0054) — extracted from the
+                // skeleton-owned projects.ts so that file stays byte-comparable (ADR 0042).
+                "!@repo/validators/project-site",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

@@ -34,7 +34,9 @@ privacy handler → tests at every layer.
   is never engine-validated at the boundary — the engine is the validation gate
   (I5) and invalid-but-editable sites are legitimately persisted. The roster
   entry mirrors `quoteInstanceInputSchema`, so a saved project feeds
-  `quotes.issue` directly.
+  `quotes.issue` directly. The site-persistence contracts live in
+  `@repo/validators/project-site` — kept OUT of the skeleton-owned `projects.ts`
+  so that reference file stays byte-comparable for channel-A drains (ADR 0042).
 
 ## Must never
 
