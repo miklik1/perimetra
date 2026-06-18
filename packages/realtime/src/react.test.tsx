@@ -84,4 +84,25 @@ describe("useChannel", () => {
     );
     expect(realtime.subscribedSince("job:a")).toEqual({ offset: 5, epoch: "e1" });
   });
+
+  it("routes a duplicate-subscribe throw to onError instead of crashing the tree", () => {
+    const realtime = createMockRealtime();
+    const onError = vi.fn();
+    // Occupy the channel first — models a StrictMode remount whose cleanup
+    // hasn't run yet, or a second mount on the same channel. The adapter's
+    // subscribe() throws "Already subscribed"; uncaught, that propagates out of
+    // the effect and tears down the nearest error boundary instead of onError.
+    realtime.subscribe("job:dup", { onPublication: vi.fn() });
+
+    expect(() =>
+      renderHook(() => useChannel(realtime, "job:dup", { onPublication: vi.fn(), onError })),
+    ).not.toThrow();
+
+    expect(onError).toHaveBeenCalledOnce();
+    const err = onError.mock.calls[0]?.[0] as Error;
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toMatch(/already subscribed/i);
+    // The original subscription is untouched.
+    expect(realtime.activeChannels()).toEqual(["job:dup"]);
+  });
 });

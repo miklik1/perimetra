@@ -7,6 +7,8 @@ import onlyWarn from "eslint-plugin-only-warn";
 import turboPlugin from "eslint-plugin-turbo";
 import tseslint from "typescript-eslint";
 
+import localPlugin from "./local/index.js";
+
 // Monorepo root — `eslint` runs per-package (cwd = the package dir), so element
 // patterns are matched against this fixed root, not the cwd. base.js lives at
 // `tooling/eslint/base.js`, so the root is two levels up.
@@ -136,6 +138,8 @@ export const baseConfig = [
                 "!@repo/ui/lib/*",
                 "!@repo/ui/components",
                 "!@repo/ui/components/*",
+                "!@repo/ui/forms",
+                "!@repo/ui/forms/*",
                 "!@repo/validators/projects",
                 // Tooling-config packages under `tooling/*` (NOT runtime
                 // elements): their subpath exports ARE the public API — every
@@ -310,6 +314,42 @@ export const baseConfig = [
   {
     plugins: {
       onlyWarn,
+    },
+  },
+  // Local custom rules (production-hardened, ported from the first app).
+  // All rules use "warn" severity to stay consistent with `eslint-plugin-only-warn`
+  // (which downgrades "error" → "warn" at the very end of the chain; registering
+  // as "warn" directly makes intent readable in the config without relying on that).
+  {
+    plugins: { local: localPlugin },
+    rules: {
+      // Bans direct `date-fns` / `temporal-polyfill` / `@js-temporal/polyfill`
+      // imports everywhere. Funnelling through a shared formatting helper prevents
+      // the date-fns format-token RangeError crash class.
+      // When a shared formatting/i18n package is added, configure
+      // `allowedPathFragments` to exempt it:
+      //   "local/no-direct-date-imports": ["warn", {
+      //     allowedPathFragments: ["/packages/formatting/src/", "/packages/i18n/src/"]
+      //   }]
+      "local/no-direct-date-imports": "warn",
+    },
+  },
+  {
+    // Ban bare `z.iso.datetime()` — Z-only in Zod 4, so it rejects the offset
+    // (`+HH:MM`) and naive timestamps real backends serialize, failing the
+    // whole-DTO `.parse` at the trust boundary while mock-first CI stays green.
+    // Use the `isoDatetime` primitive from `@repo/validators` instead. "warn"
+    // per the only-warn convention above; `--max-warnings 0` makes it blocking.
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.type='MemberExpression'][callee.object.object.name='z'][callee.object.property.name='iso'][callee.property.name='datetime'][arguments.length=0]",
+          message:
+            "Use the isoDatetime primitive from @repo/validators (z.iso.datetime({ offset: true })) — bare z.iso.datetime() is Z-only and rejects offset/naive timestamps from real backends.",
+        },
+      ],
     },
   },
   {

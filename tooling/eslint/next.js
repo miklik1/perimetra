@@ -50,4 +50,25 @@ export const nextJsConfig = [
       "react/react-in-jsx-scope": "off",
     },
   },
+  // Local custom rules — React-specific form guards.
+  // The `local` plugin is already registered in baseConfig; these rules are
+  // layered on top for React/Next surfaces only.
+  {
+    rules: {
+      // Bans `zodResolver` outside the `useZodForm` wrapper — prevents the
+      // silent-submit bug from the z.input/z.output type-slot collapse under
+      // @hookform/resolvers v3 + Zod v4.
+      "local/no-zod-resolver-without-use-zod-form": "warn",
+
+      // Bans RHF `reset()` inside useEffect — prevents the _fields-registry
+      // wipe that breaks edit pre-fill and inline errors in modal forms.
+      "local/no-rhf-reset-in-modal-useeffect": "warn",
+
+      // React-Compiler memo-directive rules — OFF until React Compiler is
+      // adopted. Enable these when `reactCompiler: true` is added to
+      // next.config.js and the compiler Babel plugin is wired in.
+      // "local/no-tanstack-table-without-no-memo-directive": "warn",
+      // "local/no-rhf-subscription-without-no-memo-directive": "warn",
+    },
+  },
 ];

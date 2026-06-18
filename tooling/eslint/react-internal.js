@@ -31,4 +31,23 @@ export const reactInternalConfig = [
       "react/react-in-jsx-scope": "off",
     },
   },
+  // Local custom rules — React-specific form guards.
+  // The `local` plugin is already registered in baseConfig; these rules are
+  // layered on top for React library packages only.
+  {
+    rules: {
+      // Bans `zodResolver` outside the `useZodForm` wrapper — prevents the
+      // silent-submit bug from the z.input/z.output type-slot collapse.
+      "local/no-zod-resolver-without-use-zod-form": "warn",
+
+      // Bans RHF `reset()` inside useEffect — prevents the _fields-registry
+      // wipe that breaks edit pre-fill and inline errors in modal forms.
+      "local/no-rhf-reset-in-modal-useeffect": "warn",
+
+      // React-Compiler memo-directive rules — OFF until React Compiler is
+      // adopted. Enable these when the compiler is configured in this package.
+      // "local/no-tanstack-table-without-no-memo-directive": "warn",
+      // "local/no-rhf-subscription-without-no-memo-directive": "warn",
+    },
+  },
 ];

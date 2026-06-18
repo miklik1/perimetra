@@ -36,7 +36,7 @@ describe("CreateProjectForm", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("blocks an empty name client-side (createProjectSchema via zodResolver)", async () => {
+  it("blocks an empty name client-side (createProjectSchema via useZodForm)", async () => {
     renderForm();
     const before = listProjectFixtures().length;
     fireEvent.click(screen.getByRole("button", { name: "Vytvořit projekt" }));

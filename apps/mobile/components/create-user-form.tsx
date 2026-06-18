@@ -1,10 +1,10 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
+import { Controller } from "react-hook-form";
 import { TextInput } from "react-native";
 
 import { invalidateKeys, keys } from "@repo/api";
 import { useMutation, useQueryClient, useUsersQueries } from "@repo/api/react";
-import { createUserSchema, type CreateUserInput } from "@repo/validators";
+import { useZodForm } from "@repo/ui/forms/use-zod-form";
+import { createUserSchema } from "@repo/validators";
 
 import { toast } from "../lib/toast";
 import { Button, Stack, Text } from "./ui";
@@ -25,8 +25,7 @@ export function CreateUserForm() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<CreateUserInput>({
-    resolver: zodResolver(createUserSchema),
+  } = useZodForm(createUserSchema, {
     defaultValues: { name: "", email: "" },
   });
 

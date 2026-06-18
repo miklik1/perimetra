@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+import { isoDatetime } from "./primitives";
+
 export const {{camelCase resource}}Schema = z.object({
   id: z.uuid(),
 {{#each fields}}
   {{this.name}}: {{{this.zod}}},
 {{/each}}
-  createdAt: z.iso.datetime(),
+  createdAt: isoDatetime,
 });
 
 export type {{pascalCase resource}} = z.infer<typeof {{camelCase resource}}Schema>;

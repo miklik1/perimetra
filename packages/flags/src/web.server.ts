@@ -3,7 +3,7 @@ import { cache } from "react";
 
 import { createLogger } from "@repo/utils";
 
-import { FLAGS, type FlagKey, type FlagValue } from "./registry";
+import { FLAGS, flagsRequiringConsent, type FlagKey, type FlagValue } from "./registry";
 import { staticDefaults } from "./static";
 import type { FlagsBootstrap } from "./types";
 
@@ -101,9 +101,13 @@ export async function getFlag<K extends FlagKey>(key: K): Promise<FlagValue<K>> 
 /** All registry flags as evaluated for the current request (defaults filled). */
 export async function getAllFlags(): Promise<Record<FlagKey, unknown>> {
   const { featureFlags } = await evaluateRequest();
+  const consentGated = new Set<string>(flagsRequiringConsent());
   const all = staticDefaults();
   for (const key of Object.keys(FLAGS) as FlagKey[]) {
-    if (key in featureFlags) all[key] = featureFlags[key];
+    // Consent gate (ADR 0036): a requiresConsent flag keeps its registry
+    // default; its evaluated (possibly personalized) value is withheld so it
+    // can't be serialized to the client before analytics consent is granted.
+    if (!consentGated.has(key) && key in featureFlags) all[key] = featureFlags[key];
   }
   return all;
 }
@@ -117,9 +121,17 @@ export async function getAllFlags(): Promise<Record<FlagKey, unknown>> {
 export async function getBootstrap(): Promise<FlagsBootstrap | undefined> {
   const { identity, featureFlags } = await evaluateRequest();
   if (identity === null) return undefined;
+  // Consent gate (ADR 0036): drop requiresConsent flags before serializing into
+  // SSR HTML — the client gate prevents their USE, but only this prevents their
+  // TRANSMISSION pre-consent. Non-registry keys PostHog returns pass through
+  // (the Set only holds registry keys flagged consent-gated).
+  const consentGated = new Set<string>(flagsRequiringConsent());
+  const safeFlags = Object.fromEntries(
+    Object.entries(featureFlags).filter(([key]) => !consentGated.has(key)),
+  );
   return {
     distinctID: identity.distinctId,
     isIdentifiedID: identity.isIdentified,
-    featureFlags,
+    featureFlags: safeFlags,
   };
 }

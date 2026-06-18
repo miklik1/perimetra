@@ -9,13 +9,15 @@
  */
 import { z } from "zod";
 
+import { isoDatetime } from "./primitives";
+
 /** A tenant organization, as the vendor console sees it across tenancy. */
 export const platformOrganizationSchema = z.object({
   // Better Auth org id (32-char, not a uuid).
   id: z.string().min(1),
   name: z.string(),
   slug: z.string(),
-  createdAt: z.iso.datetime(),
+  createdAt: isoDatetime,
 });
 export type PlatformOrganization = z.infer<typeof platformOrganizationSchema>;
 

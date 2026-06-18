@@ -1,6 +1,7 @@
 import type { PostHog as PostHogNode } from "posthog-node";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as registry from "./registry";
 import { FLAGS } from "./registry";
 import {
   configureServerFlags,
@@ -91,5 +92,32 @@ describe("server flags once configured", () => {
     });
     await expect(getFlag("example-flag")).resolves.toBe(false);
     expect(first.getAllFlags).toHaveBeenCalledWith("a");
+  });
+});
+
+describe("consent-gated flags are never serialized to the client (ADR 0036 server mirror)", () => {
+  it("getBootstrap withholds a requiresConsent flag's evaluated value, keeps the rest", async () => {
+    // Treat the real registry flag as consent-gated for this test.
+    vi.spyOn(registry, "flagsRequiringConsent").mockReturnValue(["example-flag"]);
+    const client = fakeServerClient({ "example-flag": true, "not-in-registry": "v2" });
+    configureServerFlags({ client, getIdentity: () => Promise.resolve(anon("user-1")) });
+
+    const bootstrap = await getBootstrap();
+
+    // The consent-gated flag's evaluated value must NOT ride into the SSR seed.
+    expect(bootstrap?.featureFlags).not.toHaveProperty("example-flag");
+    // Non-consent flags (incl. non-registry passthrough) are unaffected.
+    expect(bootstrap?.featureFlags).toHaveProperty("not-in-registry", "v2");
+  });
+
+  it("getAllFlags serves the registry default for a consent-gated flag, not the evaluated value", async () => {
+    vi.spyOn(registry, "flagsRequiringConsent").mockReturnValue(["example-flag"]);
+    // PostHog evaluated it OFF, but pre-consent that value must not surface.
+    const client = fakeServerClient({ "example-flag": false });
+    configureServerFlags({ client, getIdentity: () => Promise.resolve(anon("user-1")) });
+
+    const flags = await getAllFlags();
+
+    expect(flags["example-flag"]).toBe(FLAGS["example-flag"].default); // default (true), not evaluated false
   });
 });

@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
+    "./forms/*": "./src/forms/*.ts",
     "./*": [
       "./src/*.tsx",
       "./src/*.ts"
@@ -21,10 +22,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hookform/resolvers": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "radix-ui": "^1.4.3",
-    "tailwind-merge": "^3.6.0"
+    "react-hook-form": "catalog:",
+    "tailwind-merge": "^3.6.0",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "react": "*",

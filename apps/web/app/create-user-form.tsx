@@ -1,13 +1,12 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useId } from "react";
-import { useForm } from "react-hook-form";
 
 import { invalidateKeys, keys, optimisticUpdate } from "@repo/api";
 import { useMutation, useQueryClient, useUsersQueries } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
+import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { createUserSchema, type CreateUserInput, type User } from "@repo/validators";
 
 import { devErrorDetail, errorMessageKey } from "../lib/error-messages";
@@ -43,8 +42,7 @@ export function CreateUserForm() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<CreateUserInput>({
-    resolver: zodResolver(createUserSchema),
+  } = useZodForm(createUserSchema, {
     defaultValues: { name: "", email: "" },
   });
 

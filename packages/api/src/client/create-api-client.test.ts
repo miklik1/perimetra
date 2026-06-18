@@ -79,6 +79,63 @@ describe("apiFetch success", () => {
   });
 });
 
+describe("bearer cross-origin safety", () => {
+  it("withholds Authorization when the path is an absolute URL to a different origin", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    await makeClient().apiFetch("https://evil.com/steal");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://evil.com/steal");
+    // The bearer must NOT leak to a foreign origin (token exfil).
+    expect((init.headers as Headers).get("Authorization")).toBeNull();
+  });
+
+  it("still attaches Authorization for a relative path", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    await makeClient().apiFetch("/users/me");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://api.test/users/me");
+    expect((init.headers as Headers).get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("still attaches Authorization for an absolute URL to the same origin", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    await makeClient().apiFetch("https://api.test/users/me");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://api.test/users/me");
+    expect((init.headers as Headers).get("Authorization")).toBe("Bearer tok");
+  });
+
+  // A RELATIVE baseUrl ("/api") + a bearer is the case where a fail-OPEN origin
+  // check would still leak (new URL("/api") throws → must fail closed).
+  it("withholds Authorization for an absolute foreign URL under a relative baseUrl", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const client = createApiClient({ baseUrl: "/api", getToken: () => "tok" });
+
+    await client.apiFetch("https://evil.com/steal");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://evil.com/steal");
+    expect((init.headers as Headers).get("Authorization")).toBeNull();
+  });
+
+  it("still attaches Authorization for a relative path under a relative baseUrl", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const client = createApiClient({ baseUrl: "/api", getToken: () => "tok" });
+
+    await client.apiFetch("/users/me");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/users/me");
+    expect((init.headers as Headers).get("Authorization")).toBe("Bearer tok");
+  });
+});
+
 describe("apiFetch http errors", () => {
   it("builds an http ApiError from the error envelope", async () => {
     fetchMock.mockResolvedValueOnce(

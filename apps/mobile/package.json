@@ -17,7 +17,6 @@
   "dependencies": {
     "@expo/log-box": "catalog:expo56",
     "@expo/metro-runtime": "catalog:expo56",
-    "@hookform/resolvers": "catalog:",
     "@react-native-async-storage/async-storage": "catalog:expo56",
     "@repo/api": "workspace:*",
     "@repo/auth": "workspace:*",
@@ -27,6 +26,7 @@
     "@repo/navigation": "workspace:*",
     "@repo/store": "workspace:*",
     "@repo/telemetry": "workspace:*",
+    "@repo/ui": "workspace:*",
     "@repo/utils": "workspace:*",
     "@repo/validators": "workspace:*",
     "expo": "catalog:expo56",

@@ -26,6 +26,16 @@ describe("projectSchema", () => {
   it("rejects an unknown status", () => {
     expect(projectSchema.safeParse({ ...VALID_PROJECT, status: "paused" }).success).toBe(false);
   });
+
+  it("accepts offset timestamps a real backend serializes (timestamptz)", () => {
+    expect(
+      projectSchema.safeParse({
+        ...VALID_PROJECT,
+        createdAt: "2026-06-10T12:00:00+02:00",
+        updatedAt: "2026-06-10T12:00:00+02:00",
+      }).success,
+    ).toBe(true);
+  });
 });
 
 describe("createProjectSchema", () => {

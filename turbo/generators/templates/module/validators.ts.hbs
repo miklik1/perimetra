@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 export const {{constantCase singular}}_STATUSES = ["active", "archived"] as const;
 export const {{camelCase singular}}StatusSchema = z.enum({{constantCase singular}}_STATUSES);
@@ -19,8 +20,8 @@ export const {{camelCase singular}}Schema = z.object({
   // (mirror every change in `@repo/db/schema/{{kebabCase plural}}`).
   name: z.string().min(1).max(200),
   status: {{camelCase singular}}StatusSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type {{pascalCase singular}} = z.infer<typeof {{camelCase singular}}Schema>;
 

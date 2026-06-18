@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 export const PRICE_TABLE_CURRENCIES = ["CZK", "EUR"] as const;
 export const priceTableCurrencySchema = z.enum(PRICE_TABLE_CURRENCIES);
@@ -45,10 +46,10 @@ export const priceTableSummarySchema = z.object({
   id: z.uuid(),
   version: z.number().int(),
   currency: priceTableCurrencySchema,
-  effectiveFrom: z.iso.datetime(),
-  effectiveTo: z.iso.datetime().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  effectiveFrom: isoDatetime,
+  effectiveTo: isoDatetime.nullable(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type PriceTableSummary = z.infer<typeof priceTableSummarySchema>;
 
@@ -64,8 +65,8 @@ export type PriceTableDetail = z.infer<typeof priceTableSchema>;
 
 export const publishPriceTableSchema = z.object({
   currency: priceTableCurrencySchema,
-  effectiveFrom: z.iso.datetime(),
-  effectiveTo: z.iso.datetime().nullable().optional(),
+  effectiveFrom: isoDatetime,
+  effectiveTo: isoDatetime.nullable().optional(),
   marginFloorPct: decimalString.optional(),
   dphRate: decimalString,
   reverseCharge: z.boolean().optional(),
@@ -79,7 +80,7 @@ export type ListPriceTablesQuery = z.infer<typeof listPriceTablesQuerySchema>;
 
 /** resolveActive: the table whose window covers `asOf` (defaults to now server-side). */
 export const activePriceTableQuerySchema = z.object({
-  asOf: z.iso.datetime().optional(),
+  asOf: isoDatetime.optional(),
 });
 export type ActivePriceTableQuery = z.infer<typeof activePriceTableQuerySchema>;
 

@@ -1,14 +1,13 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useId } from "react";
-import { useForm } from "react-hook-form";
 
 import { useMutation } from "@repo/api/react";
 import { useAuthClient } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
+import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { loginSchema, type LoginInput } from "@repo/validators";
 
 import { authErrorMessageKey } from "../../lib/error-messages";
@@ -39,8 +38,7 @@ export function LoginForm({ next = "/account" }: { next?: string }) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+  } = useZodForm(loginSchema, {
     defaultValues: { email: "", password: "" },
   });
 

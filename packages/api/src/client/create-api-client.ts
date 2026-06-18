@@ -85,6 +85,34 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${base}${suffix}`;
 }
 
+/**
+ * True when the bearer may ride on a request to `resolvedUrl`. Credential
+ * headers may be attached only for a relative request or an absolute one that
+ * shares the `baseUrl` origin: `joinUrl` lets an absolute `path` pass through
+ * verbatim, so without this gate a request to `https://evil.com/x` would carry
+ * the token to a foreign origin (exfil). Uses the WHATWG `URL` constructor
+ * (browsers, Node 18+, Hermes/RN).
+ *
+ * Fails CLOSED for an absolute resolved URL whose base has no parseable origin:
+ * a RELATIVE `baseUrl` (e.g. the web client's `"/api"`) means every legitimate
+ * request is itself relative, so an absolute resolved URL against it is by
+ * definition cross-origin and must NOT carry the bearer.
+ */
+function isSameOrigin(baseUrl: string, resolvedUrl: string): boolean {
+  if (!resolvedUrl.startsWith("http")) return true;
+  let baseOrigin: string;
+  try {
+    baseOrigin = new URL(baseUrl).origin;
+  } catch {
+    return false;
+  }
+  try {
+    return new URL(resolvedUrl).origin === baseOrigin;
+  } catch {
+    return false;
+  }
+}
+
 /** The resolved request handed to the middleware chain and, finally, `fetch`. */
 export interface ApiRequest {
   url: string;
@@ -194,10 +222,15 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
       finalHeaders.set("Content-Type", "application/json");
     }
 
-    const token = config.getToken ? await config.getToken() : null;
-    if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
-
     const url = joinUrl(config.baseUrl, path);
+
+    // Resolve the URL first, then attach the bearer only when it stays on the
+    // configured origin (or the path is relative). Prevents leaking the token to
+    // a foreign origin when `path` is an absolute cross-origin URL.
+    const token = config.getToken ? await config.getToken() : null;
+    if (token && isSameOrigin(config.baseUrl, url)) {
+      finalHeaders.set("Authorization", `Bearer ${token}`);
+    }
     const request: ApiRequest = {
       url,
       init: {

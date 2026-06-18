@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isoDatetime } from "./primitives";
+
 export const userSchema = z.object({
   // Opaque server-assigned id — NOT a uuid: the real backend's user ids come
   // from Better Auth (32-char nanoid-style); only the mock fixtures happen to
@@ -8,7 +10,7 @@ export const userSchema = z.object({
   id: z.string().min(1),
   email: z.email(),
   name: z.string().min(1),
-  createdAt: z.iso.datetime(),
+  createdAt: isoDatetime,
 });
 
 export type User = z.infer<typeof userSchema>;

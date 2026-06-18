@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { money, password, phoneE164, positiveInt, slug, url } from "./index";
+import { isoDatetime, money, password, phoneE164, positiveInt, slug, url } from "./index";
 
 describe("password", () => {
   it("accepts a compliant password", () => {
@@ -63,5 +63,30 @@ describe("money", () => {
   it("rejects negatives and sub-cent precision", () => {
     expect(money.safeParse(-1).success).toBe(false);
     expect(money.safeParse(10.255).success).toBe(false);
+  });
+});
+
+describe("isoDatetime", () => {
+  it("accepts a UTC timestamp (trailing Z)", () => {
+    expect(isoDatetime.safeParse("2026-06-16T10:00:00.000Z").success).toBe(true);
+  });
+
+  // Regression guard: bare `z.iso.datetime()` is Z-only and rejects these —
+  // the exact "green in CI, broken in prod" trap when a real backend serializes
+  // OffsetDateTime / timestamptz with an offset.
+  it("accepts a positive-offset timestamp (+HH:MM)", () => {
+    expect(isoDatetime.safeParse("2026-06-16T10:00:00+02:00").success).toBe(true);
+  });
+
+  it("accepts a negative-offset timestamp (-HH:MM)", () => {
+    expect(isoDatetime.safeParse("2026-06-16T10:00:00-05:00").success).toBe(true);
+  });
+
+  it("rejects a naive timestamp (no Z and no offset)", () => {
+    expect(isoDatetime.safeParse("2026-06-16T10:00:00").success).toBe(false);
+  });
+
+  it("rejects a date-only string", () => {
+    expect(isoDatetime.safeParse("2026-06-16").success).toBe(false);
   });
 });

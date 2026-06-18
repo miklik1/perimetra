@@ -11,6 +11,7 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 export const QUOTE_STATUSES = ["draft", "issued", "accepted", "expired"] as const;
 export const quoteStatusSchema = z.enum(QUOTE_STATUSES);
@@ -34,7 +35,7 @@ export const issueQuoteSchema = z.object({
   /** The Site graph (terrain/placements/connections) — engine-validated. */
   site: z.unknown(),
   instances: z.array(quoteInstanceInputSchema).min(1),
-  validUntil: z.iso.datetime().optional(),
+  validUntil: isoDatetime.optional(),
   /** Cut-list blade kerf, mm — stamped into the snapshot (reproducibility). */
   kerfMm: z.number().int().nonnegative().optional(),
   /**
@@ -66,10 +67,10 @@ export const quoteSummarySchema = z.object({
    * (ADR 0056) — the server strips it, the field is never just FE-hidden.
    */
   total: z.string().nullable(),
-  validUntil: z.iso.datetime().nullable(),
+  validUntil: isoDatetime.nullable(),
   shareToken: z.string(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type QuoteSummary = z.infer<typeof quoteSummarySchema>;
 

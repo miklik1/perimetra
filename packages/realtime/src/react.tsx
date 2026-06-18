@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import type {
   ConnectionState,
   RealtimeClient,
+  RealtimeSubscription,
   StreamPosition,
   SubscriptionHandlers,
 } from "./types";
@@ -48,15 +49,33 @@ export function useChannel<T = unknown>(
 
   useEffect(() => {
     if (channel === null) return;
-    const subscription = client.subscribe<T>(
-      channel,
-      {
-        onPublication: (publication) => handlersRef.current.onPublication(publication),
-        onSubscribed: (context) => handlersRef.current.onSubscribed?.(context),
-        onError: (error) => handlersRef.current.onError?.(error),
-      },
-      sinceRef.current && { since: sinceRef.current },
-    );
+    // `subscribe` THROWS on a duplicate channel (adapter contract). A
+    // StrictMode mount→cleanup→mount cycle, or two components briefly mounted
+    // on the same channel before cleanup fires, would otherwise let that throw
+    // escape the effect and tear down the nearest error boundary. Route it to
+    // onError instead, and register cleanup only when subscribe succeeded.
+    // Explicitly typed (not inferred) so a future edit that removes the catch's
+    // early `return` fails to compile rather than silently calling unsubscribe
+    // on an undefined subscription.
+    let subscription: RealtimeSubscription;
+    try {
+      subscription = client.subscribe<T>(
+        channel,
+        {
+          onPublication: (publication) => handlersRef.current.onPublication(publication),
+          onSubscribed: (context) => handlersRef.current.onSubscribed?.(context),
+          onError: (error) => handlersRef.current.onError?.(error),
+        },
+        sinceRef.current && { since: sinceRef.current },
+      );
+    } catch (error) {
+      const normalized = error instanceof Error ? error : new Error(String(error));
+      // Route to the caller's handler; if none is provided, warn so a genuine
+      // duplicate (not the benign StrictMode race) isn't silently swallowed.
+      if (handlersRef.current.onError) handlersRef.current.onError(normalized);
+      else console.warn(`[realtime] subscribe failed for channel "${channel}":`, normalized);
+      return;
+    }
     return () => subscription.unsubscribe();
   }, [client, channel]);
 }

@@ -1,14 +1,13 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useId } from "react";
-import { useForm } from "react-hook-form";
 
 import { invalidateKeys } from "@repo/api";
 import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
-import { createProjectSchema, type CreateProjectInput } from "@repo/validators";
+import { useZodForm } from "@repo/ui/forms/use-zod-form";
+import { createProjectSchema } from "@repo/validators";
 
 import { devErrorDetail, errorMessageKey } from "../../lib/error-messages";
 import { createProjectsQueries, projectKeys } from "../../lib/projects-queries";
@@ -40,8 +39,7 @@ export function CreateProjectForm() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<CreateProjectInput>({
-    resolver: zodResolver(createProjectSchema),
+  } = useZodForm(createProjectSchema, {
     defaultValues: { name: "" },
   });
 

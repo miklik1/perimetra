@@ -77,7 +77,7 @@ function parseFields(input: string): FieldSpec[] {
           return { name, zod: "z.url()", mock: "`https://example.com/${i}`" };
         case "datetime":
         case "date":
-          return { name, zod: "z.iso.datetime()", mock: '"2026-01-01T00:00:00.000Z"' };
+          return { name, zod: "isoDatetime", mock: '"2026-01-01T00:00:00.000Z"' };
         case "uuid":
           return { name, zod: "z.uuid()", mock: "crypto.randomUUID()" };
         default:

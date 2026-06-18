@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 export const PROJECT_STATUSES = ["active", "archived"] as const;
 export const projectStatusSchema = z.enum(PROJECT_STATUSES);
@@ -17,8 +18,8 @@ export const projectSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).nullable(),
   status: projectStatusSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type Project = z.infer<typeof projectSchema>;
 

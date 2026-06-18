@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 /** Mirrors `ReleaseStatus` in @repo/model. */
 export const RELEASE_STATUSES = ["draft", "published", "retired"] as const;
@@ -23,8 +24,8 @@ export const releaseSummarySchema = z.object({
   version: z.number().int(),
   catalogVersion: z.number().int(),
   status: releaseStatusSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type ReleaseSummary = z.infer<typeof releaseSummarySchema>;
 

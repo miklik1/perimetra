@@ -17,7 +17,6 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@hookform/resolvers": "catalog:",
     "@react-three/drei": "^10.0.0",
     "@react-three/fiber": "^9.1.0",
     "@repo/api": "workspace:*",
@@ -44,7 +43,6 @@
     "posthog-node": "catalog:",
     "react": "catalog:react19",
     "react-dom": "catalog:react19",
-    "react-hook-form": "catalog:",
     "server-only": "^0.0.1",
     "three": "^0.171.0",
     "zustand": "catalog:"

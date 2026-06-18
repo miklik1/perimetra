@@ -8,13 +8,14 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+import { isoDatetime } from "./primitives";
 
 /** List item — metadata only (the full `Catalog` body is heavy; fetch via GET). */
 export const catalogVersionSummarySchema = z.object({
   id: z.uuid(),
   version: z.number().int(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: isoDatetime,
+  updatedAt: isoDatetime,
 });
 export type CatalogVersionSummary = z.infer<typeof catalogVersionSummarySchema>;
 
