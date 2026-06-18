@@ -129,8 +129,19 @@ map; `quote.catalog_version` denorm DROPPED (authoritative copy in
 they refused a now-legal state; `MissingCatalogError` is the new structural I5
 backstop. `pinVersion` is now a pure version move (no catalog pre-flight). I3 holds
 across mixed catalogs (`per-release-catalog.itest`: a catalog@1+@2 quote reproduces).
-Next: step-6 follow-ups — vendor-broadcast upgrade offer (fan-out the assign+offer),
-admin (`adjustability: tenant`), issue-key i18n + deviation-override UX,
+Vendor-broadcast upgrade-offer fan-out (2026-06-18, ADR 0066): the LAST piece of the
+§3 release lifecycle. One platform action (`POST /v1/platform/releases/:id/broadcast`)
+makes a release available to **every org pinned to an older version of its model**
+(server-derived `findOrgsBehindOnModel` = `org_model_pin ⋈ release` on a `version <`
+compare) → each gets an opt-in upgrade offer. NEVER moves a pin: reuses the single-assign
+write path (`assignValidated` → `ensurePin` ON CONFLICT DO NOTHING), so it's structural,
+not a guard. Validate-once + per-org-isolated tx + idempotent; per-org errors propagate
+(a concurrent org-delete FK-abort is benign + idempotent-retry-recoverable). `assign()`
+returns the inserted flag; additive `org_model_pin(model_id)` index. So the release
+lifecycle is now complete: assign → lazy-pin → tenant opt-in → vendor broadcast.
+Next: step-6 follow-ups — vendor/admin polish (release-retire, structured release editor,
+nav links to `/admin`·`/platform`, a platform release-detail endpoint), admin
+(`adjustability: tenant`), issue-key i18n + deviation-override UX,
 `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
 org, Decline / web self-registration).
 Invariants I1–I11 (CORE_SPEC §1)
