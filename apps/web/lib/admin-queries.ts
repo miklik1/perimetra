@@ -1,9 +1,10 @@
-import { defineInfiniteQuery, mutationOptions } from "@repo/api";
+import { defineInfiniteQuery, defineMutation, defineQuery, mutationOptions } from "@repo/api";
 import type { ApiClient } from "@repo/api";
 import { appendSearchParams } from "@repo/utils";
 import {
   catalogVersionSchema,
   catalogVersionsPageSchema,
+  pinVersionSchema,
   priceTableSchema,
   priceTablesPageSchema,
   publishCatalogVersionSchema,
@@ -11,8 +12,10 @@ import {
   publishReleaseSchema,
   releaseSchema,
   releasesPageSchema,
+  upgradeOffersSchema,
   type CatalogVersionDetail,
   type CatalogVersionsPage,
+  type PinVersionInput,
   type PriceTableDetail,
   type PriceTablesPage,
   type PublishCatalogVersionInput,
@@ -20,6 +23,7 @@ import {
   type PublishReleaseInput,
   type ReleaseDetail,
   type ReleasesPage,
+  type UpgradeOffers,
 } from "@repo/validators";
 
 export const adminKeys = {
@@ -30,6 +34,7 @@ export const adminKeys = {
   releasesList: () => [...adminKeys.releases(), "list"] as const,
   priceTables: () => [...adminKeys.all, "price-tables"] as const,
   priceTablesList: () => [...adminKeys.priceTables(), "list"] as const,
+  upgrades: () => [...adminKeys.releases(), "upgrades"] as const,
 } as const;
 
 export interface PublishCatalogVariables {
@@ -101,6 +106,24 @@ export function createAdminQueries(client: ApiClient) {
         path: (cursor) => appendSearchParams("/v1/price-tables", { cursor: cursor || undefined }),
         schema: (data) => priceTablesPageSchema.parse(data),
         getNextPageParam: (lastPage) => lastPage.nextCursor,
+      }),
+
+    /** Models with an available opt-in upgrade (ADR 0064) — the org is pinned to
+     *  an older version than the newest one the vendor has assigned it. */
+    listUpgrades: () =>
+      defineQuery<UpgradeOffers>(client, {
+        queryKey: adminKeys.upgrades(),
+        path: "/v1/releases/upgrades",
+        schema: (data) => upgradeOffersSchema.parse(data),
+      }),
+
+    /** Opt into a version: move the org's pin for that release's model (admin). */
+    pinVersion: () =>
+      defineMutation<UpgradeOffers, PinVersionInput>(client, {
+        method: "POST",
+        path: "/v1/releases/pin",
+        body: (input) => pinVersionSchema.parse(input),
+        schema: (data) => upgradeOffersSchema.parse(data),
       }),
 
     publishPriceTable: () =>

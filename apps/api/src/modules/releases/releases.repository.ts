@@ -16,12 +16,36 @@ import { and, asc, desc, eq, getTableColumns, gt, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import {
+  orgModelPin,
   orgReleaseAssignment,
   release,
   type ReleaseRow,
   type ReleaseStatus,
 } from "@repo/db/schema/releases";
 import { type ProductModelRelease } from "@repo/model";
+
+/** One release an org is assigned, with the version-grouping metadata the
+ *  pin/upgrade logic needs (ADR 0064). */
+export interface AssignedReleaseMeta {
+  releaseId: string;
+  modelId: string;
+  version: number;
+  catalogVersion: number;
+}
+
+/** An org's active version pin for one model (ADR 0064). */
+export interface ModelPin {
+  modelId: string;
+  pinnedReleaseId: string;
+}
+
+/** An org's active pin for one model, with the pinned release's catalog version
+ *  — a single consistent read for the opt-in catalog pre-flight (ADR 0064). */
+export interface PinnedReleaseCatalog {
+  modelId: string;
+  pinnedReleaseId: string;
+  catalogVersion: number;
+}
 
 export interface ListReleasesParams {
   cursor?: string | undefined;
@@ -134,6 +158,53 @@ export class ReleasesRepository {
     return { items, nextCursor };
   }
 
+  /**
+   * Tenant CONFIGURATOR list (ADR 0064): only the PINNED version per model the
+   * org is assigned — assignment ∧ pin. The newer "upgrade available" versions
+   * an org may also be assigned are deliberately excluded here (they surface as
+   * opt-in offers, not as parallel picker entries — CORE_SPEC §3). The pin join
+   * is on the natural key, so a pin always co-resolves with its assignment row.
+   */
+  async listPinnedAssignedTo(
+    organizationId: string,
+    params: ListReleasesParams,
+  ): Promise<ReleasesPageRows> {
+    const ascending = params.sort === "createdAt:asc";
+    const rows = await this.txHost.tx
+      .select(getTableColumns(release))
+      .from(release)
+      .innerJoin(
+        orgReleaseAssignment,
+        and(
+          eq(orgReleaseAssignment.releaseId, release.releaseId),
+          eq(orgReleaseAssignment.organizationId, organizationId),
+        ),
+      )
+      .innerJoin(
+        orgModelPin,
+        and(
+          eq(orgModelPin.pinnedReleaseId, release.releaseId),
+          eq(orgModelPin.organizationId, organizationId),
+        ),
+      )
+      .where(
+        and(
+          params.status ? eq(release.status, params.status) : undefined,
+          params.cursor
+            ? ascending
+              ? gt(release.id, params.cursor)
+              : lt(release.id, params.cursor)
+            : undefined,
+        ),
+      )
+      .orderBy(ascending ? asc(release.id) : desc(release.id))
+      .limit(params.limit + 1);
+
+    const items = rows.slice(0, params.limit);
+    const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
+    return { items, nextCursor };
+  }
+
   /** Whether `releaseId` is assigned to `organizationId` (quote-issue gate). */
   async isAssigned(organizationId: string, releaseId: string): Promise<boolean> {
     const [row] = await this.txHost.tx
@@ -186,6 +257,102 @@ export class ReleasesRepository {
         ),
       )
       .returning({ id: orgReleaseAssignment.id });
+    return deleted.length;
+  }
+
+  // --- Version pins (ADR 0064) -----------------------------------------------
+
+  /** Every release an org is assigned, decorated with the version-grouping
+   *  metadata the pin/upgrade logic needs (model family, version, catalog). */
+  async findAssignedReleasesWithMeta(organizationId: string): Promise<AssignedReleaseMeta[]> {
+    return this.txHost.tx
+      .select({
+        releaseId: release.releaseId,
+        modelId: release.modelId,
+        version: release.version,
+        catalogVersion: release.catalogVersion,
+      })
+      .from(release)
+      .innerJoin(
+        orgReleaseAssignment,
+        and(
+          eq(orgReleaseAssignment.releaseId, release.releaseId),
+          eq(orgReleaseAssignment.organizationId, organizationId),
+        ),
+      );
+  }
+
+  /** An org's active pins (one per model it uses). */
+  async findPins(organizationId: string): Promise<ModelPin[]> {
+    return this.txHost.tx
+      .select({ modelId: orgModelPin.modelId, pinnedReleaseId: orgModelPin.pinnedReleaseId })
+      .from(orgModelPin)
+      .where(eq(orgModelPin.organizationId, organizationId))
+      .orderBy(asc(orgModelPin.modelId));
+  }
+
+  /** An org's active pins joined to each pinned release's catalog version — ONE
+   *  statement, so the opt-in pre-flight reads a single consistent snapshot of
+   *  pins + their catalogs (no TOCTOU vs. a concurrent assign). */
+  async findPinnedReleaseCatalogs(organizationId: string): Promise<PinnedReleaseCatalog[]> {
+    return this.txHost.tx
+      .select({
+        modelId: orgModelPin.modelId,
+        pinnedReleaseId: orgModelPin.pinnedReleaseId,
+        catalogVersion: release.catalogVersion,
+      })
+      .from(orgModelPin)
+      .innerJoin(release, eq(release.releaseId, orgModelPin.pinnedReleaseId))
+      .where(eq(orgModelPin.organizationId, organizationId));
+  }
+
+  /** Create the active pin for a model IF the org has none yet (lazy default on
+   *  first assign). ON CONFLICT keeps an existing pin — a newer version never
+   *  silently moves it (CORE_SPEC §3). Returns whether a pin was created. */
+  async ensurePin(
+    organizationId: string,
+    modelId: string,
+    releaseId: string,
+    pinnedBy: string,
+  ): Promise<boolean> {
+    const inserted = await this.txHost.tx
+      .insert(orgModelPin)
+      .values({ organizationId, modelId, pinnedReleaseId: releaseId, pinnedBy })
+      .onConflictDoNothing({ target: [orgModelPin.organizationId, orgModelPin.modelId] })
+      .returning({ id: orgModelPin.id });
+    return inserted.length > 0;
+  }
+
+  /** Move the active pin for a model to `releaseId` (the explicit opt-in). Upsert
+   *  so a first-ever pin is also handled; `updatedAt` is bumped via `$onUpdate`. */
+  async movePin(
+    organizationId: string,
+    modelId: string,
+    releaseId: string,
+    pinnedBy: string,
+  ): Promise<void> {
+    await this.txHost.tx
+      .insert(orgModelPin)
+      .values({ organizationId, modelId, pinnedReleaseId: releaseId, pinnedBy })
+      .onConflictDoUpdate({
+        target: [orgModelPin.organizationId, orgModelPin.modelId],
+        set: { pinnedReleaseId: releaseId, pinnedBy, updatedAt: new Date() },
+      });
+  }
+
+  /** Drop any pin pointing at `releaseId` (pin hygiene when its assignment is
+   *  removed — a pin must never point at an unassigned release). Returns rows
+   *  deleted. */
+  async deletePinByReleaseId(organizationId: string, releaseId: string): Promise<number> {
+    const deleted = await this.txHost.tx
+      .delete(orgModelPin)
+      .where(
+        and(
+          eq(orgModelPin.organizationId, organizationId),
+          eq(orgModelPin.pinnedReleaseId, releaseId),
+        ),
+      )
+      .returning({ id: orgModelPin.id });
     return deleted.length;
   }
 

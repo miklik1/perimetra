@@ -25,6 +25,13 @@ import type { CatalogBundle, ConfigurableProduct } from "./products";
  * they pin → fetch the org's active price table. A 403 on the price table
  * (workshop, ADR 0056) or a 404 (no active table) yields `prices: null` — never a
  * throw, so the surface degrades to price-blind instead of erroring.
+ *
+ * `/v1/releases` returns the org's PINNED version per model (ADR 0064 — assigned
+ * AND the active pin), so the configurator picker shows ONE version per product;
+ * a newer assigned version is an opt-in offer (`/admin`), never a parallel entry.
+ * The mixed-catalog guard below therefore spans only the PINNED set — narrower
+ * than "all assigned", so an available-upgrade on a new catalog can't break the
+ * bundle until the tenant opts in (the opt-in pre-flights that conflict, I5).
  */
 const RELEASES_PAGE_LIMIT = 100;
 

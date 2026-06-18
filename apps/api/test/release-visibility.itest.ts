@@ -6,8 +6,9 @@
  *    `user.role='admin'`) may publish releases/catalog; an org admin is 403'd.
  *  - The platform console (`/v1/platform/*`) is platform-only.
  *  - A tenant's `GET /v1/releases` returns ONLY the releases ASSIGNED to its org
- *    (and `GET /:id` 404s an unassigned one — no body leak, no existence oracle);
- *    assignment is org-scoped (org A's assignment never leaks to org B).
+ *    — narrowed to the active PIN per model since ADR 0064, but with one version
+ *    per model here, pin ≡ assignment (and `GET /:id` 404s an unassigned one — no
+ *    body leak, no existence oracle); assignment is org-scoped (A never leaks to B).
  *  - Quote ISSUE is gated by assignment (defense-in-depth — the configurator only
  *    offers assigned releases, this closes the direct-API seam).
  *  - I3 ≠ VISIBILITY: unassigning a release still lets a quote STAMPED on it
@@ -191,11 +192,14 @@ describe("per-tenant release visibility (HTTP, real stack)", () => {
       ).statusCode,
     ).toBe(200);
 
-    // Discovery now hides it (orgA sees only fence-run@1).
+    // Discovery now hides it (orgA sees only fence-run@1). The positive assertion
+    // guards pin hygiene: unassigning sliding-gate@1 must NOT clear fence-run@1's
+    // pin (ADR 0064 — `deletePinByReleaseId` is scoped to the unassigned release).
     const aList = ((await getAs(userA, "/v1/releases")).json() as ReleaseItems).items.map(
       (r) => r.releaseId,
     );
     expect(aList).not.toContain("sliding-gate@1");
+    expect(aList).toContain("fence-run@1");
 
     // But the EXISTING quote (stamped on sliding-gate@1) still re-derives
     // BYTE-IDENTICALLY — re-derivation uses the GLOBAL store, not the assignment.

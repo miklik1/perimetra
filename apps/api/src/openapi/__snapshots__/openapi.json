@@ -740,6 +740,44 @@
         ]
       }
     },
+    "/v1/releases/upgrades": {
+      "get": {
+        "operationId": "ReleasesController_upgrades_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
+    "/v1/releases/pin": {
+      "post": {
+        "operationId": "ReleasesController_pin_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
     "/v1/releases/{id}": {
       "get": {
         "operationId": "ReleasesController_get_v1",
@@ -1393,6 +1431,18 @@
         "required": [
           "catalogVersion",
           "body"
+        ]
+      },
+      "PinVersionDto": {
+        "type": "object",
+        "properties": {
+          "releaseId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "releaseId"
         ]
       },
       "PublishCatalogVersionDto": {

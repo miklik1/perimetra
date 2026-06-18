@@ -265,6 +265,17 @@ const cs = {
     optional: "(volitelné)",
     noneYet: "Zatím nic publikováno.",
     loadingList: "Načítání…",
+    productVersions: "Verze produktů",
+    productVersionsDescription:
+      "Když dodavatel publikuje novější verzi produktu, který používáte, povýšíte ji zde — vaše stávající nabídky a uložené sestavy zůstanou na verzi, se kterou byly vytvořeny.",
+    currentVersion: "na v{version}",
+    upgradeTo: "Povýšit na v{version}",
+    upgrading: "Povyšování…",
+    upgraded: "Povýšeno.",
+    upgradeError: "Povýšení se nezdařilo.",
+    upgradeCatalogConflict:
+      "Tato verze používá jiný katalog než vaše ostatní produkty — zatím ji s nimi nelze kombinovat.",
+    noUpgrades: "Všechny vaše produkty jsou na nejnovější dostupné verzi.",
   },
   platform: {
     title: "Platforma — konzole dodavatele",
@@ -281,6 +292,7 @@ const cs = {
     unassign: "Odebrat",
     assignError: "Přiřazení se nepodařilo aktualizovat.",
     loadingList: "Načítání…",
+    pinned: "Aktivní",
   },
   emails: {
     verification: {

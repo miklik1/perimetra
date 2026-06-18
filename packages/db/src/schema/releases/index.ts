@@ -51,6 +51,10 @@ export const release = pgTable(
     uniqueIndex("release_release_id_uq").on(table.releaseId),
     // List query: by status (e.g. published), newest first (keyset by id).
     index("release_status_id_idx").on(table.status, table.id),
+    // Group/compare versions WITHIN a model family (ADR 0064): "the latest
+    // published version of model X", "is there a newer version than the pinned
+    // one". `modelId` alone had no index — these were full scans.
+    index("release_model_version_idx").on(table.modelId, table.version),
   ],
 );
 
@@ -99,3 +103,50 @@ export const orgReleaseAssignment = pgTable(
 
 export type OrgReleaseAssignmentRow = typeof orgReleaseAssignment.$inferSelect;
 export type NewOrgReleaseAssignmentRow = typeof orgReleaseAssignment.$inferInsert;
+
+/**
+ * Per-tenant version PIN (CORE_SPEC §3, ADR 0064) — for each model FAMILY an org
+ * is using, WHICH immutable version is the ACTIVE one its configurator offers for
+ * NEW work. Distinct from `org_release_assignment`:
+ *
+ *  - ASSIGNMENT = availability ("this org MAY see this release version") —
+ *    disposable discovery metadata (above).
+ *  - PIN = the active version per model ("for `sliding-gate`, new work uses @1").
+ *    When the vendor assigns a NEWER version of an already-pinned model, the pin
+ *    does NOT move — the newer version is an "upgrade available", and the tenant
+ *    moves the pin by an EXPLICIT opt-in (§3 "upgrades are explicit opt-in per
+ *    tenant"). The pin is lazily created on first assign of a model and is an
+ *    auditable record of the tenant's deliberate choice (§7 ledger).
+ *
+ *  - `pinnedReleaseId` is the natural key ("modelId@version"), a soft reference
+ *    like `org_release_assignment.releaseId` (the append-only release store keeps
+ *    the key alive; the service validates assigned+published on write).
+ *  - The pin is NOT I3 data: a quote stamps the EXACT "modelId@version" it was
+ *    issued against and re-derives forever via the GLOBAL `findByReleaseId`,
+ *    regardless of where the org's pin later points (pin ≠ re-derivation key).
+ *  - `organizationId` CASCADEs (disposable, like the assignment join).
+ *  - unique `(organizationId, modelId)`: one active pin per model per org.
+ */
+export const orgModelPin = pgTable(
+  "org_model_pin",
+  {
+    id: id(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** The model family this pin governs ("sliding-gate"). */
+    modelId: text("model_id").notNull(),
+    /** The active version's natural key ("modelId@version") — soft ref (above). */
+    pinnedReleaseId: text("pinned_release_id").notNull(),
+    /** Who set the pin (soft audit ref — a tenant user, or `system-*` on auto-pin). */
+    pinnedBy: text("pinned_by").notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    // One active pin per (org, model) — the opt-in moves this row, never adds.
+    uniqueIndex("org_model_pin_org_model_uq").on(t.organizationId, t.modelId),
+  ],
+);
+
+export type OrgModelPinRow = typeof orgModelPin.$inferSelect;
+export type NewOrgModelPinRow = typeof orgModelPin.$inferInsert;

@@ -107,11 +107,23 @@ registers the closure on init); fail-soft + idempotent + CLS-wrapped per assign.
 **No default price-table** — "empty-but-honest": a fabricator's prices are their
 own data, so the configurator degrades to a notice until they publish (the
 vendor-starter-layer option was considered and rejected).
-Next: step-6 follow-ups (ADR 0063 shipped new-org default **release assignment**;
-default price-table **rejected**) — release version-pin / opt-in-upgrade UX,
-per-release catalog (mixed-version), admin (`adjustability: tenant`), issue-key
-i18n + deviation-override UX, `/site`↔`/configurator` convergence; then ADR 0058
-deferreds (sticky last-active org, Decline / web self-registration).
+Release version-pin / opt-in-upgrade (2026-06-18, ADR 0064): the §3 "pin + explicit
+opt-in" half. New `org_model_pin(org, modelId, pinnedReleaseId)` (active version per
+model — SEPARATE from the ADR-0062 assignment join = availability); `assign` lazily
+pins the first assigned version + a NEWER assigned version becomes an "upgrade
+available" offer (never silently moves the pin); `GET /v1/releases` is now
+PINNED-only (configurator shows one version per product, which also shrinks the
+mixed-catalog blast radius); tenant admin opts in via `POST /v1/releases/pin` (+ `GET
+/v1/releases/upgrades`), single-catalog pre-flight 422s `upgrade_catalog_conflict`.
+`assertAssigned` stays **set-membership** (the pin governs the default offer, not
+authz — a still-assigned old version is quotable); **I3 ≠ pin** (a quote on @1
+reproduces forever after opting into @2). `/platform` console groups by model +
+badges the pin; migration backfills pins to the highest assigned version (N-1 safe).
+Next: step-6 follow-ups — per-release catalog (mixed-version; the real fix behind
+ADR 0064's `upgrade_catalog_conflict` guard) + a vendor-broadcast upgrade offer,
+admin (`adjustability: tenant`), issue-key i18n + deviation-override UX,
+`/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
+org, Decline / web self-registration).
 Invariants I1–I11 (CORE_SPEC §1)
 are the bar every PR is judged against; the Expr numeric-domain choice is
 ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

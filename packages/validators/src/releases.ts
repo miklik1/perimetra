@@ -60,3 +60,35 @@ export type ListReleasesQuery = z.infer<typeof listReleasesQuerySchema>;
 
 export const releasesPageSchema = paginated(releaseSummarySchema);
 export type ReleasesPage = z.infer<typeof releasesPageSchema>;
+
+// --- Version pin / opt-in upgrade (CORE_SPEC §3, ADR 0064) -------------------
+
+/** A model an org is pinned to for which a NEWER assigned version exists — the
+ *  explicit opt-in-upgrade offer the tenant `/admin` surface renders. The pinned
+ *  vs latest split lets the UI say "you are on v{pinnedVersion}, v{latestVersion}
+ *  is available". `latestCatalogVersion` lets the UI warn before an opt-in that
+ *  would cross catalog versions (the engine derives against one catalog, I5). */
+export const upgradeOfferSchema = z.object({
+  modelId: z.string(),
+  pinnedReleaseId: z.string(),
+  pinnedVersion: z.number().int(),
+  latestReleaseId: z.string(),
+  latestVersion: z.number().int(),
+  latestCatalogVersion: z.number().int(),
+});
+export type UpgradeOffer = z.infer<typeof upgradeOfferSchema>;
+
+/** Every model the caller's org has an available upgrade for (vendor-scale: a
+ *  handful of models — unpaginated). */
+export const upgradeOffersSchema = z.object({
+  items: z.array(upgradeOfferSchema),
+});
+export type UpgradeOffers = z.infer<typeof upgradeOffersSchema>;
+
+/** Opt into a version: move the org's pin for THAT release's model to
+ *  `releaseId` (the explicit §3 opt-in). The target must be assigned + published;
+ *  the engine's single-catalog rule is pre-flight-checked server-side. */
+export const pinVersionSchema = z.object({
+  releaseId: z.string().min(1),
+});
+export type PinVersionInput = z.infer<typeof pinVersionSchema>;

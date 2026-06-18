@@ -25,16 +25,31 @@ import { assertValidRelease, ReleaseValidationError, type ProductModelRelease } 
 import { type ReleaseAssignments } from "@repo/validators/platform";
 import {
   type ListReleasesQuery,
+  type PinVersionInput,
   type PublishReleaseInput,
   type ReleaseDetail,
   type ReleasesPage,
   type ReleaseSummary,
+  type UpgradeOffer,
+  type UpgradeOffers,
 } from "@repo/validators/releases";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
-import { ReleasesRepository } from "./releases.repository.js";
+import { ReleasesRepository, type AssignedReleaseMeta } from "./releases.repository.js";
+
+/**
+ * The engine derives a site against ONE catalog version (I5 `mixed_catalog`, and
+ * the web bundle's loud guard). The PINNED releases an org configures together
+ * must therefore share a catalog version — an opt-in that would split them is
+ * refused LOUD (vs. silently breaking the configurator). Returns the conflicting
+ * versions (sorted), or null when ≤1 distinct. Pure — unit-tested directly.
+ */
+export function catalogConflict(catalogVersions: number[]): number[] | null {
+  const distinct = [...new Set(catalogVersions)].sort((a, b) => a - b);
+  return distinct.length > 1 ? distinct : null;
+}
 
 /** Structural gate for an incoming release body (the publish input is opaque
  *  `unknown`). Guards the top-level shape `validateRelease` assumes before the
@@ -99,11 +114,16 @@ export class ReleasesService {
     return { items: items.map(toSummary), nextCursor };
   }
 
-  /** Tenant-facing list (ADR 0062): only the releases ASSIGNED to the caller's
-   *  org — the per-tenant visibility filter (`/v1/releases` for the configurator/
-   *  site bundle resolves through here). */
+  /** Tenant CONFIGURATOR list (ADR 0062 visibility + ADR 0064 pin): the releases
+   *  assigned to the caller's org, NARROWED to the org's PINNED version per model
+   *  (`/v1/releases` for the configurator/site bundle resolves through here). A
+   *  newer assigned version of a model an org is using is an opt-in OFFER
+   *  (`getUpgradeOffers`), not a parallel picker entry — CORE_SPEC §3. */
   async listForOrg(scope: RequestScope, query: ListReleasesQuery): Promise<ReleasesPage> {
-    const { items, nextCursor } = await this.releases.listAssignedTo(scope.organizationId, query);
+    const { items, nextCursor } = await this.releases.listPinnedAssignedTo(
+      scope.organizationId,
+      query,
+    );
     return { items: items.map(toSummary), nextCursor };
   }
 
@@ -217,6 +237,12 @@ export class ReleasesService {
       throw new ConflictException(`release ${releaseId} is ${row.status}, not assignable`);
     }
     const inserted = await this.releases.assign(organizationId, releaseId, actorUserId);
+    // Lazily pin the model to this version when the org has no pin for it yet
+    // (the §3 default: the first assigned version is the active one). A NEWER
+    // version of an already-pinned model NEVER moves the pin here — that is the
+    // tenant's explicit opt-in (`pinVersion`). Idempotent + self-healing (runs
+    // even on a re-assign, so an assignment can never lack its pin).
+    await this.releases.ensurePin(organizationId, row.modelId, releaseId, actorUserId);
     if (!inserted) return; // idempotent re-assign — no real change, no audit row
     await this.audit.record({
       actorId: actorUserId,
@@ -232,7 +258,14 @@ export class ReleasesService {
   @Transactional()
   async unassign(actorUserId: string, organizationId: string, releaseId: string): Promise<void> {
     const removed = await this.releases.unassign(organizationId, releaseId);
-    if (removed === 0) return;
+    if (removed === 0) return; // not assigned — no real change, no pin to drop, no audit
+    // Pin hygiene (ADR 0064): a pin must never point at an unassigned release. If
+    // this release was the model's active pin, drop it (the model becomes
+    // unpinned — re-assign or opt-in re-establishes it). A still-assigned OTHER
+    // version of the model is NOT auto-promoted: no silent version change. Sits
+    // AFTER the guard so it (and the audit row) fire only on a REAL unassign — a
+    // no-op never silently mutates pin state off the ledger (§7).
+    await this.releases.deletePinByReleaseId(organizationId, releaseId);
     await this.audit.record({
       actorId: actorUserId,
       action: "release.unassign",
@@ -242,10 +275,113 @@ export class ReleasesService {
     });
   }
 
-  /** The release keys an org is currently assigned (the platform console view). */
+  /** The release keys an org is currently assigned + its per-model active pins
+   *  (ADR 0064) — the platform console view (assignment = availability, pin =
+   *  the active version it configures with). */
   async listAssignments(organizationId: string): Promise<ReleaseAssignments> {
-    const releaseIds = await this.releases.findAssignedReleaseIds(organizationId);
-    return { organizationId, releaseIds };
+    const [releaseIds, pins] = await Promise.all([
+      this.releases.findAssignedReleaseIds(organizationId),
+      this.releases.findPins(organizationId),
+    ]);
+    return { organizationId, releaseIds, pins };
+  }
+
+  // --- Version pin / opt-in upgrade (CORE_SPEC §3, ADR 0064) ------------------
+
+  /** The models the caller's org has an available upgrade for: it is pinned to a
+   *  version older than the newest version of that model it is ALSO assigned
+   *  (the vendor made the newer one available; the tenant has not opted in). The
+   *  per-model offer powers the tenant `/admin` upgrade surface. */
+  async getUpgradeOffers(scope: RequestScope): Promise<UpgradeOffers> {
+    const assigned = await this.releases.findAssignedReleasesWithMeta(scope.organizationId);
+    const pins = await this.releases.findPins(scope.organizationId);
+
+    const byModel = new Map<string, AssignedReleaseMeta[]>();
+    for (const a of assigned) {
+      const list = byModel.get(a.modelId) ?? [];
+      list.push(a);
+      byModel.set(a.modelId, list);
+    }
+
+    const items: UpgradeOffer[] = [];
+    for (const pin of pins) {
+      const pinnedMeta = assigned.find((a) => a.releaseId === pin.pinnedReleaseId);
+      if (!pinnedMeta) continue; // stale pin (pin hygiene should prevent this)
+      const newer = (byModel.get(pin.modelId) ?? []).filter((a) => a.version > pinnedMeta.version);
+      if (newer.length === 0) continue;
+      const latest = newer.reduce((best, a) => (a.version > best.version ? a : best));
+      items.push({
+        modelId: pin.modelId,
+        pinnedReleaseId: pin.pinnedReleaseId,
+        pinnedVersion: pinnedMeta.version,
+        latestReleaseId: latest.releaseId,
+        latestVersion: latest.version,
+        latestCatalogVersion: latest.catalogVersion,
+      });
+    }
+    return { items };
+  }
+
+  /**
+   * Opt into a version (CORE_SPEC §3): move the org's active pin for the target
+   * release's model to `releaseId`. The target must be PUBLISHED and ASSIGNED to
+   * the org (you can only pin a version the vendor made available). Pre-flight:
+   * the post-move pinned set must still share one catalog version, else 422
+   * `upgrade_catalog_conflict` (vs. silently breaking the configurator, I5).
+   *
+   * I3 is untouched: a quote stamps the exact "modelId@version" and re-derives
+   * forever via the GLOBAL store regardless of where the pin later points. Old
+   * project instances on the prior version are unaffected; only NEW work uses the
+   * pinned version. Returns the org's remaining upgrade offers (post-move).
+   */
+  @Transactional()
+  async pinVersion(scope: RequestScope, input: PinVersionInput): Promise<UpgradeOffers> {
+    const row = await this.releases.findByReleaseId(input.releaseId);
+    if (!row) throw new NotFoundException(`release ${input.releaseId} not found`);
+    // Assignment gate BEFORE the status check: an unassigned release must not leak
+    // its lifecycle — a 409 "is draft" would be an existence/status oracle on a
+    // release the org cannot see (matches `get()`'s unassigned≈hidden contract).
+    if (!(await this.releases.isAssigned(scope.organizationId, input.releaseId))) {
+      throw new ForbiddenException({
+        message: `release ${input.releaseId} is not assigned to your organization`,
+        code: "release_not_assigned",
+      });
+    }
+    if (row.status !== "published") {
+      throw new ConflictException(`release ${input.releaseId} is ${row.status}, not pinnable`);
+    }
+
+    // ONE consistent read of the org's pins + each pinned release's catalog (a
+    // single JOIN, not two statements), so a concurrent assign can't make the
+    // pre-flight weigh a stale pin set against fresh catalogs (TOCTOU).
+    const pinned = await this.releases.findPinnedReleaseCatalogs(scope.organizationId);
+    const current = pinned.find((p) => p.modelId === row.modelId)?.pinnedReleaseId ?? null;
+    if (current === input.releaseId) return this.getUpgradeOffers(scope); // no-op, no audit
+
+    // Pre-flight: the post-move pinned set must still derive against ONE catalog.
+    const postMoveCatalogs = new Map(pinned.map((p) => [p.modelId, p.catalogVersion]));
+    postMoveCatalogs.set(row.modelId, row.catalogVersion);
+    const conflict = catalogConflict([...postMoveCatalogs.values()]);
+    if (conflict) {
+      throw new UnprocessableEntityException({
+        message: `pinning ${input.releaseId} (catalog@${row.catalogVersion}) would split your active products across catalog versions (${conflict.join(", ")}) — the configurator derives against one catalog`,
+        code: "upgrade_catalog_conflict",
+        catalogVersions: conflict,
+      });
+    }
+
+    await this.releases.movePin(scope.organizationId, row.modelId, input.releaseId, scope.userId);
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "release.pin_changed",
+      entityType: "org_model_pin",
+      entityId: `${scope.organizationId}:${row.modelId}`,
+      diff: {
+        before: current ? { pinnedReleaseId: current } : null,
+        after: { pinnedReleaseId: input.releaseId },
+      },
+    });
+    return this.getUpgradeOffers(scope);
   }
 
   /**

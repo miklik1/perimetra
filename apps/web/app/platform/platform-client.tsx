@@ -142,6 +142,20 @@ function AssignmentManager() {
     enabled: orgId !== "",
   });
   const assignedIds = new Set(assignments?.releaseIds ?? []);
+  // The org's ACTIVE version per model (ADR 0064) — assignment = availability,
+  // pin = what the org configures with. `pinnedReleaseId` is unique per model, so
+  // a flat set of them is enough to badge the active row.
+  const pinnedIds = new Set((assignments?.pins ?? []).map((p) => p.pinnedReleaseId));
+
+  // Group the global release list by model FAMILY so the vendor sees versions
+  // together (assign v2 next to v1) instead of a flat list (ADR 0064).
+  const byModel = new Map<string, typeof releases>();
+  for (const r of releases) {
+    const versions = byModel.get(r.modelId) ?? [];
+    versions.push(r);
+    byModel.set(r.modelId, versions);
+  }
+  const models = [...byModel.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   const invalidate = () => invalidateKeys(queryClient, [platformKeys.assignments(orgId)]);
   const onError = () => toast.error(t("assignError"));
@@ -175,36 +189,46 @@ function AssignmentManager() {
 
       {orgId !== "" && releases.length === 0 && <p className={listClass}>{t("noReleases")}</p>}
 
-      {orgId !== "" && releases.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {releases.map((r) => {
-            const isAssigned = assignedIds.has(r.releaseId);
-            return (
-              <li
-                key={r.id}
-                className="border-border flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-              >
-                <span className="font-mono text-xs">
-                  {r.releaseId}
-                  {isAssigned && <span className="ml-2 text-green-600">· {t("assigned")}</span>}
-                </span>
-                <Button
-                  type="button"
-                  variant={isAssigned ? "outline" : "default"}
-                  disabled={busy}
-                  onClick={() =>
-                    isAssigned
-                      ? unassign.mutate({ orgId, releaseId: r.releaseId })
-                      : assign.mutate({ orgId, releaseId: r.releaseId })
-                  }
-                >
-                  {isAssigned ? t("unassign") : t("assign")}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {orgId !== "" &&
+        models.map(([modelId, versions]) => (
+          <div key={modelId} className="flex flex-col gap-2">
+            <p className="text-foreground text-xs font-semibold">{modelId}</p>
+            <ul className="flex flex-col gap-2">
+              {[...versions]
+                .sort((a, b) => a.version - b.version)
+                .map((r) => {
+                  const isAssigned = assignedIds.has(r.releaseId);
+                  const isPinned = pinnedIds.has(r.releaseId);
+                  return (
+                    <li
+                      key={r.id}
+                      className="border-border flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    >
+                      <span className="font-mono text-xs">
+                        v{r.version} · catalog@{r.catalogVersion}
+                        {isAssigned && (
+                          <span className="ml-2 text-green-600">· {t("assigned")}</span>
+                        )}
+                        {isPinned && <span className="ml-2 text-blue-600">· {t("pinned")}</span>}
+                      </span>
+                      <Button
+                        type="button"
+                        variant={isAssigned ? "outline" : "default"}
+                        disabled={busy}
+                        onClick={() =>
+                          isAssigned
+                            ? unassign.mutate({ orgId, releaseId: r.releaseId })
+                            : assign.mutate({ orgId, releaseId: r.releaseId })
+                        }
+                      >
+                        {isAssigned ? t("unassign") : t("assign")}
+                      </Button>
+                    </li>
+                  );
+                })}
+            </ul>
+          </div>
+        ))}
     </div>
   );
 }

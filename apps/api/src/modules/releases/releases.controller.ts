@@ -26,10 +26,15 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
-import { type ReleaseDetail, type ReleasesPage } from "@repo/validators/releases";
+import {
+  type ReleaseDetail,
+  type ReleasesPage,
+  type UpgradeOffers,
+} from "@repo/validators/releases";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
@@ -37,9 +42,11 @@ import { RolesGuard } from "../auth/roles.guard.js";
 import { SessionGuard } from "../auth/session.guard.js";
 import {
   ListReleasesQueryDto,
+  PinVersionDto,
   PublishReleaseDto,
   ReleaseDto,
   ReleasesPageDto,
+  UpgradeOffersDto,
 } from "./releases.dto.js";
 import { ReleasesService } from "./releases.service.js";
 
@@ -71,6 +78,26 @@ export class ReleasesController {
     @Body() body: PublishReleaseDto,
   ): Promise<ReleaseDetail> {
     return this.releases.publish(scope, body);
+  }
+
+  /** The models the caller's org has an available opt-in upgrade for (ADR 0064).
+   *  Tenant-scoped; declared BEFORE `:id` so "upgrades" is not parsed as an id. */
+  @Get("upgrades")
+  @UseGuards(RolesGuard)
+  @ZodSerializerDto(UpgradeOffersDto)
+  upgrades(@CurrentScope() scope: RequestScope): Promise<UpgradeOffers> {
+    return this.releases.getUpgradeOffers(scope);
+  }
+
+  /** Opt into a version (CORE_SPEC §3): move the org's active pin for that
+   *  release's model. Admin-only (a catalog-config decision, like price tables);
+   *  the server is the authority, the `/admin` UI mirrors the role. */
+  @Post("pin")
+  @UseGuards(RolesGuard)
+  @RequireRole("admin")
+  @ZodSerializerDto(UpgradeOffersDto)
+  pin(@CurrentScope() scope: RequestScope, @Body() body: PinVersionDto): Promise<UpgradeOffers> {
+    return this.releases.pinVersion(scope, body);
   }
 
   /** Detail by surrogate id — tenant-scoped (404 unless assigned to the caller's

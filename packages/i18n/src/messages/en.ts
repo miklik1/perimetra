@@ -262,6 +262,17 @@ const en: Messages = {
     optional: "(optional)",
     noneYet: "Nothing published yet.",
     loadingList: "Loading…",
+    productVersions: "Product versions",
+    productVersionsDescription:
+      "When the vendor publishes a newer version of a product you use, upgrade here — your existing quotes and saved sites stay on the version they were created with.",
+    currentVersion: "on v{version}",
+    upgradeTo: "Upgrade to v{version}",
+    upgrading: "Upgrading…",
+    upgraded: "Upgraded.",
+    upgradeError: "Could not upgrade.",
+    upgradeCatalogConflict:
+      "That version uses a different catalog than your other products — it can't be combined with them yet.",
+    noUpgrades: "All your products are on their latest available version.",
   },
   platform: {
     title: "Platform — Vendor console",
@@ -278,6 +289,7 @@ const en: Messages = {
     unassign: "Unassign",
     assignError: "Could not update the assignment.",
     loadingList: "Loading…",
+    pinned: "Pinned",
   },
   emails: {
     verification: {

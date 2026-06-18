@@ -27,10 +27,21 @@ export const platformOrganizationsSchema = z.object({
 });
 export type PlatformOrganizations = z.infer<typeof platformOrganizationsSchema>;
 
-/** The release keys (natural "modelId@version") one org is currently assigned. */
+/** One org's currently-pinned active version per model (ADR 0064) — lets the
+ *  vendor console badge WHICH assigned version an org actually uses for new work. */
+export const orgModelPinSchema = z.object({
+  modelId: z.string(),
+  pinnedReleaseId: z.string(),
+});
+export type OrgModelPin = z.infer<typeof orgModelPinSchema>;
+
+/** The release keys (natural "modelId@version") one org is currently assigned,
+ *  plus its per-model active pins (ADR 0064 — assignment = availability, pin =
+ *  the active version). */
 export const releaseAssignmentsSchema = z.object({
   organizationId: z.string().min(1),
   releaseIds: z.array(z.string()),
+  pins: z.array(orgModelPinSchema),
 });
 export type ReleaseAssignments = z.infer<typeof releaseAssignmentsSchema>;
 
