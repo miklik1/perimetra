@@ -18,7 +18,7 @@
     "test": "turbo run test",
     "knip": "knip",
     "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install || true"
   },
   "prettier": "@repo/prettier-config",
   "devDependencies": {
