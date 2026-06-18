@@ -33,7 +33,13 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --from=pruner /repo/out/full/ .
 RUN pnpm turbo run build --filter=api...
 # Standalone production bundle: api + prod deps + built workspace packages.
-RUN pnpm --filter=api deploy --prod /app
+# `--legacy`: pnpm v10+ refuses `deploy` without it (or inject-workspace-packages)
+# — ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE. --legacy restores the pre-v10 symlink
+# behavior; the /app bundle + the runner-stage COPY are unchanged.
+# `--ignore-scripts`: legacy deploy re-runs lifecycle scripts, and the root
+# `prepare` (lefthook install) needs the git binary + repo — neither exists in
+# this pruned alpine builder (same reason the install step above skips scripts).
+RUN pnpm --filter=api deploy --prod --legacy --ignore-scripts /app
 
 # ---- run: minimal, non-root ------------------------------------------------
 FROM node:24-alpine AS runner

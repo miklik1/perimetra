@@ -5,16 +5,16 @@ packages:
 
 # pnpm settings (moved from package.json `pnpm` field — pnpm 11 reads them here).
 
-# TEMPORARY: nodemailer@8.0.11 entered the lockfile inside its 24h release
-# window (eligible after 2026-06-11 ~12:10 UTC) — drop this block on any later
-# lockfile touch. The policy itself stays ON (ADR 0044).
-minimumReleaseAgeExclude:
-  - nodemailer
-
 overrides:
   lightningcss: 1.30.1
   react: "catalog:react19"
   react-dom: "catalog:react19"
+  # Security (GHSA-vmh5-mc38-953g, TLS bypass via SOCKS5 ProxyAgent): force the
+  # transitive undici (better-auth→vitest→jsdom) onto the patched 7-line. Caret
+  # stays WITHIN v7 — `>=7.28.0` would let it jump to undici 8 (a major bump for
+  # jsdom). Trips the `--prod` audit gate because vitest is an installed optional
+  # peer of better-auth (ADR 0044 gate). Drop when the chain ships >=7.28 itself.
+  undici: "^7.28.0"
   # Single @types/node for the whole tree (2026-06-11): without this, three
   # majors coexist (18 via testcontainers→@types/dockerode→@types/ssh2, 25 via
   # @inquirer optional peers, 22 ours) and their merged `net`/undici-types
@@ -120,7 +120,7 @@ catalogs:
   # (run in CI); bump the SDK and all its pins here together — see ADR 0013.
   expo56:
     "@expo/log-box": ~56.0.12
-    "@expo/metro-runtime": ~56.0.14
+    "@expo/metro-runtime": ~56.0.15
     # Device key/value store for the theme preference (ADR 0010 follow-up). A
     # native module, so it tracks the SDK: `expo install` resolves it from
     # bundledNativeModules (2.2.0 for SDK 56) and `expo install --check` guards it.
@@ -135,20 +135,20 @@ catalogs:
     # today: only @repo/telemetry dev-installs it for typechecking; apps/mobile
     # adds it (via `expo install`, `--check`-guarded) when mobile telemetry wires.
     "@sentry/react-native": ~8.13.0
-    expo: ~56.0.9
-    expo-constants: ~56.0.17
-    expo-linking: ~56.0.13
+    expo: ~56.0.12
+    expo-constants: ~56.0.18
+    expo-linking: ~56.0.14
     # Device locale detection for the initial mobile locale (ADR 0020). A native
     # module, so it tracks the SDK like async-storage — `expo install` resolves
     # it from bundledNativeModules (56.0.6 for SDK 56) and `--check` guards it.
     expo-localization: ~56.0.6
-    expo-router: ~56.2.9
+    expo-router: ~56.2.11
     # Splash held until the persisted theme rehydrates, to avoid a cold-start
     # theme flash (ADR 0015); a config plugin, registered in app.config.ts.
     expo-splash-screen: ~56.0.10
     expo-status-bar: ~56.0.4
     expo-system-ui: ~56.0.5
-    jest-expo: ~56.0.4
+    jest-expo: ~56.0.5
     # Flags native binding (ADR 0028): a native module (peers: async-storage,
     # expo-application/device/file-system/localization — all SDK-managed), so it
     # lives with the SDK set. Seam-only today: only @repo/flags dev-installs it

@@ -12,6 +12,7 @@ import {
   type HealthCheckResult,
   type HealthIndicatorResult,
 } from "@nestjs/terminus";
+import { SkipThrottle } from "@nestjs/throttler";
 import { sql } from "drizzle-orm";
 import { type Redis } from "ioredis";
 
@@ -20,6 +21,12 @@ import { type Db } from "@repo/db";
 import { DB } from "../../common/db/db.module.js";
 import { REDIS } from "../auth/auth.tokens.js";
 
+// Probes are exempt from the global Redis-backed ThrottlerGuard (ADR 0044): an
+// orchestrator hits them constantly, and `/health/live` must answer even when
+// Redis is down (the guard's storage eval would otherwise 500 the liveness
+// probe and get a healthy pod killed — the exact failure CI's infra-less test
+// job surfaced).
+@SkipThrottle()
 @Controller({ path: "health", version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(
