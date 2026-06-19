@@ -43,8 +43,10 @@
     "posthog-node": "catalog:",
     "react": "catalog:react19",
     "react-dom": "catalog:react19",
+    "react-hook-form": "catalog:",
     "server-only": "^0.0.1",
     "three": "^0.171.0",
+    "zod": "catalog:",
     "zustand": "catalog:"
   },
   "devDependencies": {

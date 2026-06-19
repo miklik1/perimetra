@@ -15,6 +15,10 @@
  */
 
 // --- Parameters -------------------------------------------------------------
+/** The parameter row itself (duplicate / dotted-key / default-ambiguous defects). */
+export const whereParam = (key: string): string => `parameters[${key}]`;
+/** The deviation block (the `deviation.unbounded` defect). */
+export const whereParamDeviation = (key: string): string => `parameters[${key}].deviation`;
 export const whereParamDefaultExpr = (key: string): string => `parameters[${key}].defaultExpr`;
 export const whereParamRelevance = (key: string): string => `parameters[${key}].relevance`;
 export const whereParamDeviationBound = (key: string, bound: "min" | "max"): string =>

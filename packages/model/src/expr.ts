@@ -379,6 +379,11 @@ export function isKnownFunction(name: string): boolean {
   return name in FUNCTIONS || LAZY.has(name);
 }
 
+/** Every whitelisted function name (eager + lazy), sorted — the single source
+ *  for editor autocomplete, derived from the same whitelist `isKnownFunction`
+ *  checks so the two can never disagree. */
+export const EXPR_FUNCTIONS: readonly string[] = [...Object.keys(FUNCTIONS), ...LAZY].sort();
+
 /** Every reference path mentioned anywhere in the expression. */
 export function collectRefs(ast: Ast, into: Set<string> = new Set()): Set<string> {
   switch (ast.k) {

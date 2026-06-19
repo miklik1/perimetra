@@ -719,12 +719,18 @@ importers:
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      react-hook-form:
+        specifier: 'catalog:'
+        version: 7.77.0(react@19.2.3)
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
       three:
         specifier: ^0.171.0
         version: 0.171.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
       zustand:
         specifier: 'catalog:'
         version: 5.0.14(@types/react@19.2.14)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
