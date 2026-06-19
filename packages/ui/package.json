@@ -10,7 +10,10 @@
     ".": "./src/index.ts",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./forms/*": "./src/forms/*.ts",
+    "./forms/*": [
+      "./src/forms/*.tsx",
+      "./src/forms/*.ts"
+    ],
     "./*": [
       "./src/*.tsx",
       "./src/*.ts"
