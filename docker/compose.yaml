@@ -43,7 +43,7 @@ services:
     volumes:
       - ./centrifugo/config.json:/centrifugo/config.json:ro
     ports:
-      - "8000:8000"
+      - "${CENTRIFUGO_HOST_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -q -O - http://localhost:8000/health"]
       interval: 5s
@@ -57,8 +57,8 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio-dev-password
     ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # console UI
+      - "${MINIO_API_HOST_PORT:-9000}:9000" # S3 API
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001" # console UI
     volumes:
       - minio-data:/data
     healthcheck:
@@ -83,8 +83,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # web UI
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025" # SMTP
+      - "${MAILPIT_WEB_HOST_PORT:-8025}:8025" # web UI
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/livez"]
       interval: 5s
@@ -103,7 +103,7 @@ services:
       LISTEN_PORT: "6432"
       AUTH_TYPE: scram-sha-256
     ports:
-      - "6432:6432"
+      - "${PGBOUNCER_HOST_PORT:-6432}:6432"
     depends_on:
       postgres:
         condition: service_healthy
