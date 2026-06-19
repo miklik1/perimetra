@@ -294,6 +294,18 @@ const en: Messages = {
     broadcastingFor: "Broadcasting {releaseId}…",
     broadcastResult: "Offered to {assigned} org(s) · {skipped} already had it.",
     broadcastError: "Could not broadcast the release.",
+    retire: "Retire",
+    retiring: "Retiring…",
+    retireFor: "Retire {releaseId}",
+    retiringFor: "Retiring {releaseId}…",
+    retireConfirm:
+      "Retire {releaseId}? It will no longer be offered for new work — organizations already using it keep it, and existing quotes are unaffected. This cannot be undone.",
+    retired: "Release retired.",
+    retireError: "Could not retire the release.",
+    viewBody: "View",
+    hideBody: "Hide",
+    viewBodyFor: "View body of {releaseId}",
+    hideBodyFor: "Hide body of {releaseId}",
   },
   emails: {
     verification: {

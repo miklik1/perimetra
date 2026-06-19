@@ -1230,6 +1230,29 @@
         ]
       }
     },
+    "/v1/platform/releases/{id}": {
+      "get": {
+        "operationId": "PlatformController_getRelease_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
     "/v1/platform/releases/{releaseId}/broadcast": {
       "post": {
         "operationId": "PlatformController_broadcast_v1",
@@ -1245,6 +1268,29 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/releases/{releaseId}/retire": {
+      "post": {
+        "operationId": "PlatformController_retire_v1",
+        "parameters": [
+          {
+            "name": "releaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

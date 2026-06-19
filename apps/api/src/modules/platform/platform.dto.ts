@@ -10,7 +10,11 @@ import {
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
 } from "@repo/validators/platform";
-import { listReleasesQuerySchema, releasesPageSchema } from "@repo/validators/releases";
+import {
+  listReleasesQuerySchema,
+  releaseSchema,
+  releasesPageSchema,
+} from "@repo/validators/releases";
 
 import { createZodDto } from "../../common/api/zod.js";
 
@@ -22,3 +26,6 @@ export class PlatformReleasesPageDto extends createZodDto(releasesPageSchema) {}
 export class PlatformOrganizationsDto extends createZodDto(platformOrganizationsSchema) {}
 export class ReleaseAssignmentsDto extends createZodDto(releaseAssignmentsSchema) {}
 export class BroadcastAssignResultDto extends createZodDto(broadcastAssignResultSchema) {}
+/** Full release detail (body + initialInput) for the vendor console — the
+ *  GLOBAL detail read + the retire response (ADR 0067). */
+export class PlatformReleaseDto extends createZodDto(releaseSchema) {}

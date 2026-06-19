@@ -25,12 +25,15 @@ import {
 import { type ProductModelRelease } from "@repo/model";
 
 /** One release an org is assigned, with the version-grouping metadata the
- *  pin/upgrade logic needs (ADR 0064). */
+ *  pin/upgrade logic needs (ADR 0064). `status` lets the upgrade logic skip a
+ *  RETIRED newer version as an opt-in target (ADR 0067 — a retired version is
+ *  never OFFERED, though an already-pinned one keeps working: non-stranding). */
 export interface AssignedReleaseMeta {
   releaseId: string;
   modelId: string;
   version: number;
   catalogVersion: number;
+  status: ReleaseStatus;
 }
 
 /** An org's active version pin for one model (ADR 0064). */
@@ -263,6 +266,7 @@ export class ReleasesRepository {
         modelId: release.modelId,
         version: release.version,
         catalogVersion: release.catalogVersion,
+        status: release.status,
       })
       .from(release)
       .innerJoin(
@@ -349,6 +353,24 @@ export class ReleasesRepository {
       )
       .returning({ id: orgModelPin.id });
     return deleted.length;
+  }
+
+  /**
+   * Retire a PUBLISHED release (ADR 0067): flip status `published`→`retired`.
+   * The `WHERE status='published'` predicate makes it idempotent + race-safe —
+   * a concurrent retire (or an already-retired/draft row) matches nothing and
+   * returns null, so the service never double-audits and never resurrects a
+   * non-published row. The release body is NEVER touched and the row is NEVER
+   * deleted (I3 — a quote stamped on it must re-derive forever). `updatedAt` is
+   * bumped via the column's `$onUpdate`.
+   */
+  async retire(releaseId: string): Promise<ReleaseRow | null> {
+    const [row] = await this.txHost.tx
+      .update(release)
+      .set({ status: "retired" })
+      .where(and(eq(release.releaseId, releaseId), eq(release.status, "published")))
+      .returning();
+    return row ?? null;
   }
 
   /** Append a new immutable release. */

@@ -101,9 +101,11 @@ function CatalogVersionsList() {
 
 /**
  * Every published release (global) — the vendor's catalog. Each PUBLISHED row
- * carries a "broadcast" action (ADR 0064 fan-out, §3): offer this version to
- * every org currently on an older version of its model in one shot, raising an
- * opt-in upgrade offer for each (the broadcast never moves a tenant's pin).
+ * carries two vendor actions: BROADCAST (ADR 0064 fan-out, §3 — offer this
+ * version to every org on an older version of its model, never moving a pin)
+ * and RETIRE (ADR 0067, §3 `published`→`retired` — stop OFFERING it for new
+ * work; orgs already on it keep configuring, quotes re-derive forever). Any row
+ * can be expanded to inspect its full body (the global platform detail read).
  */
 function ReleasesList() {
   const t = useTranslations("platform");
@@ -128,22 +130,87 @@ function ReleasesList() {
     onError: () => toast.error(t("broadcastError")),
   });
 
+  const retire = useMutation({
+    ...platformQueries.retire(),
+    onSuccess: () => {
+      // The release's status flipped; its row drops the broadcast/retire actions
+      // and upgrade offers across orgs change — refresh the whole surface.
+      invalidateKeys(queryClient, [platformKeys.all]);
+      toast.success(t("retired"));
+    },
+    onError: () => toast.error(t("retireError")),
+  });
+
   if (isLoading) return <p className={listClass}>{t("loadingList")}</p>;
   if (items.length === 0) return <p className={listClass}>{t("noReleases")}</p>;
   return (
     <ul className={listClass}>
-      {items.map((r) => {
-        const broadcasting = broadcast.isPending && broadcast.variables?.releaseId === r.releaseId;
-        return (
-          <li key={r.id} className="flex items-center justify-between gap-3">
-            <span className="font-mono text-xs">
-              {r.releaseId} · {r.status} · catalog@{r.catalogVersion}
-            </span>
-            {r.status === "published" && (
+      {items.map((r) => (
+        <ReleaseRow key={r.id} release={r} broadcast={broadcast} retire={retire} />
+      ))}
+    </ul>
+  );
+}
+
+type ReleaseListItem = { id: string; releaseId: string; status: string; catalogVersion: number };
+
+/** Minimal structural view of the broadcast/retire mutations — only what a row
+ *  uses (both are keyed on `{ releaseId }`), so the row stays decoupled from the
+ *  query lib's `UseMutationResult` generics. */
+type RowMutation = {
+  isPending: boolean;
+  variables?: { releaseId: string };
+  mutate: (vars: { releaseId: string }) => void;
+};
+
+/** One release row: metadata + the vendor actions + a lazy body inspector. The
+ *  per-row open state lives here (not the parent) so only the expanded row
+ *  fetches its detail. */
+function ReleaseRow({
+  release: r,
+  broadcast,
+  retire,
+}: {
+  release: ReleaseListItem;
+  broadcast: RowMutation;
+  retire: RowMutation;
+}) {
+  const t = useTranslations("platform");
+  const client = useApiClient();
+  const [open, setOpen] = useState(false);
+  const { data: detail, isLoading } = useQuery({
+    ...createPlatformQueries(client).release(r.id),
+    enabled: open,
+  });
+
+  const broadcasting = broadcast.isPending && broadcast.variables?.releaseId === r.releaseId;
+  const retiring = retire.isPending && retire.variables?.releaseId === r.releaseId;
+  const busy = broadcast.isPending || retire.isPending;
+  const detailId = `release-body-${r.id}`;
+
+  return (
+    <li className="border-border flex flex-col gap-2 rounded-md border px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-xs">
+          {r.releaseId} · {r.status} · catalog@{r.catalogVersion}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-expanded={open}
+            aria-controls={detailId}
+            aria-label={t(open ? "hideBodyFor" : "viewBodyFor", { releaseId: r.releaseId })}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {open ? t("hideBody") : t("viewBody")}
+          </Button>
+          {r.status === "published" && (
+            <>
               <Button
                 type="button"
                 variant="outline"
-                disabled={broadcast.isPending}
+                disabled={busy}
                 // Per-release accessible name: every row's button reads the same
                 // visible label, so name it by release for AT (cf. palette.tsx).
                 aria-label={t(broadcasting ? "broadcastingFor" : "broadcastFor", {
@@ -154,11 +221,37 @@ function ReleasesList() {
               >
                 {broadcasting ? t("broadcasting") : t("broadcast")}
               </Button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={busy}
+                aria-label={t(retiring ? "retiringFor" : "retireFor", { releaseId: r.releaseId })}
+                aria-busy={retiring}
+                // Retire is a one-way transition (no un-retire endpoint), so guard
+                // an accidental click with an explicit confirm.
+                onClick={() => {
+                  if (window.confirm(t("retireConfirm", { releaseId: r.releaseId }))) {
+                    retire.mutate({ releaseId: r.releaseId });
+                  }
+                }}
+              >
+                {retiring ? t("retiring") : t("retire")}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+      {open && (
+        <pre
+          id={detailId}
+          role="region"
+          aria-label={t("viewBodyFor", { releaseId: r.releaseId })}
+          className="bg-muted max-h-72 overflow-auto rounded-md p-3 text-xs"
+        >
+          {isLoading || !detail ? t("loadingList") : JSON.stringify(detail.body, null, 2)}
+        </pre>
+      )}
+    </li>
   );
 }
 

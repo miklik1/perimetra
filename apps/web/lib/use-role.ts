@@ -27,6 +27,15 @@ export function usePriceBlind(): boolean {
 }
 
 /**
+ * Whether the caller is an org `admin` (ADR 0056) — gates the org-admin surface
+ * links (`/admin`: price tables + product versions). FAIL-CLOSED: `false` while
+ * loading/anonymous. UX only — the server enforces via `@RequireRole('admin')`.
+ */
+export function useIsAdmin(): boolean {
+  return useRole() === "admin";
+}
+
+/**
  * FE mirror of the platform/vendor operator flag (ADR 0062), read from the SAME
  * `/v1/me` source the BE `PlatformGuard` enforces. Gates the vendor console
  * (publish + release assignment). FAIL-CLOSED: `false` while loading/anonymous.

@@ -139,15 +139,30 @@ not a guard. Validate-once + per-org-isolated tx + idempotent; per-org errors pr
 (a concurrent org-delete FK-abort is benign + idempotent-retry-recoverable). `assign()`
 returns the inserted flag; additive `org_model_pin(model_id)` index. So the release
 lifecycle is now complete: assign → lazy-pin → tenant opt-in → vendor broadcast.
-Next: step-6 follow-ups — vendor/admin polish (release-retire, structured release editor,
-nav links to `/admin`·`/platform`, a platform release-detail endpoint), admin
-(`adjustability: tenant`), issue-key i18n + deviation-override UX,
-`/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
-org, Decline / web self-registration).
-Invariants I1–I11 (CORE_SPEC §1)
-are the bar every PR is judged against; the Expr numeric-domain choice is
-ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
-cascade/overrides ADR 0048, site graph ADR 0049.
+Release retire + platform detail-read (2026-06-19, ADR 0067): the §3 end-of-life
+transition. `POST /v1/platform/releases/:id/retire` (vendor-only) flips
+`published`→`retired`; **NON-STRANDING** — a retired release stops being OFFERED for
+new work (not assignable/broadcastable/pinnable — reuses the existing non-published
+guards — and dropped as an upgrade TARGET in `getUpgradeOffers`) but an org already
+PINNED to it keeps configuring (the configurator list is NOT status-filtered; the
+vendor's lever to move tenants off is publish-a-fix + broadcast, not a cutoff). **I3
+untouched**: body never mutated, row NEVER deleted, `loadByReleaseId`/`assertAssigned`
+status-agnostic, so a quote on a since-retired release reproduces forever. Idempotent
+
+- race-safe (conditional `UPDATE … WHERE status='published' RETURNING`; HTTP 200 every
+  path, like `verify`). Plus the GLOBAL `GET /v1/platform/releases/:id` (no assignment
+  gate, so the operator can inspect any release the tenant `/:id` would 404) + account-page
+  nav links to `/admin`·`/platform` (role/`isPlatformAdmin`-gated, fail-closed). No schema
+  change (`retired` already existed). So §3 is end-to-end: publish → assign → lazy-pin →
+  opt-in → broadcast → retire.
+  Next: step-6 follow-ups — the **structured release editor** (raw-JSON publish on
+  `/platform` still stands — its own slice), admin (`adjustability: tenant`), issue-key i18n
+- deviation-override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds
+  (sticky last-active org, Decline / web self-registration).
+  Invariants I1–I11 (CORE_SPEC §1)
+  are the bar every PR is judged against; the Expr numeric-domain choice is
+  ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
+  cascade/overrides ADR 0048, site graph ADR 0049.
 
 ## Package map
 

@@ -128,6 +128,17 @@ export class ReleasesService {
     return toDetail(row);
   }
 
+  /** Detail by surrogate id — PLATFORM-scoped (ADR 0062/0067): GLOBAL, no
+   *  assignment gate, so the vendor console can inspect ANY published/retired
+   *  release body (the tenant {@link get} 404s anything the caller's own org is
+   *  not assigned — useless for an operator). Reachable only behind
+   *  `PlatformGuard`. 404 only when the id genuinely does not exist. */
+  async getGlobal(releaseRowId: string): Promise<ReleaseDetail> {
+    const row = await this.releases.findById(releaseRowId);
+    if (!row) throw new NotFoundException("Release not found");
+    return toDetail(row);
+  }
+
   /** Cross-module load of the persisted release detail (body + its pinned
    *  catalogVersion) for a natural key — quote-issue resolves the derivation
    *  release AND its catalog through this; reproduction (I3) reloads the exact
@@ -206,6 +217,54 @@ export class ReleasesService {
       },
     });
     return toDetail(row);
+  }
+
+  /**
+   * Retire a published release (CORE_SPEC §3 status `published`→`retired`, ADR
+   * 0067) — vendor-only (`PlatformGuard`, like `publish`). A retired version is
+   * no longer OFFERED for new work: it cannot be newly assigned, broadcast, or
+   * pinned (those guards already reject a non-published row — `assign`/
+   * `broadcastAssign`/`pinVersion`), and `getUpgradeOffers` drops it as an opt-in
+   * target. NON-STRANDING (Martin's call): an org already pinned to it keeps
+   * configuring with it (the configurator list does NOT status-filter) — the
+   * vendor's lever to move tenants off a bad version is to publish a fix and
+   * BROADCAST it, not to strand them. I3 is untouched: the body is never
+   * mutated and the row is never deleted, so a quote stamped on it re-derives
+   * forever (`assertAssigned`/re-derivation are status-agnostic).
+   *
+   * Idempotent: re-retiring an already-retired release is a no-op 200 (no audit
+   * row — the ledger records real state changes only). A draft (not reachable
+   * via the publish API, which always freezes `published`) 409s — only a
+   * published release can be retired.
+   */
+  @Transactional()
+  async retire(actorUserId: string, releaseId: string): Promise<ReleaseDetail> {
+    const row = await this.releases.findByReleaseId(releaseId);
+    if (!row) throw new NotFoundException(`release ${releaseId} not found`);
+    if (row.status === "retired") return toDetail(row); // idempotent — no real change, no audit
+    if (row.status !== "published") {
+      throw new ConflictException(
+        `release ${releaseId} is ${row.status}; only a published release can be retired`,
+      );
+    }
+
+    const retired = await this.releases.retire(releaseId);
+    // The conditional UPDATE (WHERE status='published') matched nothing: a
+    // concurrent retire won the race. Re-read and return idempotently — still
+    // no audit row (the winning tx wrote it).
+    if (!retired) {
+      const fresh = await this.releases.findByReleaseId(releaseId);
+      return toDetail(fresh ?? row);
+    }
+
+    await this.audit.record({
+      actorId: actorUserId,
+      action: "release.retire",
+      entityType: "release",
+      entityId: retired.id,
+      diff: { before: { status: "published" }, after: { status: "retired" } },
+    });
+    return toDetail(retired);
   }
 
   // --- Per-tenant release assignment (ADR 0062) ------------------------------
@@ -362,7 +421,13 @@ export class ReleasesService {
     for (const pin of pins) {
       const pinnedMeta = assigned.find((a) => a.releaseId === pin.pinnedReleaseId);
       if (!pinnedMeta) continue; // stale pin (pin hygiene should prevent this)
-      const newer = (byModel.get(pin.modelId) ?? []).filter((a) => a.version > pinnedMeta.version);
+      // A RETIRED newer version is never an opt-in target (ADR 0067): it would
+      // 409 at `pinVersion`, so offering it is a dead end. The pinned version
+      // itself may be retired (non-stranding) — that still surfaces a published
+      // upgrade if one exists ("you are on a retired v1, v3 is available").
+      const newer = (byModel.get(pin.modelId) ?? []).filter(
+        (a) => a.version > pinnedMeta.version && a.status === "published",
+      );
       if (newer.length === 0) continue;
       const latest = newer.reduce((best, a) => (a.version > best.version ? a : best));
       items.push({

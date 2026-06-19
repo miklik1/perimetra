@@ -20,8 +20,11 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -32,7 +35,7 @@ import {
   type PlatformOrganizations,
   type ReleaseAssignments,
 } from "@repo/validators/platform";
-import { type ReleasesPage } from "@repo/validators/releases";
+import { type ReleaseDetail, type ReleasesPage } from "@repo/validators/releases";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { CurrentSession } from "../auth/current-session.decorator.js";
@@ -44,6 +47,7 @@ import {
   AssignReleaseDto,
   BroadcastAssignResultDto,
   PlatformOrganizationsDto,
+  PlatformReleaseDto,
   PlatformReleasesPageDto,
   PlatformReleasesQueryDto,
   ReleaseAssignmentsDto,
@@ -64,6 +68,17 @@ export class PlatformController {
     return this.releases.list(query);
   }
 
+  /** Full detail (body + initialInput) of ANY release by surrogate id — GLOBAL,
+   *  no assignment gate (ADR 0067), so the operator can inspect a release its own
+   *  org is not assigned (the tenant `GET /v1/releases/:id` would 404 it). 404
+   *  only when the id does not exist. Declared after `releases` (exact) — no
+   *  collision; the `:id` uuid never matches the literal segment. */
+  @Get("releases/:id")
+  @ZodSerializerDto(PlatformReleaseDto)
+  getRelease(@Param("id", ParseUUIDPipe) id: string): Promise<ReleaseDetail> {
+    return this.releases.getGlobal(id);
+  }
+
   /** Broadcast a published release to EVERY org currently on an OLDER version of
    *  its model (CORE_SPEC §3 vendor fan-out, the ADR 0064-deferred half): one
    *  action makes the new version available to all orgs behind, each getting an
@@ -77,6 +92,24 @@ export class PlatformController {
     @Param("releaseId") releaseId: string,
   ): Promise<BroadcastAssignResult> {
     return this.releases.broadcastAssign(session.user.id, releaseId);
+  }
+
+  /** Retire a published release (CORE_SPEC §3 `published`→`retired`, ADR 0067):
+   *  it stops being OFFERED for new work (not assignable/broadcastable/pinnable,
+   *  dropped as an upgrade target) but is NEVER deleted — orgs already pinned to
+   *  it keep configuring with it, and quotes stamped on it re-derive forever
+   *  (I3). Idempotent (re-retire is a no-op 200). 404 unknown / 409 a non-
+   *  published (draft) release. `releaseId` is the natural key (path-encoded). */
+  @Post("releases/:releaseId/retire")
+  // A state-flip on an existing row (never a creation) — like the `verify`
+  // action, 200 for every path (first retire, idempotent re-retire, race re-read).
+  @HttpCode(HttpStatus.OK)
+  @ZodSerializerDto(PlatformReleaseDto)
+  retire(
+    @CurrentSession() session: SessionContext,
+    @Param("releaseId") releaseId: string,
+  ): Promise<ReleaseDetail> {
+    return this.releases.retire(session.user.id, releaseId);
   }
 
   /** Every tenant org (vendor-scale, unpaginated). */

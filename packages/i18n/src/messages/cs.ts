@@ -297,6 +297,18 @@ const cs = {
     broadcastingFor: "Rozesílání {releaseId}…",
     broadcastResult: "Nabídnuto {assigned} org. · {skipped} již mělo.",
     broadcastError: "Vydání se nepodařilo rozeslat.",
+    retire: "Vyřadit",
+    retiring: "Vyřazování…",
+    retireFor: "Vyřadit {releaseId}",
+    retiringFor: "Vyřazování {releaseId}…",
+    retireConfirm:
+      "Vyřadit {releaseId}? Přestane být nabízeno pro novou práci — organizace, které jej již používají, si jej ponechají a stávající nabídky zůstanou nedotčené. Tuto akci nelze vrátit zpět.",
+    retired: "Vydání vyřazeno.",
+    retireError: "Vydání se nepodařilo vyřadit.",
+    viewBody: "Zobrazit",
+    hideBody: "Skrýt",
+    viewBodyFor: "Zobrazit tělo {releaseId}",
+    hideBodyFor: "Skrýt tělo {releaseId}",
   },
   emails: {
     verification: {

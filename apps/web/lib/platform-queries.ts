@@ -6,10 +6,12 @@ import {
   broadcastAssignResultSchema,
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
+  releaseSchema,
   releasesPageSchema,
   type BroadcastAssignResult,
   type PlatformOrganizations,
   type ReleaseAssignments,
+  type ReleaseDetail,
   type ReleasesPage,
 } from "@repo/validators";
 
@@ -23,6 +25,7 @@ import {
 export const platformKeys = {
   all: ["platform"] as const,
   releasesList: () => [...platformKeys.all, "releases", "list"] as const,
+  release: (id: string) => [...platformKeys.all, "releases", "detail", id] as const,
   organizationsList: () => [...platformKeys.all, "organizations", "list"] as const,
   assignments: (orgId: string) => [...platformKeys.all, "assignments", orgId] as const,
 } as const;
@@ -46,6 +49,29 @@ export function createPlatformQueries(client: ApiClient) {
           }),
         schema: (data) => releasesPageSchema.parse(data),
         getNextPageParam: (lastPage) => lastPage.nextCursor,
+      }),
+
+    /** Full detail (body + initialInput) of any release by surrogate id — the
+     *  GLOBAL platform read (ADR 0067), so the console can inspect a release its
+     *  own org is not assigned. Lazy: enable only when a row is expanded. */
+    release: (id: string) =>
+      defineQuery<ReleaseDetail>(client, {
+        queryKey: platformKeys.release(id),
+        path: `/v1/platform/releases/${id}`,
+        schema: (data) => releaseSchema.parse(data),
+      }),
+
+    /** Retire a published release (CORE_SPEC §3 `published`→`retired`, ADR 0067):
+     *  it stops being offered for new work but is never deleted (orgs on it keep
+     *  configuring; quotes re-derive forever). Idempotent. `releaseId` is the
+     *  natural key (path-encoded). */
+    retire: () =>
+      defineMutation<ReleaseDetail, { releaseId: string }>(client, {
+        method: "POST",
+        path: ({ releaseId }) => `/v1/platform/releases/${encodeURIComponent(releaseId)}/retire`,
+        // All input is in the path; send no body (the endpoint takes no @Body()).
+        body: () => undefined,
+        schema: (data) => releaseSchema.parse(data),
       }),
 
     /** Every tenant org (vendor-scale, unpaginated). */
