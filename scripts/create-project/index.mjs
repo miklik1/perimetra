@@ -309,10 +309,13 @@ writeEnvFile(
 # Gitignored. The web app holds NO server secrets by design (the api owns
 # them; web talks to it via the same-origin BFF proxy — ADR 0018/0026).
 # See apps/web/.env.example for every available variable. Uncomment API_URL to
-# leave mock mode and target the local api (it runs on the remapped port below;
-# start the web on its own port to coexist with other stamps:
-#   pnpm --filter web dev -- -p ${port.web}).
+# leave mock mode and target the local api (it runs on the remapped port below).
 # API_URL=http://localhost:${port.api}
+
+# Web dev port: Next ignores PORT from .env.local for the dev server, so the
+# apps/web \`dev\` script reads the WEB_PORT shell var (default 3000; turbo passes
+# it through). Run the web on this stamp's port to coexist with other stamps:
+#   WEB_PORT=${port.web} pnpm dev          (or WEB_PORT=${port.web} pnpm dev:web)
 
 # Centrifugo websocket for the LIVE badge — mirrors docker/.env (offset ${portOffset}).
 NEXT_PUBLIC_REALTIME_URL=ws://localhost:${port.centrifugo}/connection/websocket

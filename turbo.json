@@ -89,7 +89,12 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      // Local-dev web port knob (apps/web `dev` reads `${WEB_PORT:-3000}`) so a
+      // stamped repo can run its web off 3000 to coexist with another stamp on
+      // one machine. Strict envMode (the v2 default) would otherwise scrub it
+      // from the task process. Not hashed — dev is uncached.
+      "passThroughEnv": ["WEB_PORT"]
     },
     "test:integration": {
       // Testcontainers suite (spec §14): boots real Postgres/Redis off the
