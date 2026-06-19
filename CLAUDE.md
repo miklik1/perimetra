@@ -155,14 +155,33 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
   nav links to `/admin`·`/platform` (role/`isPlatformAdmin`-gated, fail-closed). No schema
   change (`retired` already existed). So §3 is end-to-end: publish → assign → lazy-pin →
   opt-in → broadcast → retire.
-  Next: step-6 follow-ups — the **structured release editor** (raw-JSON publish on
-  `/platform` still stands — its own slice), admin (`adjustability: tenant`), issue-key i18n
-- deviation-override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds
-  (sticky last-active org, Decline / web self-registration).
-  Invariants I1–I11 (CORE_SPEC §1)
-  are the bar every PR is judged against; the Expr numeric-domain choice is
-  ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
-  cascade/overrides ADR 0048, site graph ADR 0049.
+  Structured release editor — Phase 1 (2026-06-19, ADR 0068): the raw-JSON release publish
+  form on `/platform` is RETIRED for a **model-IDE** at `/platform/releases/new` (navigator +
+  rule-table workbenches + always-on defects dock). The keystone is **zero-drift Expr
+  authoring**: `validate.ts`'s per-slot scope construction was extracted into a pure exported
+  `slotScopes(release): Map<where, ExprScope>` that `validateRelease` itself now CONSUMES
+  (one source of scope truth), so the editor's autocomplete/ref-check can't drift from the
+  publish gate (`tokenize` + `EXPR_FUNCTIONS` also exported). Live in-browser `validateRelease`
+  (ADR 0051) drives per-field defects + nav badges; the `ExprField` (live parse + in-scope
+  autocomplete + ref/fn check) lives in app-land (`@repo/model`-coupled; `@repo/ui` stays
+  domain-agnostic — gained `FieldShell`/`EnumSelect`/`DisclosureSection`/`ArrayField`[first
+  `useFieldArray`]/`NavTree`/`DefectList`). **Hybrid completeness:** structured forms for
+  identity/parameters/constraints/derived + **validated raw-JSON islands** for the not-yet-
+  structured sections (option sets, parts/BOM/geometry, ports, terrain, ui) → a COMPLETE
+  release is authorable today. Publish goes through the EXISTING immutable `POST /v1/releases`
+  (no second freeze path, I3 untouched). The `where`↔fieldId bijection is a tested layer
+  (validator addresses by key/path, RHF by index). Behavior-preserving model refactor (full
+  gate + integration 16/90 green; goldens reproduce). **Phase 2** = parts/geometry master-detail
+  - catalog-aware pickers (`GET /v1/platform/catalog-versions/:id`); **Phase 3** = `release-drafts`
+    module + autosave + clone-and-bump + diff; **Phase 4** = web-worker validate+derive + live
+    engine preview (wizard + BOM/price + per-formula `=value`) + the syntax-highlight overlay.
+    Next: editor Phase 2–4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
+    override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
+    org, Decline / web self-registration).
+    Invariants I1–I11 (CORE_SPEC §1)
+    are the bar every PR is judged against; the Expr numeric-domain choice is
+    ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
+    cascade/overrides ADR 0048, site graph ADR 0049.
 
 ## Package map
 

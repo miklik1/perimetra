@@ -1,6 +1,6 @@
 # ADR 0068 — Structured release editor + slotScopes() single source of scope truth
 
-**Status:** Accepted (2026-06-19). Phase 1 in progress. Implements the
+**Status:** Accepted (2026-06-19). **Phase 1 shipped 2026-06-19.** Implements the
 **structured release editor** that [ADR 0061](0061-admin-publish-ui.md) and
 [ADR 0067](0067-release-retire.md) named as the last deferred step-6 vendor/admin
 authoring follow-up. Full design: `docs/superpowers/specs/2026-06-19-structured-release-editor-design.md`;
@@ -88,7 +88,23 @@ Two repo facts shape the decision:
   validate+derive + live engine preview (wizard + BOM/price + per-formula `=value`)
   - power features.
 
-Governing code (Phase 1): `packages/model/src/validate.ts` (`slotScopes` +
-`validateRelease`), `packages/model/src/expr.ts` (`tokenize` export),
-`packages/ui/src/forms/*` + `components/*` (new primitives), and
-`apps/web/app/platform/releases/` (the editor). No schema change in Phase 1.
+### Phase 1 as shipped (2026-06-19)
+
+- `packages/model`: `slotScopes` + `validateRelease` consuming it; `tokenize` +
+  `EXPR_FUNCTIONS` (the autocomplete whitelist, one source) exported. Behavior-
+  preserving (full suites + integration 16/90 green; goldens reproduce).
+- `@repo/ui` (domain-agnostic, no `@repo/model` dep): `FieldShell`, `EnumSelect`,
+  `DisclosureSection`, `ArrayField` (the repo's first `useFieldArray`), `NavTree`,
+  `DefectList`.
+- `apps/web/app/platform/releases/`: the editor, the per-slot `ExprField`
+  (live parse + in-scope autocomplete + ref/fn check) and its pure helpers, the
+  `where`↔fieldId bijection, the `useReleaseValidation` hook, the structured
+  workbenches (identity, parameters, constraints, derived), and the **hybrid
+  raw-JSON islands** (option sets, parts/BOM/geometry, ports, terrain, ui) that
+  let Phase 1 author a COMPLETE release today. **`ExprField` lives in app-land,
+  not `@repo/ui`** — it is `@repo/model`-coupled, and the generic kit stays
+  domain-free. The editor uses one RHF form (per-section split is a later perf
+  step); the `ExprField` syntax-highlight overlay is deferred to Phase 4
+  (`tokenize` is exported and ready). No schema change.
+
+Governing code: as listed above. No schema change in Phase 1.
