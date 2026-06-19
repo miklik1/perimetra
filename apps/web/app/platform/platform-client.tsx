@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { invalidateKeys } from "@repo/api";
@@ -20,7 +21,6 @@ import { createPlatformQueries, platformKeys } from "../../lib/platform-queries"
 import { toast } from "../../lib/toast";
 import { usePlatformAdmin } from "../../lib/use-role";
 import { CatalogForm } from "./catalog-form";
-import { ReleaseForm } from "./release-form";
 
 /**
  * Platform/vendor console (ADR 0062) — the cross-tenant operator surface:
@@ -61,7 +61,9 @@ function PlatformContent() {
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{t("releases")}</h2>
             <ReleasesList />
-            <ReleaseForm />
+            <Button asChild variant="outline" className="self-start">
+              <Link href="/platform/releases/new">{t("newRelease")}</Link>
+            </Button>
           </section>
 
           <section className="flex flex-col gap-4">

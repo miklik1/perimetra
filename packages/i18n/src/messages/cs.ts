@@ -280,6 +280,7 @@ const cs = {
     onlyPlatform: "Tuto konzoli může používat pouze operátor platformy.",
     catalogVersions: "Verze katalogu",
     releases: "Vydání (releases)",
+    newRelease: "Nové vydání",
     assignTitle: "Přiřazení vydání organizacím",
     assignDescription: "Vyberte organizaci a přepněte, která vydání může konfigurovat.",
     selectOrg: "Organizace",

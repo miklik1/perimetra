@@ -277,6 +277,7 @@ const en: Messages = {
     onlyPlatform: "This console is only accessible to the platform operator.",
     catalogVersions: "Catalog versions",
     releases: "Releases",
+    newRelease: "New release",
     assignTitle: "Release assignment",
     assignDescription: "Pick an organization, then toggle which releases it can configure.",
     selectOrg: "Organization",
