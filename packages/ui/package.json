@@ -10,10 +10,8 @@
     ".": "./src/index.ts",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./forms/*": [
-      "./src/forms/*.tsx",
-      "./src/forms/*.ts"
-    ],
+    "./forms/use-zod-form": "./src/forms/use-zod-form.ts",
+    "./forms/*": "./src/forms/*.tsx",
     "./*": [
       "./src/*.tsx",
       "./src/*.ts"
