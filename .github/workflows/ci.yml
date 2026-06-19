@@ -1,12 +1,23 @@
 name: CI
 
+# Trigger policy: CI deliberately does NOT run on every push to main. The LOCAL
+# gate (`pnpm check-types && lint && test && build && knip` + integration) is the
+# verified ship-bar for this repo; CI is redundant confidence, and Actions
+# minutes are a finite shared (account-level) budget while we are solo/pre-users.
+# So CI runs:
+#   - on demand (`workflow_dispatch`) — the pre-deploy / checkpoint run, which
+#     also doubles as the gitleaks FULL-history pass (scans every commit from the
+#     root instead of an event range);
+#   - weekly (`schedule`) — a low-cost safety net that catches drift on main
+#     (scheduled runs only fire on the default branch);
+#   - on `pull_request` — a latent pre-merge gate for when PRs are reinstated
+#     (once there are real users); dormant + zero-cost while we commit to main.
+# Reinstate `push: { branches: [main] }` here if per-commit CI is ever wanted.
 on:
   pull_request:
     branches: ["*"]
-  push:
-    branches: [main]
-  # Manual runs double as the gitleaks FULL-history pass: on dispatch the
-  # gitleaks-action scans every commit from the root instead of an event range.
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
   workflow_dispatch:
 
 concurrency:
@@ -216,10 +227,12 @@ jobs:
           path: apps/web/playwright-report
           retention-days: 7
 
-  # Secret scan (ADR 0044). On pull_request/push the action scans the incoming
-  # commit range (every commit is scanned before it can reach main); a
-  # workflow_dispatch run scans the FULL history — `fetch-depth: 0` provides it
-  # either way. Config + allowlist live in `.gitleaks.toml` at the repo root
+  # Secret scan (ADR 0044). On pull_request the action scans the incoming commit
+  # range (every commit is scanned before a PR can merge to main); a
+  # workflow_dispatch or scheduled run scans the FULL history — `fetch-depth: 0`
+  # provides it either way. Belt-and-braces: the lefthook pre-commit hook already
+  # gitleaks-scans every commit locally before it lands. Config + allowlist live
+  # in `.gitleaks.toml` at the repo root
   # (auto-detected; the lefthook pre-commit hook uses the same file). Allowlist
   # policy: test-fixture PATHS only — a real leak gets rotated, never ignored.
   gitleaks:
