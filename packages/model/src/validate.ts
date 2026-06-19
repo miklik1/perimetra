@@ -24,6 +24,11 @@
  *     appears exactly once, vendor-only parameters never appear (I7)
  *   - against a catalog: every resolve.role exists, and literal
  *     section/material requests name real catalog codes
+ *
+ * The per-slot evaluation scope (which dotted keys are legal in each
+ * expression) is computed ONCE by {@link slotScopes} and CONSUMED here — so the
+ * editor's autocomplete and this gate can never drift (a single source of scope
+ * truth, keyed by the same `where` strings).
  */
 import type { Catalog } from "./catalog.js";
 import { collectCalls, collectRefs, ExprError, isKnownFunction, parse, type Ast } from "./expr.js";
@@ -60,17 +65,140 @@ interface Slot {
 
 const PRICE_PREFIX = "price.";
 const OTHER_PREFIX = "other.";
+const PRICE_ONLY: readonly string[] = [PRICE_PREFIX];
+const OTHER_ONLY: readonly string[] = [OTHER_PREFIX];
+const EMPTY_KNOWN: ReadonlySet<string> = new Set();
+
+/**
+ * The static evaluation scope of a single expression slot: the dotted-key names
+ * that will be in scope, plus the prefixes that are open-keyed (uncheckable
+ * statically). `known` is exactly what {@link validateRelease} reference-checks
+ * against, and what the release editor offers as in-scope autocomplete.
+ */
+export interface ExprScope {
+  known: ReadonlySet<string>;
+  openPrefixes: readonly string[];
+}
+
+/**
+ * Compute the evaluation scope of every expression slot in a release, keyed by
+ * the same `where` strings {@link validateRelease} emits
+ * (`parameters[<key>].defaultExpr`, `derived[<key>]`,
+ * `parts[<path>].bom.quantity`, `parts[<path>].geometry[<gk>].at[0]`, …).
+ *
+ * Pure and static — depends only on the release's shape, never on evaluated
+ * values — so an authoring surface can recompute it live as the draft changes.
+ * `validateRelease` consumes this map, so the two never disagree about what is
+ * in scope where. (A duplicate key/path collapses to the last occurrence's
+ * scope; duplicates are themselves a hard defect surfaced by `validateRelease`.)
+ */
+export function slotScopes(release: ProductModelRelease): Map<string, ExprScope> {
+  const scopes = new Map<string, ExprScope>();
+  const add = (
+    where: string,
+    known: ReadonlySet<string>,
+    openPrefixes: readonly string[] = PRICE_ONLY,
+  ): void => {
+    scopes.set(where, { known, openPrefixes });
+  };
+
+  // --- Name universes (the shape of the scope, before any per-slot snapshot) --
+  const paramKeys = new Set<string>();
+  for (const p of release.parameters) paramKeys.add(p.key);
+
+  // Option attrs are injected as `<set.key>.<attr>`; the known set is the union
+  // across the set's options.
+  const optionAttrKeys = new Set<string>();
+  for (const set of release.optionSets ?? []) {
+    for (const option of set.options) {
+      for (const attr of Object.keys(option.attrs)) optionAttrKeys.add(`${set.key}.${attr}`);
+    }
+  }
+
+  // Parameters: defaults see price.* + EARLIER params only (buildScope order);
+  // relevance + deviation bounds see the full param/option-attr universe.
+  const uiKnown = new Set([...paramKeys, ...optionAttrKeys]);
+  const earlier = new Set<string>();
+  for (const p of release.parameters) {
+    if (p.defaultExpr !== undefined) {
+      add(`parameters[${p.key}].defaultExpr`, new Set(earlier));
+    }
+    earlier.add(p.key);
+    if (p.relevance !== undefined) add(`parameters[${p.key}].relevance`, uiKnown);
+    if (p.deviation?.bounds) {
+      add(`parameters[${p.key}].deviation.min`, uiKnown);
+      add(`parameters[${p.key}].deviation.max`, uiKnown);
+    }
+  }
+
+  // Constraints. Instance scope is evaluated BEFORE derivation (derived keys are
+  // not in scope). Connection scope sees `self.*` (this release's params +
+  // option attrs + derived) and the open `other.*` prefix.
+  const constraintKnown = new Set([...paramKeys, ...optionAttrKeys]);
+  const connectionSelfKnown = new Set(
+    [...paramKeys, ...optionAttrKeys, ...release.derivation.derived.map((d) => d.key)].map(
+      (key) => `self.${key}`,
+    ),
+  );
+  for (const c of release.constraints) {
+    if (c.scope === "connection") add(`constraints[${c.key}]`, connectionSelfKnown, OTHER_ONLY);
+    else add(`constraints[${c.key}]`, constraintKnown);
+  }
+
+  // Derived: each sees params, option attrs, and EARLIER derived keys.
+  const derivedSoFar = new Set<string>();
+  for (const d of release.derivation.derived) {
+    add(`derived[${d.key}]`, new Set([...constraintKnown, ...derivedSoFar]));
+    derivedSoFar.add(d.key);
+  }
+
+  // Parts: full scope (params + option attrs + all derived).
+  const partKnown = new Set([...constraintKnown, ...derivedSoFar]);
+  for (const rule of release.derivation.parts) {
+    const at = `parts[${rule.path}]`;
+    if (rule.when !== undefined) add(`${at}.when`, partKnown);
+    if (rule.resolve.section !== undefined) add(`${at}.resolve.section`, partKnown);
+    if (rule.resolve.material !== undefined) add(`${at}.resolve.material`, partKnown);
+    add(`${at}.bom.quantity`, partKnown);
+    if (rule.bom.lengthMm !== undefined) add(`${at}.bom.lengthMm`, partKnown);
+    if (rule.bom.pricePerUnit !== undefined) add(`${at}.bom.pricePerUnit`, partKnown);
+    if (rule.bom.totalPrice !== undefined) add(`${at}.bom.totalPrice`, partKnown);
+
+    for (const geo of rule.geometry ?? []) {
+      const geoAt = `${at}.geometry[${geo.key}]`;
+      let geoKnown: ReadonlySet<string> = partKnown;
+      if (geo.repeat !== undefined) {
+        // The count decides how many pieces exist — it cannot see the var.
+        add(`${geoAt}.repeat.count`, partKnown);
+        geoKnown = new Set([...partKnown, geo.repeat.var]);
+      }
+      add(`${geoAt}.length`, geoKnown);
+      geo.at.forEach((_, i) => add(`${geoAt}.at[${i}]`, geoKnown));
+      geo.rotation?.forEach((_, i) => add(`${geoAt}.rotation[${i}]`, geoKnown));
+      if (geo.cuts?.left !== undefined) add(`${geoAt}.cuts.left`, geoKnown);
+      if (geo.cuts?.right !== undefined) add(`${geoAt}.cuts.right`, geoKnown);
+    }
+  }
+
+  // Ports: anchor exprs see the full part scope.
+  for (const port of release.ports ?? []) {
+    port.anchor?.at.forEach((_, i) => add(`ports[${port.id}].anchor.at[${i}]`, partKnown));
+  }
+
+  return scopes;
+}
 
 export function validateRelease(release: ProductModelRelease, catalog?: Catalog): ReleaseDefect[] {
   const defects: ReleaseDefect[] = [];
   const slots: Slot[] = [];
 
-  const parseInto = (
-    source: string,
-    where: string,
-    known: ReadonlySet<string>,
-    openPrefixes: readonly string[] = [PRICE_PREFIX],
-  ): void => {
+  // The single source of scope truth — every expr slot's legal references.
+  const scopes = slotScopes(release);
+
+  const parseInto = (source: string, where: string): void => {
+    const scope = scopes.get(where);
+    const known = scope?.known ?? EMPTY_KNOWN;
+    const openPrefixes = scope?.openPrefixes ?? PRICE_ONLY;
     try {
       slots.push({ where, ast: parse(source), known, openPrefixes });
     } catch (error) {
@@ -85,7 +213,7 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     message: `${kind} "${key}" is declared more than once`,
   });
 
-  // --- Name universes ---------------------------------------------------------
+  // --- Parameter keys: unique, no dotted names (reserved for injected layers) -
   const paramKeys = new Set<string>();
   for (const p of release.parameters) {
     if (paramKeys.has(p.key)) defects.push(duplicate("parameter", `parameters[${p.key}]`, p.key));
@@ -99,10 +227,7 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     paramKeys.add(p.key);
   }
 
-  // Option attrs are injected as `<set.key>.<attr>`; the known set is the union
-  // across the set's options (an attr missing on the selected option is a
-  // runtime absence, which referencing surfaces as an I5 error).
-  const optionAttrKeys = new Set<string>();
+  // --- Option sets: unique keys, no collision with a param, real selectedBy ---
   const seenSetKeys = new Set<string>();
   for (const set of release.optionSets ?? []) {
     if (seenSetKeys.has(set.key)) {
@@ -123,13 +248,10 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
         message: `selectedBy "${set.selectedBy}" is not a declared parameter`,
       });
     }
-    for (const option of set.options) {
-      for (const attr of Object.keys(option.attrs)) optionAttrKeys.add(`${set.key}.${attr}`);
-    }
   }
 
-  // --- Parameters: defaults see price.* + EARLIER params only (buildScope order)
-  const earlier = new Set<string>();
+  // --- Parameters: default/defaultExpr exclusivity, bounded "hard" deviations,
+  // and parse of every defaultExpr / relevance / deviation-bound expression.
   for (const p of release.parameters) {
     if (p.default !== undefined && p.defaultExpr !== undefined) {
       defects.push({
@@ -139,15 +261,12 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
       });
     }
     if (p.defaultExpr !== undefined) {
-      parseInto(p.defaultExpr, `parameters[${p.key}].defaultExpr`, new Set(earlier));
+      parseInto(p.defaultExpr, `parameters[${p.key}].defaultExpr`);
     }
-    earlier.add(p.key);
-    const uiKnown = new Set([...paramKeys, ...optionAttrKeys]);
-    if (p.relevance !== undefined)
-      parseInto(p.relevance, `parameters[${p.key}].relevance`, uiKnown);
+    if (p.relevance !== undefined) parseInto(p.relevance, `parameters[${p.key}].relevance`);
     if (p.deviation?.bounds) {
-      parseInto(p.deviation.bounds.min, `parameters[${p.key}].deviation.min`, uiKnown);
-      parseInto(p.deviation.bounds.max, `parameters[${p.key}].deviation.max`, uiKnown);
+      parseInto(p.deviation.bounds.min, `parameters[${p.key}].deviation.min`);
+      parseInto(p.deviation.bounds.max, `parameters[${p.key}].deviation.max`);
     }
     if (p.deviation?.mode === "hard" && p.deviation.bounds === undefined) {
       // "hard" means the bounds ARE the structural limit — without them the
@@ -160,41 +279,27 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     }
   }
 
-  // --- Constraints. Instance scope is evaluated BEFORE derivation — derived
-  // keys are not in scope. Connection scope is evaluated AFTER derivation on a
-  // paired site scope: `self.*` carries this release's params + option attrs +
-  // derived; `other.*` is the neighbor's and only checkable at connect time.
-  const constraintKnown = new Set([...paramKeys, ...optionAttrKeys]);
-  const connectionSelfKnown = new Set(
-    [...paramKeys, ...optionAttrKeys, ...release.derivation.derived.map((d) => d.key)].map(
-      (key) => `self.${key}`,
-    ),
-  );
+  // --- Constraints: unique keys; parse instance/connection exprs ----------------
   const seenConstraintKeys = new Set<string>();
   for (const c of release.constraints) {
     if (seenConstraintKeys.has(c.key)) {
       defects.push(duplicate("constraint", `constraints[${c.key}]`, c.key));
     }
     seenConstraintKeys.add(c.key);
-    if (c.scope === "connection") {
-      parseInto(c.expr, `constraints[${c.key}]`, connectionSelfKnown, [OTHER_PREFIX]);
-    } else {
-      parseInto(c.expr, `constraints[${c.key}]`, constraintKnown);
-    }
+    parseInto(c.expr, `constraints[${c.key}]`);
   }
 
-  // --- Derived: each sees params, option attrs, and EARLIER derived keys
+  // --- Derived: unique keys (also vs params); parse each expr ------------------
   const derivedSoFar = new Set<string>();
   for (const d of release.derivation.derived) {
     if (derivedSoFar.has(d.key) || paramKeys.has(d.key)) {
       defects.push(duplicate("derived key", `derived[${d.key}]`, d.key));
     }
-    parseInto(d.expr, `derived[${d.key}]`, new Set([...constraintKnown, ...derivedSoFar]));
+    parseInto(d.expr, `derived[${d.key}]`);
     derivedSoFar.add(d.key);
   }
 
-  // --- Parts: full scope (params + option attrs + all derived); paths unique (I9)
-  const partKnown = new Set([...constraintKnown, ...derivedSoFar]);
+  // --- Parts: paths unique (I9); parse when/resolve/bom; geometry hygiene ------
   const seenPaths = new Set<string>();
   for (const rule of release.derivation.parts) {
     const at = `parts[${rule.path}]`;
@@ -207,21 +312,20 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     }
     seenPaths.add(rule.path);
 
-    if (rule.when !== undefined) parseInto(rule.when, `${at}.when`, partKnown);
+    if (rule.when !== undefined) parseInto(rule.when, `${at}.when`);
     if (rule.resolve.section !== undefined) {
-      parseInto(rule.resolve.section, `${at}.resolve.section`, partKnown);
+      parseInto(rule.resolve.section, `${at}.resolve.section`);
     }
     if (rule.resolve.material !== undefined) {
-      parseInto(rule.resolve.material, `${at}.resolve.material`, partKnown);
+      parseInto(rule.resolve.material, `${at}.resolve.material`);
     }
-    parseInto(rule.bom.quantity, `${at}.bom.quantity`, partKnown);
-    if (rule.bom.lengthMm !== undefined)
-      parseInto(rule.bom.lengthMm, `${at}.bom.lengthMm`, partKnown);
+    parseInto(rule.bom.quantity, `${at}.bom.quantity`);
+    if (rule.bom.lengthMm !== undefined) parseInto(rule.bom.lengthMm, `${at}.bom.lengthMm`);
     if (rule.bom.pricePerUnit !== undefined) {
-      parseInto(rule.bom.pricePerUnit, `${at}.bom.pricePerUnit`, partKnown);
+      parseInto(rule.bom.pricePerUnit, `${at}.bom.pricePerUnit`);
     }
     if (rule.bom.totalPrice !== undefined) {
-      parseInto(rule.bom.totalPrice, `${at}.bom.totalPrice`, partKnown);
+      parseInto(rule.bom.totalPrice, `${at}.bom.totalPrice`);
     }
 
     // --- Geometry (step 5): keyed pieces, repeat var hygiene, expr refs ------
@@ -239,25 +343,23 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
           message: `geometry key "${geo.key}" must be an identifier — piece ids build on it (I9)`,
         });
       }
-      let geoKnown: ReadonlySet<string> = partKnown;
       if (geo.repeat !== undefined) {
         // The count decides how many pieces exist — it cannot see the var.
-        parseInto(geo.repeat.count, `${geoAt}.repeat.count`, partKnown);
+        parseInto(geo.repeat.count, `${geoAt}.repeat.count`);
         const v = geo.repeat.var;
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v) || partKnown.has(v)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v) || partHas(release, v)) {
           defects.push({
             code: "repeat.var.invalid",
             where: `${geoAt}.repeat.var`,
             message: `repeat var "${v}" must be an identifier and must not shadow a scope name`,
           });
         }
-        geoKnown = new Set([...partKnown, v]);
       }
-      parseInto(geo.length, `${geoAt}.length`, geoKnown);
-      geo.at.forEach((source, i) => parseInto(source, `${geoAt}.at[${i}]`, geoKnown));
-      geo.rotation?.forEach((source, i) => parseInto(source, `${geoAt}.rotation[${i}]`, geoKnown));
-      if (geo.cuts?.left !== undefined) parseInto(geo.cuts.left, `${geoAt}.cuts.left`, geoKnown);
-      if (geo.cuts?.right !== undefined) parseInto(geo.cuts.right, `${geoAt}.cuts.right`, geoKnown);
+      parseInto(geo.length, `${geoAt}.length`);
+      geo.at.forEach((source, i) => parseInto(source, `${geoAt}.at[${i}]`));
+      geo.rotation?.forEach((source, i) => parseInto(source, `${geoAt}.rotation[${i}]`));
+      if (geo.cuts?.left !== undefined) parseInto(geo.cuts.left, `${geoAt}.cuts.left`);
+      if (geo.cuts?.right !== undefined) parseInto(geo.cuts.right, `${geoAt}.cuts.right`);
     }
 
     if (catalog) {
@@ -292,7 +394,8 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     }
   }
 
-  // --- Ports (CORE_SPEC §5): unique ids, sharing elements are real part paths
+  // --- Ports (CORE_SPEC §5): unique ids, sharing elements are real part paths,
+  // anchor exprs parse (scope checked in the slot pass below).
   const seenPortIds = new Set<string>();
   for (const port of release.ports ?? []) {
     if (seenPortIds.has(port.id)) defects.push(duplicate("port", `ports[${port.id}]`, port.id));
@@ -305,7 +408,7 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
       });
     }
     port.anchor?.at.forEach((source, i) => {
-      parseInto(source, `ports[${port.id}].anchor.at[${i}]`, partKnown);
+      parseInto(source, `ports[${port.id}].anchor.at[${i}]`);
     });
   }
 
@@ -414,6 +517,19 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
   }
 
   return defects;
+}
+
+/** Whether `name` is a param key, an option attr, or a derived key — the names
+ *  a geometry repeat var must not shadow (matches the part-scope universe). */
+function partHas(release: ProductModelRelease, name: string): boolean {
+  if (release.parameters.some((p) => p.key === name)) return true;
+  if (release.derivation.derived.some((d) => d.key === name)) return true;
+  for (const set of release.optionSets ?? []) {
+    for (const option of set.options) {
+      if (Object.keys(option.attrs).some((attr) => `${set.key}.${attr}` === name)) return true;
+    }
+  }
+  return false;
 }
 
 /** Throw on any defect — the form the publish flow and fixtures use. */

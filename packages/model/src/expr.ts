@@ -54,7 +54,7 @@ export class ExprError extends Error {
 
 // --- Tokenizer ---------------------------------------------------------------
 
-type Token =
+export type Token =
   | { t: "num"; v: number }
   | { t: "str"; v: string }
   | { t: "id"; v: string }
@@ -63,7 +63,10 @@ type Token =
 
 const OPERATORS = ["||", "&&", "==", "!=", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "!"];
 
-function tokenize(src: string): Token[] {
+/** Lex an expression string into tokens. Exported so authoring surfaces (the
+ *  release editor's ExprField) can reuse the canonical grammar for syntax
+ *  highlighting instead of re-implementing it — one tokenizer, no drift. */
+export function tokenize(src: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
   const isIdStart = (c: string) => /[A-Za-z_]/.test(c);
