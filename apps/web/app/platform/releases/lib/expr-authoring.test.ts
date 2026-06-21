@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ExprScope } from "@repo/model";
 
-import { completionCandidates, currentWord, exprStatus } from "./expr-authoring";
+import { codeCandidates, completionCandidates, currentWord, exprStatus } from "./expr-authoring";
 
 const scope: ExprScope = {
   known: new Set(["width_mm", "height_mm", "fill.spacing_mm"]),
@@ -69,5 +69,22 @@ describe("completionCandidates", () => {
 
   it("returns nothing for an empty word", () => {
     expect(completionCandidates(scope, "")).toEqual([]);
+  });
+});
+
+describe("codeCandidates (catalog-code slots)", () => {
+  const codes = ["jakl_30x30", "jakl_40x40", "L50x50"];
+
+  it("offers all codes (quoted) for an empty word — surfaces the catalog on focus", () => {
+    expect(codeCandidates(codes, "")).toEqual(['"L50x50"', '"jakl_30x30"', '"jakl_40x40"']);
+  });
+
+  it("filters by the bare word at the caret, case-insensitive, and quotes the result", () => {
+    expect(codeCandidates(codes, "jakl")).toEqual(['"jakl_30x30"', '"jakl_40x40"']);
+    expect(codeCandidates(codes, "l5")).toEqual(['"L50x50"']);
+  });
+
+  it("is empty when nothing matches", () => {
+    expect(codeCandidates(codes, "steel")).toEqual([]);
   });
 });

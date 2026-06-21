@@ -7,13 +7,12 @@ import type { Path } from "react-hook-form";
 import type { ReleaseDraftInput, ReleaseEditorForm } from "../lib/section-schemas";
 
 /**
- * The not-yet-structured sections as validated raw-JSON islands — so Phase 1 can
- * author a COMPLETE release (option sets, parts/BOM/geometry, ports, terrain,
- * ui). They still validate live (parse errors + I2 defects appear in the dock).
- * Phase 2 replaces parts with the master-detail builder; Phase 4 the ui builder.
+ * The not-yet-structured sections as validated raw-JSON islands — so a COMPLETE
+ * release stays authorable (option sets, ports, terrain, ui). They still validate
+ * live (parse errors + I2 defects appear in the dock). Parts/BOM/geometry became
+ * the structured master-detail workbench in Phase 2; Phase 4 the ui builder.
  */
 const ISLANDS = [
-  { name: "partsJson", labelKey: "partsJson", rows: 10 },
   { name: "optionSetsJson", labelKey: "optionSetsJson", rows: 5 },
   { name: "portsJson", labelKey: "portsJson", rows: 4 },
   { name: "terrainJson", labelKey: "terrainJson", rows: 3 },

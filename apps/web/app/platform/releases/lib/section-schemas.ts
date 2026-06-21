@@ -62,6 +62,53 @@ const derivedDraftSchema = z.object({
   expr: z.string(),
 });
 
+// --- Parts / geometry (Phase 2) ---------------------------------------------
+export const bomUnitValues = ["meter", "piece", "set", "hour"] as const;
+export const bomCategoryValues = [
+  "material",
+  "accessory",
+  "manufacturing",
+  "installation",
+] as const;
+
+/** One physical piece for the renderers (step 5). Expr slots are strings; the
+ *  optional blocks (rotation / cuts / repeat) ride a boolean toggle, "" = omit. */
+const geometryDraftSchema = z.object({
+  key: z.string(),
+  length: z.string(),
+  atX: z.string(),
+  atY: z.string(),
+  atZ: z.string(),
+  useRotation: z.boolean(),
+  rotX: z.string(),
+  rotY: z.string(),
+  rotZ: z.string(),
+  cutLeft: z.string(),
+  cutRight: z.string(),
+  useRepeat: z.boolean(),
+  repeatCount: z.string(),
+  repeatVar: z.string(),
+});
+
+/** A catalog-resolved part rule + its BOM + geometry. `role` is a plain catalog
+ *  role; `section`/`material`/`when` and every `bom*` slot are Expr strings
+ *  ("" = omit, except the required `bomQuantity`). */
+const partDraftSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  role: z.string(),
+  section: z.string(),
+  material: z.string(),
+  when: z.string(),
+  bomUnit: z.enum(bomUnitValues),
+  bomQuantity: z.string(),
+  bomLengthMm: z.string(),
+  bomPricePerUnit: z.string(),
+  bomTotalPrice: z.string(),
+  bomCategory: z.enum(bomCategoryValues),
+  geometry: z.array(geometryDraftSchema),
+});
+
 export const releaseDraftSchema = z.object({
   modelId: z.string(),
   version: z.coerce.number().int().nonnegative(),
@@ -69,10 +116,10 @@ export const releaseDraftSchema = z.object({
   parameters: z.array(paramDraftSchema),
   constraints: z.array(constraintDraftSchema),
   derived: z.array(derivedDraftSchema),
-  // Raw-JSON islands for sections not yet structured (Phase 2/4 replace these);
+  parts: z.array(partDraftSchema),
+  // Raw-JSON islands for sections not yet structured (Phase 4 replaces these);
   // "" means absent. They are still validated live by validateRelease.
   optionSetsJson: z.string(),
-  partsJson: z.string(),
   portsJson: z.string(),
   terrainJson: z.string(),
   uiJson: z.string(),
@@ -85,6 +132,8 @@ export type ReleaseDraft = z.output<typeof releaseDraftSchema>;
 export type ParamDraft = z.input<typeof paramDraftSchema>;
 export type ConstraintDraft = z.input<typeof constraintDraftSchema>;
 export type DerivedDraft = z.input<typeof derivedDraftSchema>;
+export type PartDraft = z.input<typeof partDraftSchema>;
+export type GeometryDraft = z.input<typeof geometryDraftSchema>;
 
 /** The editor's RHF form handle — matches `useZodForm(releaseDraftSchema)`'s
  *  input/output generics so it threads cleanly through the workbenches. */

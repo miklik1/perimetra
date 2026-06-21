@@ -171,17 +171,35 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
   release is authorable today. Publish goes through the EXISTING immutable `POST /v1/releases`
   (no second freeze path, I3 untouched). The `where`↔fieldId bijection is a tested layer
   (validator addresses by key/path, RHF by index). Behavior-preserving model refactor (full
-  gate + integration 16/90 green; goldens reproduce). **Phase 2** = parts/geometry master-detail
-  - catalog-aware pickers (`GET /v1/platform/catalog-versions/:id`); **Phase 3** = `release-drafts`
-    module + autosave + clone-and-bump + diff; **Phase 4** = web-worker validate+derive + live
-    engine preview (wizard + BOM/price + per-formula `=value`) + the syntax-highlight overlay.
-    Next: editor Phase 2–4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
-    override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
-    org, Decline / web self-registration).
-    Invariants I1–I11 (CORE_SPEC §1)
-    are the bar every PR is judged against; the Expr numeric-domain choice is
-    ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
-    cascade/overrides ADR 0048, site graph ADR 0049.
+  gate + integration 16/90 green; goldens reproduce).
+  Structured release editor — Phase 2 (2026-06-21, ADR 0068): the **parts/geometry** raw-JSON
+  island is RETIRED for a structured **master-detail** workbench (`PartsWorkbench` = an
+  `ArrayField` of collapsible part cards — new empty part opens, existing collapse to a master
+  list — each with identity/resolve/bom + a NESTED geometry `ArrayField`: `length`/`at[3]`/
+  `rotation[3]`/`cuts`/`repeat`, every Expr slot an `ExprField`, `repeat.var` flowing into
+  autocomplete because `slotScopes` models it). The `where`↔fieldId bijection gains the
+  parts/geometry builders (keyed by part `path` + geometry `key`, pinned to `slotScopes` both
+  directions). **Catalog-aware pickers:** `resolve.role` = a `<datalist>` of the catalog's
+  component roles; `resolve.section`/`material` stay `ExprField` (one zero-drift Expr path) but
+  gain catalog section/material CODES as quoted-literal completions (`codeCandidates`, quote-
+  adjacency-aware); the identity catalog field becomes a published-version SELECT. **The editor
+  now passes the loaded catalog to `validateRelease(release, catalog)`** so `catalog.*.unknown`
+  defects match the server gate live (degrades catalog-less). Backend (2A): `GET
+/v1/platform/catalog-versions` + `/:id` on `PlatformController` (`PlatformGuard`, no org gate,
+  mirrors ADR 0067 global read; reuses `CatalogVersionsService`; `PlatformModule`→
+  `CatalogVersionsModule`); NO schema change. Built on the SAME Phase-1 `@repo/ui` primitives
+  (kit stays domain-agnostic; only `ExprField` grew `codeSuggestions`). Publish stays the
+  immutable `POST /v1/releases` (I3 untouched). Full gate + integration 17/94 green; goldens
+  129891.504/79039.86 reproduce. **Phase 3** = `release-drafts` module + autosave +
+  clone-and-bump + diff; **Phase 4** = web-worker validate+derive + live engine preview
+  (wizard + BOM/price + per-formula `=value`) + the syntax-highlight overlay.
+  Next: editor Phase 3–4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
+  override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
+  org, Decline / web self-registration).
+  Invariants I1–I11 (CORE_SPEC §1)
+  are the bar every PR is judged against; the Expr numeric-domain choice is
+  ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
+  cascade/overrides ADR 0048, site graph ADR 0049.
 
 ## Package map
 

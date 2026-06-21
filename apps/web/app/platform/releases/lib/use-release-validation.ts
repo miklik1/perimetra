@@ -2,7 +2,13 @@
 
 import * as React from "react";
 
-import { slotScopes, validateRelease, type ExprScope, type ReleaseDefect } from "@repo/model";
+import {
+  slotScopes,
+  validateRelease,
+  type Catalog,
+  type ExprScope,
+  type ReleaseDefect,
+} from "@repo/model";
 
 import { buildReleaseFromDraft, type IslandDefect } from "./draft";
 import {
@@ -29,7 +35,7 @@ const EMPTY: ReleaseValidation = {
   errorCount: 0,
 };
 
-function compute(values: ReleaseDraftInput): ReleaseValidation {
+function compute(values: ReleaseDraftInput, catalog: Catalog | null): ReleaseValidation {
   const parsed = releaseDraftSchema.safeParse(values);
   if (!parsed.success) return EMPTY;
   const { release, islandDefects } = buildReleaseFromDraft(parsed.data);
@@ -38,7 +44,9 @@ function compute(values: ReleaseDraftInput): ReleaseValidation {
   let defects: ReleaseDefect[] = [];
   try {
     scopes = slotScopes(release);
-    defects = validateRelease(release);
+    // Pass the loaded catalog so role/section/material checks (catalog.*.unknown)
+    // match the server publish gate, which validates against the same catalog.
+    defects = validateRelease(release, catalog ?? undefined);
   } catch {
     // A malformed JSON island can produce a shape validateRelease assumes but
     // does not get — surface it as one defect instead of crashing the editor.
@@ -67,20 +75,39 @@ function compute(values: ReleaseDraftInput): ReleaseValidation {
  * form changes without forcing per-keystroke re-renders; only the validation
  * snapshot updates the tree.
  */
-export function useReleaseValidation(form: ReleaseEditorForm): ReleaseValidation {
-  const [result, setResult] = React.useState<ReleaseValidation>(() => compute(form.getValues()));
+export function useReleaseValidation(
+  form: ReleaseEditorForm,
+  catalog: Catalog | null = null,
+): ReleaseValidation {
+  // Keep the latest catalog reachable inside the (form-keyed) watch subscription
+  // without re-subscribing on every catalog change.
+  const catalogRef = React.useRef(catalog);
+  catalogRef.current = catalog;
+
+  const [result, setResult] = React.useState<ReleaseValidation>(() =>
+    compute(form.getValues(), catalog),
+  );
 
   React.useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const subscription = form.watch((values) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setResult(compute(values as ReleaseDraftInput)), 250);
+      timer = setTimeout(
+        () => setResult(compute(values as ReleaseDraftInput, catalogRef.current)),
+        250,
+      );
     });
     return () => {
       if (timer) clearTimeout(timer);
       subscription.unsubscribe();
     };
   }, [form]);
+
+  // Re-validate immediately when the loaded catalog changes (the role/section/
+  // material checks only fire once it is present).
+  React.useEffect(() => {
+    setResult(compute(form.getValues(), catalog));
+  }, [catalog, form]);
 
   return result;
 }

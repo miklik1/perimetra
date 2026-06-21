@@ -72,3 +72,20 @@ export function completionCandidates(scope: ExprScope, word: string, limit = 12)
     .sort()
     .slice(0, limit);
 }
+
+/**
+ * Quoted string-literal completions for the catalog-code slots (a part's
+ * `resolve.section` / `resolve.material`, ADR 0068 Phase 2). A catalog code
+ * resolves as a STRING, so it completes to `"code"`, not a bare identifier —
+ * catalog-aware authoring WITHOUT forking the one Expr path. Matched by the bare
+ * word at the caret (prefix, case-insensitive); the empty word offers all codes
+ * so a fresh field surfaces the catalog on focus.
+ */
+export function codeCandidates(codes: readonly string[], word: string, limit = 8): string[] {
+  const lower = word.toLowerCase();
+  return [...new Set(codes)]
+    .filter((code) => word === "" || code.toLowerCase().startsWith(lower))
+    .sort()
+    .slice(0, limit)
+    .map((code) => `"${code}"`);
+}

@@ -5,7 +5,7 @@ import { fieldInputClass } from "@repo/ui/forms/field-shell";
 import { cn } from "@repo/ui/lib/utils";
 import * as React from "react";
 
-import { completionCandidates, currentWord, exprStatus } from "./expr-authoring";
+import { codeCandidates, completionCandidates, currentWord, exprStatus } from "./expr-authoring";
 
 /**
  * The editor's keystone field: a monospace expression input with LIVE parse +
@@ -19,6 +19,9 @@ export interface ExprFieldProps {
   onChange: (value: string) => void;
   /** The slot's in-scope names + open prefixes, from `slotScopes(draft)`. */
   scope: ExprScope;
+  /** Catalog codes this slot resolves to (section/material) — offered as quoted
+   *  string-literal completions (`"code"`), the catalog-aware picker (Phase 2). */
+  codeSuggestions?: readonly string[];
   /** A server/whole-release defect for this slot, shown if the local check is clean. */
   defect?: string;
   id?: string;
@@ -31,6 +34,7 @@ export function ExprField({
   value,
   onChange,
   scope,
+  codeSuggestions,
   defect,
   id,
   describedById,
@@ -46,10 +50,12 @@ export function ExprField({
 
   const status = React.useMemo(() => exprStatus(value, scope), [value, scope]);
   const { word, start } = currentWord(value, caret);
-  const candidates = React.useMemo(
-    () => (open ? completionCandidates(scope, word) : []),
-    [open, scope, word],
-  );
+  const candidates = React.useMemo(() => {
+    if (!open) return [];
+    const idents = completionCandidates(scope, word);
+    const codes = codeSuggestions ? codeCandidates(codeSuggestions, word) : [];
+    return [...new Set([...idents, ...codes])];
+  }, [open, scope, word, codeSuggestions]);
   const showList = open && candidates.length > 0;
 
   // Apply a programmatic caret move after an autocomplete insertion.
@@ -61,8 +67,13 @@ export function ExprField({
   });
 
   const accept = (candidate: string) => {
-    const next = value.slice(0, start) + candidate + value.slice(caret);
-    const nextCaret = start + candidate.length;
+    // A quoted catalog-code completion typed next to an existing quote must not
+    // double it (`"L50"` accepted at `"L|` → `"L50"`, not `""L50"`).
+    let insert = candidate;
+    if (insert.startsWith('"') && value[start - 1] === '"') insert = insert.slice(1);
+    if (insert.endsWith('"') && value[caret] === '"') insert = insert.slice(0, -1);
+    const next = value.slice(0, start) + insert + value.slice(caret);
+    const nextCaret = start + insert.length;
     pendingCaret.current = nextCaret;
     setCaret(nextCaret);
     setOpen(false);

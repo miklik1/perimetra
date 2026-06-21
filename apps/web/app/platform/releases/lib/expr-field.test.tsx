@@ -40,4 +40,39 @@ describe("ExprField", () => {
     fireEvent.mouseDown(option);
     expect(onChange).toHaveBeenCalledWith("width_mm");
   });
+
+  it("offers catalog codes as quoted-literal completions on focus and inserts one", () => {
+    const onChange = vi.fn();
+    render(
+      <ExprField
+        value=""
+        onChange={onChange}
+        scope={scope}
+        codeSuggestions={["L50x50", "alu"]}
+        aria-label="section"
+      />,
+    );
+    fireEvent.focus(screen.getByLabelText("section"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: '"L50x50"' }));
+    expect(onChange).toHaveBeenCalledWith('"L50x50"');
+  });
+
+  it("does not double the quote when a code completion is accepted inside an open quote", () => {
+    const onChange = vi.fn();
+    render(
+      <ExprField
+        value={'"'}
+        onChange={onChange}
+        scope={scope}
+        codeSuggestions={["alu"]}
+        aria-label="material"
+      />,
+    );
+    const input = screen.getByLabelText("material") as HTMLInputElement;
+    fireEvent.focus(input);
+    input.setSelectionRange(1, 1);
+    fireEvent.keyUp(input, { key: '"' }); // caret after the opening quote
+    fireEvent.mouseDown(screen.getByRole("option", { name: '"alu"' }));
+    expect(onChange).toHaveBeenCalledWith('"alu"');
+  });
 });

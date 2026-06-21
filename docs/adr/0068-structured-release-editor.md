@@ -1,6 +1,7 @@
 # ADR 0068 — Structured release editor + slotScopes() single source of scope truth
 
-**Status:** Accepted (2026-06-19). **Phase 1 shipped 2026-06-19.** Implements the
+**Status:** Accepted (2026-06-19). **Phase 1 shipped 2026-06-19; Phase 2 shipped
+2026-06-21.** Implements the
 **structured release editor** that [ADR 0061](0061-admin-publish-ui.md) and
 [ADR 0067](0067-release-retire.md) named as the last deferred step-6 vendor/admin
 authoring follow-up. Full design: `docs/superpowers/specs/2026-06-19-structured-release-editor-design.md`;
@@ -82,8 +83,9 @@ Two repo facts shape the decision:
 - The where↔fieldId mapping (the gate addresses by key/path, RHF by array index)
   becomes an explicit, tested layer in the web app so a defect never lands on the
   wrong field.
-- **Phasing / deferred:** Phase 2 — parts/geometry master-detail + catalog-aware
-  pickers + `GET /v1/platform/catalog-versions/:id` (PlatformGuard); Phase 3 —
+- **Phasing / deferred:** Phase 2 (SHIPPED 2026-06-21, see below) — parts/geometry
+  master-detail + catalog-aware pickers + `GET /v1/platform/catalog-versions/:id`
+  (PlatformGuard); Phase 3 —
   `release-drafts` module + autosave + clone-and-bump + diff; Phase 4 — web-worker
   validate+derive + live engine preview (wizard + BOM/price + per-formula `=value`)
   - power features.
@@ -108,3 +110,52 @@ Two repo facts shape the decision:
   (`tokenize` is exported and ready). No schema change.
 
 Governing code: as listed above. No schema change in Phase 1.
+
+### Phase 2 as shipped (2026-06-21)
+
+Parts/geometry — the largest raw-JSON island (16 part rules with nested BOM +
+geometry on the gate) — became a structured master-detail workbench, and the
+catalog stopped being a number the operator types blind.
+
+- **`apps/api` (2A):** `GET /v1/platform/catalog-versions` (list) + `GET
+/v1/platform/catalog-versions/:id` (detail) on `PlatformController`
+  (`PlatformGuard`, no org gate — mirrors the ADR 0067 global release read).
+  Catalog versions are global + immutable, so both reuse the existing
+  `CatalogVersionsService` reads; the platform tier exists so an org-less operator
+  (who 403s on the `RolesGuard`-gated tenant routes) can load options while
+  authoring. `PlatformModule` imports `CatalogVersionsModule` — the cross-module
+  read goes through the owning service, never a schema join (ADR 0032). **No schema
+  change.** `platform-catalog-read.itest` (4 cases): the detail body
+  (materials/sections/components), the list, 404/400 on a bad id, and platform-only
+  (tenant 403, anon 401).
+- **`apps/web` (2B–2D):** the `partsJson` textarea island is RETIRED for a
+  `PartsWorkbench` — an `ArrayField` of collapsible part cards (a new empty-path
+  part opens by default; existing ones collapse into a master list), each carrying
+  structured identity/resolve/bom fields and a NESTED `ArrayField` of geometry
+  pieces (`length` / `at[3]` / `rotation[3]` / `cuts` / `repeat` — every Expr slot
+  an `ExprField`, the loop `repeat.var` flowing into autocomplete scope because
+  `slotScopes` already models it). The `where`↔fieldId bijection gains the
+  parts/geometry builders (keyed by part `path` + geometry `key`), pinned to
+  `slotScopes` over the corpus by `where.test` (both directions, ports excluded as
+  a still-island). Built with the SAME Phase-1 `@repo/ui` primitives — **no new
+  generic component** (the kit stays domain-agnostic; only the app-land
+  `ExprField` grew a `codeSuggestions` prop).
+- **Catalog-aware pickers (the keystone extension):** `resolve.role` (a plain
+  catalog role) is a `<datalist>`-backed input of the catalog's component roles;
+  `resolve.section`/`material` stay `ExprField` (ONE zero-drift Expr authoring path
+  — they can be parameter-conditional, not just literals) but gain the catalog's
+  section/material CODES as quoted string-literal completions (`codeCandidates` →
+  `"jakl_30x30"`), quote-adjacency-aware so a completion accepted inside an open
+  quote never doubles it. The identity workbench's catalog field becomes a
+  published-version SELECT (sourced from the new list endpoint). **Most importantly,
+  the editor now passes the LOADED catalog to `validateRelease(release, catalog)`**
+  — so `catalog.role.unknown` / `catalog.section.unknown` / `catalog.material.unknown`
+  defects appear live, byte-identical to the server publish gate (which already
+  validates against the same catalog). Degrades to catalog-less validation when
+  nothing is published yet (the server stays the authority).
+- Publish still goes through the existing immutable `POST /v1/releases` — I3
+  untouched, no second freeze path. Full gate + integration green; goldens
+  reproduce `129891.504` / `79039.86`. **Phase 3** (`release-drafts` module +
+  autosave + clone-and-bump + diff) and **Phase 4** (web-worker validate+derive +
+  live engine preview + the `ExprField` syntax-highlight overlay) remain their own
+  gated slices.

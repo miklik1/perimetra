@@ -4,11 +4,15 @@ import { appendSearchParams } from "@repo/utils";
 import {
   assignReleaseSchema,
   broadcastAssignResultSchema,
+  catalogVersionSchema,
+  catalogVersionsPageSchema,
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
   releaseSchema,
   releasesPageSchema,
   type BroadcastAssignResult,
+  type CatalogVersionDetail,
+  type CatalogVersionsPage,
   type PlatformOrganizations,
   type ReleaseAssignments,
   type ReleaseDetail,
@@ -26,6 +30,8 @@ export const platformKeys = {
   all: ["platform"] as const,
   releasesList: () => [...platformKeys.all, "releases", "list"] as const,
   release: (id: string) => [...platformKeys.all, "releases", "detail", id] as const,
+  catalogVersionsList: () => [...platformKeys.all, "catalog-versions", "list"] as const,
+  catalogVersion: (id: string) => [...platformKeys.all, "catalog-versions", "detail", id] as const,
   organizationsList: () => [...platformKeys.all, "organizations", "list"] as const,
   assignments: (orgId: string) => [...platformKeys.all, "assignments", orgId] as const,
 } as const;
@@ -72,6 +78,26 @@ export function createPlatformQueries(client: ApiClient) {
         // All input is in the path; send no body (the endpoint takes no @Body()).
         body: () => undefined,
         schema: (data) => releaseSchema.parse(data),
+      }),
+
+    /** Published catalog versions (summaries) — the release editor's catalog-
+     *  version picker (ADR 0068 Phase 2). Platform tier so an org-less operator
+     *  can read it. Catalog versions are few; the first page suffices. */
+    listCatalogVersions: () =>
+      defineQuery<CatalogVersionsPage>(client, {
+        queryKey: platformKeys.catalogVersionsList(),
+        path: "/v1/platform/catalog-versions",
+        schema: (data) => catalogVersionsPageSchema.parse(data),
+      }),
+
+    /** Full catalog body (materials/sections/components) by surrogate id — the
+     *  options behind the editor's catalog-aware part pickers. Lazy: enable only
+     *  once a version is selected and resolved to its id. */
+    catalogVersion: (id: string) =>
+      defineQuery<CatalogVersionDetail>(client, {
+        queryKey: platformKeys.catalogVersion(id),
+        path: `/v1/platform/catalog-versions/${id}`,
+        schema: (data) => catalogVersionSchema.parse(data),
       }),
 
     /** Every tenant org (vendor-scale, unpaginated). */

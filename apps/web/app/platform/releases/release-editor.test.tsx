@@ -36,4 +36,13 @@ describe("ReleaseEditor", () => {
     // A row appeared → its Key field label is present.
     expect(screen.getAllByText(cs.releaseEditor.key).length).toBeGreaterThan(0);
   });
+
+  it("navigates to the parts workbench and adds a part (open by default)", () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: cs.releaseEditor.section_parts }));
+    expect(screen.getByText(cs.releaseEditor.partsEmpty)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: cs.releaseEditor.addPart }));
+    // A new (empty-path) part renders open → its Path field label is present.
+    expect(screen.getAllByText(cs.releaseEditor.partPath).length).toBeGreaterThan(0);
+  });
 });

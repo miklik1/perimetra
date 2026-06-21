@@ -18,14 +18,16 @@ import { toast } from "../../../lib/toast";
 import { usePlatformAdmin } from "../../../lib/use-role";
 import { blankDraft, buildReleaseFromDraft } from "./lib/draft";
 import { releaseDraftSchema } from "./lib/section-schemas";
+import { usePlatformCatalog } from "./lib/use-platform-catalog";
 import { useReleaseValidation } from "./lib/use-release-validation";
 import { AdvancedWorkbench } from "./sections/advanced-workbench";
 import { ConstraintsWorkbench } from "./sections/constraints-workbench";
 import { DerivedWorkbench } from "./sections/derived-workbench";
 import { IdentityWorkbench } from "./sections/identity-workbench";
 import { ParametersWorkbench } from "./sections/parameters-workbench";
+import { PartsWorkbench } from "./sections/parts-workbench";
 
-const SECTIONS = ["identity", "parameters", "constraints", "derived", "advanced"] as const;
+const SECTIONS = ["identity", "parameters", "constraints", "derived", "parts", "advanced"] as const;
 type SectionId = (typeof SECTIONS)[number];
 
 /** Which section owns a defect `where` (drives nav badges + click-to-navigate). */
@@ -33,6 +35,7 @@ function sectionForWhere(where: string): SectionId {
   if (where.startsWith("parameters[")) return "parameters";
   if (where.startsWith("constraints[")) return "constraints";
   if (where.startsWith("derived[")) return "derived";
+  if (where.startsWith("parts[")) return "parts";
   return "advanced";
 }
 
@@ -69,7 +72,9 @@ export function Editor() {
   const adminQueries = createAdminQueries(client);
 
   const form = useZodForm(releaseDraftSchema, { defaultValues: blankDraft() });
-  const validation = useReleaseValidation(form);
+  const catalogVersion = Number(form.watch("catalogVersion")) || 0;
+  const { catalog, versions } = usePlatformCatalog(catalogVersion);
+  const validation = useReleaseValidation(form, catalog);
   const [section, setSection] = useState<SectionId>("identity");
   const modelId = form.watch("modelId");
 
@@ -83,6 +88,7 @@ export function Editor() {
       parameters: 0,
       constraints: 0,
       derived: 0,
+      parts: 0,
       advanced: 0,
     };
     for (const defect of validation.defects) c[sectionForWhere(defect.where)] += 1;
@@ -152,7 +158,7 @@ export function Editor() {
         </aside>
 
         <section className="overflow-auto p-4">
-          {section === "identity" ? <IdentityWorkbench form={form} /> : null}
+          {section === "identity" ? <IdentityWorkbench form={form} versions={versions} /> : null}
           {section === "parameters" ? (
             <ParametersWorkbench form={form} validation={validation} />
           ) : null}
@@ -160,6 +166,9 @@ export function Editor() {
             <ConstraintsWorkbench form={form} validation={validation} />
           ) : null}
           {section === "derived" ? <DerivedWorkbench form={form} validation={validation} /> : null}
+          {section === "parts" ? (
+            <PartsWorkbench form={form} validation={validation} catalog={catalog} />
+          ) : null}
           {section === "advanced" ? <AdvancedWorkbench form={form} /> : null}
         </section>
 
