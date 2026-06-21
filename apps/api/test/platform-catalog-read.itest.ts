@@ -104,13 +104,20 @@ describe("platform catalog-version detail read (HTTP, real stack)", () => {
     );
   });
 
-  it("is platform-only: a tenant user 403s, anonymous 401s", async () => {
+  it("is platform-only: a tenant user 403s, anonymous 401s (both list + detail)", async () => {
+    // Detail route.
     expect(
       (await getAs(tenant, `/v1/platform/catalog-versions/${catalogV2RowId}`)).statusCode,
     ).toBe(403);
     expect(
       (await inject(app, { method: "GET", url: `/v1/platform/catalog-versions/${catalogV2RowId}` }))
         .statusCode,
+    ).toBe(401);
+    // List route — same tier contract, kept machine-checked so a future per-method
+    // guard override on the list handler can't silently open it.
+    expect((await getAs(tenant, "/v1/platform/catalog-versions")).statusCode).toBe(403);
+    expect(
+      (await inject(app, { method: "GET", url: "/v1/platform/catalog-versions" })).statusCode,
     ).toBe(401);
   });
 });

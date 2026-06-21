@@ -242,7 +242,11 @@ function ParameterRow({ form, validation, index }: Props & { index: number }) {
 
       <DisclosureSection
         title={t("deviation")}
-        badge={defectFor(whereParamDeviation(key)) ? "!" : undefined}
+        badge={
+          defectFor(whereParamDeviation(key)) ? (
+            <span className="text-destructive">!</span>
+          ) : undefined
+        }
       >
         <div className="flex flex-col gap-2">
           <FieldShell

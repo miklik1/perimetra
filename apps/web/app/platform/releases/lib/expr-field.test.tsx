@@ -57,6 +57,26 @@ describe("ExprField", () => {
     expect(onChange).toHaveBeenCalledWith('"L50x50"');
   });
 
+  it("replaces the whole token when the caret sits mid-word (no stray tail)", () => {
+    const onChange = vi.fn();
+    render(
+      <ExprField
+        value={'"L50"'}
+        onChange={onChange}
+        scope={scope}
+        codeSuggestions={["L50x50"]}
+        aria-label="section"
+      />,
+    );
+    const input = screen.getByLabelText("section") as HTMLInputElement;
+    fireEvent.focus(input);
+    input.setSelectionRange(2, 2); // caret between L and 50, inside the quotes
+    fireEvent.keyUp(input, { key: "ArrowLeft" });
+    fireEvent.mouseDown(screen.getByRole("option", { name: '"L50x50"' }));
+    // The full token "L50" → "L50x50", not '"L50x50"50"' (stray tail) nor a doubled quote.
+    expect(onChange).toHaveBeenCalledWith('"L50x50"');
+  });
+
   it("does not double the quote when a code completion is accepted inside an open quote", () => {
     const onChange = vi.fn();
     render(

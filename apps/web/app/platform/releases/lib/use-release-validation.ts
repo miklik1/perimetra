@@ -104,8 +104,15 @@ export function useReleaseValidation(
   }, [form]);
 
   // Re-validate immediately when the loaded catalog changes (the role/section/
-  // material checks only fire once it is present).
+  // material checks only fire once it is present). Skip the mount run — the
+  // useState initializer already computed the first snapshot — so a fresh editor
+  // does not double-compute (which would re-render every workbench twice).
+  const mounted = React.useRef(false);
   React.useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     setResult(compute(form.getValues(), catalog));
   }, [catalog, form]);
 

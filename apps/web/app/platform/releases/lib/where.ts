@@ -42,6 +42,9 @@ export type BomSlot = "quantity" | "lengthMm" | "pricePerUnit" | "totalPrice";
 export const wherePartBom = (path: string, slot: BomSlot): string => `parts[${path}].bom.${slot}`;
 
 // --- Geometry ---------------------------------------------------------------
+/** Prefix matching EVERY geometry defect under a part — the part's geometry
+ *  section badge (`where.startsWith(prefix)`). */
+export const whereGeometryPrefix = (path: string): string => `parts[${path}].geometry[`;
 /** The geometry piece itself (`key.duplicate` / `key.invalid` defects). */
 export const whereGeometry = (path: string, key: string): string =>
   `parts[${path}].geometry[${key}]`;

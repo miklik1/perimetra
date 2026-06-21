@@ -19,6 +19,7 @@ import {
   whereGeometryAt,
   whereGeometryCut,
   whereGeometryLength,
+  whereGeometryPrefix,
   whereGeometryRepeatCount,
   whereGeometryRepeatVar,
   whereGeometryRotation,
@@ -53,6 +54,16 @@ interface PartProps {
   options: CatalogOptions;
 }
 
+/** Geometry rows don't read the catalog (no role/section/material pickers) — a
+ *  narrower prop set than {@link PartProps}. */
+interface GeoRowProps {
+  form: ReleaseEditorForm;
+  validation: ReleaseValidation;
+  partPath: string;
+  partIndex: number;
+  index: number;
+}
+
 const AXES = [0, 1, 2] as const;
 const AXIS_LABELS = ["x", "y", "z"] as const;
 const AT_FIELDS = ["atX", "atY", "atZ"] as const;
@@ -71,13 +82,7 @@ type GeoExprField =
   | "cutRight"
   | "repeatCount";
 
-function GeometryRow({
-  form,
-  validation,
-  partPath,
-  partIndex,
-  index,
-}: PartProps & { partPath: string; partIndex: number; index: number }) {
+function GeometryRow({ form, validation, partPath, partIndex, index }: GeoRowProps) {
   const t = useTranslations("releaseEditor");
   const { control, register } = form;
   const base = `parts.${partIndex}.geometry.${index}` as const;
@@ -369,7 +374,7 @@ function PartRow({ form, validation, options, index }: PartProps & { index: numb
         <DisclosureSection
           title={t("geometry")}
           badge={
-            hasDefectUnder(`parts[${path}].geometry[`) ? (
+            hasDefectUnder(whereGeometryPrefix(path)) ? (
               <span className="text-destructive">!</span>
             ) : undefined
           }
@@ -385,7 +390,6 @@ function PartRow({ form, validation, options, index }: PartProps & { index: numb
               <GeometryRow
                 form={form}
                 validation={validation}
-                options={options}
                 partPath={path}
                 partIndex={index}
                 index={gIndex}

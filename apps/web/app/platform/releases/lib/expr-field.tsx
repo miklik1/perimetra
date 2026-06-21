@@ -67,12 +67,17 @@ export function ExprField({
   });
 
   const accept = (candidate: string) => {
+    // currentWord() walks only LEFT of the caret; consume the rest of the token to
+    // its RIGHT too, so accepting with the caret mid-word replaces the whole word
+    // (not just its left half — else `"L|50"` would keep the stray `50"`).
+    let wordEnd = caret;
+    while (wordEnd < value.length && /[A-Za-z0-9_.]/.test(value[wordEnd]!)) wordEnd++;
     // A quoted catalog-code completion typed next to an existing quote must not
     // double it (`"L50"` accepted at `"L|` → `"L50"`, not `""L50"`).
     let insert = candidate;
     if (insert.startsWith('"') && value[start - 1] === '"') insert = insert.slice(1);
-    if (insert.endsWith('"') && value[caret] === '"') insert = insert.slice(0, -1);
-    const next = value.slice(0, start) + insert + value.slice(caret);
+    if (insert.endsWith('"') && value[wordEnd] === '"') insert = insert.slice(0, -1);
+    const next = value.slice(0, start) + insert + value.slice(wordEnd);
     const nextCaret = start + insert.length;
     pendingCaret.current = nextCaret;
     setCaret(nextCaret);
