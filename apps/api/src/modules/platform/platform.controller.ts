@@ -31,6 +31,10 @@ import {
 } from "@nestjs/common";
 
 import {
+  type CatalogVersionDetail,
+  type CatalogVersionsPage,
+} from "@repo/validators/catalog-versions";
+import {
   type BroadcastAssignResult,
   type PlatformOrganizations,
   type ReleaseAssignments,
@@ -42,10 +46,14 @@ import { CurrentSession } from "../auth/current-session.decorator.js";
 import { OrganizationsService } from "../auth/organizations.service.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
 import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
+import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import {
   AssignReleaseDto,
   BroadcastAssignResultDto,
+  PlatformCatalogVersionDto,
+  PlatformCatalogVersionsPageDto,
+  PlatformCatalogVersionsQueryDto,
   PlatformOrganizationsDto,
   PlatformReleaseDto,
   PlatformReleasesPageDto,
@@ -59,6 +67,7 @@ export class PlatformController {
   constructor(
     private readonly releases: ReleasesService,
     private readonly organizations: OrganizationsService,
+    private readonly catalogVersions: CatalogVersionsService,
   ) {}
 
   /** Every published release — the vendor's assignment picker (global, ADR 0062). */
@@ -77,6 +86,30 @@ export class PlatformController {
   @ZodSerializerDto(PlatformReleaseDto)
   getRelease(@Param("id", ParseUUIDPipe) id: string): Promise<ReleaseDetail> {
     return this.releases.getGlobal(id);
+  }
+
+  /** Every catalog version (summaries) — the editor's catalog-version picker, so
+   *  the operator selects a PUBLISHED version instead of typing a raw number
+   *  (ADR 0068 Phase 2). Platform tier (an org-less operator would 403 on the
+   *  `RolesGuard`-gated tenant list). Declared before the `:id` detail route. */
+  @Get("catalog-versions")
+  @ZodSerializerDto(PlatformCatalogVersionsPageDto)
+  listCatalogVersions(
+    @Query() query: PlatformCatalogVersionsQueryDto,
+  ): Promise<CatalogVersionsPage> {
+    return this.catalogVersions.list(query);
+  }
+
+  /** Full detail (body) of ANY catalog version by surrogate id — the catalog
+   *  options behind the release editor's catalog-aware pickers (ADR 0068 Phase 2).
+   *  Catalog versions are GLOBAL + immutable (no per-org gate), so this reuses the
+   *  same load as the tenant route; it exists at the platform tier so an org-less
+   *  operator — who would 403 on the `RolesGuard`-gated `GET /v1/catalog-versions/:id`
+   *  — can still load options while authoring. 404 only when the id does not exist. */
+  @Get("catalog-versions/:id")
+  @ZodSerializerDto(PlatformCatalogVersionDto)
+  getCatalogVersion(@Param("id", ParseUUIDPipe) id: string): Promise<CatalogVersionDetail> {
+    return this.catalogVersions.get(id);
   }
 
   /** Broadcast a published release to EVERY org currently on an OLDER version of

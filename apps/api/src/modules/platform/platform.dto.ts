@@ -5,6 +5,11 @@
  * stay the single source of truth.
  */
 import {
+  catalogVersionSchema,
+  catalogVersionsPageSchema,
+  listCatalogVersionsQuerySchema,
+} from "@repo/validators/catalog-versions";
+import {
   assignReleaseSchema,
   broadcastAssignResultSchema,
   platformOrganizationsSchema,
@@ -29,3 +34,10 @@ export class BroadcastAssignResultDto extends createZodDto(broadcastAssignResult
 /** Full release detail (body + initialInput) for the vendor console — the
  *  GLOBAL detail read + the retire response (ADR 0067). */
 export class PlatformReleaseDto extends createZodDto(releaseSchema) {}
+/** Full catalog-version detail (body) for the vendor console — the GLOBAL detail
+ *  read backing the release editor's catalog-aware pickers (ADR 0068 Phase 2). */
+export class PlatformCatalogVersionDto extends createZodDto(catalogVersionSchema) {}
+/** Catalog-version list (summaries) — the editor's catalog-version picker; the
+ *  operator selects a PUBLISHED version rather than typing a number (ADR 0068 Phase 2). */
+export class PlatformCatalogVersionsQueryDto extends createZodDto(listCatalogVersionsQuerySchema) {}
+export class PlatformCatalogVersionsPageDto extends createZodDto(catalogVersionsPageSchema) {}
