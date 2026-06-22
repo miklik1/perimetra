@@ -2,123 +2,109 @@
 
 import * as React from "react";
 
+import { type Catalog, type ExprScope } from "@repo/model";
+
 import {
-  slotScopes,
-  validateRelease,
-  type Catalog,
-  type ExprScope,
-  type ProductModelRelease,
-  type ReleaseDefect,
-} from "@repo/model";
+  runReleaseValidation,
+  type EngineRequest,
+  type EngineResponse,
+  type ReleaseValidation,
+} from "./release-engine";
+import { type ReleaseDraftInput, type ReleaseEditorForm } from "./section-schemas";
 
-import { buildReleaseFromDraft, type IslandDefect } from "./draft";
-import {
-  releaseDraftSchema,
-  type ReleaseDraftInput,
-  type ReleaseEditorForm,
-} from "./section-schemas";
+export type { ReleaseValidation } from "./release-engine";
 
-export interface ReleaseValidation {
-  /** Per-slot scope (by `where`) for the editor's ExprFields. */
-  scopes: Map<string, ExprScope>;
-  /** Defects indexed by `where` so each field reads its own. */
-  defectsByWhere: Map<string, ReleaseDefect[]>;
-  /** Every defect (release + JSON-island), for the dock list. */
-  defects: (ReleaseDefect | IslandDefect)[];
-  /** Blocking-defect count (Publish is disabled while > 0). */
-  errorCount: number;
-  /** The built release (for the clone diff, Phase 3D); null on a parse failure. */
-  release: ProductModelRelease | null;
-}
-
-const EMPTY: ReleaseValidation = {
-  scopes: new Map(),
-  defectsByWhere: new Map(),
-  defects: [],
-  errorCount: 0,
-  release: null,
-};
-
-function compute(values: ReleaseDraftInput, catalog: Catalog | null): ReleaseValidation {
-  const parsed = releaseDraftSchema.safeParse(values);
-  if (!parsed.success) return EMPTY;
-  const { release, islandDefects } = buildReleaseFromDraft(parsed.data);
-
-  let scopes = new Map<string, ExprScope>();
-  let defects: ReleaseDefect[] = [];
-  try {
-    scopes = slotScopes(release);
-    // Pass the loaded catalog so role/section/material checks (catalog.*.unknown)
-    // match the server publish gate, which validates against the same catalog.
-    defects = validateRelease(release, catalog ?? undefined);
-  } catch {
-    // A malformed JSON island can produce a shape validateRelease assumes but
-    // does not get — surface it as one defect instead of crashing the editor.
-    islandDefects.push({
-      code: "structure.invalid",
-      where: "release",
-      message: "release structure is invalid — check the raw-JSON sections",
-    });
-  }
-
-  const defectsByWhere = new Map<string, ReleaseDefect[]>();
-  for (const defect of defects) {
-    const list = defectsByWhere.get(defect.where) ?? [];
-    list.push(defect);
-    defectsByWhere.set(defect.where, list);
-  }
-
-  const all = [...defects, ...islandDefects];
-  return { scopes, defectsByWhere, defects: all, errorCount: all.length, release };
-}
+const DEBOUNCE_MS = 250;
 
 /**
- * Live, debounced client-side validation — the editor's spine. Runs the SAME
- * `validateRelease` the server publish gate runs (and `slotScopes` for
- * autocomplete), so what the author sees green publishes green. Subscribes to
- * form changes without forcing per-keystroke re-renders; only the validation
- * snapshot updates the tree.
+ * Live, debounced client-side validation — the editor's spine. Offloads the
+ * pipeline (`buildReleaseFromDraft` → `slotScopes` + `validateRelease`) to a web
+ * worker (ADR 0068 Phase 4) so a large release does not jank typing; the first
+ * snapshot is computed synchronously so the initial render (and SSR / jsdom,
+ * where `Worker` is absent) has data, and the whole hook degrades to the
+ * synchronous path when no worker can be constructed. The public shape is
+ * unchanged — every workbench/ExprField/dock consumer is untouched.
  */
 export function useReleaseValidation(
   form: ReleaseEditorForm,
   catalog: Catalog | null = null,
 ): ReleaseValidation {
-  // Keep the latest catalog reachable inside the (form-keyed) watch subscription
-  // without re-subscribing on every catalog change.
+  // Latest catalog reachable inside the (form-keyed) watch without re-subscribing.
   const catalogRef = React.useRef(catalog);
   catalogRef.current = catalog;
 
   const [result, setResult] = React.useState<ReleaseValidation>(() =>
-    compute(form.getValues(), catalog),
+    runReleaseValidation(form.getValues(), catalog),
   );
+
+  // The worker handle (null → synchronous fallback) and the last-write-wins
+  // token: only the reply whose id matches the latest request updates state.
+  const workerRef = React.useRef<Worker | null>(null);
+  const tokenRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (typeof Worker === "undefined") return;
+    let worker: Worker | null = null;
+    try {
+      worker = new Worker(new URL("./release-engine.worker.ts", import.meta.url), {
+        type: "module",
+      });
+    } catch {
+      // Bundler/runtime can't give us a module worker — stay on the sync path.
+      return;
+    }
+    worker.onmessage = (event: MessageEvent<EngineResponse>) => {
+      const message = event.data;
+      if (message.kind === "validate" && message.id === tokenRef.current) {
+        setResult(message.result);
+      }
+    };
+    workerRef.current = worker;
+    // Seed the cached catalog (ordered before any validate the effects below send).
+    worker.postMessage({ kind: "catalog", catalog: catalogRef.current } satisfies EngineRequest);
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  // Request a fresh snapshot — via the worker (tagged, debounced upstream) or,
+  // when there is none, synchronously on the main thread.
+  const request = React.useCallback((values: ReleaseDraftInput) => {
+    const worker = workerRef.current;
+    if (worker) {
+      const id = (tokenRef.current += 1);
+      worker.postMessage({ kind: "validate", id, values } satisfies EngineRequest);
+    } else {
+      setResult(runReleaseValidation(values, catalogRef.current));
+    }
+  }, []);
 
   React.useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const subscription = form.watch((values) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(
-        () => setResult(compute(values as ReleaseDraftInput, catalogRef.current)),
-        250,
-      );
+      timer = setTimeout(() => request(values as ReleaseDraftInput), DEBOUNCE_MS);
     });
     return () => {
       if (timer) clearTimeout(timer);
       subscription.unsubscribe();
     };
-  }, [form]);
+  }, [form, request]);
 
-  // Re-validate immediately when the loaded catalog changes (the role/section/
-  // material checks only fire once it is present). Skip the mount run — the
-  // useState initializer already computed the first snapshot — so a fresh editor
-  // does not double-compute (which would re-render every workbench twice).
+  // Re-validate when the loaded catalog changes (the role/section/material checks
+  // only fire once it is present). Push the new catalog to the worker cache, then
+  // re-run. Skip the mount pass — the useState initializer already computed the
+  // first snapshot — so a fresh editor does not double-compute.
   const mounted = React.useRef(false);
   React.useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
-    setResult(compute(form.getValues(), catalog));
-  }, [catalog, form]);
+    workerRef.current?.postMessage({ kind: "catalog", catalog } satisfies EngineRequest);
+    request(form.getValues());
+  }, [catalog, form, request]);
 
   return result;
 }
