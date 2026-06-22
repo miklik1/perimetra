@@ -11,7 +11,7 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import {
@@ -161,20 +161,27 @@ export class ProjectsRepository {
   }
 
   /**
-   * Write the designed Site graph onto a project (scoped) — returns the row, or
-   * null when the scope owns no such live project. The roster write
-   * (`replaceInstances`) is a separate call the service sequences in the SAME
-   * `@Transactional()` method, so site + roster commit atomically.
+   * Write the designed Site graph onto a project (scoped), optimistic-locked:
+   * the UPDATE only matches when the row's `version` equals `expectedVersion`,
+   * and bumps it in the same statement. Returns the row (with the bumped
+   * version), or null when the scope owns no such live project OR the version no
+   * longer matches (a concurrent save bumped it) — the caller disambiguates
+   * 404 vs 409. The roster write (`replaceInstances`) is a separate call the
+   * service sequences in the SAME `@Transactional()` method, so site + roster
+   * commit atomically.
    */
   async updateSite(
     scope: RequestScope,
     projectId: string,
     site: unknown,
+    expectedVersion: number,
   ): Promise<ProjectRow | null> {
     const [row] = await this.txHost.tx
       .update(project)
-      .set({ site })
-      .where(and(this.scoped(scope), eq(project.id, projectId)))
+      .set({ site, version: sql`${project.version} + 1` })
+      .where(
+        and(this.scoped(scope), eq(project.id, projectId), eq(project.version, expectedVersion)),
+      )
       .returning();
     return row ?? null;
   }

@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { type ProjectRow } from "@repo/db/schema/projects";
@@ -25,6 +25,7 @@ function projectRow(overrides: Partial<ProjectRow> = {}): ProjectRow {
     description: null,
     status: "active",
     site: null,
+    version: 1,
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
@@ -228,7 +229,7 @@ describe("ProjectsService.getSite", () => {
 
     const result = await service.getSite(SCOPE, projectRow().id);
 
-    expect(result).toEqual({ site: null, instances: [] });
+    expect(result).toEqual({ site: null, instances: [], version: 1 });
   });
 
   it("404s for a project the scope doesn't own (no roster read)", async () => {
@@ -246,13 +247,17 @@ describe("ProjectsService.saveSite", () => {
     { instanceId: "gate", releaseId: "sliding-gate@1", input: { width_mm: 4000 } },
   ];
 
-  it("writes the site, replaces the roster and audits the instance count", async () => {
+  it("writes the site (version-gated), replaces the roster and audits the instance count", async () => {
     const { service, repo, audit } = makeService();
-    repo.updateSite.mockResolvedValue(projectRow({ site }));
+    repo.updateSite.mockResolvedValue(projectRow({ site, version: 2 }));
 
-    const result = await service.saveSite(SCOPE, projectRow().id, { site, instances });
+    const result = await service.saveSite(SCOPE, projectRow().id, {
+      site,
+      instances,
+      expectedVersion: 1,
+    });
 
-    expect(repo.updateSite).toHaveBeenCalledWith(SCOPE, projectRow().id, site);
+    expect(repo.updateSite).toHaveBeenCalledWith(SCOPE, projectRow().id, site, 1);
     expect(repo.replaceInstances).toHaveBeenCalledWith(projectRow().id, [
       {
         instanceId: "gate",
@@ -267,16 +272,29 @@ describe("ProjectsService.saveSite", () => {
         diff: { before: null, after: { instanceCount: 1 } },
       }),
     );
-    expect(result).toEqual({ site, instances });
+    // Returns the bumped version so the client's next save isn't stale.
+    expect(result).toEqual({ site, instances, version: 2 });
   });
 
   it("404s (and never touches the roster) when the scope owns no such project", async () => {
     const { service, repo } = makeService();
     repo.updateSite.mockResolvedValue(null);
+    repo.findById.mockResolvedValue(null); // disambiguation: doesn't exist
 
-    await expect(service.saveSite(SCOPE, "foreign", { site, instances })).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.saveSite(SCOPE, "foreign", { site, instances, expectedVersion: 1 }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.replaceInstances).not.toHaveBeenCalled();
+  });
+
+  it("409s (and never touches the roster) when a concurrent save bumped the version", async () => {
+    const { service, repo } = makeService();
+    repo.updateSite.mockResolvedValue(null); // version no longer matches
+    repo.findById.mockResolvedValue(projectRow({ version: 2 })); // ...but it exists
+
+    await expect(
+      service.saveSite(SCOPE, projectRow().id, { site, instances, expectedVersion: 1 }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(repo.replaceInstances).not.toHaveBeenCalled();
   });
 });

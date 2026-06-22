@@ -1,9 +1,13 @@
 /**
- * Release-drafts GDPR handler (ADR 0040): export lists the user's authored
- * drafts (including soft-deleted — still their data); erasure HARD-deletes them
- * (erasure beats soft-delete). System-level DB access — privacy jobs run in the
- * worker with no request scope. Keyed by `ownerId` (the author), even though
- * the access scope is `organizationId`: GDPR erasure is about the person.
+ * Release-drafts GDPR handler (ADR 0040): export lists the drafts the user
+ * authored (Art. 20 portability — `ownerId` is the creator/audit ref).
+ *
+ * Erasure is a NO-OP by design — the same reasoning as the projects handler. A
+ * release draft is ORG-scoped (a vendor TEAM shares its org's drafts, ADR 0055);
+ * `ownerId` only records the author. Deleting by `ownerId` would destroy the
+ * org's in-progress authoring work when a member leaves. The person's PII is
+ * severed centrally by the privacy processor anonymizing the Better Auth `user`
+ * row after this handler runs, leaving `ownerId` pointing at a PII-free principal.
  */
 import { Inject, Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
@@ -25,7 +29,8 @@ export class ReleaseDraftsPrivacyHandler implements PrivacyHandler {
     return { releaseDrafts: rows };
   }
 
-  async eraseUser(userId: string): Promise<void> {
-    await this.db.delete(releaseDraft).where(eq(releaseDraft.ownerId, userId));
+  async eraseUser(): Promise<void> {
+    // Intentionally empty — org data is retained; the user-row anonymization in
+    // the privacy processor removes the PII. Idempotent (jobs retry).
   }
 }

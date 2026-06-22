@@ -297,36 +297,55 @@ describe("projects resource (HTTP, real stack)", () => {
         payload: payload as Record<string, unknown>,
       });
 
-    it("starts empty: { site: null, instances: [] }", async () => {
+    it("starts empty: { site: null, instances: [], version: 1 }", async () => {
       const response = await getSite(user.cookie);
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ site: null, instances: [] });
+      expect(response.json()).toEqual({ site: null, instances: [], version: 1 });
     });
 
-    it("PUT then GET round-trips the site graph and roster byte-for-byte", async () => {
-      const saved = await putSite(user.cookie, { site, instances });
+    it("PUT then GET round-trips the site graph and roster byte-for-byte (version bumps)", async () => {
+      const before = (await getSite(user.cookie)).json() as { version: number };
+      const saved = await putSite(user.cookie, {
+        site,
+        instances,
+        expectedVersion: before.version,
+      });
       expect(saved.statusCode).toBe(200);
-      expect(saved.json()).toEqual({ site, instances });
+      expect(saved.json()).toEqual({ site, instances, version: before.version + 1 });
 
       const fetched = await getSite(user.cookie);
-      expect(fetched.json()).toEqual({ site, instances });
+      expect(fetched.json()).toEqual({ site, instances, version: before.version + 1 });
     });
 
     it("a second PUT fully replaces the roster (no orphan rows accumulate)", async () => {
+      const before = (await getSite(user.cookie)).json() as { version: number };
       const replacement = {
         site,
         instances: [{ instanceId: "fence", releaseId: "fence-run@1", input: { length_mm: 6000 } }],
       };
-      await putSite(user.cookie, replacement);
+      await putSite(user.cookie, { ...replacement, expectedVersion: before.version });
 
       const fetched = await getSite(user.cookie);
       expect((fetched.json() as { instances: unknown[] }).instances).toEqual(replacement.instances);
     });
 
+    it("rejects a stale expectedVersion with 409 — concurrent saves don't clobber (ADR 0054)", async () => {
+      const { version } = (await getSite(user.cookie)).json() as { version: number };
+      // First save with the loaded version wins and bumps it.
+      const ok = await putSite(user.cookie, { site, instances, expectedVersion: version });
+      expect(ok.statusCode).toBe(200);
+      expect((ok.json() as { version: number }).version).toBe(version + 1);
+      // A second save still holding the now-stale version is refused, not applied.
+      const stale = await putSite(user.cookie, { site, instances, expectedVersion: version });
+      expect(stale.statusCode).toBe(409);
+    });
+
     it("404s for a non-owner on both GET and PUT (no oracle)", async () => {
       const intruder = await signUpUser(app, "projects-site-intruder");
       expect((await getSite(intruder.cookie)).statusCode).toBe(404);
-      expect((await putSite(intruder.cookie, { site, instances })).statusCode).toBe(404);
+      expect(
+        (await putSite(intruder.cookie, { site, instances, expectedVersion: 1 })).statusCode,
+      ).toBe(404);
     });
 
     it("the roster is cascade-deleted with the project (soft delete leaves no read path)", async () => {

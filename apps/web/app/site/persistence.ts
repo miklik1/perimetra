@@ -14,7 +14,7 @@
  */
 import type { ConfigInput } from "@repo/engine";
 import type { Site } from "@repo/model";
-import type { ProjectSite, SaveProjectSiteInput } from "@repo/validators";
+import type { ProjectSite, ProjectSiteDocument } from "@repo/validators";
 
 import type { ConfigurableProduct } from "../configurator/products";
 import type { PlacedInstance } from "./derive";
@@ -58,15 +58,17 @@ export function fromProjectSite(
 }
 
 /**
- * Canvas state → save payload: the Site graph as-is plus the roster pinned by
- * release id (resolved from each instance's product index against the api-served
- * roster). Matches `quoteInstanceInputSchema`, so a saved project is issue-ready.
+ * Canvas state → save document (site + roster), pinned by release id (resolved
+ * from each instance's product index against the api-served roster). Matches
+ * `quoteInstanceInputSchema`, so a saved project is issue-ready. The optimistic-
+ * lock `expectedVersion` is added at the save call site (not here) so this stays
+ * the content-only shape the canvas dirty-tracks.
  */
 export function toSavePayload(
   site: Site,
   instances: PlacedInstance[],
   products: ConfigurableProduct[],
-): SaveProjectSiteInput {
+): ProjectSiteDocument {
   return {
     site,
     instances: instances.map((p) => ({

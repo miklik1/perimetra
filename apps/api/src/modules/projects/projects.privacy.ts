@@ -1,8 +1,17 @@
 /**
- * Projects' GDPR handler (ADR 0040): export lists the user's projects
- * (including soft-deleted — they're still personal data); erasure
- * HARD-deletes them (erasure beats soft-delete). System-level DB access —
- * privacy jobs run in the worker with no request scope.
+ * Projects' GDPR handler (ADR 0040): export lists the projects the user created
+ * (Art. 20 portability — `ownerId` is the creator/audit ref, ADR 0055).
+ *
+ * Erasure is a NO-OP by design. A project is ORG-scoped data (the access scope
+ * is `organizationId`; `ownerId` only records who created it), so a departing
+ * member's projects belong to the org and its co-members, NOT to the person —
+ * deleting by `ownerId` would destroy live org data (the pre-ADR-0055 owner-
+ * scoped assumption). The person's PII is severed centrally: the privacy
+ * processor anonymizes the Better Auth `user` row (name/email → erased
+ * sentinel) AFTER this handler runs, so the retained `ownerId` then points at a
+ * PII-free principal. This is the same stance the immutable I3 quote/price_table
+ * stores take (ON DELETE RESTRICT + user-row anonymize, ADR 0055) — org records
+ * survive erasure while their author goes PII-free.
  */
 import { Inject, Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
@@ -24,7 +33,8 @@ export class ProjectsPrivacyHandler implements PrivacyHandler {
     return { projects: rows };
   }
 
-  async eraseUser(userId: string): Promise<void> {
-    await this.db.delete(project).where(eq(project.ownerId, userId));
+  async eraseUser(): Promise<void> {
+    // Intentionally empty — org data is retained; the user-row anonymization in
+    // the privacy processor removes the PII. Idempotent (jobs retry).
   }
 }

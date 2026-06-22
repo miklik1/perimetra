@@ -14,7 +14,7 @@
  *   index keeps the hot list query (live rows per org) tight.
  */
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { id, softDelete, timestamps } from "../../columns.js";
 import { organization, user } from "../auth/index.js";
@@ -48,6 +48,16 @@ export const project = pgTable(
      * The per-instance roster lives in `project_instance`, keyed by instanceId.
      */
     site: jsonb("site"),
+    /**
+     * Optimistic-lock token for the full-document site save (ADR 0054). The
+     * canvas overwrites `site` + the roster wholesale, so two co-members editing
+     * the same project would silently last-write-wins-clobber each other; the
+     * `PUT /:id/site` requires the client's loaded `version` and the conditional
+     * UPDATE bumps it, so a stale write 409s instead of clobbering. Only the
+     * site save bumps it (name/status edits touch disjoint fields, never the
+     * blob), so it is the site document's concurrency token, not a row-version.
+     */
+    version: integer("version").notNull().default(1),
     ...timestamps(),
     ...softDelete(),
   },

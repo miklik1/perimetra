@@ -48,6 +48,7 @@ export default async function SitePage({ params }: { params: Promise<{ projectId
         projectId={projectId}
         initialSite={emptySite(projectId)}
         initialInstances={[]}
+        initialVersion={1}
         bundle={bundle}
       />
     );
@@ -59,6 +60,7 @@ export default async function SitePage({ params }: { params: Promise<{ projectId
       projectId={projectId}
       initialSite={site}
       initialInstances={instances}
+      initialVersion={data.version}
       bundle={bundle}
     />
   );

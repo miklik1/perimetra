@@ -4,9 +4,11 @@
  * runs next to the REAL api app, both against the shared containers.
  *
  * Flow under test: authenticated `POST /v1/privacy/erase` (202) → privacy
- * queue → PrivacyProcessor → projects HARD-deleted (erasure beats
- * soft-delete), user row anonymized (not deleted — FKs stay valid),
- * sessions + accounts deleted, audit row `privacy.erase` written.
+ * queue → PrivacyProcessor → org-scoped projects RETAINED (org data, not the
+ * person's — the personal link is severed by anonymizing the user row, matching
+ * the immutable I3 quote/price_table stance, ADR 0055), user row anonymized
+ * (not deleted — FKs stay valid), sessions + accounts deleted, audit row
+ * `privacy.erase` written.
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test, type TestingModule } from "@nestjs/testing";
@@ -41,11 +43,12 @@ describe("privacy erasure (real worker + queue)", () => {
     await app.close();
   });
 
-  it("erases the user: projects hard-deleted, user anonymized, audit row written", async () => {
+  it("erases the user: org projects retained, user anonymized, audit row written", async () => {
     const user: TestUser = await signUpUser(app, "privacy-erase");
 
-    // Two projects; one soft-deleted — soft-deleted PII is still PII
-    // (spec §6), so erasure must hard-delete BOTH.
+    // Two projects; one soft-deleted. Both are ORG-scoped data (ADR 0055) —
+    // erasure must NOT delete them; the user-row anonymization severs the
+    // personal link, so the org keeps its records (same as the I3 stores).
     const kept = await inject(app, {
       method: "POST",
       url: "/v1/projects",
@@ -103,9 +106,12 @@ describe("privacy erasure (real worker + queue)", () => {
     expect(await db.select().from(session).where(eq(session.userId, user.id))).toHaveLength(0);
     expect(await db.select().from(account).where(eq(account.userId, user.id))).toHaveLength(0);
 
-    // Projects HARD-deleted — including the soft-deleted one (no deletedAt
-    // filter here on purpose: the rows must not exist at all).
-    expect(await db.select().from(project).where(eq(project.ownerId, user.id))).toHaveLength(0);
+    // Org projects RETAINED — the delete-by-ownerId data-loss bug is fixed.
+    // Both rows survive (the kept one + the soft-deleted one); `ownerId` is
+    // unchanged but now points at the anonymized user row, so the personal data
+    // is gone while the org keeps its records (the I3 quote/price_table stance).
+    const survivors = await db.select().from(project).where(eq(project.ownerId, user.id));
+    expect(survivors).toHaveLength(2);
 
     // Erasure is itself an Art. 30 processing activity — audit row, system
     // actor (the worker has no acting user).

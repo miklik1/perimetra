@@ -28,16 +28,36 @@ export const projectInstanceSchema = z.object({
 });
 export type ProjectInstanceInput = z.infer<typeof projectInstanceSchema>;
 
-/** Response — `site` is null for a project with no designed site yet. */
-export const projectSiteSchema = z.object({
+/**
+ * The site document itself — the Site graph + roster. Shared by the request and
+ * response shapes below, which only differ by the optimistic-lock token they
+ * carry (`version` out, `expectedVersion` in). Kept separate from the token so
+ * the canvas can dirty-track the content alone (the version must NOT make an
+ * unchanged document look dirty after a save bumps it).
+ */
+export const projectSiteDocumentSchema = z.object({
   site: z.unknown(),
   instances: z.array(projectInstanceSchema),
 });
+export type ProjectSiteDocument = z.infer<typeof projectSiteDocumentSchema>;
+
+/**
+ * Response — the document plus the current optimistic-lock `version` (ADR 0054).
+ * `site` is null for a project with no designed site yet; `version` is 1 for a
+ * never-saved project. The client echoes this back as `expectedVersion` on save.
+ */
+export const projectSiteSchema = projectSiteDocumentSchema.extend({
+  version: z.number().int().nonnegative(),
+});
 export type ProjectSite = z.infer<typeof projectSiteSchema>;
 
-/** Request — full-document replace (the canvas holds the whole site in memory). */
-export const saveProjectSiteSchema = z.object({
-  site: z.unknown(),
-  instances: z.array(projectInstanceSchema),
+/**
+ * Request — full-document replace (the canvas holds the whole site in memory)
+ * guarded by `expectedVersion`: the `version` the client last loaded. The
+ * conditional UPDATE 409s if another session has since bumped it, so a stale
+ * canvas can't silently clobber a co-member's save.
+ */
+export const saveProjectSiteSchema = projectSiteDocumentSchema.extend({
+  expectedVersion: z.number().int().nonnegative(),
 });
 export type SaveProjectSiteInput = z.infer<typeof saveProjectSiteSchema>;

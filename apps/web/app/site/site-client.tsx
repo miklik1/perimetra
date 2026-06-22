@@ -52,11 +52,14 @@ export function SiteClient({
   projectId,
   initialSite,
   initialInstances,
+  initialVersion,
   bundle,
 }: {
   projectId: string;
   initialSite: Site;
   initialInstances: PlacedInstance[];
+  /** The site's optimistic-lock version as loaded (ADR 0054) — echoed on save. */
+  initialVersion: number;
   bundle: CatalogBundle | null;
 }) {
   const router = useRouter();
@@ -89,6 +92,7 @@ export function SiteClient({
           projectId={projectId}
           initialSite={initialSite}
           initialInstances={initialInstances}
+          initialVersion={initialVersion}
           ctx={{ products: bundle.products, catalogs: bundle.catalogs, prices: bundle.prices }}
         />
       )}
@@ -102,11 +106,13 @@ function SiteCanvas({
   projectId,
   initialSite,
   initialInstances,
+  initialVersion,
   ctx,
 }: {
   projectId: string;
   initialSite: Site;
   initialInstances: PlacedInstance[];
+  initialVersion: number;
   ctx: SiteDeriveContext;
 }) {
   const t = useTranslations("site");
@@ -119,6 +125,9 @@ function SiteCanvas({
     { instanceId: string; portId: string } | undefined
   >();
   const [stepByInstance, setStepByInstance] = useState<Record<string, number>>({});
+  // Optimistic-lock token (ADR 0054): sent as `expectedVersion` on save, advanced
+  // to the server's returned version on success so the next save isn't stale.
+  const [version, setVersion] = useState(initialVersion);
   const idCounter = useRef(0);
 
   // Dirty tracking against the last-persisted document: serialize the save
@@ -142,10 +151,11 @@ function SiteCanvas({
   const save = () => {
     const payload = currentPayload;
     saveMutation.mutate(
-      { projectId, input: payload },
+      { projectId, input: { ...payload, expectedVersion: version } },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setSavedSnapshot(JSON.stringify(payload));
+          setVersion(result.version);
           toast.success(t("saved"));
         },
       },

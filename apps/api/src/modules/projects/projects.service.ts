@@ -7,7 +7,7 @@
  * Events carry IDs only (`{ projectId }`) — handlers re-fetch (spec §7.2).
  */
 import { Transactional } from "@nestjs-cls/transactional";
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { type ProjectInstanceRow, type ProjectRow } from "@repo/db/schema/projects";
 import {
@@ -191,16 +191,23 @@ export class ProjectsService {
     const row = await this.projects.findById(scope, projectId);
     if (!row) throw new NotFoundException("Project not found");
     const instances = await this.projects.loadInstances(projectId);
-    return { site: row.site ?? null, instances: instances.map(toProjectInstance) };
+    return {
+      site: row.site ?? null,
+      instances: instances.map(toProjectInstance),
+      version: row.version,
+    };
   }
 
   /**
    * Full-document replace of a project's site + roster (step 6.3c) — the canvas
-   * holds the whole site in memory and saves it wholesale. `updateSite` is the
-   * ownership gate (null → 404); the roster replace runs in the SAME
-   * transaction, so site and roster never diverge. Audited with a light diff
-   * (instance count) — the Site blob itself is too large to diff usefully, and
-   * the immutable quote snapshot is the real reproducibility record (I3).
+   * holds the whole site in memory and saves it wholesale. Optimistic-locked on
+   * `expectedVersion`: a null from `updateSite` means either the scope owns no
+   * such project (404) or another session bumped the version since the client
+   * loaded it (409) — `findById` disambiguates, so a stale canvas can't clobber
+   * a co-member's save. The roster replace runs in the SAME transaction, so site
+   * and roster never diverge. Audited with a light diff (instance count) — the
+   * Site blob is too large to diff usefully, and the immutable quote snapshot is
+   * the real reproducibility record (I3).
    */
   @Transactional()
   async saveSite(
@@ -208,8 +215,18 @@ export class ProjectsService {
     projectId: string,
     input: SaveProjectSiteInput,
   ): Promise<ProjectSite> {
-    const row = await this.projects.updateSite(scope, projectId, input.site);
-    if (!row) throw new NotFoundException("Project not found");
+    const row = await this.projects.updateSite(scope, projectId, input.site, input.expectedVersion);
+    if (!row) {
+      // Disambiguate: the project exists for this scope → a concurrent save won
+      // the version (409); it doesn't → 404 (same no-existence-oracle shape).
+      const exists = await this.projects.findById(scope, projectId);
+      if (exists) {
+        throw new ConflictException(
+          "This project's site was changed in another session — reload and try again.",
+        );
+      }
+      throw new NotFoundException("Project not found");
+    }
 
     await this.projects.replaceInstances(
       projectId,
@@ -229,6 +246,6 @@ export class ProjectsService {
       diff: { before: null, after: { instanceCount: input.instances.length } },
     });
 
-    return { site: input.site ?? null, instances: input.instances };
+    return { site: input.site ?? null, instances: input.instances, version: row.version };
   }
 }
