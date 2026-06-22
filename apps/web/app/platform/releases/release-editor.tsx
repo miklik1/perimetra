@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError, invalidateKeys, isHttpError } from "@repo/api";
-import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
+import { useApiClient, useMutation, useQuery, useQueryClient } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
+import { type ProductModelRelease } from "@repo/model";
 import { Button } from "@repo/ui";
 import { DefectList, type DefectListItem } from "@repo/ui/components/defect-list";
 import { NavTree, type NavTreeNode } from "@repo/ui/components/nav-tree";
@@ -16,6 +17,7 @@ import { createAdminQueries } from "../../../lib/admin-queries";
 import { createPlatformQueries, platformKeys } from "../../../lib/platform-queries";
 import { toast } from "../../../lib/toast";
 import { usePlatformAdmin } from "../../../lib/use-role";
+import { diffRelease, type ReleaseDiff } from "./lib/diff";
 import { blankDraft, buildReleaseFromDraft } from "./lib/draft";
 import { releaseDraftSchema, type ReleaseDraftInput } from "./lib/section-schemas";
 import { useDraftAutosave, type SaveStatus } from "./lib/use-draft-autosave";
@@ -103,6 +105,23 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
     onCreated: (id) => window.history.replaceState(null, "", `/platform/releases/drafts/${id}`),
   });
   const deleteDraft = useMutation(platformQueries.deleteDraft());
+
+  // Clone diff (Phase 3D): for a cloned draft (baseReleaseId = the source's
+  // natural key), lazy-load the source release and show what changed vs it,
+  // before publishing. Recomputes off the built release the validator already
+  // produced — no second build/subscription.
+  const baseReleaseId = initial?.baseReleaseId ?? null;
+  const { data: baseRelease } = useQuery({
+    ...platformQueries.releaseByReleaseId(baseReleaseId ?? ""),
+    enabled: baseReleaseId !== null,
+  });
+  const diff = useMemo(
+    () =>
+      baseRelease && validation.release
+        ? diffRelease(baseRelease.body as ProductModelRelease, validation.release)
+        : null,
+    [baseRelease, validation.release],
+  );
 
   // Pass the mutationOptions directly (not spread) so TanStack keeps the
   // variables/data generics; success handling rides the per-call options.
@@ -210,6 +229,9 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
         </section>
 
         <aside className="border-border overflow-auto border-l p-3">
+          {diff && baseReleaseId ? (
+            <DiffPanel diff={diff} baseReleaseId={baseReleaseId} onNavigate={setSection} />
+          ) : null}
           <h2 className="mb-2 text-sm font-semibold">{t("defects")}</h2>
           <DefectList
             defects={dockDefects}
@@ -219,6 +241,75 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
         </aside>
       </div>
     </main>
+  );
+}
+
+/** Clone diff (Phase 3D) — what changed vs the source release; clicking a key
+ *  jumps to its section. Shown only for a cloned draft (carries baseReleaseId). */
+function DiffPanel({
+  diff,
+  baseReleaseId,
+  onNavigate,
+}: {
+  diff: ReleaseDiff;
+  baseReleaseId: string;
+  onNavigate: (section: SectionId) => void;
+}) {
+  const t = useTranslations("releaseEditor");
+  return (
+    <section className="border-border mb-3 rounded-md border p-2">
+      <h2 className="mb-1 text-sm font-semibold">{t("diffTitle", { releaseId: baseReleaseId })}</h2>
+      {diff.versionChanged ? (
+        <p className="text-muted-foreground text-xs">
+          {t("diffVersion", { from: diff.baseVersion, to: diff.currentVersion })}
+        </p>
+      ) : null}
+      {diff.hasChanges ? (
+        <>
+          {diff.sections.map((s) => (
+            <div key={s.section} className="mt-1">
+              <p className="text-xs font-medium">{t(`section_${s.section}`)}</p>
+              <ul className="text-muted-foreground flex flex-col gap-0.5 text-xs">
+                {s.added.map((k) => (
+                  <li key={`a-${k}`}>
+                    <button
+                      type="button"
+                      className="hover:underline"
+                      onClick={() => onNavigate(s.section)}
+                    >
+                      + {k}
+                    </button>
+                  </li>
+                ))}
+                {s.changed.map((k) => (
+                  <li key={`c-${k}`}>
+                    <button
+                      type="button"
+                      className="hover:underline"
+                      onClick={() => onNavigate(s.section)}
+                    >
+                      ~ {k}
+                    </button>
+                  </li>
+                ))}
+                {s.removed.map((k) => (
+                  <li key={`r-${k}`} className="line-through">
+                    − {k}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {diff.islandsChanged.length > 0 ? (
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t("diffIslands", { sections: diff.islandsChanged.join(", ") })}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("diffNone")}</p>
+      )}
+    </section>
   );
 }
 

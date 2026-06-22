@@ -440,6 +440,10 @@ const cs = {
     saved: "Uloženo",
     saveFailed: "Uložení selhalo",
     unsaved: "Neuložené změny",
+    diffTitle: "Změny vs {releaseId}",
+    diffNone: "Zatím žádné změny.",
+    diffVersion: "Verze {from} → {to}",
+    diffIslands: "Také změněno: {sections}",
   },
   emails: {
     verification: {

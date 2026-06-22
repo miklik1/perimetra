@@ -36,6 +36,8 @@ export const platformKeys = {
   all: ["platform"] as const,
   releasesList: () => [...platformKeys.all, "releases", "list"] as const,
   release: (id: string) => [...platformKeys.all, "releases", "detail", id] as const,
+  releaseByReleaseId: (releaseId: string) =>
+    [...platformKeys.all, "releases", "by-release-id", releaseId] as const,
   catalogVersionsList: () => [...platformKeys.all, "catalog-versions", "list"] as const,
   catalogVersion: (id: string) => [...platformKeys.all, "catalog-versions", "detail", id] as const,
   organizationsList: () => [...platformKeys.all, "organizations", "list"] as const,
@@ -72,6 +74,16 @@ export function createPlatformQueries(client: ApiClient) {
       defineQuery<ReleaseDetail>(client, {
         queryKey: platformKeys.release(id),
         path: `/v1/platform/releases/${id}`,
+        schema: (data) => releaseSchema.parse(data),
+      }),
+
+    /** Full detail of a release by its NATURAL key ("modelId@version") — the
+     *  source body behind the clone diff (ADR 0068 Phase 3D). Status-agnostic
+     *  (I3), global. Lazy: enabled only when a draft carries a `baseReleaseId`. */
+    releaseByReleaseId: (releaseId: string) =>
+      defineQuery<ReleaseDetail>(client, {
+        queryKey: platformKeys.releaseByReleaseId(releaseId),
+        path: `/v1/platform/releases/by-release-id/${encodeURIComponent(releaseId)}`,
         schema: (data) => releaseSchema.parse(data),
       }),
 

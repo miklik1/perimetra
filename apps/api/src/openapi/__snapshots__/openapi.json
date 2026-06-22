@@ -1253,6 +1253,29 @@
         ]
       }
     },
+    "/v1/platform/releases/by-release-id/{releaseId}": {
+      "get": {
+        "operationId": "PlatformController_getReleaseByReleaseId_v1",
+        "parameters": [
+          {
+            "name": "releaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
     "/v1/platform/catalog-versions": {
       "get": {
         "operationId": "PlatformController_listCatalogVersions_v1",

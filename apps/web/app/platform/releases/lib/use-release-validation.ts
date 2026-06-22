@@ -7,6 +7,7 @@ import {
   validateRelease,
   type Catalog,
   type ExprScope,
+  type ProductModelRelease,
   type ReleaseDefect,
 } from "@repo/model";
 
@@ -26,6 +27,8 @@ export interface ReleaseValidation {
   defects: (ReleaseDefect | IslandDefect)[];
   /** Blocking-defect count (Publish is disabled while > 0). */
   errorCount: number;
+  /** The built release (for the clone diff, Phase 3D); null on a parse failure. */
+  release: ProductModelRelease | null;
 }
 
 const EMPTY: ReleaseValidation = {
@@ -33,6 +36,7 @@ const EMPTY: ReleaseValidation = {
   defectsByWhere: new Map(),
   defects: [],
   errorCount: 0,
+  release: null,
 };
 
 function compute(values: ReleaseDraftInput, catalog: Catalog | null): ReleaseValidation {
@@ -65,7 +69,7 @@ function compute(values: ReleaseDraftInput, catalog: Catalog | null): ReleaseVal
   }
 
   const all = [...defects, ...islandDefects];
-  return { scopes, defectsByWhere, defects: all, errorCount: all.length };
+  return { scopes, defectsByWhere, defects: all, errorCount: all.length, release };
 }
 
 /**

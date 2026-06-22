@@ -437,6 +437,10 @@ const en: Messages = {
     saved: "Saved",
     saveFailed: "Save failed",
     unsaved: "Unsaved changes",
+    diffTitle: "Changes vs {releaseId}",
+    diffNone: "No changes yet.",
+    diffVersion: "Version {from} → {to}",
+    diffIslands: "Also changed: {sections}",
   },
   emails: {
     verification: {

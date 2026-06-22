@@ -88,6 +88,19 @@ export class PlatformController {
     return this.releases.getGlobal(id);
   }
 
+  /** Full detail of ANY release by its NATURAL key ("modelId@version") — GLOBAL,
+   *  status-agnostic (I3), no assignment gate. Backs the editor's clone diff
+   *  (ADR 0068 Phase 3D): a draft carries its source `baseReleaseId`, and the
+   *  diff needs the source body. Literal `by-release-id` segment, so it never
+   *  collides with the surrogate-uuid `:id` route. 404 when the key is unknown. */
+  @Get("releases/by-release-id/:releaseId")
+  @ZodSerializerDto(PlatformReleaseDto)
+  async getReleaseByReleaseId(@Param("releaseId") releaseId: string): Promise<ReleaseDetail> {
+    const detail = await this.releases.loadByReleaseId(releaseId);
+    if (!detail) throw new NotFoundException("Release not found");
+    return detail;
+  }
+
   /** Every catalog version (summaries) — the editor's catalog-version picker, so
    *  the operator selects a PUBLISHED version instead of typing a raw number
    *  (ADR 0068 Phase 2). Platform tier (an org-less operator would 403 on the
