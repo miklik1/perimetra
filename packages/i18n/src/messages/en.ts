@@ -317,6 +317,11 @@ const en: Messages = {
     draftDeleted: "Draft deleted.",
     draftDeleteError: "Could not delete the draft.",
     clonedFrom: "from {releaseId}",
+    clone: "Clone",
+    cloning: "Cloning…",
+    cloneFor: "Clone {releaseId}",
+    cloningFor: "Cloning {releaseId}…",
+    cloneError: "Could not clone the release.",
   },
   releaseEditor: {
     title: "Release editor",

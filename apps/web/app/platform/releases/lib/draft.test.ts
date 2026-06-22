@@ -7,9 +7,15 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { expr } from "@repo/model";
+import { expr, type ProductModelRelease } from "@repo/model";
 
-import { blankDraft, blankGeometry, blankPart, buildReleaseFromDraft } from "./draft";
+import {
+  blankDraft,
+  blankGeometry,
+  blankPart,
+  buildReleaseFromDraft,
+  draftFromRelease,
+} from "./draft";
 import { releaseDraftSchema } from "./section-schemas";
 
 function buildParts(parts: ReturnType<typeof blankPart>[]) {
@@ -103,5 +109,101 @@ describe("buildReleaseFromDraft — parts", () => {
     expect(geo.rotation).toBeUndefined();
     expect(geo.cuts).toBeUndefined();
     expect(geo.repeat).toBeUndefined();
+  });
+});
+
+// A release exercising every branch of the inverse: literal/expr/no default,
+// each domain kind, a hard deviation with bounds, a part with all BOM extras +
+// two geometry pieces (one full rotation/cuts/repeat, one minimal), and a JSON
+// island. `buildReleaseFromDraft(parse(draftFromRelease(r)))` must reproduce it.
+const SAMPLE: ProductModelRelease = {
+  id: "sliding-gate@1",
+  modelId: "sliding-gate",
+  version: 1,
+  status: "draft",
+  parameters: [
+    {
+      key: "width_mm",
+      type: "length_mm",
+      adjustability: "user",
+      label: "Width",
+      default: 4000,
+      domain: { kind: "range", min: 1000, max: 6000, step: 10 },
+    },
+    {
+      key: "material",
+      type: "select",
+      adjustability: "user",
+      defaultExpr: expr('"alu"'),
+      relevance: expr("width_mm > 2000"),
+      domain: { kind: "enum", values: ["alu", "steel"] },
+    },
+    {
+      key: "locked",
+      type: "bool",
+      adjustability: "vendor",
+      deviation: { mode: "hard", bounds: { min: expr("0"), max: expr("10") }, note: "limit" },
+    },
+  ],
+  constraints: [
+    {
+      key: "min_width",
+      kind: "expr",
+      expr: expr("width_mm >= 1000"),
+      severity: "error",
+      scope: "instance",
+    },
+  ],
+  derivation: {
+    derived: [{ key: "leaf_w", expr: expr("width_mm / 2") }],
+    parts: [
+      {
+        path: "frame",
+        name: "Frame",
+        resolve: {
+          role: "post.vertical",
+          section: expr('"jakl_30x30"'),
+          material: expr('"alu"'),
+        },
+        when: expr("width_mm > 0"),
+        bom: {
+          unit: "meter",
+          quantity: expr("2"),
+          category: "material",
+          lengthMm: expr("width_mm"),
+          pricePerUnit: expr("12"),
+          totalPrice: expr("24"),
+        },
+        geometry: [
+          {
+            key: "bar",
+            length: expr("width_mm"),
+            at: [expr("0"), expr("0"), expr("0")],
+            rotation: [expr("0"), expr("90"), expr("0")],
+            cuts: { left: expr("45"), right: expr("45") },
+            repeat: { count: expr("2"), var: "i" },
+          },
+          { key: "post", length: expr("2000"), at: [expr("0"), expr("0"), expr("0")] },
+        ],
+      },
+    ],
+  },
+  terrain: { elevationParam: "width_mm" },
+};
+
+describe("draftFromRelease — clone-and-bump inverse", () => {
+  it("round-trips a release through the editor draft shape (same version)", () => {
+    const draft = releaseDraftSchema.parse(draftFromRelease(SAMPLE, SAMPLE.version, 2));
+    const { release, islandDefects } = buildReleaseFromDraft(draft);
+    expect(islandDefects).toEqual([]);
+    expect(release).toEqual(SAMPLE);
+  });
+
+  it("bumps the version (and the derived id) while keeping the model", () => {
+    const draft = releaseDraftSchema.parse(draftFromRelease(SAMPLE, SAMPLE.version + 1, 2));
+    expect(draft.modelId).toBe("sliding-gate");
+    expect(draft.version).toBe(2);
+    const { release } = buildReleaseFromDraft(draft);
+    expect(release.id).toBe("sliding-gate@2");
   });
 });

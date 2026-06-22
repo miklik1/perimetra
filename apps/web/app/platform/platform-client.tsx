@@ -14,6 +14,7 @@ import {
 } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
+import { type ProductModelRelease } from "@repo/model";
 import { Button } from "@repo/ui";
 
 import { createAdminQueries } from "../../lib/admin-queries";
@@ -21,6 +22,7 @@ import { createPlatformQueries, platformKeys } from "../../lib/platform-queries"
 import { toast } from "../../lib/toast";
 import { usePlatformAdmin } from "../../lib/use-role";
 import { CatalogForm } from "./catalog-form";
+import { draftFromRelease } from "./releases/lib/draft";
 
 /**
  * Platform/vendor console (ADR 0062) — the cross-tenant operator surface:
@@ -184,11 +186,47 @@ function ReleaseRow({
 }) {
   const t = useTranslations("platform");
   const client = useApiClient();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const platformQueries = createPlatformQueries(client);
   const [open, setOpen] = useState(false);
   const { data: detail, isLoading } = useQuery({
-    ...createPlatformQueries(client).release(r.id),
+    ...platformQueries.release(r.id),
     enabled: open,
   });
+
+  // Clone-and-bump (ADR 0068 Phase 3C): seed a NEW draft from this release's body
+  // at version+1 (the vendor edits, then publishes a new "modelId@version" through
+  // the existing immutable path). The detail (body) is fetched on demand.
+  const createDraft = useMutation(platformQueries.createDraft());
+  const onClone = () => {
+    void (async () => {
+      try {
+        const full = await queryClient.fetchQuery(platformQueries.release(r.id));
+        const version = full.version + 1;
+        const body = draftFromRelease(
+          full.body as ProductModelRelease,
+          version,
+          full.catalogVersion,
+        );
+        createDraft.mutate(
+          {
+            modelId: full.modelId,
+            version,
+            catalogVersion: full.catalogVersion,
+            baseReleaseId: full.releaseId,
+            body,
+          },
+          {
+            onSuccess: (draft) => router.push(`/platform/releases/drafts/${draft.id}`),
+            onError: () => toast.error(t("cloneError")),
+          },
+        );
+      } catch {
+        toast.error(t("cloneError"));
+      }
+    })();
+  };
 
   const broadcasting = broadcast.isPending && broadcast.variables?.releaseId === r.releaseId;
   const retiring = retire.isPending && retire.variables?.releaseId === r.releaseId;
@@ -211,6 +249,18 @@ function ReleaseRow({
             onClick={() => setOpen((o) => !o)}
           >
             {open ? t("hideBody") : t("viewBody")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={createDraft.isPending}
+            aria-label={t(createDraft.isPending ? "cloningFor" : "cloneFor", {
+              releaseId: r.releaseId,
+            })}
+            aria-busy={createDraft.isPending}
+            onClick={onClone}
+          >
+            {createDraft.isPending ? t("cloning") : t("clone")}
           </Button>
           {r.status === "published" && (
             <>

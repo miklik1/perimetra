@@ -208,6 +208,110 @@ export function buildReleaseFromDraft(draft: ReleaseDraft): BuiltRelease {
   return { release, islandDefects };
 }
 
+// --- Inverse: a published release → editor form state (Phase 3C clone-and-bump)
+//     The faithful inverse of `buildReleaseFromDraft` over the editor-modeled
+//     surface: every `ExprString` is a branded string, so recovering its source
+//     is just `String(e)`; the not-yet-structured sections round-trip as
+//     pretty-printed JSON islands. `buildReleaseFromDraft(parse(draftFromRelease
+//     (r))) ≈ r` (modulo the bumped version + draft status) — proven in tests.
+
+const exprStr = (e: ExprStr | string | undefined): string => (e == null ? "" : String(e));
+
+const islandJson = (v: unknown): string => (v === undefined ? "" : JSON.stringify(v, null, 2));
+
+function draftParam(p: ParameterDef): ParamDraft {
+  const domain = p.domain;
+  return {
+    key: p.key,
+    label: p.label ?? "",
+    type: p.type,
+    adjustability: p.adjustability,
+    valueMode: p.default !== undefined ? "literal" : p.defaultExpr !== undefined ? "expr" : "none",
+    defaultLiteral: p.default !== undefined ? String(p.default) : "",
+    defaultExpr: exprStr(p.defaultExpr),
+    relevance: exprStr(p.relevance),
+    domainKind: domain?.kind ?? "none",
+    domainMin: domain?.kind === "range" && domain.min !== undefined ? String(domain.min) : "",
+    domainMax: domain?.kind === "range" && domain.max !== undefined ? String(domain.max) : "",
+    domainStep: domain?.kind === "range" && domain.step !== undefined ? String(domain.step) : "",
+    domainValues: domain?.kind === "enum" ? domain.values.join(", ") : "",
+    domainPattern: domain?.kind === "pattern" ? domain.pattern : "",
+    deviationMode: p.deviation?.mode ?? "none",
+    deviationMin: exprStr(p.deviation?.bounds?.min),
+    deviationMax: exprStr(p.deviation?.bounds?.max),
+    deviationNote: p.deviation?.note ?? "",
+  };
+}
+
+function draftGeometry(g: GeometryRule): GeometryDraft {
+  return {
+    key: g.key,
+    length: exprStr(g.length),
+    atX: exprStr(g.at[0]),
+    atY: exprStr(g.at[1]),
+    atZ: exprStr(g.at[2]),
+    useRotation: g.rotation !== undefined,
+    rotX: g.rotation ? exprStr(g.rotation[0]) : "0",
+    rotY: g.rotation ? exprStr(g.rotation[1]) : "0",
+    rotZ: g.rotation ? exprStr(g.rotation[2]) : "0",
+    cutLeft: exprStr(g.cuts?.left),
+    cutRight: exprStr(g.cuts?.right),
+    useRepeat: g.repeat !== undefined,
+    repeatCount: g.repeat ? exprStr(g.repeat.count) : "",
+    repeatVar: g.repeat?.var ?? "",
+  };
+}
+
+function draftPart(p: PartRule): PartDraft {
+  return {
+    path: p.path,
+    name: p.name,
+    role: p.resolve.role,
+    section: exprStr(p.resolve.section),
+    material: exprStr(p.resolve.material),
+    when: exprStr(p.when),
+    bomUnit: p.bom.unit,
+    bomQuantity: exprStr(p.bom.quantity),
+    bomLengthMm: exprStr(p.bom.lengthMm),
+    bomPricePerUnit: exprStr(p.bom.pricePerUnit),
+    bomTotalPrice: exprStr(p.bom.totalPrice),
+    bomCategory: p.bom.category,
+    geometry: (p.geometry ?? []).map(draftGeometry),
+  };
+}
+
+/**
+ * Seed the editor from a published release for clone-and-bump (Phase 3C). The
+ * caller supplies the bumped `version` (e.g. source + 1) and the `catalogVersion`
+ * to validate against (carried from the source row); `modelId` stays, so publish
+ * freezes a NEW "modelId@version" through the existing immutable path.
+ */
+export function draftFromRelease(
+  release: ProductModelRelease,
+  version: number,
+  catalogVersion: number,
+): ReleaseDraftInput {
+  return {
+    modelId: release.modelId,
+    version,
+    catalogVersion,
+    parameters: release.parameters.map(draftParam),
+    constraints: release.constraints.map((c) => ({
+      key: c.key,
+      kind: c.kind,
+      expr: exprStr(c.expr),
+      severity: c.severity,
+      scope: c.scope,
+    })),
+    derived: release.derivation.derived.map((d) => ({ key: d.key, expr: exprStr(d.expr) })),
+    parts: release.derivation.parts.map(draftPart),
+    optionSetsJson: islandJson(release.optionSets),
+    portsJson: islandJson(release.ports),
+    terrainJson: islandJson(release.terrain),
+    uiJson: islandJson(release.ui),
+  };
+}
+
 /** A fresh, empty draft — the editor's starting state. */
 export function blankDraft(): ReleaseDraftInput {
   return {

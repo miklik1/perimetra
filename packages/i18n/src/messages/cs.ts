@@ -320,6 +320,11 @@ const cs = {
     draftDeleted: "Koncept smazán.",
     draftDeleteError: "Koncept se nepodařilo smazat.",
     clonedFrom: "z {releaseId}",
+    clone: "Klonovat",
+    cloning: "Klonování…",
+    cloneFor: "Klonovat {releaseId}",
+    cloningFor: "Klonování {releaseId}…",
+    cloneError: "Vydání se nepodařilo naklonovat.",
   },
   releaseEditor: {
     title: "Editor vydání",
