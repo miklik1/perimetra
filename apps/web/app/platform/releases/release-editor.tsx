@@ -8,7 +8,7 @@ import { useApiClient, useMutation, useQuery, useQueryClient } from "@repo/api/r
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
 import { type ProductModelRelease } from "@repo/model";
-import { Button } from "@repo/ui";
+import { Button, cn } from "@repo/ui";
 import { DefectList, type DefectListItem } from "@repo/ui/components/defect-list";
 import { NavTree, type NavTreeNode } from "@repo/ui/components/nav-tree";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
@@ -29,9 +29,13 @@ import { DerivedWorkbench } from "./sections/derived-workbench";
 import { IdentityWorkbench } from "./sections/identity-workbench";
 import { ParametersWorkbench } from "./sections/parameters-workbench";
 import { PartsWorkbench } from "./sections/parts-workbench";
+import { PreviewTab } from "./sections/preview-tab";
 
 const SECTIONS = ["identity", "parameters", "constraints", "derived", "parts", "advanced"] as const;
 type SectionId = (typeof SECTIONS)[number];
+
+/** The right dock has two tabs: the defect list and the live engine preview. */
+type DockTabId = "defects" | "preview";
 
 /** Which section owns a defect `where` (drives nav badges + click-to-navigate). */
 function sectionForWhere(where: string): SectionId {
@@ -94,6 +98,7 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
   const { catalog, versions } = usePlatformCatalog(catalogVersion);
   const validation = useReleaseValidation(form, catalog);
   const [section, setSection] = useState<SectionId>("identity");
+  const [dockTab, setDockTab] = useState<DockTabId>("defects");
   const modelId = form.watch("modelId");
 
   // Continuous autosave to the mutable draft store (Phase 3B). A fresh editor
@@ -228,19 +233,69 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
           {section === "advanced" ? <AdvancedWorkbench form={form} /> : null}
         </section>
 
-        <aside className="border-border overflow-auto border-l p-3">
+        <aside className="border-border flex flex-col overflow-auto border-l p-3">
           {diff && baseReleaseId ? (
             <DiffPanel diff={diff} baseReleaseId={baseReleaseId} onNavigate={setSection} />
           ) : null}
-          <h2 className="mb-2 text-sm font-semibold">{t("defects")}</h2>
-          <DefectList
-            defects={dockDefects}
-            emptyLabel={t("noDefects")}
-            onSelect={(where) => setSection(sectionForWhere(where))}
-          />
+          <div className="mb-2 flex gap-1" role="tablist">
+            <DockTabButton
+              id="defects"
+              active={dockTab}
+              onSelect={setDockTab}
+              label={t("tabDefects")}
+              count={validation.errorCount}
+            />
+            <DockTabButton
+              id="preview"
+              active={dockTab}
+              onSelect={setDockTab}
+              label={t("tabPreview")}
+            />
+          </div>
+          {dockTab === "defects" ? (
+            <DefectList
+              defects={dockDefects}
+              emptyLabel={t("noDefects")}
+              onSelect={(where) => setSection(sectionForWhere(where))}
+            />
+          ) : (
+            <PreviewTab form={form} release={validation.release} catalog={catalog} />
+          )}
         </aside>
       </div>
     </main>
+  );
+}
+
+/** A right-dock tab toggle (Defects | Preview). The defects tab carries a count. */
+function DockTabButton({
+  id,
+  active,
+  onSelect,
+  label,
+  count,
+}: {
+  id: DockTabId;
+  active: DockTabId;
+  onSelect: (id: DockTabId) => void;
+  label: string;
+  count?: number;
+}) {
+  const isActive = active === id;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={isActive}
+      onClick={() => onSelect(id)}
+      className={cn(
+        "rounded-md px-2 py-1 text-sm",
+        isActive ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+      {count ? ` (${count})` : ""}
+    </button>
   );
 }
 

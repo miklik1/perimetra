@@ -444,6 +444,17 @@ const cs = {
     diffNone: "Zatím žádné změny.",
     diffVersion: "Verze {from} → {to}",
     diffIslands: "Také změněno: {sections}",
+    tabDefects: "Nálezy",
+    tabPreview: "Náhled",
+    previewComputing: "Počítání náhledu…",
+    previewNoCatalog: "Vyberte v Identitě verzi katalogu pro živý náhled.",
+    previewNoRelease: "Doplňte vydání pro náhled.",
+    previewError: "Náhled selhal: {message}",
+    previewNoPrices:
+      "Žádný aktivní ceník — náhled nelze spočítat (chybějící cena je chyba I5, ne nula).",
+    previewInputs: "Ukázkový vstup",
+    previewCost: "Náklady",
+    previewMargin: "Marže",
   },
   emails: {
     verification: {

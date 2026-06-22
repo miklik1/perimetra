@@ -7,8 +7,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { blankConstraint, blankDraft, blankParam } from "./draft";
-import { runReleaseValidation } from "./release-engine";
+import { catalogV2, siteGateConfig, sitePrices, slidingGateV1 } from "@repo/fixtures";
+
+import { blankConstraint, blankDraft, blankParam, draftFromRelease } from "./draft";
+import { runReleasePreview, runReleaseValidation } from "./release-engine";
 import { type ReleaseDraftInput } from "./section-schemas";
 
 function draft(over: Partial<ReleaseDraftInput>): ReleaseDraftInput {
@@ -66,5 +68,45 @@ describe("runReleaseValidation", () => {
       errorCount: 0,
       release: null,
     });
+  });
+});
+
+describe("runReleasePreview", () => {
+  // The golden gate, round-tripped through the editor's draft form, must still
+  // derive to its delta-0 total — the preview path reproduces the published one.
+  const gateDraft = draftFromRelease(slidingGateV1, slidingGateV1.version, catalogV2.version);
+
+  it("derives the in-progress release on a sample input (golden reproduces)", () => {
+    const p = runReleasePreview(gateDraft, siteGateConfig, catalogV2, sitePrices, null);
+    expect(p.status).toBe("ok");
+    if (p.status !== "ok") return;
+    expect(p.result.isValid).toBe(true);
+    expect(p.result.money.total).toBe("81451.504");
+    expect(p.result.parts.length).toBeGreaterThan(0);
+    expect(p.scope).not.toBeNull();
+  });
+
+  it("is unavailable without a catalog (resolution needs one)", () => {
+    expect(runReleasePreview(gateDraft, siteGateConfig, null, sitePrices, null)).toEqual({
+      status: "no-catalog",
+    });
+  });
+
+  it("is unavailable without a price table (a missing price is an I5 error, not a zero)", () => {
+    expect(runReleasePreview(gateDraft, siteGateConfig, catalogV2, null, null)).toEqual({
+      status: "no-prices",
+    });
+  });
+
+  it("reports no-release when the form shape is invalid", () => {
+    const bad = { ...gateDraft, version: -1 };
+    expect(runReleasePreview(bad, siteGateConfig, catalogV2, sitePrices, null)).toEqual({
+      status: "no-release",
+    });
+  });
+
+  it("returns a structured-clone-safe snapshot (worker boundary)", () => {
+    const p = runReleasePreview(gateDraft, siteGateConfig, catalogV2, sitePrices, null);
+    expect(() => structuredClone(p)).not.toThrow();
   });
 });

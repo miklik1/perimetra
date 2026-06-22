@@ -441,6 +441,17 @@ const en: Messages = {
     diffNone: "No changes yet.",
     diffVersion: "Version {from} → {to}",
     diffIslands: "Also changed: {sections}",
+    tabDefects: "Defects",
+    tabPreview: "Preview",
+    previewComputing: "Computing preview…",
+    previewNoCatalog: "Pick a catalog version (Identity) for a live preview.",
+    previewNoRelease: "Fill in the release to preview it.",
+    previewError: "Preview failed: {message}",
+    previewNoPrices:
+      "No active price table — can't preview (a missing price is an I5 error, not a zero).",
+    previewInputs: "Sample input",
+    previewCost: "Cost",
+    previewMargin: "Margin",
   },
   emails: {
     verification: {

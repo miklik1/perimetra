@@ -4,13 +4,9 @@ import * as React from "react";
 
 import { type Catalog, type ExprScope } from "@repo/model";
 
-import {
-  runReleaseValidation,
-  type EngineRequest,
-  type EngineResponse,
-  type ReleaseValidation,
-} from "./release-engine";
+import { runReleaseValidation, type ReleaseValidation } from "./release-engine";
 import { type ReleaseDraftInput, type ReleaseEditorForm } from "./section-schemas";
+import { useEngineWorker } from "./use-engine-worker";
 
 export type { ReleaseValidation } from "./release-engine";
 
@@ -29,7 +25,7 @@ export function useReleaseValidation(
   form: ReleaseEditorForm,
   catalog: Catalog | null = null,
 ): ReleaseValidation {
-  // Latest catalog reachable inside the (form-keyed) watch without re-subscribing.
+  // Latest catalog reachable in the synchronous fallback without re-subscribing.
   const catalogRef = React.useRef(catalog);
   catalogRef.current = catalog;
 
@@ -37,48 +33,21 @@ export function useReleaseValidation(
     runReleaseValidation(form.getValues(), catalog),
   );
 
-  // The worker handle (null → synchronous fallback) and the last-write-wins
-  // token: only the reply whose id matches the latest request updates state.
-  const workerRef = React.useRef<Worker | null>(null);
+  // Last-write-wins: only the reply whose id matches the latest request applies.
   const tokenRef = React.useRef(0);
+  const { post } = useEngineWorker((message) => {
+    if (message.kind === "validate" && message.id === tokenRef.current) setResult(message.result);
+  });
 
-  React.useEffect(() => {
-    if (typeof Worker === "undefined") return;
-    let worker: Worker | null = null;
-    try {
-      worker = new Worker(new URL("./release-engine.worker.ts", import.meta.url), {
-        type: "module",
-      });
-    } catch {
-      // Bundler/runtime can't give us a module worker — stay on the sync path.
-      return;
-    }
-    worker.onmessage = (event: MessageEvent<EngineResponse>) => {
-      const message = event.data;
-      if (message.kind === "validate" && message.id === tokenRef.current) {
-        setResult(message.result);
-      }
-    };
-    workerRef.current = worker;
-    // Seed the cached catalog (ordered before any validate the effects below send).
-    worker.postMessage({ kind: "catalog", catalog: catalogRef.current } satisfies EngineRequest);
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-    };
-  }, []);
-
-  // Request a fresh snapshot — via the worker (tagged, debounced upstream) or,
-  // when there is none, synchronously on the main thread.
-  const request = React.useCallback((values: ReleaseDraftInput) => {
-    const worker = workerRef.current;
-    if (worker) {
+  const request = React.useCallback(
+    (values: ReleaseDraftInput) => {
       const id = (tokenRef.current += 1);
-      worker.postMessage({ kind: "validate", id, values } satisfies EngineRequest);
-    } else {
-      setResult(runReleaseValidation(values, catalogRef.current));
-    }
-  }, []);
+      if (!post({ kind: "validate", id, values })) {
+        setResult(runReleaseValidation(values, catalogRef.current));
+      }
+    },
+    [post],
+  );
 
   React.useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -92,19 +61,20 @@ export function useReleaseValidation(
     };
   }, [form, request]);
 
-  // Re-validate when the loaded catalog changes (the role/section/material checks
-  // only fire once it is present). Push the new catalog to the worker cache, then
-  // re-run. Skip the mount pass — the useState initializer already computed the
+  // Push the catalog to the worker cache, then re-validate when it changes (the
+  // role/section/material checks only fire once it is present). The catalog
+  // message is posted before the validate, so the worker validates against it.
+  // Skip the re-validate on mount — the useState initializer already computed the
   // first snapshot — so a fresh editor does not double-compute.
   const mounted = React.useRef(false);
   React.useEffect(() => {
+    post({ kind: "catalog", catalog });
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
-    workerRef.current?.postMessage({ kind: "catalog", catalog } satisfies EngineRequest);
     request(form.getValues());
-  }, [catalog, form, request]);
+  }, [catalog, form, post, request]);
 
   return result;
 }
