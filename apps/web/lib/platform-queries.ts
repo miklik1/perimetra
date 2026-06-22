@@ -8,15 +8,21 @@ import {
   catalogVersionsPageSchema,
   platformOrganizationsSchema,
   releaseAssignmentsSchema,
+  releaseDraftSchema,
+  releaseDraftsPageSchema,
   releaseSchema,
   releasesPageSchema,
   type BroadcastAssignResult,
   type CatalogVersionDetail,
   type CatalogVersionsPage,
+  type CreateReleaseDraftInput,
   type PlatformOrganizations,
   type ReleaseAssignments,
   type ReleaseDetail,
+  type ReleaseDraft,
+  type ReleaseDraftsPage,
   type ReleasesPage,
+  type UpdateReleaseDraftInput,
 } from "@repo/validators";
 
 /**
@@ -34,6 +40,8 @@ export const platformKeys = {
   catalogVersion: (id: string) => [...platformKeys.all, "catalog-versions", "detail", id] as const,
   organizationsList: () => [...platformKeys.all, "organizations", "list"] as const,
   assignments: (orgId: string) => [...platformKeys.all, "assignments", orgId] as const,
+  draftsList: () => [...platformKeys.all, "release-drafts", "list"] as const,
+  draft: (id: string) => [...platformKeys.all, "release-drafts", "detail", id] as const,
 } as const;
 
 export interface AssignVariables {
@@ -143,6 +151,62 @@ export function createPlatformQueries(client: ApiClient) {
         // Without this, defineMutation defaults the body to the variables object.
         body: () => undefined,
         schema: (data) => broadcastAssignResultSchema.parse(data),
+      }),
+
+    // --- Release drafts (ADR 0068 Phase 3) — the MUTABLE author workspace.
+    //     Vendor-only (PlatformGuard), org-scoped; `body` is the editor form
+    //     state, carried opaque. Publish stays the immutable POST /v1/releases.
+
+    /** The caller org's drafts (summaries, no heavy body) — the resume list. */
+    listDrafts: () =>
+      defineInfiniteQuery<ReleaseDraftsPage, string>(client, {
+        queryKey: platformKeys.draftsList(),
+        initialPageParam: "",
+        path: (cursor) =>
+          appendSearchParams("/v1/platform/release-drafts", { cursor: cursor || undefined }),
+        schema: (data) => releaseDraftsPageSchema.parse(data),
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+      }),
+
+    /** One draft's detail (summary + the opaque body) — seeds the editor on resume. */
+    draft: (id: string) =>
+      defineQuery<ReleaseDraft>(client, {
+        queryKey: platformKeys.draft(id),
+        path: `/v1/platform/release-drafts/${id}`,
+        schema: (data) => releaseDraftSchema.parse(data),
+      }),
+
+    /** Persist a fresh draft (first autosave / clone-and-bump seed). */
+    createDraft: () =>
+      defineMutation<ReleaseDraft, CreateReleaseDraftInput>(client, {
+        method: "POST",
+        path: "/v1/platform/release-drafts",
+        schema: (data) => releaseDraftSchema.parse(data),
+      }),
+
+    /** Autosave an existing draft (overwrite body + denorm). */
+    updateDraft: () =>
+      defineMutation<ReleaseDraft, { id: string } & UpdateReleaseDraftInput>(client, {
+        method: "PATCH",
+        path: ({ id }) => `/v1/platform/release-drafts/${id}`,
+        // `id` rides in the path; send only the patch fields as the body.
+        body: ({ modelId, version, catalogVersion, baseReleaseId, body }) => ({
+          modelId,
+          version,
+          catalogVersion,
+          baseReleaseId,
+          body,
+        }),
+        schema: (data) => releaseDraftSchema.parse(data),
+      }),
+
+    /** Discard a draft (manual delete, or cleanup after a successful publish). */
+    deleteDraft: () =>
+      defineMutation<void, { id: string }>(client, {
+        method: "DELETE",
+        path: ({ id }) => `/v1/platform/release-drafts/${id}`,
+        // 204, no body to send or parse.
+        body: () => undefined,
       }),
   };
 }

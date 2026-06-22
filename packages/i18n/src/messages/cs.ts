@@ -310,6 +310,16 @@ const cs = {
     hideBody: "Skrýt",
     viewBodyFor: "Zobrazit tělo {releaseId}",
     hideBodyFor: "Skrýt tělo {releaseId}",
+    drafts: "Koncepty",
+    draftsTitle: "Koncepty vydání",
+    noDrafts: "Zatím žádné koncepty.",
+    untitledDraft: "Nepojmenovaný koncept",
+    resumeDraft: "Pokračovat",
+    deleteDraft: "Smazat",
+    deleteDraftConfirm: "Smazat tento koncept? Tuto akci nelze vrátit zpět.",
+    draftDeleted: "Koncept smazán.",
+    draftDeleteError: "Koncept se nepodařilo smazat.",
+    clonedFrom: "z {releaseId}",
   },
   releaseEditor: {
     title: "Editor vydání",
@@ -421,6 +431,10 @@ const cs = {
     portsJson: "Porty (JSON)",
     terrainJson: "Vazba terénu (JSON)",
     uiJson: "Generované UI (JSON)",
+    saving: "Ukládání…",
+    saved: "Uloženo",
+    saveFailed: "Uložení selhalo",
+    unsaved: "Neuložené změny",
   },
   emails: {
     verification: {

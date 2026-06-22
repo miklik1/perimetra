@@ -61,9 +61,14 @@ function PlatformContent() {
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{t("releases")}</h2>
             <ReleasesList />
-            <Button asChild variant="outline" className="self-start">
-              <Link href="/platform/releases/new">{t("newRelease")}</Link>
-            </Button>
+            <div className="flex gap-2 self-start">
+              <Button asChild variant="outline">
+                <Link href="/platform/releases/new">{t("newRelease")}</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/platform/releases/drafts">{t("drafts")}</Link>
+              </Button>
+            </div>
           </section>
 
           <section className="flex flex-col gap-4">

@@ -13,11 +13,12 @@ import { NavTree, type NavTreeNode } from "@repo/ui/components/nav-tree";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 
 import { createAdminQueries } from "../../../lib/admin-queries";
-import { platformKeys } from "../../../lib/platform-queries";
+import { createPlatformQueries, platformKeys } from "../../../lib/platform-queries";
 import { toast } from "../../../lib/toast";
 import { usePlatformAdmin } from "../../../lib/use-role";
 import { blankDraft, buildReleaseFromDraft } from "./lib/draft";
-import { releaseDraftSchema } from "./lib/section-schemas";
+import { releaseDraftSchema, type ReleaseDraftInput } from "./lib/section-schemas";
+import { useDraftAutosave, type SaveStatus } from "./lib/use-draft-autosave";
 import { usePlatformCatalog } from "./lib/use-platform-catalog";
 import { useReleaseValidation } from "./lib/use-release-validation";
 import { AdvancedWorkbench } from "./sections/advanced-workbench";
@@ -39,19 +40,28 @@ function sectionForWhere(where: string): SectionId {
   return "advanced";
 }
 
-export function ReleaseEditorClient() {
+/** A draft loaded server-side to resume editing (Phase 3B/3C). */
+export interface LoadedDraft {
+  id: string;
+  /** The editor form state (web `ReleaseDraftInput`), persisted opaque. */
+  body: unknown;
+  /** Provenance: the published "modelId@version" this was cloned from, if any. */
+  baseReleaseId: string | null;
+}
+
+export function ReleaseEditorClient({ initial }: { initial?: LoadedDraft }) {
   const router = useRouter();
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={<main className="flex min-h-screen items-center justify-center">…</main>}
     >
-      <EditorGate />
+      <EditorGate initial={initial} />
     </AuthGuard>
   );
 }
 
-function EditorGate() {
+function EditorGate({ initial }: { initial?: LoadedDraft }) {
   const t = useTranslations("releaseEditor");
   const isPlatform = usePlatformAdmin();
   if (!isPlatform) {
@@ -61,22 +71,38 @@ function EditorGate() {
       </main>
     );
   }
-  return <Editor />;
+  return <Editor initial={initial} />;
 }
 
-export function Editor() {
+export function Editor({ initial }: { initial?: LoadedDraft }) {
   const t = useTranslations("releaseEditor");
   const router = useRouter();
   const client = useApiClient();
   const queryClient = useQueryClient();
   const adminQueries = createAdminQueries(client);
+  const platformQueries = createPlatformQueries(client);
 
-  const form = useZodForm(releaseDraftSchema, { defaultValues: blankDraft() });
+  // Seed from the loaded draft (resume / clone) merged over a blank shape so a
+  // partial/legacy body never leaves an array field undefined. No `form.reset`
+  // (which would fire the autosave/validation watch) — seed at construction.
+  const form = useZodForm(releaseDraftSchema, {
+    defaultValues: { ...blankDraft(), ...((initial?.body as Partial<ReleaseDraftInput>) ?? {}) },
+  });
   const catalogVersion = Number(form.watch("catalogVersion")) || 0;
   const { catalog, versions } = usePlatformCatalog(catalogVersion);
   const validation = useReleaseValidation(form, catalog);
   const [section, setSection] = useState<SectionId>("identity");
   const modelId = form.watch("modelId");
+
+  // Continuous autosave to the mutable draft store (Phase 3B). A fresh editor
+  // creates the row on first edit, then swaps the URL to the draft so a reload
+  // resumes; subsequent edits PATCH. Publish stays the immutable path below.
+  const autosave = useDraftAutosave(form, {
+    initialDraftId: initial?.id,
+    baseReleaseId: initial?.baseReleaseId ?? null,
+    onCreated: (id) => window.history.replaceState(null, "", `/platform/releases/drafts/${id}`),
+  });
+  const deleteDraft = useMutation(platformQueries.deleteDraft());
 
   // Pass the mutationOptions directly (not spread) so TanStack keeps the
   // variables/data generics; success handling rides the per-call options.
@@ -122,6 +148,14 @@ export function Editor() {
       },
       {
         onSuccess: (data) => {
+          // The draft has served its purpose — discard it (best-effort) so it
+          // doesn't linger in the resume list. The release is already frozen.
+          if (autosave.draftId) {
+            deleteDraft.mutate(
+              { id: autosave.draftId },
+              { onSettled: () => void invalidateKeys(queryClient, [platformKeys.draftsList()]) },
+            );
+          }
           void invalidateKeys(queryClient, [platformKeys.releasesList()]);
           toast.success(t("published", { releaseId: data.releaseId }));
           router.push("/platform");
@@ -141,9 +175,12 @@ export function Editor() {
               : t("defectCount", { count: validation.errorCount })}
           </p>
         </div>
-        <Button onClick={onPublish} disabled={!canPublish}>
-          {mutation.isPending ? t("publishing") : t("publish")}
-        </Button>
+        <div className="flex items-center gap-3">
+          <SaveStatusBadge status={autosave.status} />
+          <Button onClick={onPublish} disabled={!canPublish}>
+            {mutation.isPending ? t("publishing") : t("publish")}
+          </Button>
+        </div>
       </header>
 
       {mutation.isError ? <PublishError error={mutation.error} /> : null}
@@ -182,6 +219,28 @@ export function Editor() {
         </aside>
       </div>
     </main>
+  );
+}
+
+/** Autosave state (Phase 3B) — a quiet header indicator; `idle` shows nothing. */
+function SaveStatusBadge({ status }: { status: SaveStatus }) {
+  const t = useTranslations("releaseEditor");
+  if (status === "idle") return null;
+  const label =
+    status === "saving"
+      ? t("saving")
+      : status === "saved"
+        ? t("saved")
+        : status === "error"
+          ? t("saveFailed")
+          : t("unsaved");
+  return (
+    <span
+      className={`text-xs ${status === "error" ? "text-destructive" : "text-muted-foreground"}`}
+      aria-live="polite"
+    >
+      {label}
+    </span>
   );
 }
 

@@ -307,6 +307,16 @@ const en: Messages = {
     hideBody: "Hide",
     viewBodyFor: "View body of {releaseId}",
     hideBodyFor: "Hide body of {releaseId}",
+    drafts: "Drafts",
+    draftsTitle: "Release drafts",
+    noDrafts: "No drafts yet.",
+    untitledDraft: "Untitled draft",
+    resumeDraft: "Resume",
+    deleteDraft: "Delete",
+    deleteDraftConfirm: "Delete this draft? This cannot be undone.",
+    draftDeleted: "Draft deleted.",
+    draftDeleteError: "Could not delete the draft.",
+    clonedFrom: "from {releaseId}",
   },
   releaseEditor: {
     title: "Release editor",
@@ -418,6 +428,10 @@ const en: Messages = {
     portsJson: "Ports (JSON)",
     terrainJson: "Terrain binding (JSON)",
     uiJson: "Generated UI (JSON)",
+    saving: "Saving…",
+    saved: "Saved",
+    saveFailed: "Save failed",
+    unsaved: "Unsaved changes",
   },
   emails: {
     verification: {
