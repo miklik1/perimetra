@@ -1,18 +1,50 @@
 "use client";
 
-import type { ExprScope } from "@repo/model";
+import { evaluate, parse, type ExprScope, type Scope } from "@repo/model";
 import { fieldInputClass } from "@repo/ui/forms/field-shell";
 import { cn } from "@repo/ui/lib/utils";
 import * as React from "react";
 
-import { codeCandidates, completionCandidates, currentWord, exprStatus } from "./expr-authoring";
+import {
+  codeCandidates,
+  completionCandidates,
+  currentWord,
+  exprStatus,
+  formatExprValue,
+  highlightSpans,
+  type HighlightKind,
+} from "./expr-authoring";
+
+/**
+ * A live derivation scope (the engine's post-derive `scope`, from the preview)
+ * shared with every ExprField so it can show the formula's evaluated value
+ * inline (`= 1840`). Null when no preview is live (or the sample config is
+ * invalid); the readout is then simply absent. Provided at the editor level so
+ * the workbenches stay prop-clean (ADR 0068 Phase 4).
+ */
+export const ExprEvalScopeContext = React.createContext<Scope | null>(null);
+
+/** Token kind → Tailwind colour for the syntax overlay (theme-consistent, with
+ *  dark variants; identifiers + whitespace inherit the field's text colour). */
+const HIGHLIGHT_CLASS: Record<HighlightKind, string> = {
+  number: "text-blue-600 dark:text-blue-400",
+  string: "text-emerald-600 dark:text-emerald-400",
+  function: "text-violet-600 dark:text-violet-400",
+  keyword: "text-amber-600 dark:text-amber-400",
+  ident: "",
+  operator: "text-muted-foreground",
+  punct: "text-muted-foreground",
+  space: "",
+  unknown: "text-destructive",
+};
 
 /**
  * The editor's keystone field: a monospace expression input with LIVE parse +
  * in-scope autocomplete + reference/function checking, all from the same
  * `@repo/model` primitives the publish gate uses (`slotScopes` feeds the
- * `scope`). Single-line — every Phase-1 expr slot is one line. Syntax-coloring
- * overlay + the inline evaluated value (`= 1840`) are Phase 4.
+ * `scope`). Single-line. A character-faithful syntax-colour overlay sits behind
+ * the (transparent-text) input, and — when a live derivation scope is in context
+ * — the formula's evaluated value shows inline (`= 1840`) (ADR 0068 Phase 4).
  */
 export interface ExprFieldProps {
   value: string;
@@ -42,6 +74,7 @@ export function ExprField({
   "aria-label": ariaLabel,
 }: ExprFieldProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const overlayRef = React.useRef<HTMLDivElement>(null);
   const listboxId = React.useId();
   const [open, setOpen] = React.useState(false);
   const [caret, setCaret] = React.useState(0);
@@ -49,6 +82,19 @@ export function ExprField({
   const pendingCaret = React.useRef<number | null>(null);
 
   const status = React.useMemo(() => exprStatus(value, scope), [value, scope]);
+
+  // Inline evaluated value, against the live preview scope (when one is in
+  // context and the formula evaluates cleanly there) — best-effort and never
+  // throwing: a slot whose refs are not in the top-level scope just shows nothing.
+  const evalScope = React.useContext(ExprEvalScopeContext);
+  const evalReadout = React.useMemo(() => {
+    if (evalScope === null || value.trim() === "") return null;
+    try {
+      return formatExprValue(evaluate(parse(value), evalScope));
+    } catch {
+      return null;
+    }
+  }, [evalScope, value]);
   const { word, start } = currentWord(value, caret);
   const candidates = React.useMemo(() => {
     if (!open) return [];
@@ -119,6 +165,23 @@ export function ExprField({
 
   return (
     <div className="relative" data-slot="expr-field">
+      {/* Syntax overlay behind the transparent-text input. Identical box model
+          (border + padding + font) so the colour layer aligns to the character;
+          scroll-synced for long expressions. */}
+      <div
+        ref={overlayRef}
+        aria-hidden
+        className={cn(
+          fieldInputClass,
+          "text-foreground pointer-events-none absolute inset-0 overflow-hidden whitespace-pre border-transparent font-mono",
+        )}
+      >
+        {highlightSpans(value).map((span, i) => (
+          <span key={i} className={HIGHLIGHT_CLASS[span.kind]}>
+            {span.text}
+          </span>
+        ))}
+      </div>
       <input
         ref={inputRef}
         id={id}
@@ -136,8 +199,7 @@ export function ExprField({
         value={value}
         className={cn(
           fieldInputClass,
-          "font-mono",
-          status.kind === "parse-error" && "text-destructive",
+          "caret-foreground relative bg-transparent font-mono text-transparent",
         )}
         onChange={(e) => {
           setOpen(true);
@@ -145,16 +207,19 @@ export function ExprField({
           setCaret(e.target.selectionStart ?? e.target.value.length);
           onChange(e.target.value);
         }}
+        onScroll={(e) => {
+          if (overlayRef.current) overlayRef.current.scrollLeft = e.currentTarget.scrollLeft;
+        }}
         onKeyDown={onKeyDown}
         onKeyUp={syncCaret}
         onClick={syncCaret}
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 120)}
       />
-      {status.kind === "ok" ? (
+      {status.kind === "ok" && evalReadout === null ? (
         <span
           aria-hidden
-          className="text-muted-foreground pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs"
+          className="text-muted-foreground bg-background pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs"
         >
           ✓
         </span>
@@ -198,6 +263,8 @@ export function ExprField({
         >
           {message}
         </p>
+      ) : evalReadout !== null ? (
+        <p className="text-muted-foreground mt-1 font-mono text-xs">= {evalReadout}</p>
       ) : null}
     </div>
   );

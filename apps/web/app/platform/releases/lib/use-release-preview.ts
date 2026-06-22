@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { isForbidden, isNotFound } from "@repo/api";
+import { useApiClient, useQuery } from "@repo/api/react";
 import {
   type ConfigInput,
   type CostTable,
@@ -9,12 +11,45 @@ import {
   type PriceTable,
 } from "@repo/engine";
 import { type Scope } from "@repo/model";
+import { priceTableSchema } from "@repo/validators";
 
 import { runReleasePreview, type PreviewResult } from "./release-engine";
 import { type ReleaseDraftInput, type ReleaseEditorForm } from "./section-schemas";
 import { useEngineWorker } from "./use-engine-worker";
 
 const DEBOUNCE_MS = 180;
+
+export interface ActivePrices {
+  table: PriceTable;
+  cost: CostTable | null;
+}
+
+/**
+ * The org's active price table for the preview, fetched like the configurator
+ * RSC: a 403 (price-blind, ADR 0056) or 404 (no active table) resolves to null,
+ * not an error, so the preview degrades to a notice rather than throwing.
+ */
+export function useActivePriceTable(): ActivePrices | null {
+  const client = useApiClient();
+  const { data } = useQuery<ActivePrices | null>({
+    queryKey: ["release-editor", "active-price-table"],
+    queryFn: async () => {
+      try {
+        const active = await client.apiFetch("/v1/price-tables/active", {
+          parse: (d) => priceTableSchema.parse(d),
+        });
+        return {
+          table: active.table as PriceTable,
+          cost: (active.cost as CostTable | null) ?? null,
+        };
+      } catch (error) {
+        if (isForbidden(error) || isNotFound(error)) return null;
+        throw error;
+      }
+    },
+  });
+  return data ?? null;
+}
 
 export interface ReleasePreview {
   status: "computing" | "ok" | "no-catalog" | "no-prices" | "no-release" | "error";
@@ -43,8 +78,9 @@ function toPreview(result: PreviewResult): ReleasePreview {
  * sample `input` so the author sees it produce BOM/price/Issues. Same worker
  * seam as validation (debounced, last-write-wins, synchronous fallback when no
  * Worker); the catalog + price table are cached worker-side so they are not
- * re-cloned as the sample input changes. Mounted only while the Preview tab is
- * open, so the derive never runs in the background.
+ * re-cloned as the sample input changes. Mounted at the editor level (4C), so
+ * its derivation scope also feeds every workbench ExprField's inline `=value`;
+ * the worker keeps the always-on derive off the main thread.
  */
 export function useReleasePreview(
   form: ReleaseEditorForm,

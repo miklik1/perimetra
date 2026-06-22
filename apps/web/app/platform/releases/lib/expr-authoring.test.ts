@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { ExprScope } from "@repo/model";
 
-import { codeCandidates, completionCandidates, currentWord, exprStatus } from "./expr-authoring";
+import {
+  codeCandidates,
+  completionCandidates,
+  currentWord,
+  exprStatus,
+  formatExprValue,
+  highlightSpans,
+} from "./expr-authoring";
 
 const scope: ExprScope = {
   known: new Set(["width_mm", "height_mm", "fill.spacing_mm"]),
@@ -86,5 +93,51 @@ describe("codeCandidates (catalog-code slots)", () => {
 
   it("is empty when nothing matches", () => {
     expect(codeCandidates(codes, "steel")).toEqual([]);
+  });
+});
+
+describe("highlightSpans (syntax overlay)", () => {
+  const faithful = (src: string) =>
+    expect(
+      highlightSpans(src)
+        .map((s) => s.text)
+        .join(""),
+    ).toBe(src);
+
+  it("reconstructs the exact source (so the overlay aligns to the character)", () => {
+    faithful('max(width_mm, 100) + fill.spacing_mm * 2 == "x"');
+    faithful("  spaced   out  ");
+    faithful("");
+    faithful('"unterminated');
+  });
+
+  it("classifies the canonical token kinds", () => {
+    const kinds = (src: string) => highlightSpans(src).map((s) => `${s.kind}:${s.text}`);
+    expect(kinds("max(2)")).toEqual(["function:max", "punct:(", "number:2", "punct:)"]);
+    expect(kinds("a + 1.5")).toEqual(["ident:a", "space: ", "operator:+", "space: ", "number:1.5"]);
+    expect(kinds('true && "s"')).toEqual([
+      "keyword:true",
+      "space: ",
+      "operator:&&",
+      "space: ",
+      'string:"s"',
+    ]);
+  });
+
+  it("treats an identifier before `(` (even across spaces) as a function", () => {
+    expect(highlightSpans("sinDeg (x)")[0]).toEqual({ text: "sinDeg", kind: "function" });
+    expect(highlightSpans("width_mm")[0]).toEqual({ text: "width_mm", kind: "ident" });
+  });
+});
+
+describe("formatExprValue (inline =value)", () => {
+  it("renders integers plain and fractions trimmed", () => {
+    expect(formatExprValue(1840)).toBe("1840");
+    expect(formatExprValue(1.23456789)).toBe("1.2346");
+  });
+
+  it("quotes strings and passes booleans through", () => {
+    expect(formatExprValue("alu")).toBe('"alu"');
+    expect(formatExprValue(true)).toBe("true");
   });
 });

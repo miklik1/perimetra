@@ -2,7 +2,7 @@ import type { ExprScope } from "@repo/model";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ExprField } from "./expr-field";
+import { ExprEvalScopeContext, ExprField } from "./expr-field";
 
 const scope: ExprScope = {
   known: new Set(["width_mm", "height_mm"]),
@@ -94,5 +94,28 @@ describe("ExprField", () => {
     fireEvent.keyUp(input, { key: '"' }); // caret after the opening quote
     fireEvent.mouseDown(screen.getByRole("option", { name: '"alu"' }));
     expect(onChange).toHaveBeenCalledWith('"alu"');
+  });
+
+  // --- Phase 4: inline =value + syntax overlay ---
+
+  it("shows the formula's evaluated value when a live derivation scope is in context", () => {
+    render(
+      <ExprEvalScopeContext.Provider value={{ width_mm: 1000 }}>
+        <ExprField value="width_mm / 2" onChange={() => {}} scope={scope} aria-label="quantity" />
+      </ExprEvalScopeContext.Provider>,
+    );
+    expect(screen.getByText("= 500")).toBeInTheDocument();
+  });
+
+  it("shows no evaluated value without a scope in context", () => {
+    render(
+      <ExprField value="width_mm + 1" onChange={() => {}} scope={scope} aria-label="quantity" />,
+    );
+    expect(screen.queryByText(/^= /)).not.toBeInTheDocument();
+  });
+
+  it("renders the syntax overlay token for the source", () => {
+    render(<ExprField value="max(1)" onChange={() => {}} scope={scope} aria-label="quantity" />);
+    expect(screen.getByText("max")).toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ApiError, invalidateKeys, isHttpError } from "@repo/api";
 import { useApiClient, useMutation, useQuery, useQueryClient } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
+import type { ConfigInput } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
 import { type ProductModelRelease } from "@repo/model";
 import { Button, cn } from "@repo/ui";
@@ -16,12 +17,14 @@ import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { createAdminQueries } from "../../../lib/admin-queries";
 import { createPlatformQueries, platformKeys } from "../../../lib/platform-queries";
 import { toast } from "../../../lib/toast";
-import { usePlatformAdmin } from "../../../lib/use-role";
+import { usePlatformAdmin, usePriceBlind } from "../../../lib/use-role";
 import { diffRelease, type ReleaseDiff } from "./lib/diff";
 import { blankDraft, buildReleaseFromDraft } from "./lib/draft";
+import { ExprEvalScopeContext } from "./lib/expr-field";
 import { releaseDraftSchema, type ReleaseDraftInput } from "./lib/section-schemas";
 import { useDraftAutosave, type SaveStatus } from "./lib/use-draft-autosave";
 import { usePlatformCatalog } from "./lib/use-platform-catalog";
+import { useActivePriceTable, useReleasePreview } from "./lib/use-release-preview";
 import { useReleaseValidation } from "./lib/use-release-validation";
 import { AdvancedWorkbench } from "./sections/advanced-workbench";
 import { ConstraintsWorkbench } from "./sections/constraints-workbench";
@@ -100,6 +103,21 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
   const [section, setSection] = useState<SectionId>("identity");
   const [dockTab, setDockTab] = useState<DockTabId>("defects");
   const modelId = form.watch("modelId");
+
+  // Live engine preview (Phase 4), lifted here so its derivation scope feeds
+  // BOTH the dock Preview tab and every workbench ExprField's inline `=value`
+  // (via ExprEvalScopeContext). The derive runs in a worker, so keeping it live
+  // does not jank the editor.
+  const priceBlind = usePriceBlind();
+  const prices = useActivePriceTable();
+  const [previewInput, setPreviewInput] = useState<ConfigInput>({});
+  const preview = useReleasePreview(
+    form,
+    catalog,
+    prices?.table ?? null,
+    prices?.cost ?? null,
+    previewInput,
+  );
 
   // Continuous autosave to the mutable draft store (Phase 3B). A fresh editor
   // creates the row on first edit, then swaps the URL to the draft so a reload
@@ -218,20 +236,26 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
           />
         </aside>
 
-        <section className="overflow-auto p-4">
-          {section === "identity" ? <IdentityWorkbench form={form} versions={versions} /> : null}
-          {section === "parameters" ? (
-            <ParametersWorkbench form={form} validation={validation} />
-          ) : null}
-          {section === "constraints" ? (
-            <ConstraintsWorkbench form={form} validation={validation} />
-          ) : null}
-          {section === "derived" ? <DerivedWorkbench form={form} validation={validation} /> : null}
-          {section === "parts" ? (
-            <PartsWorkbench form={form} validation={validation} catalog={catalog} />
-          ) : null}
-          {section === "advanced" ? <AdvancedWorkbench form={form} /> : null}
-        </section>
+        {/* The live preview's derivation scope feeds every ExprField's inline
+            `=value` while authoring (absent → no readout). */}
+        <ExprEvalScopeContext.Provider value={preview.scope}>
+          <section className="overflow-auto p-4">
+            {section === "identity" ? <IdentityWorkbench form={form} versions={versions} /> : null}
+            {section === "parameters" ? (
+              <ParametersWorkbench form={form} validation={validation} />
+            ) : null}
+            {section === "constraints" ? (
+              <ConstraintsWorkbench form={form} validation={validation} />
+            ) : null}
+            {section === "derived" ? (
+              <DerivedWorkbench form={form} validation={validation} />
+            ) : null}
+            {section === "parts" ? (
+              <PartsWorkbench form={form} validation={validation} catalog={catalog} />
+            ) : null}
+            {section === "advanced" ? <AdvancedWorkbench form={form} /> : null}
+          </section>
+        </ExprEvalScopeContext.Provider>
 
         <aside className="border-border flex flex-col overflow-auto border-l p-3">
           {diff && baseReleaseId ? (
@@ -259,7 +283,13 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
               onSelect={(where) => setSection(sectionForWhere(where))}
             />
           ) : (
-            <PreviewTab form={form} release={validation.release} catalog={catalog} />
+            <PreviewTab
+              release={validation.release}
+              preview={preview}
+              input={previewInput}
+              onInputChange={setPreviewInput}
+              priceBlind={priceBlind}
+            />
           )}
         </aside>
       </div>
