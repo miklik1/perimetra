@@ -1,7 +1,7 @@
 # ADR 0068 — Structured release editor + slotScopes() single source of scope truth
 
 **Status:** Accepted (2026-06-19). **Phase 1 shipped 2026-06-19; Phase 2 shipped
-2026-06-21.** Implements the
+2026-06-21; Phase 3 shipped 2026-06-22.** Implements the
 **structured release editor** that [ADR 0061](0061-admin-publish-ui.md) and
 [ADR 0067](0067-release-retire.md) named as the last deferred step-6 vendor/admin
 authoring follow-up. Full design: `docs/superpowers/specs/2026-06-19-structured-release-editor-design.md`;
@@ -85,8 +85,8 @@ Two repo facts shape the decision:
   wrong field.
 - **Phasing / deferred:** Phase 2 (SHIPPED 2026-06-21, see below) — parts/geometry
   master-detail + catalog-aware pickers + `GET /v1/platform/catalog-versions/:id`
-  (PlatformGuard); Phase 3 —
-  `release-drafts` module + autosave + clone-and-bump + diff; Phase 4 — web-worker
+  (PlatformGuard); Phase 3 (SHIPPED 2026-06-22, see below) — `release-drafts`
+  module + autosave + clone-and-bump + diff; Phase 4 — web-worker
   validate+derive + live engine preview (wizard + BOM/price + per-formula `=value`)
   - power features.
 
@@ -155,7 +155,65 @@ catalog stopped being a number the operator types blind.
   nothing is published yet (the server stays the authority).
 - Publish still goes through the existing immutable `POST /v1/releases` — I3
   untouched, no second freeze path. Full gate + integration green; goldens
-  reproduce `129891.504` / `79039.86`. **Phase 3** (`release-drafts` module +
-  autosave + clone-and-bump + diff) and **Phase 4** (web-worker validate+derive +
-  live engine preview + the `ExprField` syntax-highlight overlay) remain their own
-  gated slices.
+  reproduce `129891.504` / `79039.86`. **Phase 4** (web-worker validate+derive +
+  live engine preview + the `ExprField` syntax-highlight overlay) remains its own
+  gated slice.
+
+### Phase 3 as shipped (2026-06-22)
+
+The **draft + iterate** loop, so a vendor authors safely without publishing —
+4 gate-green sub-slices (commits `bde1dc8`→`99b0304`). Publish stays the
+existing immutable `POST /v1/releases` (no second freeze path, I3 untouched);
+clone and the freeze itself are client-side, so the new module is a pure CRUD
+store with no engine/release coupling.
+
+- **3A — `release-drafts` module (`bde1dc8`).** A new MUTABLE `release_draft`
+  table, **org-scoped** (ADR 0055: `organizationId` NOT NULL is the access
+  scope, so a vendor TEAM shares its drafts; `ownerId` is the creator/audit ref;
+  CASCADE on both — mutable working state, unlike the RESTRICT I3 stores). `body`
+  jsonb holds the editor form state OPAQUE (drafts are legitimately incomplete —
+  only the publish gate validates the shape); `modelId`/`version`/`catalogVersion`/
+  `baseReleaseId` are denorm projections for the list + clone/diff.
+  `/v1/platform/release-drafts` CRUD — **vendor-only** (`SessionGuard` +
+  `PlatformGuard`, the releases-publish precedent: authoring is orthogonal to org
+  membership, §3), org-scoped via `@CurrentScope()`. Autosave PATCH writes neither
+  an audit row nor a transaction (high-frequency working state); create/delete
+  bracket the lifecycle and are audited. Summary/detail split (list never ships
+  the heavy body). Privacy handler (GDPR export/erase by author). Scaffolded via
+  `pnpm gen module` then adapted — the generator template is **stale post-ADR-0055**
+  (owner-scoped + dormant nullable org) and was flipped to the live org-scoped
+  pattern; the outbox producer was removed (realtime=false left no consumer);
+  status/archive dropped. NO outbox/realtime (drafts emit no domain events).
+- **3B — autosave + resume (`ace5ede`).** `useDraftAutosave` — a debounced
+  `form.watch` subscription (mirrors `useReleaseValidation`). A fresh editor holds
+  no draft until the first edit; the first autosave CREATEs the row, then swaps
+  the URL to `/platform/releases/drafts/[id]` via `history.replaceState` (no
+  remount) so a reload resumes — subsequent edits PATCH. Saves are serialized
+  (one in flight) + coalesced; unmount cancels the pending timer. A quiet header
+  save-status badge; on publish, the draft is discarded (best-effort). Routes:
+  `/platform/releases/drafts` (resume list) + `/drafts/[id]` (server-loads the
+  draft, 404→notFound). The draft client slice is app-local in `platform-queries`
+  (the platform surface is real-api-only; `api-mocks` unaffected).
+- **3C — clone-and-bump (`baa17ee`).** `draftFromRelease(release, version,
+catalogVersion)` — the faithful inverse of `buildReleaseFromDraft` over the
+  editor-modeled surface (every `ExprString` is a branded string, so source
+  recovery is `String(e)`; islands round-trip as pretty JSON). A "Clone" action
+  on every console release row seeds a draft at version+1 (carrying
+  `baseReleaseId` as provenance) and opens the editor; the vendor edits and
+  publishes a NEW `modelId@version` through the immutable path. Proven by a
+  round-trip test (`buildReleaseFromDraft(parse(draftFromRelease(r))) ≈ r`).
+- **3D — clone diff (`99b0304`).** `GET /v1/platform/releases/by-release-id/:releaseId`
+  (PlatformController, natural-key global read reusing `loadByReleaseId`, the I3
+  path; literal `by-release-id` segment so no collision with the surrogate `:id`
+  route; no schema change). `diffRelease(base, current)` — a structural diff of
+  two BUILT releases keyed by business key (params/constraints/derived by key,
+  parts by path), islands compared whole, the version bump reported separately;
+  an order-insensitive `deepEqual`. `useReleaseValidation` now also returns the
+  built release (no second build). For a cloned draft the editor lazy-loads the
+  source and renders a "Changes vs {releaseId}" dock panel.
+
+Full gate + integration green throughout (final: web 76/76, api unit 141,
+integration 19 files/104); goldens `129891.504` / `79039.86` reproduce. Side
+fix: the OpenAPI snapshot, stale since Phase 2A (`8556737` added the platform
+catalog-versions routes but never regenerated it), is now correct. **Phase 4**
+remains the only deferred slice.

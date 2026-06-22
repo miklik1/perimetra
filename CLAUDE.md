@@ -190,16 +190,36 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
   `CatalogVersionsModule`); NO schema change. Built on the SAME Phase-1 `@repo/ui` primitives
   (kit stays domain-agnostic; only `ExprField` grew `codeSuggestions`). Publish stays the
   immutable `POST /v1/releases` (I3 untouched). Full gate + integration 17/94 green; goldens
-  129891.504/79039.86 reproduce. **Phase 3** = `release-drafts` module + autosave +
-  clone-and-bump + diff; **Phase 4** = web-worker validate+derive + live engine preview
-  (wizard + BOM/price + per-formula `=value`) + the syntax-highlight overlay.
-  Next: editor Phase 3–4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
-  override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
-  org, Decline / web self-registration).
-  Invariants I1–I11 (CORE_SPEC §1)
-  are the bar every PR is judged against; the Expr numeric-domain choice is
-  ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
-  cascade/overrides ADR 0048, site graph ADR 0049.
+  129891.504/79039.86 reproduce.
+  Structured release editor — Phase 3 (2026-06-22, ADR 0068, `bde1dc8`→`99b0304`): the
+  **draft + iterate** loop so a vendor authors safely without publishing. **3A** = a new MUTABLE,
+  **org-scoped, vendor-only** `release_draft` store (`/v1/platform/release-drafts` CRUD,
+  `SessionGuard`+`PlatformGuard`; `body` holds the editor form state opaque — drafts are
+  legitimately incomplete, only the publish gate validates; `modelId`/`version`/`catalogVersion`/
+  `baseReleaseId` denorm for the list/clone/diff; autosave PATCH is un-audited/non-tx
+  working-state churn, create/delete audited; privacy handler; NO outbox/realtime). **3B** =
+  `useDraftAutosave` (debounced `form.watch`, create-once→PATCH, `history.replaceState` to
+  `/drafts/[id]`, serialized+coalesced, unmount-cancels) + resume list `/platform/releases/drafts`
+  - `/drafts/[id]` + a header save badge; publish discards the draft. **3C** = `draftFromRelease`
+    (faithful inverse of `buildReleaseFromDraft`; `ExprString` is a branded string so source =
+    `String(e)`) + a "Clone" console action → draft at version+1 (carries `baseReleaseId`) → publish
+    a NEW `modelId@version` via the immutable path. **3D** = `GET
+/v1/platform/releases/by-release-id/:releaseId` (natural-key global read reusing `loadByReleaseId`)
+  - `diffRelease(base,current)` (keyed by business key, islands whole, version bump separate) +
+    a "Changes vs {releaseId}" editor dock panel. Publish stays the immutable `POST /v1/releases`
+    (no second freeze, I3 untouched); clone+freeze are client-side, so the new module is pure CRUD.
+    Scaffolded via `pnpm gen module` then adapted (the template is STALE post-ADR-0055 —
+    owner-scoped; flipped to org-scoped). NO schema change for 3B–3D. Full gate + integration
+    19 files/104 green; goldens reproduce. (Also fixed an OpenAPI snapshot stale since Phase 2A.)
+    **Phase 4** = web-worker validate+derive + live engine preview (wizard + BOM/price + per-formula
+    `=value`) + the syntax-highlight overlay.
+    Next: editor Phase 4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
+    override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
+    org, Decline / web self-registration).
+    Invariants I1–I11 (CORE_SPEC §1)
+    are the bar every PR is judged against; the Expr numeric-domain choice is
+    ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
+    cascade/overrides ADR 0048, site graph ADR 0049.
 
 ## Package map
 
