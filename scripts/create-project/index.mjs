@@ -361,10 +361,15 @@ const centrifugoConfig = readJson(centrifugoConfigPath);
 centrifugoConfig.client ??= {};
 centrifugoConfig.client.token ??= {};
 centrifugoConfig.client.token.hmac_secret_key = centrifugoTokenSecret;
+// allowed_origins gates the WS upgrade against the browser Origin header. The
+// committed config ships localhost:3000; a stamp whose web runs on the offset
+// port (e.g. :3002) would get a 403 unless we rewrite it to this stamp's web
+// origin here. (Stays committed, so a fresh clone already has the right value.)
+centrifugoConfig.client.allowed_origins = [`http://localhost:${port.web}`];
 centrifugoConfig.http_api ??= {};
 centrifugoConfig.http_api.key = centrifugoApiKey;
 writeJson(centrifugoConfigPath, centrifugoConfig);
-console.log(`  ✔ docker/centrifugo/config.json — secrets rotated in lockstep`);
+console.log(`  ✔ docker/centrifugo/config.json — secrets rotated + allowed_origins → :${port.web}`);
 
 // 3. ADR provenance marker. Inherited ADRs are KEPT (they document the
 //    architecture this project runs on); the marker records where they came

@@ -55,7 +55,10 @@ ios/
 # Misc
 .DS_Store
 *.pem
-.claude/
+# Claude Code: ignore local/personal settings, but COMMIT the shared project
+# config (it carries the Stop-hook quality gate — scripts/claude-gate.sh).
+.claude/*
+!.claude/settings.json
 
 # machine-local compose overrides
 docker/.env

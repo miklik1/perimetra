@@ -99,7 +99,17 @@ if (spawnSync("docker", ["info"], { stdio: "ignore" }).status !== 0) {
 }
 console.log(`  docker daemon ${green("ok")}`);
 
-// --- [2] Infrastructure (docker compose) ------------------------------------
+// --- [2] Fresh-clone secret self-heal --------------------------------------
+
+// A stamped repo's apps/api/.env.local is gitignored, so a fresh clone loses
+// the Centrifugo secret pair while the COMMITTED docker/centrifugo/config.json
+// keeps the rotated value — a silent realtime 401. Reconstruct the env lines
+// from the committed config before anything boots. No-op on the unstamped
+// skeleton (config still holds the dev defaults).
+step("Reconstructing gitignored secrets from committed config (fresh-clone self-heal)");
+run("node", [path.join(repoRoot, "scripts", "sync-centrifugo-env.mjs")]);
+
+// --- [3] Infrastructure (docker compose) ------------------------------------
 
 step("Starting infrastructure (docker compose)");
 
@@ -129,24 +139,24 @@ run(
 // One-shot bucket creation; `mc mb --ignore-existing` makes it idempotent.
 run("docker", ["compose", "-f", composeFile, "run", "--rm", "minio-init"]);
 
-// --- [3] Dependencies --------------------------------------------------------
+// --- [4] Dependencies --------------------------------------------------------
 
 step("Installing dependencies (pnpm install — no-op when up to date)");
 run("pnpm", ["install"]);
 
-// --- [4] Build the api graph --------------------------------------------------
+// --- [5] Build the api graph --------------------------------------------------
 
 step("Building the api dependency graph (turbo-cached)");
 run("pnpm", ["turbo", "run", "build", "--filter=api..."]);
 
-// --- [5] Migrations -----------------------------------------------------------
+// --- [6] Migrations -----------------------------------------------------------
 
 step("Running database migrations (idempotent — applied migrations are skipped)");
 run("pnpm", ["--filter", "api", "migrate"], {
   hint: "Connection refused? If docker/.env overrides POSTGRES_HOST_PORT, apps/api/.env.local must set a matching DATABASE_URL.",
 });
 
-// --- [6] Seed the golden corpus -----------------------------------------------
+// --- [7] Seed the golden corpus -----------------------------------------------
 
 step("Seeding the golden corpus (idempotent — already-published data is skipped)");
 run("pnpm", ["--filter", "api", "seed"], {

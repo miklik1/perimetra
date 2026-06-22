@@ -9,6 +9,7 @@
     "loadtest": "k6 run loadtest/projects.k6.js",
     "build": "turbo run build",
     "gen": "turbo gen",
+    "predev": "node scripts/sync-centrifugo-env.mjs",
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=web",
     "dev:mobile": "turbo run dev --filter=mobile",
@@ -38,7 +39,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "4a07ece166c30720c5c02d25738e79d17392c1ff",
+    "baseCommit": "bd17852f0b2278ac8eb6b9d7ac79019c0c486dae",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }
