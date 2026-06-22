@@ -8,6 +8,7 @@
  */
 import { betterAuth, type SecondaryStorage } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { admin, organization } from "better-auth/plugins";
 import type { Redis } from "ioredis";
 
@@ -48,9 +49,42 @@ export interface CreateAuthDeps {
    * worker/seed/CLI contexts → no-op (those never auto-provision).
    */
   onOrgProvisioned?: (organizationId: string, ownerUserId: string) => Promise<void>;
+  /**
+   * Records a sensitive admin() action (impersonate/ban/role-change/…). The
+   * admin plugin's endpoints mount on the raw Fastify handler OUTSIDE Nest's
+   * pipeline, so their mutations bypass guards and `AuditService` entirely — a
+   * phished platform-admin credential is the most dangerous in the system, so
+   * its actions MUST leave an Art. 30 trail. Captured via the Better Auth
+   * `after` hook below. Wired in the HTTP app; undefined elsewhere → no-op.
+   * Fail-soft by contract (`AuditService.record` never throws).
+   */
+  recordAdminAudit?: (entry: {
+    actorId: string | null;
+    action: string;
+    entityType: string;
+    entityId: string;
+  }) => Promise<void>;
 }
 
 const REDIS_KEY_PREFIX = "better-auth:";
+
+/**
+ * admin() plugin endpoints whose mutations must leave an audit trail (ADR 0040),
+ * keyed by Better Auth's request-hook `ctx.path` (relative to `basePath`). Each
+ * carries the target user in `body.userId`. Read-only admin endpoints (list/get)
+ * are deliberately absent.
+ */
+const ADMIN_AUDIT_ACTIONS: Record<string, string> = {
+  "/admin/impersonate-user": "admin.impersonate",
+  "/admin/ban-user": "admin.ban",
+  "/admin/unban-user": "admin.unban",
+  "/admin/remove-user": "admin.remove",
+  "/admin/set-role": "admin.set-role",
+  "/admin/set-user-password": "admin.set-password",
+};
+
+/** Minimum password length (enterprise hardening) — above Better Auth's default 8. */
+const MIN_PASSWORD_LENGTH = 12;
 
 /**
  * Deterministic, unique org slug for the auto-provisioned workspace (ADR 0055):
@@ -84,7 +118,15 @@ function redisSecondaryStorage(redis: Redis): SecondaryStorage {
   };
 }
 
-export function createAuth({ db, redis, env, email, logger, onOrgProvisioned }: CreateAuthDeps) {
+export function createAuth({
+  db,
+  redis,
+  env,
+  email,
+  logger,
+  onOrgProvisioned,
+  recordAdminAudit,
+}: CreateAuthDeps) {
   const isProd = env.NODE_ENV === "production";
 
   return betterAuth({
@@ -225,6 +267,9 @@ export function createAuth({ db, redis, env, email, logger, onOrgProvisioned }: 
     },
     emailAndPassword: {
       enabled: true,
+      // Policy floor (enterprise hardening): a 12-char minimum, above Better
+      // Auth's default 8. Max stays the default (128).
+      minPasswordLength: MIN_PASSWORD_LENGTH,
       // Off by default — sign-in stays allowed unverified (the verification
       // mail still goes out on signup, see emailVerification below); a
       // project that wants the hard gate flips this one flag.
@@ -280,6 +325,26 @@ export function createAuth({ db, redis, env, email, logger, onOrgProvisioned }: 
             },
           }
         : {}),
+    },
+    hooks: {
+      // The admin() plugin mounts on the raw Fastify handler (outside Nest), so
+      // its sensitive mutations never pass a Nest guard or AuditService. Capture
+      // them here — the Art. 30 trail for the most dangerous credential (ADR 0040).
+      // Fail-soft: `recordAdminAudit` (→ AuditService.record) never throws.
+      after: createAuthMiddleware(async (ctx) => {
+        const action = ADMIN_AUDIT_ACTIONS[ctx.path];
+        if (!action || !recordAdminAudit) return;
+        const body = ctx.body as { userId?: unknown } | undefined;
+        if (typeof body?.userId !== "string") return;
+        const session = ctx.context.session as { user?: { id?: unknown } } | undefined;
+        const actorId = typeof session?.user?.id === "string" ? session.user.id : null;
+        await recordAdminAudit({
+          actorId,
+          action,
+          entityType: "user",
+          entityId: body.userId,
+        });
+      }),
     },
     plugins: [
       // Minimal admin surface: ban/unban + impersonation ("log in as the user").

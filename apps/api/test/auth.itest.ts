@@ -4,16 +4,31 @@
  * account rows) and Redis (secondary storage) — only the HTTP socket is
  * replaced by `fastify.inject`.
  */
+import { randomUUID } from "node:crypto";
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cookieFrom, createApiApp, inject, signUpUser, webOrigin } from "./setup/app.js";
+import { type Db } from "@repo/db";
+import { audit } from "@repo/db/schema/audit";
+
+import { DB } from "../src/common/db/db.module.js";
+import {
+  cookieFrom,
+  createApiApp,
+  inject,
+  promotePlatformAdmin,
+  signUpUser,
+  webOrigin,
+} from "./setup/app.js";
 
 describe("auth (real Better Auth + Postgres + Redis)", () => {
   let app: NestFastifyApplication;
+  let db: Db;
 
   beforeAll(async () => {
     app = await createApiApp();
+    db = app.get<Db>(DB);
   });
 
   afterAll(async () => {
@@ -76,5 +91,51 @@ describe("auth (real Better Auth + Postgres + Redis)", () => {
       headers: { cookie: "better-auth.session_token=forged-token" },
     });
     expect(forged.statusCode).toBe(401);
+  });
+
+  it("rejects a sign-up whose password is below the 12-char policy minimum", async () => {
+    const res = await inject(app, {
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { origin: webOrigin() },
+      payload: { name: "Shorty", email: `short-${randomUUID()}@example.com`, password: "shortpw" },
+    });
+    // Better Auth rejects the short password with a 4xx (PASSWORD_TOO_SHORT).
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(res.statusCode).toBeLessThan(500);
+  });
+
+  it("audits the admin() plugin's sensitive mutations (they bypass Nest guards)", async () => {
+    const adminUser = await signUpUser(app, "auth-admin-actor");
+    await promotePlatformAdmin(db, adminUser.id);
+    // Fresh session AFTER the role grant — the signup session predates it, and
+    // the 5-min cookie cache would otherwise serve a stale (non-admin) session.
+    const signIn = await inject(app, {
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: { origin: webOrigin() },
+      payload: { email: adminUser.email, password: adminUser.password },
+    });
+    expect(signIn.statusCode).toBe(200);
+    const adminCookie = cookieFrom(signIn);
+
+    const target = await signUpUser(app, "auth-admin-target");
+
+    const ban = await inject(app, {
+      method: "POST",
+      url: "/api/auth/admin/ban-user",
+      headers: { cookie: adminCookie, origin: webOrigin() },
+      payload: { userId: target.id },
+    });
+    expect(ban.statusCode).toBe(200);
+
+    // The mutation left an audit row attributing it to the acting admin — the
+    // trail that did NOT exist before (admin endpoints mount outside Nest).
+    const rows = await db
+      .select()
+      .from(audit)
+      .where(and(eq(audit.action, "admin.ban"), eq(audit.entityId, target.id)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actorId: adminUser.id, entityType: "user" });
   });
 });

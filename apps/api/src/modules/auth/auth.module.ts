@@ -27,6 +27,7 @@ import { type Db } from "@repo/db";
 import { ENV, type Env } from "../../common/config/env.js";
 import { DB } from "../../common/db/db.module.js";
 import { authRateLimitConfig } from "../../common/throttle/throttle.module.js";
+import { AuditService } from "../audit/audit.service.js";
 import { EmailModule } from "../email/email.module.js";
 import { EmailService } from "../email/email.service.js";
 import { createAuth, type Auth } from "./auth.instance.js";
@@ -65,6 +66,7 @@ import { SessionGuard } from "./session.guard.js";
         env: Env,
         email: EmailService,
         provisioning: OrgProvisioningHook,
+        audit: AuditService,
       ) =>
         createAuth({
           db,
@@ -74,8 +76,11 @@ import { SessionGuard } from "./session.guard.js";
           logger: new Logger("AuthEmailStub"),
           onOrgProvisioned: (organizationId, ownerUserId) =>
             provisioning.run(organizationId, ownerUserId),
+          // Audit the admin() plugin's sensitive mutations (they bypass Nest's
+          // guards/AuditService otherwise) — ADR 0040, the platform-admin trail.
+          recordAdminAudit: (entry) => audit.record(entry),
         }),
-      inject: [DB, REDIS, ENV, EmailService, OrgProvisioningHook],
+      inject: [DB, REDIS, ENV, EmailService, OrgProvisioningHook, AuditService],
     },
     SessionGuard,
     MembershipService,
