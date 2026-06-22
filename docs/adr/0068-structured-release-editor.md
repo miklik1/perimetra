@@ -1,7 +1,7 @@
 # ADR 0068 — Structured release editor + slotScopes() single source of scope truth
 
-**Status:** Accepted (2026-06-19). **Phase 1 shipped 2026-06-19; Phase 2 shipped
-2026-06-21; Phase 3 shipped 2026-06-22.** Implements the
+**Status:** Accepted (2026-06-19). **Phases 1–4 all shipped (1: 2026-06-19;
+2: 2026-06-21; 3 + 4: 2026-06-22) — the editor is complete.** Implements the
 **structured release editor** that [ADR 0061](0061-admin-publish-ui.md) and
 [ADR 0067](0067-release-retire.md) named as the last deferred step-6 vendor/admin
 authoring follow-up. Full design: `docs/superpowers/specs/2026-06-19-structured-release-editor-design.md`;
@@ -86,9 +86,9 @@ Two repo facts shape the decision:
 - **Phasing / deferred:** Phase 2 (SHIPPED 2026-06-21, see below) — parts/geometry
   master-detail + catalog-aware pickers + `GET /v1/platform/catalog-versions/:id`
   (PlatformGuard); Phase 3 (SHIPPED 2026-06-22, see below) — `release-drafts`
-  module + autosave + clone-and-bump + diff; Phase 4 — web-worker
-  validate+derive + live engine preview (wizard + BOM/price + per-formula `=value`)
-  - power features.
+  module + autosave + clone-and-bump + diff; Phase 4 (SHIPPED 2026-06-22, see
+  below) — web-worker validate+derive + live engine preview (wizard + BOM/price +
+  per-formula `=value`) + the `ExprField` syntax-highlight overlay.
 
 ### Phase 1 as shipped (2026-06-19)
 
@@ -215,5 +215,61 @@ catalogVersion)` — the faithful inverse of `buildReleaseFromDraft` over the
 Full gate + integration green throughout (final: web 76/76, api unit 141,
 integration 19 files/104); goldens `129891.504` / `79039.86` reproduce. Side
 fix: the OpenAPI snapshot, stale since Phase 2A (`8556737` added the platform
-catalog-versions routes but never regenerated it), is now correct. **Phase 4**
-remains the only deferred slice.
+catalog-versions routes but never regenerated it), is now correct.
+
+### Phase 4 as shipped (2026-06-22)
+
+The **live engine + power features** — 3 gate-green sub-slices
+(`e627253`→`23a3e30`). All client-side and pure (no new backend; I1/I3/I5
+untouched): the engine already runs in the browser (ADR 0051), so Phase 4 only
+moves it off the main thread and surfaces what it computes.
+
+- **4A — engine web worker (`e627253`).** The validation pipeline
+  (`buildReleaseFromDraft` → `slotScopes` + `validateRelease`) moves off the main
+  thread so a large release no longer janks typing. The pure compute lives in
+  `lib/release-engine.ts` (`runReleaseValidation`, worker-agnostic + unit-tested);
+  `lib/release-engine.worker.ts` is the thin module-worker pump. The worker
+  protocol caches the catalog worker-side (sent on change, not re-cloned per
+  keystroke) and tags each `validate` with a monotonic id; `useReleaseValidation`
+  applies only the reply matching the latest id (**last-write-wins**) and degrades
+  to the synchronous main-thread path when no `Worker` can be constructed (SSR /
+  jsdom / a bundler miss) — first snapshot still computed synchronously, so the
+  public shape is exact-parity and every consumer is untouched. Worker bundles
+  cleanly under Next 16 (`new Worker(new URL("./…", import.meta.url), {type:
+"module"})`).
+- **4B — live preview dock tab (`2819051`).** A "Preview" tab derives the
+  in-progress release on a sample input so the author SEES it produce: the
+  generated wizard (`resolveUi` off the release itself), the BOM/price, and the
+  typed `Issues` (I5 — an invalid config shows its problems, never a silent BOM).
+  The derive (`deriveInstanceDetailed`) runs in the SAME worker (a `preview`
+  message; price table cached alongside the catalog). The preview needs a catalog
+  AND a price table — the engine treats a **missing component price as an I5
+  error, not a zero**, so there is no honest "BOM without prices" (the contract
+  the configurator already holds); absent either, the tab shows a notice. Rendered
+  with the configurator's own `ParamField` / `ResultsPanel` (no second design) +
+  a cost/real-margin line (ADR 0059) when the price table carries a cost layer and
+  the session may see money. The worker lifecycle is extracted to a shared
+  `useEngineWorker` (validation + preview each own one instance).
+- **4C — ExprField power: syntax overlay + inline `=value` (`23a3e30`).** The
+  keystone field gains a **character-faithful syntax-colour overlay** behind a
+  transparent-text input (`highlightSpans`, app-land: it can't reuse the model's
+  `tokenize`, which drops whitespace + the exact source of strings/numbers, so the
+  overlay would desync — a COSMETIC lexer whose miscolor never affects validation,
+  since the canonical `parse`/`validateRelease` still govern publish) and an inline
+  `= value` readout per formula, evaluated against a LIVE derivation scope. To feed
+  that scope to every workbench field, the live preview is **lifted from the dock
+  to the Editor** (`useReleasePreview` + `useActivePriceTable`), which provides
+  `preview.scope` via `ExprEvalScopeContext` (workbenches stay prop-clean) and
+  passes the preview down to the now-presentational `PreviewTab`. The always-on
+  derive runs in the worker; scope changes never re-trigger it (no loop). `=value`
+  is best-effort + fully guarded (a slot whose refs aren't in the top-level scope
+  shows nothing; an error/defect message always wins over the readout).
+
+Each sub-slice was adversarially reviewed (worker lifecycle + last-write-wins +
+catalog ordering; two-worker isolation + cache-before-derive; overlay
+faithfulness + `=value` throw-safety + the always-on lift for re-render loops) —
+no correctness bugs. Final gate: web check-types/lint/test (17 files/94) /
+build / knip + api integration 19 files/104; goldens `129891.504` / `79039.86`
+(and the single-gate `81451.504` through the editor's draft→preview path)
+reproduce. **The structured release editor (ADR 0068) is now complete —
+Phases 1–4 all shipped.**

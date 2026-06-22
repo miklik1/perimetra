@@ -211,11 +211,31 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
     Scaffolded via `pnpm gen module` then adapted (the template is STALE post-ADR-0055 —
     owner-scoped; flipped to org-scoped). NO schema change for 3B–3D. Full gate + integration
     19 files/104 green; goldens reproduce. (Also fixed an OpenAPI snapshot stale since Phase 2A.)
-    **Phase 4** = web-worker validate+derive + live engine preview (wizard + BOM/price + per-formula
-    `=value`) + the syntax-highlight overlay.
-    Next: editor Phase 4 (above), admin `adjustability: tenant`, issue-key i18n + deviation-
-    override UX, `/site`↔`/configurator` convergence; then ADR 0058 deferreds (sticky last-active
-    org, Decline / web self-registration).
+    Structured release editor — Phase 4 (2026-06-22, ADR 0068, `e627253`→`23a3e30`): the **live
+    engine + power features** — the editor is now COMPLETE. All client-side + pure (no backend;
+    I1/I3/I5 untouched). **4A** = an engine **web worker** — the validate pipeline
+    (`buildReleaseFromDraft`→`slotScopes`+`validateRelease`) moved off the main thread; pure compute
+    in `lib/release-engine.ts` (`runReleaseValidation`, worker-agnostic + tested), thin
+    `release-engine.worker.ts` pump; catalog cached worker-side, each `validate` tagged with a
+    monotonic id → **last-write-wins**; `useReleaseValidation` degrades to a synchronous fallback
+    when no `Worker` (SSR/jsdom/bundler miss), exact-parity public shape. Bundles under Next 16 via
+    `new Worker(new URL(…, import.meta.url), {type:"module"})`. **4B** = a dock **Preview tab** —
+    derives the in-progress release on a sample input (`deriveInstanceDetailed` in the SAME worker)
+    → resolveUi wizard + BOM/price + typed Issues (I5), rendered with the configurator's own
+    `ParamField`/`ResultsPanel` (no second design) + a cost/real-margin line (ADR 0059). Needs a
+    catalog AND a price table (a missing component price is an I5 error, not a zero — no honest
+    "BOM without prices"); the worker lifecycle is the shared `useEngineWorker`. **4C** = `ExprField`
+    power — a **character-faithful syntax overlay** (app-land `highlightSpans`, a COSMETIC lexer:
+    can't reuse the model's span-less `tokenize`, and a miscolor never affects validation) behind a
+    transparent-text input, + an inline **`= value`** per formula evaluated against the live derive
+    scope. To feed that scope the live preview is **lifted from the dock to the Editor**
+    (`useReleasePreview`+`useActivePriceTable`), provided via `ExprEvalScopeContext` (workbenches
+    stay prop-clean); `PreviewTab` is now presentational. Each sub-slice adversarially reviewed (no
+    correctness bugs). Full gate: web 17 files/94 + integration 19 files/104; goldens reproduce
+    (+ single-gate `81451.504` through draft→preview). NO schema change.
+    Next: admin `adjustability: tenant`, issue-key i18n + deviation-override UX,
+    `/site`↔`/configurator` convergence; EUR DPH / reverse-charge math; then ADR 0058 deferreds
+    (sticky last-active org, Decline / web self-registration). The editor (ADR 0068) is DONE.
     Invariants I1–I11 (CORE_SPEC §1)
     are the bar every PR is judged against; the Expr numeric-domain choice is
     ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
