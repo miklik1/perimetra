@@ -167,6 +167,8 @@ export const baseConfig = [
                 // Project site-persistence contract (ADR 0054) — extracted from the
                 // skeleton-owned projects.ts so that file stays byte-comparable (ADR 0042).
                 "!@repo/validators/project-site",
+                "!@repo/db/schema/release-drafts",
+                "!@repo/validators/release-drafts",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

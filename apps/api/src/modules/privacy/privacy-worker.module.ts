@@ -4,6 +4,7 @@ import { ENV, type Env } from "../../common/config/env.js";
 import { AuditModule } from "../audit/audit.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsPrivacyHandler } from "../projects/projects.privacy.js";
+import { ReleaseDraftsPrivacyHandler } from "../release-drafts/release-drafts.privacy.js";
 import { StorageModule } from "../storage/storage.module.js";
 import { PrivacyProcessor } from "./privacy.processor.js";
 import { PRIVACY_HANDLERS, PURGE_HOOKS, type PurgeHook } from "./privacy.tokens.js";
@@ -24,11 +25,12 @@ import { SentryPurgeHook } from "./purge/sentry.purge.js";
   providers: [
     PrivacyProcessor,
     ProjectsPrivacyHandler,
+    ReleaseDraftsPrivacyHandler,
     // @gen:privacy-handlers — `pnpm gen module` appends new handlers here.
     {
       provide: PRIVACY_HANDLERS,
       useFactory: (...handlers: unknown[]) => handlers,
-      inject: [ProjectsPrivacyHandler],
+      inject: [ProjectsPrivacyHandler, ReleaseDraftsPrivacyHandler],
     },
     // Real third-party purgers (ADR 0036/0040); each no-ops with a log when
     // its env keys are absent.

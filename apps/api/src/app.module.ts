@@ -28,6 +28,7 @@ import { ProjectsModule } from "./modules/projects/projects.module.js";
 import { OrgProvisioningModule } from "./modules/provisioning/org-provisioning.module.js";
 import { QuotesModule } from "./modules/quotes/quotes.module.js";
 import { RealtimeModule } from "./modules/realtime/realtime.module.js";
+import { ReleaseDraftsModule } from "./modules/release-drafts/release-drafts.module.js";
 import { ReleasesModule } from "./modules/releases/releases.module.js";
 import { StorageModule } from "./modules/storage/storage.module.js";
 import { OtelMetricsModule } from "./otel/metrics.module.js";
@@ -96,6 +97,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     // New-org default provisioning (ADR 0063): assigns the vendor-configured
     // default release set when a fresh org is auto-provisioned. HTTP app only.
     OrgProvisioningModule,
+    ReleaseDraftsModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

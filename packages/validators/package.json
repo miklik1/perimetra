@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./release-drafts": {
+      "types": "./dist/release-drafts.d.ts",
+      "default": "./dist/release-drafts.js"
+    },
     "./quotes": {
       "types": "./dist/quotes.d.ts",
       "default": "./dist/quotes.js"
