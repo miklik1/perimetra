@@ -21,8 +21,9 @@ baseline IS and ISN'T.
 `@fastify/helmet` global; Fastify `bodyLimit` 1 MB default; `trustProxy`
 env-driven (off by default, ON behind the proxy); Better Auth cookies
 httpOnly + SameSite=Lax + Secure/`__Host-` in production; two-layer rate
-limiting (Redis-backed default tier on Nest routes, strict per-IP tier on
-`/api/auth/*`, fail-open on Redis outage by design); zod validation AND
+limiting (Redis-backed default tier on Nest routes; per-IP tiers on
+`/api/auth/*` — strict for credential POSTs, generous for the `GET /get-session`
+read, see the 2026-06-22 amendment; fail-open on Redis outage by design); zod validation AND
 serialization on every route; PII-registry-driven log redaction; secrets via
 env only (zod-validated, fail-fast — env injection is the secrets-manager
 seam). CSRF: Better Auth origin-check on its routes; `/v1` mutations rely on
@@ -78,3 +79,31 @@ infrastructure, not part of this ADR's decision.
   from the table and deepen only where their assessor requires.
 - The pre-commit secret scan is best-effort by design (binary optional);
   the guarantee lives in CI.
+
+## Amendment (2026-06-22) — two-tier auth rate limit (`/api/auth/*`)
+
+The original baseline applied ONE strict per-IP tier (`AUTH_RATE_LIMIT_MAX`,
+default 10/min) to the whole `/api/auth/*` mount. That tier also caught
+`GET /api/auth/get-session`, which the Better Auth web client polls on every
+`visibilitychange` and on every `AuthGuard` mount. A couple of tabs plus normal
+multi-page navigation clears 10 calls/min easily; the 11th gets a `429`, the
+client reads `data: null`, and `AuthGuard` redirects to `/login` — a spurious
+**logout** with no attack, no Payload, and no polling config required.
+
+The fix splits the mount into two per-IP tiers in `authRateLimitConfig`
+(`common/throttle/throttle.module.ts`): the session-management flow on
+`/get-session` — the `GET` read AND the client's `POST` session-refresh
+(better-auth fires `POST /get-session` when a response sets `needsRefresh`, e.g.
+`session.deferSessionRefresh`) — gets a generous `AUTH_SESSION_RATE_LIMIT_MAX`
+(default 300/min); every credential POST keeps the strict `AUTH_RATE_LIMIT_MAX`.
+(Covering BOTH methods, vs Mercata `20c98d9`'s GET-only, closes a latent
+silent-logout regression the adversarial verify pass surfaced; widening to POST
+loosens no credential endpoint — none ends in `/get-session`.) **The tier is
+selected by exact path suffix + method, never a raw-URL substring** —
+`request.url` carries the query string, so
+a `.includes("/get-session")` check would let `POST /sign-in/email?x=/get-session`
+steal the generous tier, a ~30× brute-force bypass on the credential endpoints.
+The split is PATH-scoped to `get-session` only (least privilege): `list-sessions`
+and the `organization` GET reads are enumeration/permission-probe surfaces that
+nothing polls, so they stay strict. `throttle.module.test.ts` guards both the
+tier selection and the narrowness (query-bypass, trailing-slash, sibling-read).

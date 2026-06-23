@@ -20,4 +20,12 @@ describe("formatFileSize", () => {
     expect(formatFileSize(10 ** 18, {}, "en")).toBe("1,000 PB");
     expect(formatFileSize(1_234_567, { maximumFractionDigits: 2 }, "en")).toBe("1.23 MB");
   });
+
+  it("formats zero, negative, and non-finite byte counts safely", () => {
+    expect(formatFileSize(0, {}, "en")).toBe("0 byte");
+    expect(formatFileSize(0, { binary: true }, "en")).toBe("0 B");
+    expect(formatFileSize(-512, {}, "en")).toBe("-512 byte");
+    expect(formatFileSize(NaN, {}, "en")).toBe("0 byte");
+    expect(formatFileSize(Infinity, {}, "en")).toBe("0 byte");
+  });
 });

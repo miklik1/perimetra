@@ -27,6 +27,11 @@ describe("cursorQuerySchema", () => {
     expect(cursorQuerySchema.safeParse({ cursor: "not-a-uuid" }).success).toBe(false);
   });
 
+  it("coerces an empty-string cursor to undefined (absent query param)", () => {
+    const parsed = cursorQuerySchema.parse({ cursor: "" });
+    expect(parsed.cursor).toBeUndefined();
+  });
+
   it("accepts only the two createdAt sort values", () => {
     expect(cursorQuerySchema.parse({ sort: "createdAt:asc" }).sort).toBe("createdAt:asc");
     expect(cursorQuerySchema.safeParse({ sort: "name:asc" }).success).toBe(false);

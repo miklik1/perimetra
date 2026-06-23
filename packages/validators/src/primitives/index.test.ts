@@ -14,6 +14,12 @@ describe("password", () => {
     expect(password.safeParse("Ab1").success).toBe(false); // too short
     expect(password.safeParse(`A1${"a".repeat(127)}`).success).toBe(false); // too long
   });
+
+  it("trims before length so padding can't pad a too-short password to min(8)", () => {
+    expect(password.safeParse(" ".repeat(12)).success).toBe(false); // whitespace-only
+    expect(password.safeParse("   Ab1c   ").success).toBe(false); // core "Ab1c" (<8) padded to 10
+    expect(password.safeParse("  Abcdef12  ").success).toBe(true); // valid core, padding stripped
+  });
 });
 
 describe("phoneE164", () => {

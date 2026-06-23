@@ -1,8 +1,10 @@
 /**
  * Idempotency protocol against a mocked Redis: claim (SETNX) → store on
  * success, replay with `Idempotency-Replayed: true`, 409 while in flight,
- * claim release on handler failure, and the opt-in/no-op paths.
+ * claim release on handler failure, body-fingerprint reuse rejection, and the
+ * opt-in/no-op paths.
  */
+import { createHash } from "node:crypto";
 import { ConflictException, type CallHandler, type ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { type Redis } from "ioredis";
@@ -14,6 +16,9 @@ import { Idempotent } from "./idempotent.decorator.js";
 
 const TTL = 24 * 60 * 60;
 const KEY = "idempotency:u_1:POST:/v1/projects:k1";
+/** Matches the interceptor's hashBody for single-key bodies (canonical == stringify). */
+const hashOf = (body: unknown): string =>
+  createHash("sha256").update(JSON.stringify(body)).digest("hex");
 
 class TestController {
   @Idempotent()
@@ -94,7 +99,7 @@ describe("IdempotencyInterceptor", () => {
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it("claims the key (user+method+path scope, query stripped) and stores { status, body } on success", async () => {
+  it("claims the key (user+method+path scope, query stripped) and stores { status, body, bodyHash } on success", async () => {
     redis.set.mockResolvedValueOnce("OK"); // NX claim
     redis.set.mockResolvedValueOnce("OK"); // XX store
     const next = makeNext();
@@ -102,22 +107,47 @@ describe("IdempotencyInterceptor", () => {
     const result = await makeInterceptor().intercept(makeContext(makeRequest()), next);
     expect(await lastValueFrom(result)).toEqual({ id: "p1" });
 
-    expect(redis.set).toHaveBeenNthCalledWith(
-      1,
-      KEY,
-      JSON.stringify({ pending: true }),
-      "EX",
-      TTL,
-      "NX",
+    expect(redis.set).toHaveBeenNthCalledWith(1, KEY, expect.any(String), "EX", TTL, "NX");
+    expect(JSON.parse(redis.set.mock.calls[0]![1] as string)).toEqual({
+      pending: true,
+      bodyHash: expect.any(String),
+    });
+    expect(redis.set).toHaveBeenNthCalledWith(2, KEY, expect.any(String), "EX", TTL, "XX");
+    expect(JSON.parse(redis.set.mock.calls[1]![1] as string)).toEqual({
+      status: 201,
+      body: { id: "p1" },
+      bodyHash: expect.any(String),
+    });
+  });
+
+  it("rejects a replay whose body differs from the stored key (409 idempotency_key_reused)", async () => {
+    redis.set.mockResolvedValueOnce(null); // claim lost — key already exists
+    redis.get.mockResolvedValueOnce(
+      JSON.stringify({ status: 201, body: { id: "p1" }, bodyHash: hashOf({ ownerId: "A" }) }),
     );
-    expect(redis.set).toHaveBeenNthCalledWith(
-      2,
-      KEY,
-      JSON.stringify({ status: 201, body: { id: "p1" } }),
-      "EX",
-      TTL,
-      "XX",
+
+    const error = (await makeInterceptor()
+      .intercept(makeContext(makeRequest({ body: { ownerId: "B" } })), makeNext({ id: "NOPE" }))
+      .catch((e: unknown) => e)) as ConflictException;
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(error.getResponse()).toMatchObject({ code: "idempotency_key_reused" });
+  });
+
+  it("replays when the retried body matches the stored key's body hash (handler never runs)", async () => {
+    redis.set.mockResolvedValueOnce(null); // claim lost
+    redis.get.mockResolvedValueOnce(
+      JSON.stringify({ status: 201, body: { id: "p1" }, bodyHash: hashOf({ ownerId: "A" }) }),
     );
+    const next = makeNext({ id: "SHOULD_NOT_RUN" });
+
+    const result = await makeInterceptor().intercept(
+      makeContext(makeRequest({ body: { ownerId: "A" } })),
+      next,
+    );
+
+    expect(await lastValueFrom(result)).toEqual({ id: "p1" });
+    expect(next.handle).not.toHaveBeenCalled();
   });
 
   it("replays the stored response with Idempotency-Replayed: true (handler never runs)", async () => {

@@ -10,10 +10,12 @@ import { z } from "zod";
 
 /**
  * Password policy: 8–128 chars with at least one lowercase, one uppercase and
- * one digit. Each rule is its own check so the error-map can report all unmet
- * rules at once (RHF shows them per-field, ADR 0009).
+ * one digit. `.trim()` runs first so leading/trailing whitespace can't pad a
+ * too-short (or whitespace-only) password up to `min(8)` — all length/regex
+ * checks apply to the trimmed value. Each rule is its own check so the
+ * error-map can report all unmet rules at once (RHF shows them per-field, ADR 0009).
  */
-export const password = z.string().min(8).max(128).regex(/[a-z]/).regex(/[A-Z]/).regex(/\d/);
+export const password = z.string().trim().min(8).max(128).regex(/[a-z]/).regex(/[A-Z]/).regex(/\d/);
 
 /** E.164 international phone number (`+420123456789`). */
 export const phoneE164 = z.e164();

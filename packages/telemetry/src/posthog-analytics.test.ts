@@ -39,4 +39,27 @@ describe("createPosthogAnalytics", () => {
     createPosthogAnalytics(client).reset();
     expect(client.reset).toHaveBeenCalledOnce();
   });
+
+  it("trackEvent scrubs PII props before capture", () => {
+    const client = fakeClient();
+    createPosthogAnalytics(client).trackEvent("checkout_started", {
+      email: "a@b.cz",
+      token: "secret-token",
+      step: 1,
+    });
+    expect(client.capture).toHaveBeenCalledWith("checkout_started", {
+      email: "[Filtered]",
+      token: "[Filtered]",
+      step: 1,
+    });
+  });
+
+  it("screen scrubs PII props before capture (screen_name preserved)", () => {
+    const client = fakeClient();
+    createPosthogAnalytics(client).screen("Account", { note: "mail a@b.cz" });
+    expect(client.capture).toHaveBeenCalledWith("$screen", {
+      $screen_name: "Account",
+      note: "mail [Filtered]",
+    });
+  });
 });

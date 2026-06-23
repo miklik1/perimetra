@@ -6,6 +6,7 @@ export function formatNumber(
   options: Intl.NumberFormatOptions = {},
   locale: string = FALLBACK_LOCALE,
 ): string {
+  if (!Number.isFinite(value)) return "";
   return new Intl.NumberFormat(locale, options).format(value);
 }
 
@@ -15,5 +16,6 @@ export function formatPercent(
   options: Intl.NumberFormatOptions = {},
   locale: string = FALLBACK_LOCALE,
 ): string {
+  if (!Number.isFinite(value)) return "";
   return new Intl.NumberFormat(locale, { style: "percent", ...options }).format(value);
 }

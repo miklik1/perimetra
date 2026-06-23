@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { proxyToBackend } from "./backend-proxy";
 
+const logger = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock("@repo/utils", () => ({ logger }));
+
 // Captures the headers `proxyToBackend` sends upstream by stubbing global fetch
 // (the proxy's terminal hop). Asserts the request-header allowlist: only safe
 // headers are relayed, and credential headers (Authorization + Cookie) are
@@ -66,5 +69,20 @@ describe("proxyToBackend request-header allowlist", () => {
     const headers = sentHeaders();
     expect(headers.get("authorization")).toBe("Bearer secret-token");
     expect(headers.get("cookie")).toBe("refresh=secret-cookie");
+  });
+});
+
+describe("proxyToBackend upstream failure", () => {
+  it("logs the swallowed upstream error before returning 502", async () => {
+    const boom = new Error("ECONNREFUSED");
+    fetchSpy = vi.fn(async () => {
+      throw boom;
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await proxyToBackend(makeRequest(), { backendBaseUrl });
+
+    expect(response.status).toBe(502);
+    expect(logger.error).toHaveBeenCalledWith("Backend proxy failed", { error: boom });
   });
 });

@@ -111,14 +111,15 @@ function ProductVersions() {
             className="border-border flex items-center justify-between gap-3 rounded-md border px-3 py-2"
           >
             <span className="font-mono text-xs">
-              {o.modelId} · {t("currentVersion", { version: o.pinnedVersion })} → v{o.latestVersion}
+              {o.modelId} · {t("currentVersion", { version: String(o.pinnedVersion) })} → v
+              {o.latestVersion}
             </span>
             <Button
               type="button"
               disabled={pin.isPending}
               onClick={() => pin.mutate({ releaseId: o.latestReleaseId })}
             >
-              {upgrading ? t("upgrading") : t("upgradeTo", { version: o.latestVersion })}
+              {upgrading ? t("upgrading") : t("upgradeTo", { version: String(o.latestVersion) })}
             </Button>
           </li>
         );

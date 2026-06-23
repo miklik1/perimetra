@@ -32,6 +32,15 @@ describe("parseSearchParams", () => {
     expect(parseSearchParams("users", { page: "2", sort: "bogus" })).toEqual({ page: 2 });
   });
 
+  it("falls back to default when a numeric param is repeated (array input)", () => {
+    // ?page=1&page=2 → { page: ["1","2"] } → numeric coercion yields NaN → the
+    // key is dropped and its default (1) re-applied; the valid sort survives.
+    expect(parseSearchParams("users", { page: ["1", "2"], sort: "name" })).toEqual({
+      page: 1,
+      sort: "name",
+    });
+  });
+
   it("ignores unknown keys (zod strips by default)", () => {
     expect(parseSearchParams("users", { page: "2", utm_source: "x" })).toEqual({ page: 2 });
   });

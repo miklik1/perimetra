@@ -1,3 +1,4 @@
+import { scrubEvent } from "./scrub";
 import type { Analytics, TelemetryUser } from "./types";
 
 /**
@@ -31,10 +32,10 @@ export interface PosthogAnalyticsClient {
 export function createPosthogAnalytics(client: PosthogAnalyticsClient): Analytics {
   return {
     trackEvent: (name, props) => {
-      client.capture(name, props);
+      client.capture(name, scrubEvent(props));
     },
     screen: (name, props) => {
-      client.capture("$screen", { $screen_name: name, ...props });
+      client.capture("$screen", scrubEvent({ $screen_name: name, ...props }));
     },
     identify: (user: TelemetryUser) => {
       client.identify(user.id, { email: user.email, username: user.username });

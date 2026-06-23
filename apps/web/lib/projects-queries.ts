@@ -88,12 +88,14 @@ export function createProjectsQueries(client: ApiClient) {
     create: () =>
       mutationOptions({
         mutationFn: ({ input, idempotencyKey }: CreateProjectVariables) =>
+          // POST returns 201 + the created Project (never 204) — narrow the honest
+          // `Project | undefined` from raw apiFetch to `Project` at this call seam.
           client.apiFetch<Project>("/v1/projects", {
             method: "POST",
             body: createProjectSchema.parse(input),
             headers: { "Idempotency-Key": idempotencyKey },
             parse: (data) => projectSchema.parse(data),
-          }),
+          }) as Promise<Project>,
       }),
     // POST /v1/projects/:id/archive — emits the `project.archived` outbox event
     // server-side; the worker fans it out to `user:<ownerId>` (the LIVE badge).
@@ -118,11 +120,13 @@ export function createProjectsQueries(client: ApiClient) {
     saveSite: () =>
       mutationOptions({
         mutationFn: ({ projectId, input }: SaveProjectSiteVariables) =>
+          // PUT returns the saved doc (never 204) — narrow the honest
+          // `ProjectSite | undefined` from raw apiFetch, like `create` above.
           client.apiFetch<ProjectSite>(`/v1/projects/${projectId}/site`, {
             method: "PUT",
             body: saveProjectSiteSchema.parse(input),
             parse: (data) => projectSiteSchema.parse(data),
-          }),
+          }) as Promise<ProjectSite>,
       }),
   };
 }

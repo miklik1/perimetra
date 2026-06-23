@@ -7,11 +7,13 @@ export function formatDate(
   locale: string = FALLBACK_LOCALE,
 ): string {
   const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(locale, options).format(date);
 }
 
 /** ISO-8601 date-only string (`YYYY-MM-DD`) in UTC. */
 export function toIsoDate(value: Date | number | string): string {
   const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
 }

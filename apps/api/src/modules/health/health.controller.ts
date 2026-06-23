@@ -4,7 +4,7 @@
  *   must not get the pod killed, only taken out of rotation).
  * - `/health/ready` — fit for traffic: DB + Redis reachable.
  */
-import { Controller, Get, Inject, VERSION_NEUTRAL } from "@nestjs/common";
+import { Controller, Get, Inject, Logger, VERSION_NEUTRAL } from "@nestjs/common";
 import {
   HealthCheck,
   HealthCheckService,
@@ -29,6 +29,8 @@ import { REDIS } from "../auth/auth.tokens.js";
 @SkipThrottle()
 @Controller({ path: "health", version: VERSION_NEUTRAL })
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   constructor(
     private readonly health: HealthCheckService,
     private readonly indicator: HealthIndicatorService,
@@ -54,9 +56,12 @@ export class HealthController {
       await this.db.execute(sql`select 1`);
       return check.up();
     } catch (error) {
-      return check.down({
-        message: error instanceof Error ? error.message : "unreachable",
-      });
+      // Log the real reason server-side; the readiness RESPONSE carries only a
+      // generic status. `/health/ready` is unauthenticated and throttle-exempt,
+      // so a raw `error.message` (DSN, host, driver internals) would leak to any
+      // caller — readiness tells an orchestrator a dependency is down, not why.
+      this.logger.error("database readiness check failed", asStack(error));
+      return check.down({ message: "unreachable" });
     }
   }
 
@@ -66,9 +71,14 @@ export class HealthController {
       await this.redis.ping();
       return check.up();
     } catch (error) {
-      return check.down({
-        message: error instanceof Error ? error.message : "unreachable",
-      });
+      // See pingDb: sanitized status out, real reason to the server log only.
+      this.logger.error("redis readiness check failed", asStack(error));
+      return check.down({ message: "unreachable" });
     }
   }
+}
+
+/** Server-log detail for a probe failure — never reaches the HTTP response. */
+function asStack(error: unknown): string | undefined {
+  return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }

@@ -37,9 +37,11 @@ export default async function SitePage({ params }: { params: Promise<{ projectId
 
   let data: ProjectSite;
   try {
-    data = await api.apiFetch<ProjectSite>(`/v1/projects/${projectId}/site`, {
+    // The GET returns the full doc (never 204) — narrow the honest
+    // `ProjectSite | undefined` from raw apiFetch.
+    data = await (api.apiFetch<ProjectSite>(`/v1/projects/${projectId}/site`, {
       parse: (d) => projectSiteSchema.parse(d),
-    });
+    }) as Promise<ProjectSite>);
   } catch (error) {
     if (isNotFound(error)) notFound();
     if (!isUnauthorized(error)) throw error;

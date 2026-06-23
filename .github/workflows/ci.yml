@@ -25,7 +25,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  # Scope the write token to push events only — pull_request runs get an empty
+  # string so a same-repo PR cannot poison the shared remote cache.
+  TURBO_TOKEN: ${{ github.event_name == 'push' && secrets.TURBO_TOKEN || '' }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:

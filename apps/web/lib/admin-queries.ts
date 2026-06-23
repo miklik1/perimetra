@@ -67,12 +67,15 @@ export function createAdminQueries(client: ApiClient) {
     publishCatalogVersion: () =>
       mutationOptions({
         mutationFn: ({ input, idempotencyKey }: PublishCatalogVariables) =>
+          // POST returns the created row (never 204) — narrow the honest
+          // `… | undefined` from raw apiFetch (the builder can't carry the
+          // Idempotency-Key header, so this mutation is hand-rolled).
           client.apiFetch<CatalogVersionDetail>("/v1/catalog-versions", {
             method: "POST",
             body: publishCatalogVersionSchema.parse(input),
             headers: { "Idempotency-Key": idempotencyKey },
             parse: (data) => catalogVersionSchema.parse(data),
-          }),
+          }) as Promise<CatalogVersionDetail>,
       }),
 
     listReleases: () =>
@@ -96,7 +99,7 @@ export function createAdminQueries(client: ApiClient) {
             body: publishReleaseSchema.parse(input),
             headers: { "Idempotency-Key": idempotencyKey },
             parse: (data) => releaseSchema.parse(data),
-          }),
+          }) as Promise<ReleaseDetail>,
       }),
 
     listPriceTables: () =>
@@ -134,7 +137,7 @@ export function createAdminQueries(client: ApiClient) {
             body: publishPriceTableSchema.parse(input),
             headers: { "Idempotency-Key": idempotencyKey },
             parse: (data) => priceTableSchema.parse(data),
-          }),
+          }) as Promise<PriceTableDetail>,
       }),
   };
 }

@@ -40,6 +40,12 @@ export function buildPath(href: Href): string {
       if (!placeholder.test(path)) {
         throw new Error(`Route "${href.route}" has no param ":${key}"`);
       }
+      // An empty value passes the colon-cleared check below (`/users/:id` →
+      // `/users/`) and silently ships a wrong URL. Reject it like a missing
+      // param — defensive against JS callers / registry-vs-type drift.
+      if (String(value) === "") {
+        throw new Error(`Route "${href.route}" param ":${key}" cannot be empty`);
+      }
       path = path.replace(placeholder, encodeURIComponent(String(value)));
     }
   }

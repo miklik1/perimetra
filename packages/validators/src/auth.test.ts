@@ -45,6 +45,14 @@ describe("loginResponseSchema", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it("rejects an empty accessToken", () => {
+    const r = loginResponseSchema.safeParse({
+      success: true,
+      data: { accessToken: "", user: validUser },
+    });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe("refreshResponseSchema", () => {
@@ -52,5 +60,9 @@ describe("refreshResponseSchema", () => {
     expect(refreshResponseSchema.parse({ data: { accessToken: "fresh" } })).toEqual({
       data: { accessToken: "fresh" },
     });
+  });
+
+  it("rejects an empty accessToken", () => {
+    expect(refreshResponseSchema.safeParse({ data: { accessToken: "" } }).success).toBe(false);
   });
 });

@@ -26,12 +26,16 @@ export function formatFileSize(
   const base = binary ? 1024 : 1000;
   const units = binary ? BINARY_UNITS : DECIMAL_UNITS;
 
-  const magnitude = Math.abs(bytes);
+  // Non-finite input (NaN/±Infinity) has no meaningful size; treat it as 0.
+  const safeBytes = Number.isFinite(bytes) ? bytes : 0;
+  const magnitude = Math.abs(safeBytes);
+  // `Math.log(0)` is `-Infinity` → floors to `-Infinity` → `units[-Infinity]`
+  // is `undefined`; clamp the exponent into `[0, units.length - 1]`.
   const exponent =
     magnitude < base
       ? 0
-      : Math.min(Math.floor(Math.log(magnitude) / Math.log(base)), units.length - 1);
-  const scaled = bytes / base ** exponent;
+      : Math.min(Math.max(Math.floor(Math.log(magnitude) / Math.log(base)), 0), units.length - 1);
+  const scaled = safeBytes / base ** exponent;
 
   if (binary) {
     const number = new Intl.NumberFormat(locale, { maximumFractionDigits }).format(scaled);

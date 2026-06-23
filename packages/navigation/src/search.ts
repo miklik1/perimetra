@@ -45,7 +45,15 @@ export function parseSearchParams<N extends RouteName>(
   if (result.success) return result.data as SearchOf<N>;
 
   // Drop only the invalid keys so valid params survive garbage neighbours.
-  const invalid = new Set(result.error.issues.map((issue) => String(issue.path[0])));
+  // Skip root-level issues (empty path — e.g. an object-level `.refine`): their
+  // `path[0]` is `undefined`, which would add the literal key "undefined" to the
+  // set and misattribute the failure to no real key. They fall through to the
+  // `{}`-baseline retry below, which is the correct handling.
+  const invalid = new Set(
+    result.error.issues
+      .filter((issue) => issue.path.length > 0)
+      .map((issue) => String(issue.path[0])),
+  );
   const cleaned = Object.fromEntries(Object.entries(raw).filter(([key]) => !invalid.has(key)));
   const retry = schema.safeParse(cleaned);
   if (retry.success) return retry.data as SearchOf<N>;

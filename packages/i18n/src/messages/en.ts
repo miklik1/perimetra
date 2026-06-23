@@ -1,12 +1,14 @@
-import type { Messages } from "../messages.types";
+import type { MessagesInput } from "../messages.types";
 
 /**
  * English catalog — kept a complete, first-class locale so the skeleton stays
  * "ready for `en`" even though the first product renders only `cs`. Typed as
- * `Messages` (derived from `cs`) so a missing or extra key fails `tsc`; the
- * runtime catalog-parity test is the second guard against silent drift.
+ * `MessagesInput` (the `cs`-derived key structure with leaf strings widened) so
+ * a missing or extra key fails `tsc` while `en` stays free to hold its own
+ * strings; the runtime catalog-parity test is the second guard against silent
+ * drift.
  */
-const en: Messages = {
+const en: MessagesInput = {
   app: {
     name: "Skeleton",
   },
@@ -129,7 +131,7 @@ const en: Messages = {
     infiniteTitle: "Users (infinite)",
     status: "status: {status}",
     fetchStatus: "fetchStatus: {fetchStatus}",
-    loaded: "loaded: {count}",
+    loaded: "loaded: {count, number}",
   },
   projects: {
     title: "Projects",

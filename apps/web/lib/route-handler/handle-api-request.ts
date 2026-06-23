@@ -23,7 +23,7 @@ import { proxyToBackend } from "./backend-proxy";
 // instead of proxying the demo host whose shapes fail validation. Never in
 // production.
 const mocksEnabled =
-  process.env.NODE_ENV !== "production" &&
+  env.NODE_ENV !== "production" &&
   (env.NEXT_PUBLIC_ENABLE_MSW === "true" ||
     (env.NEXT_PUBLIC_ENABLE_MSW === undefined && env.API_URL === undefined));
 

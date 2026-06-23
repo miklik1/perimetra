@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createApiClient, type ApiMiddleware } from "./create-api-client";
+import {
+  ApiError,
+  createApiClient,
+  parseRetryAfter,
+  type ApiMiddleware,
+} from "./create-api-client";
 
 const fetchMock = vi.fn();
 
@@ -45,9 +50,20 @@ describe("apiFetch success", () => {
     expect(init.body).toBe(JSON.stringify({ a: 1 }));
   });
 
-  it("resolves undefined on 204", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
-    await expect(makeClient().apiFetch("/things")).resolves.toBeUndefined();
+  it("resolves undefined on 204 with an honest T | undefined return type", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const result = await makeClient().apiFetch<string>("/things");
+    expect(result).toBeUndefined();
+
+    // Type-contract guard (checked by `check-types`, not the runtime): the honest
+    // return is `string | undefined`, so assigning it to a NON-optional `string`
+    // must be a compile error. The lying `undefined as T` (return `Promise<T>`)
+    // would let this assignment compile, turning @ts-expect-error into an unused
+    // directive — itself a check-types failure. So this is RED before the fix
+    // (unused directive) and GREEN after (the error it expects exists).
+    // @ts-expect-error 204 may yield undefined — not assignable to bare `string`.
+    const nonOptional: string = await makeClient().apiFetch<string>("/things");
+    void nonOptional;
   });
 
   it("passes FormData through untouched without forcing a JSON content-type", async () => {
@@ -76,6 +92,38 @@ describe("apiFetch success", () => {
     expect(result).toEqual({ via: "injected" });
     expect(injected).toHaveBeenCalledOnce();
     expect(fetchMock).not.toHaveBeenCalled(); // global fetch untouched
+  });
+});
+
+describe("parseRetryAfter hardening", () => {
+  it("caps an absurd delta-seconds value at the supplied maxMs", () => {
+    // A hostile/huge header must never park the retry loop beyond the client's
+    // own backoff ceiling. The retry middleware passes its maxDelayMs here.
+    expect(parseRetryAfter("999999999", 30_000)).toBe(30_000);
+    expect(parseRetryAfter("120", 5_000)).toBe(5_000);
+  });
+
+  it("returns a delta under the cap verbatim", () => {
+    expect(parseRetryAfter("3", 30_000)).toBe(3_000);
+  });
+
+  it("leaves the parse uncapped when no maxMs is supplied (informational use)", () => {
+    // The create-api-client call-site uses the raw value for ApiError.retryAfterMs
+    // (data only); only the retry LOOP applies the cap. A legit 2-minute value
+    // must survive here.
+    expect(parseRetryAfter("120")).toBe(120_000);
+  });
+
+  it("caps an HTTP-date that lands far in the future at maxMs", () => {
+    const farFuture = new Date(Date.now() + 86_400_000).toUTCString();
+    expect(parseRetryAfter(farFuture, 30_000)).toBe(30_000);
+  });
+
+  it("returns undefined for a whitespace-only header (no 0ms retry storm)", () => {
+    // `Number(" ")` is 0 — without trimming this would mean an immediate retry.
+    expect(parseRetryAfter(" ")).toBeUndefined();
+    expect(parseRetryAfter("\n")).toBeUndefined();
+    expect(parseRetryAfter("\t  \n")).toBeUndefined();
   });
 });
 

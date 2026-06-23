@@ -58,6 +58,23 @@ describe("scrubEvent", () => {
     });
   });
 
+  it("redacts every pii()-registered column name (packages/db/src/pii.ts, ADR 0040)", () => {
+    // The PII registry drives this scrubber: a column tagged pii() must never
+    // reach Sentry in the clear. These are the current registered bare names —
+    // name/email/image (user), ip_address/user_agent (session), identifier
+    // (verification). Add a row here when a new pii() column lands.
+    const event = {
+      user: { name: "Jane", email: "a@b.cz", image: "https://cdn/x.png", id: "u1" },
+      session: { ip_address: "203.0.113.4", user_agent: "Mozilla/5.0", expiresAt: "soon" },
+      verification: { identifier: "jane@b.cz", value: "tok" },
+    };
+    expect(scrubEvent(event)).toEqual({
+      user: { name: FILTERED, email: FILTERED, image: FILTERED, id: "u1" },
+      session: { ip_address: FILTERED, user_agent: FILTERED, expiresAt: "soon" },
+      verification: { identifier: FILTERED, value: "tok" },
+    });
+  });
+
   it("is pure — the input event is not mutated", () => {
     const event = { message: "mail a@b.cz", extra: { token: "t" } };
     const copy = structuredClone(event);

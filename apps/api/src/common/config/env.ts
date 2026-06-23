@@ -65,8 +65,12 @@ const envSchema = z.object({
   /** Default tier for Nest controller routes (per user-or-ip). */
   THROTTLE_TTL_MS: z.coerce.number().int().positive().default(60_000),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
-  /** Strict tier for the raw /api/auth/* routes (per IP). */
+  /** Strict tier for the credential POSTs on /api/auth/* (per IP). */
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /** Generous tier for the high-frequency GET /api/auth/get-session READ (per
+   * IP) — the Better Auth web client polls it on every window-focus and
+   * AuthGuard mount, so the strict tier trips into a spurious logout. ADR 0044. */
+  AUTH_SESSION_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
   // The quote margin floor is per-org (ADR 0059): read from the active price
   // table's `marginFloorPct` at issue, no longer an env-backed constant.
@@ -119,6 +123,51 @@ export type Env = z.infer<typeof envSchema>;
 
 export const ENV = Symbol("ENV");
 
+/**
+ * Secrets that ship with a dev placeholder default so `pnpm dev` runs with no
+ * `.env` — but a forgotten env var in production then boots green on a
+ * publicly-known value. For a signing/admin key (the auth secret, the realtime
+ * token + api key, the bull-board password) that is a forgeable-credential
+ * trap, so production MUST override them.
+ */
+const PRODUCTION_FORBIDDEN_DEFAULTS: Readonly<Record<string, string>> = {
+  BETTER_AUTH_SECRET: "dev-secret-change-me",
+  CENTRIFUGO_API_KEY: "dev-centrifugo-api-key",
+  CENTRIFUGO_TOKEN_SECRET: "dev-centrifugo-token-secret",
+  BULL_BOARD_PASSWORD: "admin",
+};
+
+/** Signing secrets that must additionally meet a minimum entropy in production. */
+const PRODUCTION_MIN_SECRET_LENGTH: Readonly<Record<string, number>> = {
+  BETTER_AUTH_SECRET: 32,
+  CENTRIFUGO_TOKEN_SECRET: 32,
+};
+
+/**
+ * Fail-fast at boot (the release phase, never at first use) if production still
+ * runs on a dev placeholder secret or a too-short signing key — a single
+ * forgotten env var must crash the process, not silently ship a forgeable key.
+ */
+function assertProductionSecrets(env: Env): void {
+  if (env.NODE_ENV !== "production") return;
+  const read = (key: string): unknown => (env as unknown as Record<string, unknown>)[key];
+  const issues: string[] = [];
+  for (const [key, placeholder] of Object.entries(PRODUCTION_FORBIDDEN_DEFAULTS)) {
+    if (read(key) === placeholder) {
+      issues.push(`  ${key}: still the dev placeholder — set a generated value in production`);
+    }
+  }
+  for (const [key, min] of Object.entries(PRODUCTION_MIN_SECRET_LENGTH)) {
+    const value = read(key);
+    if (typeof value === "string" && value.length < min) {
+      issues.push(`  ${key}: must be at least ${min} characters in production`);
+    }
+  }
+  if (issues.length > 0) {
+    throw new Error(`Insecure production environment:\n${issues.join("\n")}`);
+  }
+}
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
@@ -127,5 +176,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       .join("\n");
     throw new Error(`Invalid environment:\n${issues}`);
   }
+  assertProductionSecrets(parsed.data);
   return parsed.data;
 }

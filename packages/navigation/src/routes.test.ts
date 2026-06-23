@@ -28,6 +28,10 @@ describe("buildPath", () => {
     );
   });
 
+  it("throws on an empty param value (would silently yield `/users/`)", () => {
+    expect(() => buildPath({ route: "user", params: { id: "" } })).toThrow(/cannot be empty/);
+  });
+
   it("serializes a typed query with stable (sorted) key order", () => {
     expect(buildPath({ route: "users", query: { page: 2 } })).toBe("/users?page=2");
     expect(buildPath({ route: "users", query: { sort: "name", page: 2 } })).toBe(

@@ -64,10 +64,16 @@ cross-origin-mutation-must-fail test is a **tracked gap** (below).
   Redis-backed (shared across replicas), 100 req / 60 s by default
   (`THROTTLE_TTL_MS` / `THROTTLE_LIMIT`); per-route overrides via
   `@Throttle()` / `@SkipThrottle()`.
-- **Strict auth tier** on the raw `/api/auth/*` routes (outside Nest's
-  router): `@fastify/rate-limit` per-IP, 10 req / min by default
-  (`AUTH_RATE_LIMIT_MAX`). `skipOnError: true` — a Redis outage fails OPEN
-  (loudly) rather than locking everyone out; this trade-off is deliberate.
+- **Auth tiers** on the raw `/api/auth/*` routes (outside Nest's router),
+  `@fastify/rate-limit` per-IP, selected by exact path + method (never a
+  raw-URL substring — that would let a query-string smuggle the generous tier):
+  credential POSTs get the **strict** tier, 10 req / min by default
+  (`AUTH_RATE_LIMIT_MAX`); the high-frequency session-management flow on
+  `/get-session` (the `GET` read **and** the client's `POST` session-refresh)
+  gets a **generous** tier, 300 req / min by default
+  (`AUTH_SESSION_RATE_LIMIT_MAX`), so a polling web client never trips into a
+  spurious logout (ADR 0044 amendment). `skipOnError: true` — a Redis outage fails OPEN (loudly) rather
+  than locking everyone out; this trade-off is deliberate.
 
 An api-key tier exists only as a seam (the Better Auth api-key plugin is OFF
 until a project needs it).

@@ -12,7 +12,14 @@
  *   (only successes are memoized).
  * - concurrent duplicate while the winner is in flight → 409
  *   `{ code: "idempotency_in_flight" }` (clients back off and retry).
+ *
+ * The stored record also fingerprints the request BODY (sha256 of canonical
+ * JSON): a retry MUST carry the same body to replay — a same-key/different-body
+ * call is rejected (`idempotency_key_reused`), so a key can never alias an
+ * unrelated request or skip a body-dependent authorization check on the replay
+ * path.
  */
+import { createHash } from "node:crypto";
 import {
   ConflictException,
   Inject,
@@ -46,9 +53,32 @@ interface StoredRecord {
   pending?: true;
   status?: number;
   body?: unknown;
+  /**
+   * sha256 of the canonical request body — binds the key to its payload so a
+   * same-key/different-body call is rejected instead of silently replayed.
+   */
+  bodyHash?: string;
 }
 
-const PENDING = JSON.stringify({ pending: true } satisfies StoredRecord);
+/** Canonical (recursively key-sorted) JSON so equal payloads hash equal regardless of key order. */
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value !== null && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = canonicalize((value as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
+function hashBody(body: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(body ?? null)))
+    .digest("hex");
+}
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -83,8 +113,20 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const path = request.url.split("?")[0] ?? request.url;
     const redisKey = `idempotency:${userId}:${request.method}:${path}:${idempotencyKey}`;
 
-    const claimed = await this.redis.set(redisKey, PENDING, "EX", TTL_SECONDS, "NX");
-    if (claimed !== "OK") return this.replay(redisKey, context);
+    const bodyHash = hashBody(request.body);
+    const claimed = await this.redis.set(
+      redisKey,
+      JSON.stringify({ pending: true, bodyHash } satisfies StoredRecord),
+      "EX",
+      TTL_SECONDS,
+      "NX",
+    );
+    // Replay short-circuits the handler — authorization that depends on the
+    // request body is enforced by the body-hash check in `replay()`; any other
+    // authorization for @Idempotent routes must live in a GUARD (runs before
+    // this interceptor), never in the handler. See the authorization invariant
+    // on `@Idempotent()`.
+    if (claimed !== "OK") return this.replay(redisKey, context, bodyHash);
 
     const reply = context.switchToHttp().getResponse<FastifyReply>();
     return next.handle().pipe(
@@ -94,7 +136,11 @@ export class IdempotencyInterceptor implements NestInterceptor {
         from(
           this.redis.set(
             redisKey,
-            JSON.stringify({ status: reply.statusCode, body: body ?? null } satisfies StoredRecord),
+            JSON.stringify({
+              status: reply.statusCode,
+              body: body ?? null,
+              bodyHash,
+            } satisfies StoredRecord),
             "EX",
             TTL_SECONDS,
             // XX: only overwrite our own pending claim; if the claim expired
@@ -110,9 +156,23 @@ export class IdempotencyInterceptor implements NestInterceptor {
     );
   }
 
-  private async replay(redisKey: string, context: ExecutionContext): Promise<Observable<unknown>> {
+  private async replay(
+    redisKey: string,
+    context: ExecutionContext,
+    bodyHash: string,
+  ): Promise<Observable<unknown>> {
     const raw = await this.redis.get(redisKey);
     const record = parseRecord(raw);
+
+    // Same key, DIFFERENT body = the client reused a key for an unrelated
+    // request. Reject it: never replay the original (cross-request aliasing) and
+    // never let a body-dependent authz check be skipped on the replay path.
+    if (record && record.bodyHash !== undefined && record.bodyHash !== bodyHash) {
+      throw new ConflictException({
+        message: "This Idempotency-Key was already used with a different request body",
+        code: "idempotency_key_reused",
+      });
+    }
 
     // `pending` = the winner is still in flight. `null` (key vanished between
     // our failed claim and this GET — winner failed/expired) is treated the

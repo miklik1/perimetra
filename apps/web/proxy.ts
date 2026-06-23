@@ -26,8 +26,8 @@ import { env } from "@repo/config/env/web";
 /** Routes that require a session cookie to be present. */
 const PROTECTED_PREFIXES = ["/account", "/projects", "/configurator", "/site", "/admin"];
 
-function buildCsp(nonce: string): string {
-  const isDev = process.env.NODE_ENV !== "production";
+export function buildCsp(nonce: string): string {
+  const isDev = env.NODE_ENV !== "production";
   // Telemetry origin (ADR 0021): when a Sentry DSN is configured, its origin is
   // allowed in connect-src so ingestion isn't blocked by the policy.
   const sentryOrigin = (() => {
@@ -88,8 +88,16 @@ export function proxy(request: NextRequest) {
   const hasSessionCookie =
     getSessionCookie(request) !== null || request.cookies.has("__Host-better-auth.session_token");
   if (isProtected && !hasSessionCookie) {
+    // Carry where the visitor was headed so the login form can send them back
+    // (read + re-validated through `safeNextPath` on the client — the value is
+    // never trusted on the way back out). The original path is server-derived
+    // here, but it round-trips through a user-editable query param, so the
+    // open-redirect guard lives on the consuming side.
+    const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 

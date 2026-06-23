@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { safeNext } from "../../lib/safe-next";
+import { safeNextPath } from "../../lib/safe-redirect";
 import { TwoFactorForm } from "./two-factor-form";
 
 export const metadata: Metadata = { title: "Two-factor verification" };
@@ -8,7 +8,8 @@ export const metadata: Metadata = { title: "Two-factor verification" };
 /**
  * The TOTP challenge step. A 2FA-enabled user is bounced here by the login form
  * (Better Auth withholds the session until the code is verified). `?next=` is
- * the same-origin destination to resume after verifying.
+ * the same-origin destination to resume after verifying — open-redirect-guarded
+ * by the same `safeNextPath` the login flow uses.
  */
 export default async function TwoFactorPage({
   searchParams,
@@ -16,9 +17,10 @@ export default async function TwoFactorPage({
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
   const { next } = await searchParams;
+  const destination = safeNextPath(typeof next === "string" ? next : null) ?? "/account";
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <TwoFactorForm next={safeNext(next)} />
+      <TwoFactorForm next={destination} />
     </main>
   );
 }

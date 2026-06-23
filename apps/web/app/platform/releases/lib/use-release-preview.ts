@@ -38,6 +38,7 @@ export function useActivePriceTable(): ActivePrices | null {
         const active = await client.apiFetch("/v1/price-tables/active", {
           parse: (d) => priceTableSchema.parse(d),
         });
+        if (!active) return null; // a 204 (no active table) degrades to the price-blind notice
         return {
           table: active.table as PriceTable,
           cost: (active.cost as CostTable | null) ?? null,

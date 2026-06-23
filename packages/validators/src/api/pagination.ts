@@ -36,7 +36,10 @@ export type ListSort = z.infer<typeof listSortSchema>;
  * defaults so the parsed output always has them.
  */
 export const cursorQuerySchema = z.object({
-  cursor: cursorSchema.optional(),
+  // Query params arrive as strings; an absent cursor surfaces as `""`, not a
+  // missing key (e.g. `?cursor=&limit=20`). Coerce `""` → undefined BEFORE the
+  // uuid check so a first-page request doesn't fail validation on an empty param.
+  cursor: z.preprocess((v) => (v === "" ? undefined : v), cursorSchema.optional()),
   limit: limitSchema,
   sort: listSortSchema,
 });

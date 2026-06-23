@@ -38,7 +38,11 @@ export function defineQuery<TData>(client: ApiClient, config: DefineQueryConfig<
   const url = appendSearchParams(config.path, config.searchParams);
   return queryOptions({
     queryKey: config.queryKey,
-    queryFn: ({ signal }) => client.apiFetch<TData>(url, { signal, parse: config.schema }),
+    // A query endpoint returns a body (never 204), so the honest `TData |
+    // undefined` from apiFetch is narrowed to `TData` at this builder seam —
+    // 204 honesty lives on raw apiFetch; typed endpoints opt out where it can't occur.
+    queryFn: ({ signal }) =>
+      client.apiFetch<TData>(url, { signal, parse: config.schema }) as Promise<TData>,
     ...(config.staleTime !== undefined ? { staleTime: config.staleTime } : {}),
     ...(config.gcTime !== undefined ? { gcTime: config.gcTime } : {}),
   });
@@ -76,11 +80,15 @@ export function defineInfiniteQuery<TPage, TPageParam = number>(
   const initialPageParam = config.initialPageParam ?? (1 as TPageParam);
   return infiniteQueryOptions({
     queryKey: config.queryKey,
+    // A paged list endpoint always returns a body (never 204), so the honest
+    // `TPage | undefined` from apiFetch is narrowed to `TPage` at this boundary —
+    // TanStack's `queryFn` is invariant and `getNextPageParam` consumes a present
+    // page. (204 honesty lives on apiFetch; queries opt out where it can't occur.)
     queryFn: ({ pageParam, signal }) =>
       client.apiFetch<TPage>(config.path(pageParam as TPageParam), {
         signal,
         parse: config.schema,
-      }),
+      }) as Promise<TPage>,
     initialPageParam,
     getNextPageParam: (lastPage: TPage) => config.getNextPageParam(lastPage) ?? undefined,
     placeholderData: keepPreviousData,
@@ -106,10 +114,12 @@ export function defineMutation<TData, TVariables>(
   const { method = "POST", path, body, schema } = config;
   return mutationOptions({
     mutationFn: (variables: TVariables) =>
+      // A mutation endpoint returns a body (or void); narrow the honest
+      // `TData | undefined` from apiFetch to `TData` at this builder seam.
       client.apiFetch<TData>(typeof path === "function" ? path(variables) : path, {
         method,
         body: body ? body(variables) : variables,
         parse: schema,
-      }),
+      }) as Promise<TData>,
   });
 }

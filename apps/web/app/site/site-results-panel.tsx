@@ -64,7 +64,7 @@ export function SiteResultsPanel({
               </dl>
               {result.sharing.length > 0 && (
                 <p className="text-muted-foreground mt-2 text-xs">
-                  {t("sharingCount", { count: result.sharing.length })}
+                  {t("sharingCount", { count: String(result.sharing.length) })}
                 </p>
               )}
             </div>

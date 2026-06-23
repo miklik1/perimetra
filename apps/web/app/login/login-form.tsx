@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useId } from "react";
 
 import { useMutation } from "@repo/api/react";
@@ -11,21 +11,32 @@ import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { loginSchema, type LoginInput } from "@repo/validators";
 
 import { authErrorMessageKey } from "../../lib/error-messages";
+import { safeNextPath } from "../../lib/safe-redirect";
+
+/** Where to land after sign-in, unless a safe `?next=` overrides it. */
+const DEFAULT_DESTINATION = "/account";
 
 /**
  * Login form (ADR 0009, on the Better Auth client — design §7.1). The shared
  * `loginSchema` (@repo/validators) drives client validation; the request goes
  * through `authClient.signIn.email`, which sets the httpOnly session cookie via
- * the same-origin proxy and flips every `useSession` subscriber to signed-in —
- * no token to store, no `setAuth`. The mutation wrapper keeps TanStack's
- * pending/error state driving the UI exactly like the other forms.
+ * the same-origin proxy and flips every `useSession` subscriber to signed-in.
  *
- * `next` is the validated post-login destination (default `/account`) — the
- * page sanitises `?next=` before passing it, so an invitee bounced here from
- * `/accept-invitation` returns there after signing in.
+ * `?next=` is read CLIENT-side and open-redirect-guarded (`safeNextPath`): the
+ * proxy sets it when bouncing an unauthenticated visitor here, so they return to
+ * where they were headed after sign-in. A 2FA-enrolled user is NOT signed in by
+ * the password step — Better Auth withholds the session and signals a TOTP
+ * challenge, so they are routed to `/two-factor` first (ADR 0040).
  */
-export function LoginForm({ next = "/account" }: { next?: string }) {
+export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Open-redirect guard: never honour a `?next=` that could resolve off-origin.
+  const requested = safeNextPath(searchParams.get("next"));
+  // Avoid a redirect loop back to /login — compare the PATH exactly, so a
+  // legitimate route like `/loginHelp` is not swallowed.
+  const requestedPath = requested?.split(/[?#]/, 1)[0];
+  const destination = requested && requestedPath !== "/login" ? requested : DEFAULT_DESTINATION;
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const authClient = useAuthClient();
@@ -56,14 +67,14 @@ export function LoginForm({ next = "/account" }: { next?: string }) {
       return data;
     },
     onSuccess: (data) => {
-      // A 2FA-enabled user is NOT signed in yet — Better Auth withholds the
-      // session and signals a TOTP challenge instead. Route to `/two-factor`,
-      // preserving `next` (sanitised by the page) for after verification.
+      // A 2FA-enabled user is NOT signed in yet — Better Auth signals a TOTP
+      // challenge instead. Route to `/two-factor` first, carrying the (already
+      // open-redirect-guarded) destination through `?next=`.
       if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
-        router.push(`/two-factor?next=${encodeURIComponent(next)}`);
+        router.push(`/two-factor?next=${encodeURIComponent(destination)}`);
         return;
       }
-      router.push(next);
+      router.push(destination);
     },
   });
 

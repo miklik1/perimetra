@@ -47,15 +47,26 @@ export class ApiError extends Error {
 /**
  * Parse an HTTP `Retry-After` header into milliseconds. Accepts a delta in
  * seconds (`"120"`) or an HTTP-date (`"Wed, 21 Oct 2025 07:28:00 GMT"`).
- * Returns `undefined` when absent or unparseable.
+ * Returns `undefined` when absent, blank, or unparseable.
+ *
+ * When `maxMs` is supplied the result is CAPPED at it: a hostile or absurd
+ * server value (`"999999999"`) must never park the retry loop beyond the
+ * client's own max backoff. The retry middleware passes its `maxDelayMs`; the
+ * uncapped form (no `maxMs`) is the raw parse used for the informational
+ * `ApiError.retryAfterMs` (data only — it doesn't block anything).
  */
-export function parseRetryAfter(header: string | null): number | undefined {
+export function parseRetryAfter(header: string | null, maxMs?: number): number | undefined {
   if (!header) return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const date = Date.parse(header);
+  // Whitespace-only headers are truthy but `Number(" ")` is 0 → a 0ms retry
+  // storm. Trim first; an empty result is "no usable header".
+  const trimmed = header.trim();
+  if (trimmed === "") return undefined;
+  const cap = (ms: number): number => (maxMs === undefined ? ms : Math.min(maxMs, ms));
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds)) return cap(Math.max(0, seconds * 1000));
+  const date = Date.parse(trimmed);
   if (Number.isNaN(date)) return undefined;
-  return Math.max(0, date - Date.now());
+  return cap(Math.max(0, date - Date.now()));
 }
 
 /**
@@ -188,7 +199,10 @@ export interface ApiFetchOptions<T> extends Omit<RequestInit, "body"> {
 
 /** A configured transport: one `apiFetch` bound to a base URL + auth + chain. */
 export interface ApiClient {
-  apiFetch: <T>(path: string, options?: ApiFetchOptions<T>) => Promise<T>;
+  // Resolves `undefined` on a 204 No Content (no body to parse) — the type is
+  // honest rather than a lying `undefined as T` cast, so callers handle the
+  // empty case at the type level.
+  apiFetch: <T>(path: string, options?: ApiFetchOptions<T>) => Promise<T | undefined>;
 }
 
 /**
@@ -212,7 +226,10 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     terminal,
   );
 
-  async function apiFetch<T>(path: string, options: ApiFetchOptions<T> = {}): Promise<T> {
+  async function apiFetch<T>(
+    path: string,
+    options: ApiFetchOptions<T> = {},
+  ): Promise<T | undefined> {
     const { body, parse, headers, ...rest } = options;
     const finalHeaders = new Headers(headers);
     const rawBody = isRawBody(body);
@@ -254,7 +271,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
       throw new ApiError({ kind: "network", status: 0, message });
     }
 
-    if (response.status === 204) return undefined as T;
+    if (response.status === 204) return undefined;
 
     const text = await response.text();
     let data: unknown;

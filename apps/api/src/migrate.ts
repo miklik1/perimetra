@@ -24,7 +24,18 @@ async function run(): Promise<void> {
     return;
   }
 
-  const pool = new Pool({ connectionString: env.DATABASE_URL, max: 1 });
+  // `lock_timeout=5s` is set CONNECTION-WIDE (libpq `-c`), not just per-file:
+  // ADR 0038 mandates the fail-fast lock guard, but drizzle-kit does NOT emit the
+  // `SET lock_timeout` preamble for incremental ALTER/ADD-COLUMN migrations (only
+  // hand-written CREATE migrations carry it), so the per-file convention silently
+  // drifts. Setting it on the migrator connection covers EVERY migration — past,
+  // future, and drizzle-generated — uniformly. A migration may still re-`SET` it
+  // (harmless). See the engineering finding on this drift class.
+  const pool = new Pool({
+    connectionString: env.DATABASE_URL,
+    max: 1,
+    options: "-c lock_timeout=5s",
+  });
   try {
     await migrate(drizzle({ client: pool }), { migrationsFolder });
     console.log("migrations applied");

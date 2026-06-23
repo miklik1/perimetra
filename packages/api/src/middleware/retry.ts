@@ -62,9 +62,15 @@ export function createRetryMiddleware(options: RetryOptions = {}): ApiMiddleware
       try {
         const response = await next(req);
         if (idempotent && attempt < retries && isRetryableStatus(response.status)) {
+          // Cap the server-supplied Retry-After at the client's own backoff
+          // ceiling so a hostile/absurd header (`"999999999"`) can't park the
+          // retry loop for hours. `maxDelayMs` of 0 (a degenerate config) means
+          // no cap — honor the header verbatim.
           const wait =
-            parseRetryAfter(response.headers.get("Retry-After")) ??
-            backoff(attempt, baseDelayMs, maxDelayMs);
+            parseRetryAfter(
+              response.headers.get("Retry-After"),
+              maxDelayMs > 0 ? maxDelayMs : undefined,
+            ) ?? backoff(attempt, baseDelayMs, maxDelayMs);
           void response.body?.cancel(); // drop the unread body before retrying
           attempt += 1;
           await sleep(wait, req.init.signal);

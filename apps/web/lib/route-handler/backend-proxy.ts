@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { stripApiPrefix } from "@repo/api-mocks";
+import { logger } from "@repo/utils";
 
 /**
  * Transparent reverse proxy to the real backend. The client and RSC only ever
@@ -87,7 +88,10 @@ export async function proxyToBackend(request: Request, options: ProxyOptions): P
       redirect: "manual",
       signal,
     } as RequestInit & { duplex?: "half" });
-  } catch {
+  } catch (error) {
+    // Surface the swallowed upstream error to the structured logger before the
+    // opaque 502 — otherwise proxy failures (DNS, refused, timeout) vanish.
+    logger.error("Backend proxy failed", { error });
     return NextResponse.json(
       { message: "Upstream request failed", code: "BAD_GATEWAY" },
       { status: 502 },

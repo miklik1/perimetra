@@ -49,8 +49,10 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
       }),
       { parse: (d) => releasesPageSchema.parse(d) },
     );
-    summaries.push(...page.items);
-    cursor = page.nextCursor ?? undefined;
+    // A list endpoint always returns a body (never 204); narrow the honest
+    // `… | undefined` from raw apiFetch.
+    summaries.push(...page!.items);
+    cursor = page!.nextCursor ?? undefined;
   } while (cursor);
 
   if (summaries.length === 0) return { products: [], catalogs: new Map(), prices: null };
@@ -62,8 +64,8 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     ),
   );
   const products: ConfigurableProduct[] = details.map((d) => ({
-    release: d.body as ProductModelRelease,
-    initialInput: (d.initialInput as ConfigInput | null) ?? {},
+    release: d!.body as ProductModelRelease,
+    initialInput: (d!.initialInput as ConfigInput | null) ?? {},
   }));
 
   // 3. Per-release catalog (ADR 0065): each release derives against its OWN pinned
@@ -79,7 +81,7 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
         const detail = await client.apiFetch(`/v1/catalog-versions/by-version/${v}`, {
           parse: (d) => catalogVersionSchema.parse(d),
         });
-        return [v, detail.body as Catalog];
+        return [v, detail!.body as Catalog];
       }),
     ),
   );
@@ -93,7 +95,7 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     const active = await client.apiFetch("/v1/price-tables/active", {
       parse: (d) => priceTableSchema.parse(d),
     });
-    prices = active.table as PriceTable;
+    if (active) prices = active.table as PriceTable;
   } catch (error) {
     if (!isForbidden(error) && !isNotFound(error)) throw error;
   }

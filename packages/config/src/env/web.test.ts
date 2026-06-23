@@ -34,4 +34,33 @@ describe("env/web", () => {
     vi.resetModules();
     await expect(import("./web")).rejects.toThrow();
   });
+
+  it("rejects an invalid NODE_ENV", async () => {
+    vi.stubEnv("NODE_ENV", "staging");
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  it("accepts an https API_URL in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("API_URL", "https://api.example.com");
+    vi.resetModules();
+    const { env } = await import("./web");
+    expect(env.API_URL).toBe("https://api.example.com");
+  });
+
+  it("rejects an http API_URL in production (https-only egress)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("API_URL", "http://api.example.com");
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  it("allows an http API_URL in development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("API_URL", "http://localhost:4000");
+    vi.resetModules();
+    const { env } = await import("./web");
+    expect(env.API_URL).toBe("http://localhost:4000");
+  });
 });

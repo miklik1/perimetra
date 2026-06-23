@@ -1,10 +1,13 @@
 /**
  * HealthController — the liveness/readiness probe logic. `live()` is dependency-
  * free (the `@SkipThrottle` class + `check([])`); `ready()` fans out to
- * `pingDb`/`pingRedis`, each of which maps a reachable dependency to `up()` and
- * a thrown one to `down({ message })` — including the `instanceof Error` branch
- * for the message. Unit-level here; the wired-probe HTTP path is `app.boot.test`.
+ * `pingDb`/`pingRedis`. `/health/ready` is unauthenticated + throttle-exempt
+ * (ADR 0044), so a probe failure must report a GENERIC status — never the raw
+ * driver error, which can carry the DSN/host/credentials — and the real reason
+ * goes to the server log. Unit-level here; the wired-probe HTTP path is
+ * `app.boot.test`.
  */
+import { Logger } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { HealthController } from "./health.controller.js";
@@ -60,15 +63,26 @@ describe("HealthController", () => {
     expect(down).not.toHaveBeenCalled();
   });
 
-  it("ready() marks db DOWN with the Error message when the query throws", async () => {
-    const { controller, down } = makeController({ dbThrows: new Error("pg gone") });
+  it("ready() sanitizes a db failure to 'unreachable' and logs the real reason", async () => {
+    // The driver message carries exactly the detail that must NOT leak.
+    const secret = "ECONNREFUSED 10.1.2.3:5432 password=hunter2";
+    const errorSpy = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+    const { controller, down } = makeController({ dbThrows: new Error(secret) });
     await controller.ready();
-    expect(down).toHaveBeenCalledWith({ message: "pg gone" });
+    // Response is generic; the real reason reaches the SERVER LOG only.
+    expect(down).toHaveBeenCalledWith({ message: "unreachable" });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "database readiness check failed",
+      expect.stringContaining(secret),
+    );
+    errorSpy.mockRestore();
   });
 
-  it("ready() falls back to 'unreachable' for a non-Error redis rejection", async () => {
+  it("ready() sanitizes a non-Error redis rejection to 'unreachable'", async () => {
+    const errorSpy = vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
     const { controller, down } = makeController({ redisThrows: "boom-string" });
     await controller.ready();
     expect(down).toHaveBeenCalledWith({ message: "unreachable" });
+    errorSpy.mockRestore();
   });
 });

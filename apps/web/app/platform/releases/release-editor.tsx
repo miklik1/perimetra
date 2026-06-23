@@ -214,7 +214,7 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
           <p className="text-muted-foreground text-xs">
             {validation.errorCount === 0
               ? t("noDefects")
-              : t("defectCount", { count: validation.errorCount })}
+              : t("defectCount", { count: String(validation.errorCount) })}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -346,7 +346,7 @@ function DiffPanel({
       <h2 className="mb-1 text-sm font-semibold">{t("diffTitle", { releaseId: baseReleaseId })}</h2>
       {diff.versionChanged ? (
         <p className="text-muted-foreground text-xs">
-          {t("diffVersion", { from: diff.baseVersion, to: diff.currentVersion })}
+          {t("diffVersion", { from: String(diff.baseVersion), to: String(diff.currentVersion) })}
         </p>
       ) : null}
       {diff.hasChanges ? (

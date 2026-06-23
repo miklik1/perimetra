@@ -130,7 +130,7 @@ const cs = {
     infiniteTitle: "Uživatelé (nekonečný seznam)",
     status: "stav: {status}",
     fetchStatus: "stav načítání: {fetchStatus}",
-    loaded: "načteno: {count}",
+    loaded: "načteno: {count, number}",
   },
   projects: {
     title: "Projekty",
@@ -507,6 +507,6 @@ const cs = {
       ignore: "Pokud jste tuto pozvánku nečekali, tento e-mail ignorujte.",
     },
   },
-} satisfies Record<string, unknown>;
+} as const;
 
 export default cs;

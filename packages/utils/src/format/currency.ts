@@ -7,5 +7,6 @@ export function formatCurrency(
   locale: string = FALLBACK_LOCALE,
   options: Intl.NumberFormatOptions = {},
 ): string {
+  if (!Number.isFinite(value)) return "";
   return new Intl.NumberFormat(locale, { style: "currency", currency, ...options }).format(value);
 }

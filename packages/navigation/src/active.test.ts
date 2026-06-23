@@ -1,6 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isActive, matchRoute } from "./active";
+
+afterEach(() => {
+  vi.doUnmock("./routes");
+  vi.resetModules();
+});
+
+/**
+ * Load `matchRoute` against a stubbed registry whose keys are supplied in the
+ * given order, so two routes that tie on specificity can be tested for an
+ * insertion-order-independent winner.
+ */
+async function matchRouteWith(entries: [string, { path: string }][]) {
+  vi.resetModules();
+  vi.doMock("./routes", () => ({ routes: Object.fromEntries(entries) }));
+  const mod = await import("./active");
+  return mod.matchRoute;
+}
 
 describe("isActive", () => {
   it("matches static templates exactly", () => {
@@ -49,5 +66,21 @@ describe("matchRoute", () => {
   it("returns null for paths outside the registry", () => {
     expect(matchRoute("/nope")).toBeNull();
     expect(matchRoute("/users/42/extra")).toBeNull();
+  });
+
+  it("breaks specificity ties deterministically, independent of registry order", async () => {
+    // Two routes share a template (same staticSegments) → a genuine tie. The
+    // winner must be the same regardless of registry key order, not whichever
+    // key the engine happens to iterate first.
+    const forward = await matchRouteWith([
+      ["alpha", { path: "/dup" }],
+      ["zeta", { path: "/dup" }],
+    ]);
+    const reversed = await matchRouteWith([
+      ["zeta", { path: "/dup" }],
+      ["alpha", { path: "/dup" }],
+    ]);
+    expect(forward("/dup")).toBe("alpha");
+    expect(reversed("/dup")).toBe("alpha");
   });
 });

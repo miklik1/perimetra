@@ -21,7 +21,23 @@ export const env = createEnv({
     // only ever sees the same-origin `/api`, so this MUST NOT be NEXT_PUBLIC_
     // (that would inline the backend origin into the client bundle, defeating
     // the origin-hiding the BFF exists for). Absent ⇒ jsonplaceholder demo host.
-    API_URL: z.string().url().optional(),
+    // https-only egress outside development: a plaintext http backend origin
+    // would relay bearer tokens / session cookies over the wire (see
+    // `handle-api-request.ts` credential forwarding). http is allowed only when
+    // NODE_ENV === "development" (local stacks); test/production require https.
+    // NODE_ENV is read from `process.env` with the SAME default as the schema's
+    // own NODE_ENV field (undefined ⇒ "development").
+    API_URL: z
+      .string()
+      .url()
+      .optional()
+      .refine(
+        (url) =>
+          url === undefined ||
+          (process.env.NODE_ENV ?? "development") === "development" ||
+          url.startsWith("https://"),
+        { message: "API_URL must use https outside development" },
+      ),
     // Sentry source-map upload (ADR 0021) — build/CI only, consumed by
     // `withSentryConfig`. Absent ⇒ upload silently skipped; `next build` never
     // depends on it.

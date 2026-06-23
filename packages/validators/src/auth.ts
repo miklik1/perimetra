@@ -24,7 +24,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const loginResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
-    accessToken: z.string(),
+    accessToken: z.string().min(1),
     user: userSchema,
   }),
 });
@@ -38,7 +38,7 @@ export type LoginResponse = z.infer<typeof loginResponseSchema>;
  */
 export const refreshResponseSchema = z.object({
   data: z.object({
-    accessToken: z.string(),
+    accessToken: z.string().min(1),
   }),
 });
 

@@ -45,7 +45,9 @@ export interface IsActiveOptions {
   /**
    * `true` (default): the pathname must match the template exactly.
    * `false`: prefix match — parents highlight while a child route is open.
-   * Note the root template `/` prefix-matches everything; keep it exact.
+   * Note: even in prefix mode the root template `/` matches only bare `/` — the
+   * pattern `^/(?:/|$)` requires an immediate `/` or end-of-string after the
+   * template, so it does NOT match `/users`.
    */
   exact?: boolean;
 }
@@ -74,7 +76,14 @@ export function matchRoute(pathname: string): RouteName | null {
   for (const name of Object.keys(MATCHERS) as RouteName[]) {
     const matcher = MATCHERS[name];
     if (!matcher.exact.test(normalized)) continue;
-    if (!best || matcher.staticSegments > best.staticSegments) {
+    // Primary key: more static segments win. Secondary key: a stable name
+    // compare, so two equally-specific templates resolve deterministically
+    // instead of depending on `Object.keys` iteration order.
+    if (
+      !best ||
+      matcher.staticSegments > best.staticSegments ||
+      (matcher.staticSegments === best.staticSegments && name < best.name)
+    ) {
       best = { name, staticSegments: matcher.staticSegments };
     }
   }

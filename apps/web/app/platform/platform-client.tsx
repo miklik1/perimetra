@@ -131,8 +131,8 @@ function ReleasesList() {
       invalidateKeys(queryClient, [platformKeys.all]);
       toast.success(
         t("broadcastResult", {
-          assigned: result.assignedOrgIds.length,
-          skipped: result.skippedOrgIds.length,
+          assigned: String(result.assignedOrgIds.length),
+          skipped: String(result.skippedOrgIds.length),
         }),
       );
     },
