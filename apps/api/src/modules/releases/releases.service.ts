@@ -20,7 +20,7 @@ import {
 } from "@nestjs/common";
 
 import { type ReleaseRow } from "@repo/db/schema/releases";
-import { gateInput, type ConfigInput } from "@repo/engine";
+import { checkFixtures, gateInput, type ConfigInput } from "@repo/engine";
 import { assertValidRelease, ReleaseValidationError, type ProductModelRelease } from "@repo/model";
 import { type BroadcastAssignResult, type ReleaseAssignments } from "@repo/validators/platform";
 import {
@@ -174,6 +174,18 @@ export class ReleasesService {
         });
       }
       throw error;
+    }
+
+    // I2 execution: each fixture must reproduce its expected DERIVED values
+    // against the catalog (price-free — totalPrice depends on a tenant price
+    // table, so it's regression-locked in the proving harness, not here).
+    const fixtureFailures = checkFixtures(body, catalog).filter((c) => !c.ok);
+    if (fixtureFailures.length > 0) {
+      throw new UnprocessableEntityException({
+        message: "Release fixtures did not reproduce their expected values (I2)",
+        code: "fixtures_failed",
+        failures: fixtureFailures,
+      });
     }
 
     // The configurator opens on `initialInput`; a bad example would render an

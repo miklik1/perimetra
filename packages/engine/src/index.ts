@@ -9,6 +9,7 @@ export * from "./artifacts.js";
 export * from "./constraints.js";
 export * from "./resolve.js";
 export * from "./derive.js";
+export * from "./fixtures.js";
 export * from "./emit.js";
 export * from "./ledger.js";
 export * from "./pipeline.js";

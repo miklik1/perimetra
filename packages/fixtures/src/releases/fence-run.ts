@@ -330,4 +330,31 @@ export const fenceRunV1: ProductModelRelease = {
       },
     ],
   },
+  // I2 fixture (CORE_SPEC §1) — a regression lock on the physical derived dims
+  // (config + values from the site golden's standalone fence run). The publish
+  // gate executes this derived-only; it travels with the release (immutable).
+  fixtures: [
+    {
+      name: "Fence run · 5.0 m · planka (regression lock)",
+      anchored: false,
+      config: {
+        run_length_mm: 5000,
+        clear_height_mm: 1500,
+        fill_type_id: "planka_100_2d",
+        manufacturing_hours: 8,
+        include_installation: false,
+      },
+      expected: {
+        derived: {
+          fieldCount: 2,
+          innerPostCount: 1,
+          fieldWidth: 2500,
+          postLength: 2000,
+          fillRows: 13,
+          fillPieces: 26,
+          topLine: 1500,
+        },
+      },
+    },
+  ],
 };

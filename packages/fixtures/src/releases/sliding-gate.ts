@@ -535,4 +535,38 @@ export const slidingGateV1: ProductModelRelease = {
       },
     ],
   },
+  // I2 delta-0 fixture (CORE_SPEC §1) — the Excel U34 anchor. The exhaustive
+  // corpus lives in `golden/sliding-gate.ts`; this travels WITH the release into
+  // the immutable store and is what the publish gate executes (derived-only).
+  fixtures: [
+    {
+      name: "PLAŇKA 100 2D · 3-panel · 4.0 m (Excel U34 delta-0)",
+      anchored: true,
+      config: {
+        opening_width_mm: 4000,
+        clear_height_mm: 1500,
+        suspension_angle: 35,
+        panel_count: 3,
+        fill_type_id: "planka_100_2d",
+        opening_direction: "left",
+        include_motor: true,
+        include_installation: true,
+        manufacturing_hours: 18,
+      },
+      expected: {
+        derived: {
+          postA: 1320,
+          postB: 1220,
+          diagonal: 2214,
+          railLength: 5332,
+          bottomRail: 4700,
+          panelWidth: 1300,
+          hProfileLength: 1205,
+          fillCount: 11,
+          fillPieceLength: 1313.3333333333333,
+        },
+        totalPrice: 81451.504,
+      },
+    },
+  ],
 };

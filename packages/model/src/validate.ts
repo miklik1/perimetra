@@ -213,6 +213,16 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
     message: `${kind} "${key}" is declared more than once`,
   });
 
+  // --- Fixtures (CORE_SPEC §1 I2): a release must ship at least one golden
+  //     fixture; a release without passing fixtures cannot be published. ---
+  if (!release.fixtures || release.fixtures.length === 0) {
+    defects.push({
+      code: "fixtures.empty",
+      where: "fixtures",
+      message: "a release must ship at least one golden fixture (I2)",
+    });
+  }
+
   // --- Parameter keys: unique, no dotted names (reserved for injected layers) -
   const paramKeys = new Set<string>();
   for (const p of release.parameters) {

@@ -295,7 +295,11 @@ export interface ProductModelRelease {
   /** Generated-UI structure (CORE_SPEC §8 / step 6). Absent = the consumer
    *  falls back to one synthesized step over all writable parameters. */
   ui?: UiSpec;
-  // fixtures: reserved (CORE_SPEC §3) — lands with authoring tooling.
+  /** Golden fixtures (CORE_SPEC I2). OPTIONAL in the type (in-flight drafts +
+   *  test releases may omit it) but REQUIRED-non-empty at the publish gate:
+   *  `validateRelease` flags an empty set and the publish path executes each
+   *  against the catalog. Travels WITH the release into the immutable store. */
+  fixtures?: GoldenFixture[];
 }
 
 /** A golden fixture (CORE_SPEC I2): a config + its expected outputs. Publishing

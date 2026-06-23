@@ -18,7 +18,7 @@ function draft(over: Partial<ReleaseDraftInput>): ReleaseDraftInput {
 }
 
 describe("runReleaseValidation", () => {
-  it("validates a well-formed draft clean and exposes per-slot scopes", () => {
+  it("validates a well-formed draft (only the I2 fixtures.empty defect) and exposes per-slot scopes", () => {
     const v = runReleaseValidation(
       draft({
         parameters: [{ ...blankParam(), key: "width_mm", type: "length_mm" }],
@@ -26,8 +26,11 @@ describe("runReleaseValidation", () => {
       }),
       null,
     );
-    expect(v.errorCount).toBe(0);
-    expect(v.defects).toEqual([]);
+    // The editor does not author golden fixtures yet (ADR 0068 follow-up "0.2b"),
+    // so every draft-built release carries exactly the I2 `fixtures.empty` defect
+    // until then — and NOTHING else (the params/derived slots are clean).
+    expect(v.defects.map((d) => d.code)).toEqual(["fixtures.empty"]);
+    expect(v.errorCount).toBe(1);
     expect(v.release).not.toBeNull();
     // slotScopes keyed by the validator's `where`; the derived slot sees width_mm.
     const scope = v.scopes.get("derived[half_mm]");

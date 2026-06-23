@@ -17,17 +17,43 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { deriveInstance } from "@repo/engine";
+import { checkFixtures, deriveInstance } from "@repo/engine";
 import { validateRelease } from "@repo/model";
 
 import { catalogV1 } from "./catalog/catalog-v1.js";
+import { catalogV2 } from "./catalog/catalog-v2.js";
 import { slidingGateGoldens, steel_frame_3panel } from "./golden/sliding-gate.js";
+import { fenceRunV1 } from "./releases/fence-run.js";
 import { slidingGateV1 } from "./releases/sliding-gate.js";
 
 describe("sliding-gate@1 — publish gate (validateRelease)", () => {
   it("has zero defects against catalog@1", () => {
     expect(validateRelease(slidingGateV1, catalogV1)).toEqual([]);
   });
+});
+
+// The publish gate's I2 EXECUTION half (price-free): each authored release's
+// fixtures must reproduce their expected derived dims against the catalog it is
+// published WITH — a release's parts must resolve there (fence-run's SKUs only
+// exist in catalog@2; sliding-gate resolves against both). If a fixture value is
+// wrong, or a release is paired with a catalog missing its components, THIS catches it.
+describe("I2 fixture execution (checkFixtures)", () => {
+  const pairs = [
+    { release: slidingGateV1, catalog: catalogV1 },
+    { release: slidingGateV1, catalog: catalogV2 },
+    { release: fenceRunV1, catalog: catalogV2 },
+  ];
+  for (const { release, catalog } of pairs) {
+    it(`${release.id} reproduces its fixtures against catalog@${catalog.version}`, () => {
+      const checks = checkFixtures(release, catalog);
+      expect(checks.length).toBeGreaterThan(0);
+      for (const c of checks) {
+        expect(c.mismatches, `${release.id} / ${c.name}`).toEqual([]);
+        expect(c.issues, `${release.id} / ${c.name}`).toEqual([]);
+        expect(c.ok).toBe(true);
+      }
+    });
+  }
 });
 
 describe("sliding-gate@1 — delta-0 vs MVP goldens (I1/I2)", () => {

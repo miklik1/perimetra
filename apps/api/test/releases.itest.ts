@@ -245,6 +245,20 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
       expect(res.statusCode).toBe(400);
     });
 
+    it("rejects a release that ships no fixtures with 422 (I2 publish gate)", async () => {
+      const res = await inject(app, {
+        method: "POST",
+        url: "/v1/releases",
+        headers: { cookie: admin.cookie },
+        payload: {
+          catalogVersion: 2,
+          body: { ...slidingGateV1, id: "no-fix@1", version: 1, fixtures: [] },
+        },
+      });
+      expect(res.statusCode).toBe(422);
+      expect((res.json() as { code: string }).code).toBe("release_invalid");
+    });
+
     it("requires authentication (401 without a session)", async () => {
       const res = await inject(app, { method: "GET", url: "/v1/releases" });
       expect(res.statusCode).toBe(401);

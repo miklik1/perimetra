@@ -44,6 +44,9 @@ function validBody(overrides: Partial<ProductModelRelease> = {}): ProductModelRe
     parameters: [{ key: "w", type: "length_mm", adjustability: "user", default: 1000 }],
     constraints: [],
     derivation: { derived: [], parts: [] },
+    // I2: a release must ship ≥1 fixture (empty-expected reproduces trivially
+    // against the empty catalog/no parts — the real checkFixtures runs here).
+    fixtures: [{ name: "f", anchored: false, config: {}, expected: { derived: {} } }],
     ...overrides,
   };
 }
@@ -149,6 +152,19 @@ describe("ReleasesService.publish", () => {
     await expect(
       service.publish(SCOPE, { catalogVersion: 1, body: broken }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(repo.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects when a fixture does not reproduce its expected derived values (422, I2)", async () => {
+    const { service, repo } = makeService();
+    // `ghost` is not a derived key of validBody → checkFixtures reports a
+    // mismatch → the publish gate's I2 execution half rejects.
+    const body = validBody({
+      fixtures: [{ name: "bad", anchored: true, config: {}, expected: { derived: { ghost: 5 } } }],
+    });
+    await expect(service.publish(SCOPE, { catalogVersion: 1, body })).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
     expect(repo.insert).not.toHaveBeenCalled();
   });
 

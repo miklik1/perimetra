@@ -90,6 +90,9 @@ const release: ProductModelRelease = {
       anchor: { at: [expr("d1"), expr("0"), expr("0")] },
     },
   ],
+  // Non-empty so the I2 `fixtures.empty` structural check passes (this suite
+  // asserts validateRelease is otherwise clean).
+  fixtures: [{ name: "f", anchored: false, config: {}, expected: { derived: {} } }],
 };
 
 const PARAMS_AND_ATTRS = ["fill.depth", "fill.spacing", "h", "lim", "mat", "show", "w"];

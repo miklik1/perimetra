@@ -32,9 +32,23 @@ const base: ProductModelRelease = {
       },
     ],
   },
+  // Non-empty so the I2 `fixtures.empty` structural check passes — validateRelease
+  // only checks PRESENCE (execution is the engine's checkFixtures, tested there).
+  fixtures: [{ name: "t", anchored: false, config: { len: 1 }, expected: { derived: { top: 2 } } }],
 };
 
 const codes = (release: ProductModelRelease) => validateRelease(release).map((d) => d.code);
+
+describe("validateRelease — fixtures (CORE_SPEC §1 I2)", () => {
+  it("flags a release that ships no golden fixtures", () => {
+    expect(codes({ ...base, fixtures: [] })).toContain("fixtures.empty");
+    expect(codes({ ...base, fixtures: undefined })).toContain("fixtures.empty");
+  });
+
+  it("accepts a release that ships at least one fixture", () => {
+    expect(codes(base)).not.toContain("fixtures.empty");
+  });
+});
 
 describe("validateRelease — ports (CORE_SPEC §5)", () => {
   it("accepts a port whose sharing element is a real part path", () => {
