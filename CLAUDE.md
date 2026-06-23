@@ -233,9 +233,20 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
     stay prop-clean); `PreviewTab` is now presentational. Each sub-slice adversarially reviewed (no
     correctness bugs). Full gate: web 17 files/94 + integration 19 files/104; goldens reproduce
     (+ single-gate `81451.504` through draft→preview). NO schema change.
-    Next: admin `adjustability: tenant`, issue-key i18n + deviation-override UX,
-    `/site`↔`/configurator` convergence; EUR DPH / reverse-charge math; then ADR 0058 deferreds
-    (sticky last-active org, Decline / web self-registration). The editor (ADR 0068) is DONE.
+    Phase 0 — enterprise-readiness "stop the bleeding" CLOSED (2026-06-23): editor fixtures island
+    (`fixturesJson` raw-JSON island clears the I2 `fixtures.empty` defect in-editor); **mandatory TOTP
+    MFA** for the platform operator (ADR 0070 — `twoFactor` plugin + table + `user.twoFactorEnabled`;
+    `PlatformGuard` 403s a distinct `mfa_required` until enrolled; `/two-factor` challenge +
+    `/account/security` enroll; GDPR erasure purges the credential); + the channel-A skeleton drain
+    `bd17852→5326227` (16 fleet hardening fixes — `skeleton.baseCommit` bumped; notable: apiFetch is
+    now 204-honest `T | undefined` so raw consumers narrow, precise ICU-arg types so numeric `t()` args
+    take `String()`, `safeNextPath` is the canonical open-redirect guard). Earlier Phase-0 slices
+    0.1–0.4 (ADR 0054/0055 data-loss, I2, Dockerfile, password/audit ADR 0040) shipped before. ADR 0069
+    (identity decouple) stays Proposed — go-gated, NOT implemented.
+    Next: **Phase A** (legal-document spine + close the loop) per the vault roadmap
+    [[Decision — enterprise-readiness gap analysis & phased roadmap]] — BLOCKED on Martin's
+    immutable-PII retention ADR posture (Art.17 erasure vs 10-yr accounting retention). The editor
+    (ADR 0068) is DONE.
     Invariants I1–I11 (CORE_SPEC §1)
     are the bar every PR is judged against; the Expr numeric-domain choice is
     ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,
