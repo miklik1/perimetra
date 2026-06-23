@@ -433,6 +433,7 @@ const en: Messages = {
     portsJson: "Ports (JSON)",
     terrainJson: "Terrain binding (JSON)",
     uiJson: "Generated UI (JSON)",
+    fixturesJson: "Golden fixtures (JSON)",
     saving: "Saving…",
     saved: "Saved",
     saveFailed: "Save failed",

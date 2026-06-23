@@ -17,6 +17,7 @@ const ISLANDS = [
   { name: "portsJson", labelKey: "portsJson", rows: 4 },
   { name: "terrainJson", labelKey: "terrainJson", rows: 3 },
   { name: "uiJson", labelKey: "uiJson", rows: 6 },
+  { name: "fixturesJson", labelKey: "fixturesJson", rows: 8 },
 ] as const;
 
 export function AdvancedWorkbench({ form }: { form: ReleaseEditorForm }) {

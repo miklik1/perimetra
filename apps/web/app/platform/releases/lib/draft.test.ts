@@ -114,8 +114,9 @@ describe("buildReleaseFromDraft — parts", () => {
 
 // A release exercising every branch of the inverse: literal/expr/no default,
 // each domain kind, a hard deviation with bounds, a part with all BOM extras +
-// two geometry pieces (one full rotation/cuts/repeat, one minimal), and a JSON
-// island. `buildReleaseFromDraft(parse(draftFromRelease(r)))` must reproduce it.
+// two geometry pieces (one full rotation/cuts/repeat, one minimal), and the JSON
+// islands (terrain + fixtures, the latter carrying a mixed-type config + both
+// expected fields). `buildReleaseFromDraft(parse(draftFromRelease(r)))` must reproduce it.
 const SAMPLE: ProductModelRelease = {
   id: "sliding-gate@1",
   modelId: "sliding-gate",
@@ -189,6 +190,14 @@ const SAMPLE: ProductModelRelease = {
     ],
   },
   terrain: { elevationParam: "width_mm" },
+  fixtures: [
+    {
+      name: "delta0",
+      anchored: true,
+      config: { width_mm: 4000, material: "alu" },
+      expected: { derived: { leaf_w: 2000 }, totalPrice: 24 },
+    },
+  ],
 };
 
 describe("draftFromRelease — clone-and-bump inverse", () => {

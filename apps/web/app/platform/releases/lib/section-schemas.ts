@@ -123,6 +123,9 @@ export const releaseDraftSchema = z.object({
   portsJson: z.string(),
   terrainJson: z.string(),
   uiJson: z.string(),
+  // Golden fixtures (I2) ride a raw-JSON island too — REQUIRED-non-empty at the
+  // publish gate, so this is the in-editor way to clear the `fixtures.empty` defect.
+  fixturesJson: z.string(),
 });
 
 /** Form input shape (what the DOM holds — version/catalogVersion are strings). */

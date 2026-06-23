@@ -436,6 +436,7 @@ const cs = {
     portsJson: "Porty (JSON)",
     terrainJson: "Vazba terénu (JSON)",
     uiJson: "Generované UI (JSON)",
+    fixturesJson: "Zlaté fixtury (JSON)",
     saving: "Ukládání…",
     saved: "Uloženo",
     saveFailed: "Uložení selhalo",

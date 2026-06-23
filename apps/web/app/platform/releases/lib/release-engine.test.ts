@@ -26,15 +26,44 @@ describe("runReleaseValidation", () => {
       }),
       null,
     );
-    // The editor does not author golden fixtures yet (ADR 0068 follow-up "0.2b"),
-    // so every draft-built release carries exactly the I2 `fixtures.empty` defect
-    // until then — and NOTHING else (the params/derived slots are clean).
+    // A blank draft authors no golden fixtures, so every such draft-built release
+    // carries exactly the I2 `fixtures.empty` defect — and NOTHING else (the
+    // params/derived slots are clean). Authoring fixtures via the `fixturesJson`
+    // island (Phase 0.2b) clears it — see the next test.
     expect(v.defects.map((d) => d.code)).toEqual(["fixtures.empty"]);
     expect(v.errorCount).toBe(1);
     expect(v.release).not.toBeNull();
     // slotScopes keyed by the validator's `where`; the derived slot sees width_mm.
     const scope = v.scopes.get("derived[half_mm]");
     expect(scope?.known.has("width_mm")).toBe(true);
+  });
+
+  it("clears fixtures.empty when fixtures are authored via the JSON island (Phase 0.2b)", () => {
+    const fixtures = [
+      {
+        name: "baseline",
+        anchored: true,
+        config: { width_mm: 4000 },
+        expected: { derived: { half_mm: 2000 } },
+      },
+    ];
+    const v = runReleaseValidation(
+      draft({
+        parameters: [{ ...blankParam(), key: "width_mm", type: "length_mm" }],
+        derived: [{ key: "half_mm", expr: "width_mm / 2" }],
+        fixturesJson: JSON.stringify(fixtures),
+      }),
+      null,
+    );
+    // The release now ships a fixture, so the I2 defect is gone — the in-editor
+    // fixtures island is the way a vendor clears it without leaving the editor.
+    expect(v.defects.map((d) => d.code)).not.toContain("fixtures.empty");
+    expect(v.release?.fixtures).toEqual(fixtures);
+  });
+
+  it("turns a malformed fixtures island into one island defect at where=fixtures", () => {
+    const v = runReleaseValidation(draft({ fixturesJson: "[{ not json" }), null);
+    expect(v.defects.some((d) => d.where === "fixtures" && d.code === "json.parse")).toBe(true);
   });
 
   it("surfaces an unparseable expression as a where-addressed defect", () => {

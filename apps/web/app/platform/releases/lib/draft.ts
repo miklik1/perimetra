@@ -1,10 +1,10 @@
 /**
  * Turn the editor's form state into a real `ProductModelRelease` for live
  * validation + publish. The structured sections (identity, parameters,
- * constraints, derived) map field-by-field; the not-yet-structured sections
- * (option sets, parts, ports, terrain, ui) ride raw-JSON islands that are parsed
- * here — a parse failure becomes a defect, never a thrown editor. Later phases
- * replace each island with a structured workbench.
+ * constraints, derived, parts) map field-by-field; the not-yet-structured
+ * sections (option sets, ports, terrain, ui, fixtures) ride raw-JSON islands that
+ * are parsed here — a parse failure becomes a defect, never a thrown editor.
+ * Later phases replace each island with a structured workbench.
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -181,6 +181,7 @@ export function buildReleaseFromDraft(draft: ReleaseDraft): BuiltRelease {
   const ports = island(draft.portsJson, "ports") as ProductModelRelease["ports"];
   const terrain = island(draft.terrainJson, "terrain") as ProductModelRelease["terrain"];
   const ui = island(draft.uiJson, "ui") as ProductModelRelease["ui"];
+  const fixtures = island(draft.fixturesJson, "fixtures") as ProductModelRelease["fixtures"];
 
   const release: ProductModelRelease = {
     id: `${draft.modelId}@${draft.version}`,
@@ -204,6 +205,7 @@ export function buildReleaseFromDraft(draft: ReleaseDraft): BuiltRelease {
   if (ports !== undefined) release.ports = ports;
   if (terrain !== undefined) release.terrain = terrain;
   if (ui !== undefined) release.ui = ui;
+  if (fixtures !== undefined) release.fixtures = fixtures;
 
   return { release, islandDefects };
 }
@@ -309,6 +311,7 @@ export function draftFromRelease(
     portsJson: islandJson(release.ports),
     terrainJson: islandJson(release.terrain),
     uiJson: islandJson(release.ui),
+    fixturesJson: islandJson(release.fixtures),
   };
 }
 
@@ -326,6 +329,7 @@ export function blankDraft(): ReleaseDraftInput {
     portsJson: "",
     terrainJson: "",
     uiJson: "",
+    fixturesJson: "",
   };
 }
 

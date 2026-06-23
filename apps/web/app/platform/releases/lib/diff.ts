@@ -4,8 +4,8 @@
  * Compares the BUILT releases (canonical form), keyed by business key
  * (parameters/constraints/derived by `key`, parts by `path`) so a reorder is not
  * a change and a rename reads as add+remove; the not-yet-structured sections
- * (optionSets/ports/terrain/ui) compare whole. The version bump is reported
- * separately (it is expected for a clone, not a content change).
+ * (optionSets/ports/terrain/ui/fixtures) compare whole. The version bump is
+ * reported separately (it is expected for a clone, not a content change).
  */
 import { type ProductModelRelease } from "@repo/model";
 
@@ -65,7 +65,7 @@ function diffByKey<T>(
   return { added, removed, changed };
 }
 
-const ISLANDS = ["optionSets", "ports", "terrain", "ui"] as const;
+const ISLANDS = ["optionSets", "ports", "terrain", "ui", "fixtures"] as const;
 
 export function diffRelease(base: ProductModelRelease, current: ProductModelRelease): ReleaseDiff {
   const sections: SectionDiff[] = [];
