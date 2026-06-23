@@ -46,15 +46,23 @@ export function LoginForm({ next = "/account" }: { next?: string }) {
     mutationFn: async (values: LoginInput) => {
       // The Better Auth client reports failure as a value (`{ data, error }`),
       // never a rejection — re-throw so useMutation's isError drives the banner.
-      const { error } = await authClient.signIn.email(values);
+      const { data, error } = await authClient.signIn.email(values);
       if (error) {
         throw Object.assign(new Error(error.message ?? error.statusText), {
           status: error.status,
           code: error.code,
         });
       }
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // A 2FA-enabled user is NOT signed in yet — Better Auth withholds the
+      // session and signals a TOTP challenge instead. Route to `/two-factor`,
+      // preserving `next` (sanitised by the page) for after verification.
+      if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+        router.push(`/two-factor?next=${encodeURIComponent(next)}`);
+        return;
+      }
       router.push(next);
     },
   });

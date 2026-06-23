@@ -58,6 +58,9 @@ function AccountContent() {
       <Link href="/team" className={buttonVariants({ variant: "outline" })}>
         {tTeam("title")}
       </Link>
+      <Link href="/account/security" className={buttonVariants({ variant: "outline" })}>
+        {t("security.link")}
+      </Link>
       {isAdmin && (
         <Link href="/admin" className={buttonVariants({ variant: "outline" })}>
           {tAdmin("title")}

@@ -106,13 +106,29 @@ export async function signUpUser(
 }
 
 /**
- * Promote a user to the Better Auth platform/vendor operator (ADR 0062 —
- * `user.role='admin'`): the actor allowed to PUBLISH releases/catalog and ASSIGN
- * releases to orgs. `PlatformGuard` resolves this fresh from the DB per request,
- * so the promotion takes effect on the user's next request (no re-login).
+ * Grant the Better Auth admin() role ONLY (`user.role='admin'`), no MFA. For
+ * tests that exercise the admin() plugin itself and must RE-SIGN-IN afterwards
+ * (e.g. the audit trail test) — a 2FA-enabled user would be bounced to the TOTP
+ * challenge on sign-in, so they stay 2FA-free.
+ */
+export async function grantAdminRole(db: Db, userId: string): Promise<void> {
+  await db.update(userTable).set({ role: "admin" }).where(eq(userTable.id, userId));
+}
+
+/**
+ * Promote a user to a USABLE platform/vendor operator (ADR 0062): the admin role
+ * PLUS `twoFactorEnabled` — `PlatformGuard` makes MFA MANDATORY (ADR 0040) and
+ * 403s `mfa_required` without it. Setting the flag in the DB stands in for "the
+ * operator enrolled TOTP" (the real flow needs a live authenticator code). The
+ * platform itests reuse their SIGN-UP session cookie (no re-sign-in), so the
+ * existing real session stays valid — only a NEW sign-in would be 2FA-challenged.
+ * Both reads are fresh per request, so the promotion takes effect immediately.
  */
 export async function promotePlatformAdmin(db: Db, userId: string): Promise<void> {
-  await db.update(userTable).set({ role: "admin" }).where(eq(userTable.id, userId));
+  await db
+    .update(userTable)
+    .set({ role: "admin", twoFactorEnabled: true })
+    .where(eq(userTable.id, userId));
 }
 
 /** A user's (sole) active org id — the auto-provisioned workspace (ADR 0055). */

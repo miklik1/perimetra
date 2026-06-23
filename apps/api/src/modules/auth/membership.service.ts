@@ -55,4 +55,22 @@ export class MembershipService {
       .limit(1);
     return row?.role === "admin";
   }
+
+  /**
+   * The platform operator's access facts in ONE indexed PK read (role +
+   * two-factor state), for {@link PlatformGuard}: the cross-tenant vendor surface
+   * requires BOTH `role==='admin'` AND `twoFactorEnabled` (MFA is mandatory for
+   * the most dangerous credential, ADR 0040). Fresh per request, like
+   * {@link isPlatformOperator}. A missing user reads as no-access, fail-closed.
+   */
+  async loadPlatformAccess(
+    userId: string,
+  ): Promise<{ isOperator: boolean; twoFactorEnabled: boolean }> {
+    const [row] = await this.txHost.tx
+      .select({ role: user.role, twoFactorEnabled: user.twoFactorEnabled })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return { isOperator: row?.role === "admin", twoFactorEnabled: row?.twoFactorEnabled === true };
+  }
 }

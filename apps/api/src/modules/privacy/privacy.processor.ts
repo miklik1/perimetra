@@ -9,8 +9,8 @@
  *   the key. Download delivery (signed link to the user) is wired later.
  * - `privacy-erase` (Art. 17): every handler's `eraseUser`, then the
  *   BUILT-IN core erasures (anonymize the Better Auth user row, delete
- *   sessions + accounts), then the third-party purge hooks, then an audit
- *   row (`privacy.erase`). All steps idempotent — jobs retry.
+ *   sessions + accounts + two-factor secrets), then the third-party purge
+ *   hooks, then an audit row (`privacy.erase`). All steps idempotent — jobs retry.
  * - `audit-cleanup`: scheduled daily here (own scheduler id, own queue — the
  *   maintenance processor stays untouched); deletes audit rows older than
  *   the 2-year retention (spec §11) via a UUIDv7 time-boundary so the sweep
@@ -29,7 +29,7 @@ import { uuidv7 } from "uuidv7";
 
 import { type Db } from "@repo/db";
 import { audit } from "@repo/db/schema/audit";
-import { account, session, user } from "@repo/db/schema/auth";
+import { account, session, twoFactor, user } from "@repo/db/schema/auth";
 
 import { AuditService } from "../audit/audit.service.js";
 import { upsertScheduler } from "../jobs/jobs.module.js";
@@ -156,10 +156,16 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     const db = this.txHost.tx; // ambient tx if active, plain client otherwise
     await db
       .update(user)
-      .set({ name: erased, email: erased, image: null })
+      .set({ name: erased, email: erased, image: null, twoFactorEnabled: false })
       .where(eq(user.id, userId));
     await db.delete(session).where(eq(session.userId, userId));
     await db.delete(account).where(eq(account.userId, userId));
+    // Credentials are PURGED, not anonymized: the password hash (`account`) and
+    // the TOTP secret + backup codes (`twoFactor`). Their FKs would CASCADE on a
+    // user-row delete, but erasure ANONYMIZES the user row (I3 durability), so
+    // the cascade never fires — delete them explicitly. Also clears the now-stale
+    // `twoFactorEnabled` flag so a re-created account never inherits it.
+    await db.delete(twoFactor).where(eq(twoFactor.userId, userId));
 
     // 3. Third-party purges — Sentry + PostHog hooks, bound under
     //    PURGE_HOOKS in privacy-worker.module.ts (ADR 0040).

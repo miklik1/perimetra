@@ -36,6 +36,10 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires", { withTimezone: true }),
+  // two-factor plugin: whether TOTP MFA is active for this user. `input: false`
+  // in Better Auth (the plugin flips it on verify, never the client). MANDATORY
+  // for the platform operator (PlatformGuard, ADR 0040).
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   ...timestamps(),
 });
 
@@ -146,4 +150,36 @@ export const invitation = pgTable(
     index("invitation_organizationId_idx").on(t.organizationId),
     index("invitation_email_idx").on(t.email),
   ],
+);
+
+/**
+ * two-factor() plugin (TOTP MFA). The export key `twoFactor` and the field keys
+ * (`secret`/`backupCodes`/`userId`/`verified`) are load-bearing — the Drizzle
+ * adapter maps the model by export name and fields by key. `secret`/`backupCodes`
+ * are encrypted app-side before insert (like `account.password`, so NOT
+ * `pii()`-wrapped — a credential, not personal data). GDPR erasure ANONYMIZES
+ * the user row (keeps the PK for I3 durability) rather than deleting it, so this
+ * row's FK CASCADE never fires — the privacy processor deletes it EXPLICITLY
+ * alongside `account`. `verified` flips true once the user confirms a code
+ * (`skipVerificationOnEnable` stays off). MFA is MANDATORY for the platform
+ * operator (PlatformGuard) — the most dangerous credential (ADR 0040 / §1 gap).
+ * No index on `secret`: the adapter only ever looks this row up by `userId`,
+ * never by the (high-entropy, encrypted) secret — the BA-declared secret index
+ * would be pure write overhead (repo convention: useful indexes only). The SQL
+ * table name is the BA model name verbatim (`twoFactor`), like every table here;
+ * columns are snake_case per repo convention.
+ */
+export const twoFactor = pgTable(
+  "twoFactor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").notNull().default(true),
+    ...timestamps(),
+  },
+  (t) => [index("twoFactor_userId_idx").on(t.userId)],
 );

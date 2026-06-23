@@ -8,7 +8,7 @@ import type {
   Role,
 } from "better-auth/client";
 /* eslint-enable @typescript-eslint/no-unused-vars */
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient, organizationClient, twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import type { BetterAuthClientOptions } from "better-auth/types";
 
@@ -44,7 +44,11 @@ export function createAuthClient(options: AuthClientOptions = {}) {
     // updateMemberRole / removeMember / setActive`, `useListOrganizations`),
     // carrying the SAME ac/roles as the server (`./permissions`) so role-typed
     // calls + any client `checkRolePermission` agree with server enforcement.
-    plugins: [adminClient(), organizationClient({ ac, roles: orgAccessRoles })],
+    // twoFactorClient (ADR 0040): the TOTP enrollment + verification surface
+    // (`twoFactor.enable / verifyTotp / disable`). No `onTwoFactorRedirect` —
+    // the web reads `data.twoFactorRedirect` from `signIn.email` and routes to
+    // `/two-factor` explicitly (testable, no global side-effect).
+    plugins: [adminClient(), organizationClient({ ac, roles: orgAccessRoles }), twoFactorClient()],
   });
 }
 

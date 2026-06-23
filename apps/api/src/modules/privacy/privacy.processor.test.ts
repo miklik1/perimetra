@@ -3,7 +3,7 @@ import { uuidv7 } from "uuidv7";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { audit } from "@repo/db/schema/audit";
-import { account, session, user } from "@repo/db/schema/auth";
+import { account, session, twoFactor, user } from "@repo/db/schema/auth";
 
 import { type AuditService } from "../audit/audit.service.js";
 import { type StorageService } from "../storage/storage.service.js";
@@ -143,22 +143,26 @@ describe("PrivacyProcessor erasure (Art. 17)", () => {
     });
   });
 
-  it("anonymizes the user row and deletes sessions + accounts (SQL shape)", async () => {
+  it("anonymizes the user row and deletes sessions + accounts + two-factor (SQL shape)", async () => {
     const db = makeDb();
     const { processor } = makeProcessor({ txHost: db.txHost });
 
     await processor.process(job(PRIVACY_JOBS.erase));
 
     expect(db.update).toHaveBeenCalledExactlyOnceWith(user);
+    // Clears twoFactorEnabled too — the kept (anonymized) row must not claim MFA.
     expect(db.updateSet).toHaveBeenCalledExactlyOnceWith({
       name: "erased-u-1@erased.invalid",
       email: "erased-u-1@erased.invalid",
       image: null,
+      twoFactorEnabled: false,
     });
     expect(db.updateWhere).toHaveBeenCalledOnce();
-    // Session row purge first, then accounts — both keyed on the user id.
-    expect(db.del.mock.calls.map((c) => c[0])).toEqual([session, account]);
-    expect(db.deleteWhere).toHaveBeenCalledTimes(2);
+    // Credential purge keyed on the user id: sessions, then accounts (password
+    // hash), then two-factor (TOTP secret + backup codes) — the cascade can't
+    // fire on the anonymized user row, so each is an explicit delete.
+    expect(db.del.mock.calls.map((c) => c[0])).toEqual([session, account, twoFactor]);
+    expect(db.deleteWhere).toHaveBeenCalledTimes(3);
   });
 });
 

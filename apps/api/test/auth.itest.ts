@@ -16,8 +16,8 @@ import { DB } from "../src/common/db/db.module.js";
 import {
   cookieFrom,
   createApiApp,
+  grantAdminRole,
   inject,
-  promotePlatformAdmin,
   signUpUser,
   webOrigin,
 } from "./setup/app.js";
@@ -107,7 +107,10 @@ describe("auth (real Better Auth + Postgres + Redis)", () => {
 
   it("audits the admin() plugin's sensitive mutations (they bypass Nest guards)", async () => {
     const adminUser = await signUpUser(app, "auth-admin-actor");
-    await promotePlatformAdmin(db, adminUser.id);
+    // Role only (no MFA): this test re-signs-in below, and a 2FA-enrolled user
+    // would be bounced to the TOTP challenge instead of getting a session. The
+    // admin() audit trail is what's under test here, not the platform MFA gate.
+    await grantAdminRole(db, adminUser.id);
     // Fresh session AFTER the role grant — the signup session predates it, and
     // the 5-min cookie cache would otherwise serve a stale (non-admin) session.
     const signIn = await inject(app, {
@@ -137,5 +140,22 @@ describe("auth (real Better Auth + Postgres + Redis)", () => {
       .where(and(eq(audit.action, "admin.ban"), eq(audit.entityId, target.id)));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ actorId: adminUser.id, entityType: "user" });
+  });
+
+  it("403 mfa_required: a platform operator without TOTP cannot reach platform routes (ADR 0040)", async () => {
+    const operator = await signUpUser(app, "auth-operator-nomfa");
+    // Role only — NO twoFactorEnabled (the real lockout state before enrollment).
+    await grantAdminRole(db, operator.id);
+
+    const res = await inject(app, {
+      method: "GET",
+      url: "/v1/platform/organizations",
+      headers: { cookie: operator.cookie },
+    });
+
+    // The role check passes, the mandatory-MFA check does not — a DISTINCT code
+    // so the web can route to enrollment rather than show a dead end.
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { code: string }).code).toBe("mfa_required");
   });
 });

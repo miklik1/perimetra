@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Db } from "@repo/db";
 import { audit } from "@repo/db/schema/audit";
-import { account, session, user as userTable } from "@repo/db/schema/auth";
+import { account, session, twoFactor, user as userTable } from "@repo/db/schema/auth";
 import { project } from "@repo/db/schema/projects";
 
 import { DB } from "../src/common/db/db.module.js";
@@ -45,6 +45,19 @@ describe("privacy erasure (real worker + queue)", () => {
 
   it("erases the user: org projects retained, user anonymized, audit row written", async () => {
     const user: TestUser = await signUpUser(app, "privacy-erase");
+
+    // Seed a TOTP enrollment (the platform-operator credential, ADR 0040) to
+    // prove erasure PURGES it — the FK cascade can't fire on the anonymized
+    // (not deleted) user row, so the processor must delete it explicitly.
+    await db
+      .insert(twoFactor)
+      .values({
+        id: `tf-${user.id}`,
+        secret: "enc-secret",
+        backupCodes: "enc-backup",
+        userId: user.id,
+      });
+    await db.update(userTable).set({ twoFactorEnabled: true }).where(eq(userTable.id, user.id));
 
     // Two projects; one soft-deleted. Both are ORG-scoped data (ADR 0055) —
     // erasure must NOT delete them; the user-row anonymization severs the
@@ -96,6 +109,7 @@ describe("privacy erasure (real worker + queue)", () => {
       email: `erased-${user.id}@erased.invalid`,
       name: `erased-${user.id}@erased.invalid`,
       image: null,
+      twoFactorEnabled: false,
     });
 
     // Session and credential account ROWS are gone. (No 401 assertion on
@@ -105,6 +119,8 @@ describe("privacy erasure (real worker + queue)", () => {
     // revocation propagates within that window rather than instantly.)
     expect(await db.select().from(session).where(eq(session.userId, user.id))).toHaveLength(0);
     expect(await db.select().from(account).where(eq(account.userId, user.id))).toHaveLength(0);
+    // The TOTP credential is purged too (ADR 0040 erasure path).
+    expect(await db.select().from(twoFactor).where(eq(twoFactor.userId, user.id))).toHaveLength(0);
 
     // Org projects RETAINED — the delete-by-ownerId data-loss bug is fixed.
     // Both rows survive (the kept one + the soft-deleted one); `ownerId` is

@@ -9,7 +9,7 @@
 import { betterAuth, type SecondaryStorage } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
-import { admin, organization } from "better-auth/plugins";
+import { admin, organization, twoFactor } from "better-auth/plugins";
 import type { Redis } from "ioredis";
 
 import { type Db } from "@repo/db";
@@ -370,6 +370,15 @@ export function createAuth({
           });
         },
       }),
+      // TOTP two-factor (ADR 0040 / §1 gap analysis). Available to every user;
+      // MANDATORY for the platform operator (enforced in `PlatformGuard`, which
+      // 403s `mfa_required` until `user.twoFactorEnabled` is true). Enrolling sets
+      // up a secret + backup codes (returned once) and the user confirms a code —
+      // `skipVerificationOnEnable` stays at its default (off), so a fresh code is
+      // required to flip the flag. Once enabled, sign-in is 2FA-challenged
+      // (the web routes `data.twoFactorRedirect` to `/two-factor`). Default-off
+      // column means no existing user is challenged until they opt in / are forced.
+      twoFactor({ issuer: "Perimetra" }),
     ],
   });
 }

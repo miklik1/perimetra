@@ -11,6 +11,7 @@ const expectedModels = [
   "member",
   "organization",
   "session",
+  "twoFactor",
   "user",
   "verification",
 ] as const;
@@ -40,6 +41,11 @@ describe("auth schema", () => {
     expect(Object.keys(getTableColumns(authSchema.account))).toEqual(
       expect.arrayContaining(["accountId", "providerId", "userId", "password"]),
     );
+    // two-factor plugin: the adapter writes these keys + flips user.twoFactorEnabled.
+    expect(Object.keys(getTableColumns(authSchema.twoFactor))).toEqual(
+      expect.arrayContaining(["secret", "backupCodes", "userId", "verified"]),
+    );
+    expect(Object.keys(getTableColumns(authSchema.user))).toContain("twoFactorEnabled");
   });
 
   it("registers its personal-data columns in the PII registry", () => {
