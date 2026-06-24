@@ -40,6 +40,37 @@
   --color-ring: oklch(0.62 0.19 259.815);
 
   --radius: 0.625rem;
+
+  /*
+   * Perimetra brand layer (ADR 0072) — the Bombardier-derived premium-editorial
+   * system: a near-monochrome warm-grey field, flat-matte white chrome lifted by
+   * soft shadows (NEVER glass), one copper UI accent, and the deviation amber kept
+   * on its OWN token so the two warm tones can never alias (CORE_SPEC §6 reads as a
+   * separate plane, never hue-alone). Role-named, OKLCH (exact conversions of the
+   * decided hexes). Semantic-token-only rule holds — components never inline hex.
+   */
+  --color-field: oklch(0.9461 0 89.88); /* #EDEDED — the paper-like canvas */
+  --color-field-raised: oklch(0.9551 0 89.88); /* #F0F0F0 */
+  --color-chrome: oklch(1 0 0); /* #FFFFFF — matte white card */
+  --color-chrome-foreground: oklch(0.21 0.006 285.885);
+  --color-chrome-subtle: oklch(0.9791 0 89.88); /* #F8F8F8 — recessed chrome */
+  --color-copper: oklch(0.618 0.1171 60.4); /* #B87333 — the one chromatic UI accent */
+  --color-copper-foreground: oklch(0.99 0 0);
+  --color-copper-hover: oklch(0.5727 0.1114 58.72); /* #A8662C */
+  --color-deviation: oklch(0.7686 0.1647 70.08); /* #F59E0B — §6 signal, SEPARATE plane */
+  --color-deviation-foreground: oklch(0.21 0.006 285.885);
+  --color-nav-active: oklch(0.2178 0 89.88); /* #1A1A1A — active step pill */
+  --color-nav-active-foreground: oklch(0.99 0 0);
+
+  /* Soft-shadow elevation tokens (rgba 0.06–0.10) — the only depth cue over flat chrome. */
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-soft-lg: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(0, 0, 0, 0.1);
+
+  /* Editorial display scale — the enormous, light-weight, tight-tracked step label. */
+  --text-display: 6rem;
+  --text-display--line-height: 0.95;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 300;
 }
 
 @variant dark {
@@ -70,4 +101,22 @@
   --color-border: oklch(1 0 0 / 10%);
   --color-input: oklch(1 0 0 / 15%);
   --color-ring: oklch(0.62 0.19 259.815);
+
+  /* Brand layer, dark — the configurator pins light, but the surface tokens stay
+   * valid app-wide: field/chrome/nav flip to dark, copper/deviation are hue-stable. */
+  --color-field: oklch(0.21 0.006 285.885);
+  --color-field-raised: oklch(0.244 0.006 286.033);
+  --color-chrome: oklch(0.274 0.006 286.033);
+  --color-chrome-foreground: oklch(0.98 0 0);
+  --color-chrome-subtle: oklch(0.31 0.006 286.033);
+  --color-copper: oklch(0.66 0.124 60.4);
+  --color-copper-foreground: oklch(0.16 0 0);
+  --color-copper-hover: oklch(0.7 0.124 60.4);
+  --color-deviation: oklch(0.79 0.165 70.08);
+  --color-deviation-foreground: oklch(0.21 0.006 285.885);
+  --color-nav-active: oklch(0.98 0 0);
+  --color-nav-active-foreground: oklch(0.21 0.006 285.885);
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-soft-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.55);
 }

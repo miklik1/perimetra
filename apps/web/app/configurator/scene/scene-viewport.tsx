@@ -27,7 +27,7 @@ function ViewportNote({ messageKey }: { messageKey: "sceneLoading" | "sceneInval
 
 export function SceneViewport({ scene }: { scene: Scene3D | undefined }) {
   return (
-    <div className="border-border bg-muted/30 h-[420px] overflow-hidden rounded-md border">
+    <div className="bg-field-raised shadow-soft h-[420px] overflow-hidden rounded-2xl">
       {scene === undefined ? (
         <ViewportNote messageKey="sceneInvalid" />
       ) : (

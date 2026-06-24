@@ -3,7 +3,7 @@
 import { useTranslations } from "@repo/i18n/web";
 import type { ConfigInput } from "@repo/engine";
 import type { ProductModelRelease, ResolvedUiStep, Scope, Value } from "@repo/model";
-import { Button, cn } from "@repo/ui";
+import { Button, Panel, StepNav } from "@repo/ui";
 
 import { ParamField } from "./param-field";
 
@@ -38,25 +38,13 @@ export function Wizard({
   if (step === undefined) return null;
 
   return (
-    <section className="border-border flex flex-col gap-4 rounded-md border p-4 text-sm">
-      <nav className="flex flex-wrap gap-1" aria-label={t("title")}>
-        {steps.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onStepChange(i)}
-            aria-current={i === stepIndex ? "step" : undefined}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium",
-              i === stepIndex
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {s.label ?? s.id}
-          </button>
-        ))}
-      </nav>
+    <Panel className="flex flex-col gap-5 text-sm" elevation="flat">
+      <StepNav
+        aria-label={t("title")}
+        steps={steps.map((s) => ({ id: s.id, label: s.label ?? s.id }))}
+        activeIndex={stepIndex}
+        onSelect={onStepChange}
+      />
 
       {step.groups.map((group) => {
         const visible = group.params.filter((p) => p.visible);
@@ -82,7 +70,7 @@ export function Wizard({
         );
       })}
 
-      <div className="flex justify-between">
+      <div className="flex justify-between pt-1">
         <Button
           variant="outline"
           size="sm"
@@ -92,6 +80,7 @@ export function Wizard({
           {t("back")}
         </Button>
         <Button
+          variant="copper"
           size="sm"
           disabled={stepIndex >= steps.length - 1}
           onClick={() => onStepChange(stepIndex + 1)}
@@ -99,6 +88,6 @@ export function Wizard({
           {t("next")}
         </Button>
       </div>
-    </section>
+    </Panel>
   );
 }

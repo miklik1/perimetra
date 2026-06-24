@@ -17,6 +17,9 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        copper: "bg-copper text-copper-foreground shadow-soft hover:bg-copper-hover", // ADR 0072 — the one brand CTA accent
+        "copper-outline":
+          "border border-copper text-copper bg-transparent hover:bg-copper hover:text-copper-foreground", // ghost copper for secondary CTAs
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

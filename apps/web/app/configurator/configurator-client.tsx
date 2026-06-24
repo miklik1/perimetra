@@ -7,6 +7,7 @@ import { AuthGuard } from "@repo/auth/react";
 import type { ConfigInput, PriceTable } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
 import { resolveUi, type Catalog, type Value } from "@repo/model";
+import { Panel } from "@repo/ui";
 
 import { usePriceBlind } from "../../lib/use-role";
 import { deriveForUi } from "./derive";
@@ -22,6 +23,11 @@ import { Wizard } from "./wizard";
  * valid host). The catalog/releases/active price table are SERVED BY THE API (ADR
  * 0060): the RSC fetches the bundle and prop-passes it here.
  *
+ * The surface wears the Perimetra brand system (ADR 0072): a warm-grey field,
+ * flat-matte chrome panels, the copper accent. The premium hero layout + the
+ * 5-step CZ flow land in the Part-B slice; here the brand chrome dresses the
+ * existing generated structure.
+ *
  * Outer shell: AuthGuard + the bundle's empty states. The engine needs a price
  * table to derive, so a price-blind/workshop session (no `prices`, ADR 0056) or
  * an unpublished catalog renders a notice rather than the wizard.
@@ -31,21 +37,23 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
   const t = useTranslations("configurator");
 
   const notice = (message: string) => (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 p-8">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
-      <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center">
-        {message}
-      </p>
-    </main>
+    <Field>
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-8">
+        <h1 className="text-foreground text-3xl font-light tracking-tight">{t("title")}</h1>
+        <Panel className="text-muted-foreground p-8 text-center">{message}</Panel>
+      </main>
+    </Field>
   );
 
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="flex min-h-screen items-center justify-center">
-          {t("checkingSession")}
-        </main>
+        <Field>
+          <main className="text-muted-foreground flex min-h-screen items-center justify-center">
+            {t("checkingSession")}
+          </main>
+        </Field>
       }
     >
       {bundle === null || bundle.products.length === 0 || bundle.catalogs.size === 0 ? (
@@ -61,6 +69,11 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
       )}
     </AuthGuard>
   );
+}
+
+/** The warm-grey full-bleed field the whole configurator floats on (ADR 0072). */
+function Field({ children }: { children: React.ReactNode }) {
+  return <div className="bg-field min-h-screen">{children}</div>;
 }
 
 /** The stateful configurator, rendered once the bundle has products + catalogs +
@@ -109,43 +122,45 @@ function ConfiguratorInner({
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <div className="flex items-center gap-2 text-sm">
-          <label htmlFor={productSelectId} className="text-muted-foreground">
-            {t("product")}
-          </label>
-          <select
-            id={productSelectId}
-            value={productIndex}
-            onChange={(e) => switchProduct(Number(e.target.value))}
-            className="border-border bg-background rounded-md border px-3 py-1.5"
-          >
-            {products.map((p, i) => (
-              <option key={p.release.id} value={i}>
-                {p.release.modelId} (v{p.release.version})
-              </option>
-            ))}
-          </select>
+    <Field>
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-foreground text-3xl font-light tracking-tight">{t("title")}</h1>
+          <div className="flex items-center gap-2 text-sm">
+            <label htmlFor={productSelectId} className="text-muted-foreground">
+              {t("product")}
+            </label>
+            <select
+              id={productSelectId}
+              value={productIndex}
+              onChange={(e) => switchProduct(Number(e.target.value))}
+              className="border-border bg-chrome shadow-soft focus-visible:ring-ring rounded-full border px-4 py-1.5 outline-none focus-visible:ring-2"
+            >
+              {products.map((p, i) => (
+                <option key={p.release.id} value={i}>
+                  {p.release.modelId} (v{p.release.version})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[400px_1fr]">
-        <Wizard
-          release={product.release}
-          steps={steps}
-          stepIndex={stepIndex}
-          input={input}
-          scope={derivation.scope}
-          onStepChange={setStepIndex}
-          onValueChange={setValue}
-        />
-        <div key={product.release.id} className="flex flex-col gap-4">
-          <SceneViewport scene={derivation.scene} />
-          <ResultsPanel result={derivation.result} priceBlind={priceBlind} />
+        <div className="grid items-start gap-6 lg:grid-cols-[400px_1fr]">
+          <Wizard
+            release={product.release}
+            steps={steps}
+            stepIndex={stepIndex}
+            input={input}
+            scope={derivation.scope}
+            onStepChange={setStepIndex}
+            onValueChange={setValue}
+          />
+          <div key={product.release.id} className="flex flex-col gap-6">
+            <SceneViewport scene={derivation.scene} />
+            <ResultsPanel result={derivation.result} priceBlind={priceBlind} />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </Field>
   );
 }

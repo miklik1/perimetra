@@ -4,6 +4,7 @@ import { useId } from "react";
 
 import { useTranslations } from "@repo/i18n/web";
 import type { OptionSet, ParameterDef, Value } from "@repo/model";
+import { Badge } from "@repo/ui";
 
 /**
  * One generated form field (CORE_SPEC §8): everything rendered here comes off
@@ -26,7 +27,7 @@ export interface ParamFieldProps {
 }
 
 const inputClass =
-  "border-border bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2";
+  "border-border bg-chrome-subtle focus-visible:ring-copper w-full rounded-lg border px-3 py-2 text-sm outline-none focus-visible:ring-2";
 
 export function ParamField({ def, optionSets, value, effective, onChange }: ParamFieldProps) {
   const t = useTranslations("configurator");
@@ -122,11 +123,7 @@ export function ParamField({ def, optionSets, value, effective, onChange }: Para
           {label}
           {def.type === "length_mm" && <span className="text-muted-foreground"> (mm)</span>}
         </span>
-        {isDefault && (
-          <span className="text-muted-foreground border-border rounded border px-1 text-[10px] uppercase">
-            {t("defaultBadge")}
-          </span>
-        )}
+        {isDefault && <Badge tone="outline">{t("defaultBadge")}</Badge>}
       </label>
       {control}
       {def.deviation?.note !== undefined && (

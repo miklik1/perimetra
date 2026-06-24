@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "@repo/i18n/web";
 import type { DerivationResult, Issue } from "@repo/engine";
-import { cn } from "@repo/ui";
+import { cn, Panel } from "@repo/ui";
 
 import { formatMoney } from "../../lib/format-money";
 
@@ -38,20 +38,20 @@ export function ResultsPanel({
   return (
     <section className="flex flex-col gap-4 text-sm">
       {result.issues.length > 0 && (
-        <div className="border-border flex flex-col gap-1 rounded-md border p-4">
+        <Panel className="flex flex-col gap-1">
           <h2 className="font-semibold">{t("issues")}</h2>
           <ul className="flex flex-col gap-1">
             {result.issues.map((issue, i) => (
               <IssueLine key={`${issue.key}-${i}`} issue={issue} />
             ))}
           </ul>
-        </div>
+        </Panel>
       )}
 
       {result.isValid && (
         <>
           {!priceBlind && (
-            <div className="border-border rounded-md border p-4">
+            <Panel>
               <h2 className="mb-2 font-semibold">{t("totals")}</h2>
               <dl className="grid grid-cols-2 gap-y-1">
                 {categories.map(([key, value]) => (
@@ -66,10 +66,10 @@ export function ResultsPanel({
                   {money(result.money.total)}
                 </dd>
               </dl>
-            </div>
+            </Panel>
           )}
 
-          <div className="border-border rounded-md border p-4">
+          <Panel>
             <h2 className="mb-2 font-semibold">{t("bom")}</h2>
             <table className="w-full text-left">
               <thead>
@@ -95,7 +95,7 @@ export function ResultsPanel({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Panel>
         </>
       )}
     </section>
