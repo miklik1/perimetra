@@ -10,6 +10,9 @@ export interface SceneFrame {
   center: Vec3;
   radius: number;
   cameraPosition: Vec3;
+  /** World-space scene floor (AABB min Y) — where the studio `<ContactShadows>`
+   *  plane sits so the gate is grounded, not floating (ADR 0074). */
+  groundY: number;
 }
 
 export function frameScene(scene: Scene3D): SceneFrame {
@@ -35,7 +38,7 @@ export function frameScene(scene: Scene3D): SceneFrame {
   }
 
   if (min[0] === Infinity) {
-    return { center: [0, 1000, 0], radius: 3000, cameraPosition: [3000, 2500, 5000] };
+    return { center: [0, 1000, 0], radius: 3000, cameraPosition: [3000, 2500, 5000], groundY: 0 };
   }
 
   const pad = 150;
@@ -47,5 +50,5 @@ export function frameScene(scene: Scene3D): SceneFrame {
     center[1] + radius * 0.8,
     center[2] + radius * 1.8,
   ];
-  return { center, radius, cameraPosition };
+  return { center, radius, cameraPosition, groundY: min[1] };
 }
