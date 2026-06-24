@@ -43,7 +43,13 @@
         "@opentelemetry/exporter-metrics-otlp-http"
       ]
     },
-    "apps/web": {},
+    "apps/web": {
+      // Dev-only headless 3D capture harness (ADR 0073) — a standalone
+      // `node`-run verification tool (`node scripts/verify/capture-scene.mjs`),
+      // never imported in source; declared as an entry so knip sees it (and its
+      // @playwright/test import) as used, like apps/mobile's asset tool above.
+      "entry": ["scripts/verify/capture-scene.mjs"]
+    },
     "apps/mobile": {
       "metro": false,
       "ignoreDependencies": ["expo-updates"],

@@ -5,6 +5,8 @@ import { Euler } from "three";
 
 import type { Scene3D, ScenePiece, Vec3 } from "@repo/renderers";
 
+import { buildPieceGeometry } from "./profile-geometry";
+
 /**
  * The R3F walker over the pure Scene3D data (ADR 0050/0051 — the `~/gates`
  * walker pattern, ported onto the rebuild's renderer contract): instances are
@@ -40,14 +42,31 @@ function colorFor(piece: ScenePiece): string {
 
 function Piece({ piece }: { piece: ScenePiece }) {
   const rotation = useMemo(() => euler(piece.rotationArcMin), [piece.rotationArcMin]);
-  const w = piece.profile?.wMm ?? 40;
-  const d = piece.profile?.dMm ?? 40;
+  // Procedural profile extrusion (ADR 0073): a real cross-section solid, cached
+  // by value across identical pieces. `null` (no profile / custom shape) falls
+  // back to the flat box, centered and pushed to span [0, length] like before.
+  const geometry = useMemo(
+    () => buildPieceGeometry(piece.profile, piece.lengthMm),
+    [piece.profile, piece.lengthMm],
+  );
+  const color = colorFor(piece);
+
   return (
     <group position={piece.at} rotation={rotation}>
-      <mesh position={[piece.lengthMm / 2, 0, 0]}>
-        <boxGeometry args={[piece.lengthMm, w, d]} />
-        <meshStandardMaterial color={colorFor(piece)} metalness={0.35} roughness={0.55} />
-      </mesh>
+      {geometry !== null ? (
+        // The extruded geometry already spans x∈[0, length] from its origin;
+        // `dispose={null}` — the module cache owns the shared buffer's lifecycle.
+        <mesh geometry={geometry} dispose={null}>
+          <meshStandardMaterial color={color} metalness={0.35} roughness={0.55} />
+        </mesh>
+      ) : (
+        <mesh position={[piece.lengthMm / 2, 0, 0]}>
+          <boxGeometry
+            args={[piece.lengthMm, piece.profile?.wMm ?? 40, piece.profile?.dMm ?? 40]}
+          />
+          <meshStandardMaterial color={color} metalness={0.35} roughness={0.55} />
+        </mesh>
+      )}
     </group>
   );
 }

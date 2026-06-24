@@ -20,4 +20,26 @@ export default [
     files: ["app/configurator/scene/**/*.tsx"],
     rules: { "react/no-unknown-property": "off" },
   },
+  {
+    // Dev-only Node harnesses (the ADR 0073 headless 3D capture script) run
+    // outside the turbo task graph (`node scripts/verify/…`), so — like the
+    // e2e block above — `turbo/no-undeclared-env-vars` does not apply. They are
+    // Node scripts that also carry a browser context inside Playwright's
+    // `page.evaluate`, so they need both global sets (`globals` isn't a direct
+    // dep of this app, hence the explicit list).
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        URL: "readonly",
+        performance: "readonly",
+        setTimeout: "readonly",
+        document: "readonly",
+        window: "readonly",
+        requestAnimationFrame: "readonly",
+      },
+    },
+    rules: { "turbo/no-undeclared-env-vars": "off" },
+  },
 ];

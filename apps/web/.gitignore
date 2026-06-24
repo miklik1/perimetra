@@ -35,3 +35,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Headless 3D verification captures (ADR 0073) — regenerable, never committed
+.verify/
