@@ -20,8 +20,16 @@ export const password = z.string().trim().min(8).max(128).regex(/[a-z]/).regex(/
 /** E.164 international phone number (`+420123456789`). */
 export const phoneE164 = z.e164();
 
-/** Absolute URL (`https://…`). */
-export const url = z.url();
+/**
+ * Absolute http(s) URL. `z.url()` validates URL *shape* via the WHATWG `URL`
+ * constructor, which ALSO accepts `javascript:`, `data:`, and `ftp:` — a
+ * stored-XSS vector once the value is rendered into an `<a href>` / `<img src>`.
+ * The `protocol` constraint rejects every non-http(s) scheme at the contract
+ * (defence at the trust boundary, not the render site) and emits the same
+ * `invalid_format`/`url` issue as a malformed URL, so the ADR 0020 i18n
+ * error-map translates it unchanged. (Channel-A drain from skeleton 40aa481.)
+ */
+export const url = z.url({ protocol: /^https?$/i });
 
 /** URL-friendly slug: lowercase alphanumerics separated by single dashes. */
 export const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);

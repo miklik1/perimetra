@@ -3,7 +3,7 @@
 import { useTranslations } from "@repo/i18n/web";
 import { cn, Panel } from "@repo/ui";
 
-import { FINISHES, finishById, useFinish } from "./scene/finish";
+import { finishById, FINISHES, useFinish } from "./scene/finish";
 
 /**
  * The finish / colour swatch row (ADR 0075) — the Bombardier "Stripe Colour"

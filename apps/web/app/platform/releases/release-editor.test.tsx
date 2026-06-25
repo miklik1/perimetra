@@ -1,12 +1,13 @@
-import { ApiProvider } from "@repo/api/react";
-import { cs } from "@repo/i18n";
-import { I18nProvider } from "@repo/i18n/web";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+import { ApiProvider } from "@repo/api/react";
+import { cs } from "@repo/i18n";
+import { I18nProvider } from "@repo/i18n/web";
 
 import { Editor } from "./release-editor";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 // The inner editor (auth gate covered separately). i18n + ApiProvider (which
 // carries the query client) are the only context it needs.

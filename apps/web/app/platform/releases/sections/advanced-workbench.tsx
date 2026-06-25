@@ -1,8 +1,9 @@
 "use client";
 
+import type { Path } from "react-hook-form";
+
 import { useTranslations } from "@repo/i18n/web";
 import { FieldShell, fieldTextareaClass } from "@repo/ui/forms/field-shell";
-import type { Path } from "react-hook-form";
 
 import type { ReleaseDraftInput, ReleaseEditorForm } from "../lib/section-schemas";
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useTranslations } from "@repo/i18n/web";
 import type { ConfigInput } from "@repo/engine";
+import { useTranslations } from "@repo/i18n/web";
 import type { ProductModelRelease, ResolvedUiStep, Scope, Value } from "@repo/model";
 import { Button, Panel, StepNav } from "@repo/ui";
 

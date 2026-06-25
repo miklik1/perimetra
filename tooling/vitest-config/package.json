@@ -8,6 +8,9 @@
     "./react": "./react.ts",
     "./setup/react": "./setup/react.ts"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

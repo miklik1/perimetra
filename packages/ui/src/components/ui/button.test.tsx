@@ -16,6 +16,18 @@ describe("buttonVariants", () => {
     expect(classes).toContain("h-10");
     expect(classes).not.toContain("bg-primary");
   });
+
+  it("includes the pointer-coarse touch-target floor on interactive sizes (WCAG 2.5.5)", () => {
+    expect(buttonVariants({ size: "default" })).toContain("pointer-coarse:min-h-11");
+    expect(buttonVariants({ size: "sm" })).toContain("pointer-coarse:min-h-11");
+    expect(buttonVariants({ size: "lg" })).toContain("pointer-coarse:min-h-11");
+    expect(buttonVariants({ size: "icon" })).toContain("pointer-coarse:size-11");
+    expect(buttonVariants({ size: "icon-sm" })).toContain("pointer-coarse:size-11");
+    expect(buttonVariants({ size: "icon-lg" })).toContain("pointer-coarse:size-11");
+    // The micro-sizes (inline chips) are intentionally excluded from the floor.
+    expect(buttonVariants({ size: "xs" })).not.toContain("pointer-coarse");
+    expect(buttonVariants({ size: "icon-xs" })).not.toContain("pointer-coarse");
+  });
 });
 
 describe("Button", () => {

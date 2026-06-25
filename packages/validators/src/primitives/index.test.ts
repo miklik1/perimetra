@@ -31,9 +31,20 @@ describe("phoneE164", () => {
 });
 
 describe("url", () => {
-  it("accepts absolute URLs and rejects fragments", () => {
+  it("accepts absolute http(s) URLs and rejects fragments", () => {
     expect(url.safeParse("https://example.com/a?b=1").success).toBe(true);
+    expect(url.safeParse("http://example.com").success).toBe(true);
     expect(url.safeParse("not-a-url").success).toBe(false);
+  });
+
+  // Security regression (stored-XSS class): the WHATWG URL constructor backing
+  // z.url() accepts these schemes; only the protocol constraint rejects them. A
+  // bare z.url() would let a `javascript:`/`data:` payload reach an <a href> /
+  // <img src> at the render site (the fullstack-skeleton identity contract).
+  it("rejects non-http(s) schemes (javascript:, data:, ftp:)", () => {
+    expect(url.safeParse("javascript:alert(1)").success).toBe(false);
+    expect(url.safeParse("data:text/html,<script>alert(1)</script>").success).toBe(false);
+    expect(url.safeParse("ftp://example.com/file").success).toBe(false);
   });
 });
 

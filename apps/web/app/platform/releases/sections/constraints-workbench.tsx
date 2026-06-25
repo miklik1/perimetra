@@ -1,10 +1,11 @@
 "use client";
 
+import { Controller, useWatch } from "react-hook-form";
+
 import { useTranslations } from "@repo/i18n/web";
 import { ArrayField } from "@repo/ui/forms/array-field";
 import { EnumSelect } from "@repo/ui/forms/enum-select";
-import { FieldShell, fieldInputClass } from "@repo/ui/forms/field-shell";
-import { Controller, useWatch } from "react-hook-form";
+import { fieldInputClass, FieldShell } from "@repo/ui/forms/field-shell";
 
 import { blankConstraint } from "../lib/draft";
 import { ExprField } from "../lib/expr-field";

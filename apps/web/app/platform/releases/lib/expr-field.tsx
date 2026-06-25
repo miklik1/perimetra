@@ -1,9 +1,10 @@
 "use client";
 
+import * as React from "react";
+
 import { evaluate, parse, type ExprScope, type Scope } from "@repo/model";
 import { fieldInputClass } from "@repo/ui/forms/field-shell";
 import { cn } from "@repo/ui/lib/utils";
-import * as React from "react";
 
 import {
   codeCandidates,

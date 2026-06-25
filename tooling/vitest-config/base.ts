@@ -24,6 +24,16 @@ export const baseConfig: ViteUserConfig = defineConfig({
   test: {
     include: ["**/*.test.{ts,tsx}"],
     passWithNoTests: true,
+    // `turbo run test` fans every package's suite out at once; on a loaded box
+    // the jsdom environment + Nest `bootApp()` setup can take much longer than
+    // vitest's 5s default, so an otherwise-passing test trips it — and a
+    // DIFFERENT suite each run (node AND jsdom). The suites pass isolated / at
+    // `--concurrency=1`. Generous per-test + per-hook ceilings let contention
+    // resolve without masking real problems: a true hang still fails (at the
+    // ceiling) and a real assertion still fails immediately. (Channel-A drain
+    // from skeleton f506bec; matches this repo's documented laptop flake.)
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // Coverage (quality-infra spec §4, ADR 0025) — uniform across every package
     // that extends this base. The v8 provider is zero-config (uses Node's
     // built-in coverage); it only runs when a suite is invoked with

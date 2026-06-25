@@ -1,9 +1,10 @@
 "use client";
 
+import { Controller, useWatch } from "react-hook-form";
+
 import { useTranslations } from "@repo/i18n/web";
 import { EnumSelect } from "@repo/ui/forms/enum-select";
-import { FieldShell, fieldInputClass } from "@repo/ui/forms/field-shell";
-import { Controller, useWatch } from "react-hook-form";
+import { fieldInputClass, FieldShell } from "@repo/ui/forms/field-shell";
 
 import type { ReleaseEditorForm } from "../lib/section-schemas";
 

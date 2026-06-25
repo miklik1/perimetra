@@ -2,10 +2,10 @@
 
 import {
   CameraControls,
-  type CameraControlsImpl,
   ContactShadows,
   Environment,
   Lightformer,
+  type CameraControlsImpl,
 } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";

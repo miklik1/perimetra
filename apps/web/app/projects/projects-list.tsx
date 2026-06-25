@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 
+import { optimisticUpdate } from "@repo/api";
 import { useApiClient, useInfiniteQuery, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { optimisticUpdate } from "@repo/api";
 import { type Project } from "@repo/validators";
 
 import { devErrorDetail, errorMessageKey } from "../../lib/error-messages";

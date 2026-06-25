@@ -49,14 +49,12 @@ describe("privacy erasure (real worker + queue)", () => {
     // Seed a TOTP enrollment (the platform-operator credential, ADR 0040) to
     // prove erasure PURGES it — the FK cascade can't fire on the anonymized
     // (not deleted) user row, so the processor must delete it explicitly.
-    await db
-      .insert(twoFactor)
-      .values({
-        id: `tf-${user.id}`,
-        secret: "enc-secret",
-        backupCodes: "enc-backup",
-        userId: user.id,
-      });
+    await db.insert(twoFactor).values({
+      id: `tf-${user.id}`,
+      secret: "enc-secret",
+      backupCodes: "enc-backup",
+      userId: user.id,
+    });
     await db.update(userTable).set({ twoFactorEnabled: true }).where(eq(userTable.id, user.id));
 
     // Two projects; one soft-deleted. Both are ORG-scoped data (ADR 0055) —

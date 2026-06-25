@@ -1,6 +1,7 @@
-import type { ExprScope } from "@repo/model";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+import type { ExprScope } from "@repo/model";
 
 import { ExprEvalScopeContext, ExprField } from "./expr-field";
 
