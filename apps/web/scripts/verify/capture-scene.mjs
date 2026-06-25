@@ -12,7 +12,9 @@
  *   2. capture:                   node apps/web/scripts/verify/capture-scene.mjs
  *
  * Env: BASE_URL (default http://localhost:3010), OUT (default apps/web/.verify),
- * LABEL (output basename, default scene-lab), SETTLE_MS (default 6000).
+ * LABEL (output basename, default scene-lab), ROUTE (default /scene-lab — append
+ * a query to drive the scene, e.g. /scene-lab?finish=zinek), SETTLE_MS (default
+ * 6000).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -23,6 +25,7 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3010";
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = process.env.OUT ?? resolve(here, "../../.verify");
 const LABEL = process.env.LABEL ?? "scene-lab";
+const ROUTE = process.env.ROUTE ?? "/scene-lab";
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 6000);
 
 mkdirSync(OUT, { recursive: true });
@@ -42,7 +45,7 @@ const renderer = await page.evaluate(() => {
   return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "unknown";
 });
 
-await page.goto(`${BASE_URL}/scene-lab`, { waitUntil: "networkidle", timeout: 120_000 });
+await page.goto(`${BASE_URL}${ROUTE}`, { waitUntil: "networkidle", timeout: 120_000 });
 const canvas = page.locator('[data-testid="scene-lab"] canvas');
 await canvas.waitFor({ state: "visible", timeout: 120_000 });
 
@@ -63,7 +66,7 @@ const box = await canvas.boundingBox();
 
 const report = {
   label: LABEL,
-  url: `${BASE_URL}/scene-lab`,
+  url: `${BASE_URL}${ROUTE}`,
   renderer,
   softwareRenderer: /SwiftShader|llvmpipe|software/i.test(renderer),
   canvas: box ? { width: Math.round(box.width), height: Math.round(box.height) } : null,

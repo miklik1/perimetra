@@ -180,6 +180,8 @@ const cs = {
     scene: "3D náhled",
     sceneLoading: "Načítání 3D…",
     sceneInvalid: "Konfigurace není platná — opravte problémy níže.",
+    finishTitle: "Barva a povrch",
+    ralCaveat: "Barva orientační — potvrďte dle vzorku.",
     noProducts: "Zatím nejsou publikovány žádné produkty.",
     noPrices: "Pro vaši roli nebo organizaci není k dispozici aktivní ceník.",
   },

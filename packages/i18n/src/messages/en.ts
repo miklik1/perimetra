@@ -181,6 +181,8 @@ const en: MessagesInput = {
     scene: "3D preview",
     sceneLoading: "Loading 3D…",
     sceneInvalid: "The configuration is not valid — fix the issues below.",
+    finishTitle: "Colour & finish",
+    ralCaveat: "Colour is indicative — confirm against a physical sample.",
     noProducts: "No products have been published yet.",
     noPrices: "No active price table for your role or organization.",
   },
