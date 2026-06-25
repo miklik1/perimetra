@@ -49,7 +49,7 @@ export function SiteResultsPanel({
           {!priceBlind && (
             <div className="border-border rounded-md border p-4">
               <h2 className="mb-2 font-semibold">{t("totals")}</h2>
-              <dl className="grid grid-cols-2 gap-y-1">
+              <dl className="font-data grid grid-cols-2 gap-y-1">
                 {categories.map(([key, value]) => (
                   <div key={key} className="contents">
                     <dt className="text-muted-foreground">{t(key)}</dt>
@@ -72,7 +72,7 @@ export function SiteResultsPanel({
 
           <div className="border-border rounded-md border p-4">
             <h2 className="mb-2 font-semibold">{t("bom")}</h2>
-            <table className="w-full text-left">
+            <table className="font-data w-full text-left">
               <thead>
                 <tr className="text-muted-foreground text-xs uppercase">
                   <th className="py-1 font-medium">{t("bomItem")}</th>

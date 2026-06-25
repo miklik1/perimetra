@@ -97,7 +97,7 @@ export function Summary({
     <div className="flex flex-col gap-5">
       <Panel className="flex flex-col gap-3 text-sm">
         <h2 className="font-semibold">{t("specSheet")}</h2>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+        <dl className="font-data grid grid-cols-2 gap-x-4 gap-y-1">
           {specRows.map((row) => (
             <div key={row.key} className="contents">
               <dt className="text-muted-foreground">{row.label}</dt>

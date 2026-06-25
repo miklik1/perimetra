@@ -42,6 +42,27 @@
   --radius: 0.625rem;
 
   /*
+   * Perimetra brand typography (ADR 0078) — the Bombardier Part-A hierarchy.
+   * Role-named font tokens, one source of truth (web + mobile). Each binds to a
+   * next/font CSS variable when present (web, set in apps/web/app/layout.tsx) and
+   * falls back to the literal family name otherwise (mobile expo-font / no-JS).
+   * Custom-property substitution is lazy, so the next/font variable — declared on
+   * <body> — is in scope wherever these utilities/tokens are consumed below it.
+   *   Chillax → display / step labels / headings   (font-display)
+   *   Synonym → body / UI text — the default sans   (font-sans)
+   *   Amulya  → data labels / numeric emphasis        (font-data)
+   */
+  --font-sans:
+    var(--font-synonym, "Synonym"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-display:
+    var(--font-chillax, "Chillax"), var(--font-synonym, "Synonym"), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-data: var(--font-amulya, "Amulya"), ui-monospace, ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    var(--font-geist-mono, ui-monospace), SFMono-Regular, "Liberation Mono", Menlo, monospace;
+
+  /*
    * Perimetra brand layer (ADR 0072) — the Bombardier-derived premium-editorial
    * system: a near-monochrome warm-grey field, flat-matte white chrome lifted by
    * soft shadows (NEVER glass), one copper UI accent, and the deviation amber kept

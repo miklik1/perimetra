@@ -7,9 +7,11 @@ import { cn } from "@repo/ui/lib/utils";
  * Small pill label / count badge (ADR 0072). The `deviation` tone is the
  * CORE_SPEC §6 signal carried into the UI layer — kept on its OWN token
  * (--color-deviation, amber) so it never aliases the copper UI accent.
+ * Carries the Amulya data face (`font-data`, ADR 0078) — badges are data
+ * labels / numeric counts, the role Amulya owns.
  */
 const badgeVariants = cva(
-  "inline-flex items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide tabular-nums uppercase",
+  "font-data inline-flex items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide tabular-nums uppercase",
   {
     variants: {
       tone: {

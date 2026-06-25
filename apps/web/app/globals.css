@@ -5,6 +5,25 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Brand typography defaults (ADR 0078). Body text is Synonym (--font-sans);
+ * every heading level carries the Chillax display face (--font-display) so the
+ * editorial register lands without sprinkling `font-display` on each h-tag. The
+ * giant step label (DisplayLabel) sets `font-display` explicitly since it can
+ * render as a non-heading element. Data/numeric emphasis (Amulya, --font-data)
+ * is opt-in via the `font-data` utility on the data primitives.
+ */
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
 }

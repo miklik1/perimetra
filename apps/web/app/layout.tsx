@@ -11,10 +11,36 @@ import { Providers } from "./providers";
 
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
+// Perimetra brand typeface trio (ADR 0078), self-hosted variable woff2 — served
+// from the app origin so the strict CSP (`font-src 'self'`, proxy.ts) holds with
+// nothing external. Licensed under the Fontshare Free Font EULA (commercial Web
+// use; see ./fonts/FONT-LICENSE-fontshare-FFL.txt). Role assignment per the
+// Bombardier brand-extraction Part-A hierarchy:
+//   Chillax  → display / step labels / headings   (--font-display)
+//   Synonym  → body / UI text (the default)        (--font-sans)
+//   Amulya   → data labels / numeric emphasis       (--font-data)
+// Each is a single variable file spanning its full weight axis; the role tokens
+// in tooling/tailwind-config/theme.css bind to these variables (web) and fall
+// back to the literal family name (mobile / no-JS).
+const chillax = localFont({
+  src: "./fonts/Chillax-Variable.woff2",
+  weight: "200 700",
+  variable: "--font-chillax",
+  display: "swap",
 });
+const synonym = localFont({
+  src: "./fonts/Synonym-Variable.woff2",
+  weight: "200 700",
+  variable: "--font-synonym",
+  display: "swap",
+});
+const amulya = localFont({
+  src: "./fonts/Amulya-Variable.woff2",
+  weight: "300 700",
+  variable: "--font-amulya",
+  display: "swap",
+});
+// Geist Mono stays the monospace face (code / mono UI) — no brand mono in the trio.
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
@@ -72,7 +98,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} bg-background text-foreground antialiased`}
+        className={`${synonym.variable} ${chillax.variable} ${amulya.variable} ${geistMono.variable} bg-background text-foreground font-sans antialiased`}
       >
         {/*
          * I18nProvider (next-intl) — locale + messages passed explicitly (v4

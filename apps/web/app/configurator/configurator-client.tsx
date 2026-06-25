@@ -154,7 +154,9 @@ function ConfiguratorInner({
   return (
     <Field>
       <header className="border-border/60 bg-field/80 sticky top-0 z-10 flex flex-wrap items-center gap-4 border-b px-6 py-3 backdrop-blur">
-        <span className="text-foreground text-lg font-semibold tracking-tight">Perimetra</span>
+        <span className="text-foreground font-display text-lg font-semibold tracking-tight">
+          Perimetra
+        </span>
         <div className="flex-1">
           <StepNav
             aria-label={t("title")}
