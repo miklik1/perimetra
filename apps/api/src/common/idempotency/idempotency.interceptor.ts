@@ -8,8 +8,12 @@
  * - success: the stored value becomes `{ status, body }` (`XX` so an expired
  *   claim is never resurrected); replays return it verbatim with
  *   `Idempotency-Replayed: true`.
- * - failure: the claim is DELETEd — a retry with the same key may run again
- *   (only successes are memoized).
+ * - handler failure: the claim is DELETEd — the handler threw and a
+ *   `@Transactional()` route rolled back, so a retry with the same key may run
+ *   again (only successes are memoized). A post-commit STORE failure is the
+ *   exception: the claim is RETAINED (the write is already durable; releasing it
+ *   would let a retry duplicate a resource/window that has no uniqueness
+ *   backstop) — the retry then replays-or-409s instead.
  * - concurrent duplicate while the winner is in flight → 409
  *   `{ code: "idempotency_in_flight" }` (clients back off and retry).
  *
@@ -130,8 +134,27 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     const reply = context.switchToHttp().getResponse<FastifyReply>();
     return next.handle().pipe(
-      // mergeMap (not tap): the response only goes out once the record is
-      // stored — a client can't observe success then miss the replay.
+      // The HANDLER threw (validation / conflict / DB error): a `@Transactional()`
+      // route rolled back, so nothing durable was committed that a retry would
+      // duplicate — RELEASE the claim so the client may retry the same key. This
+      // `catchError` sits BEFORE the store below so it only ever sees handler
+      // errors, never a store error (an error notification passes THROUGH the
+      // downstream `mergeMap` untouched).
+      catchError((error: unknown) =>
+        from(this.redis.del(redisKey)).pipe(mergeMap(() => throwError(() => error))),
+      ),
+      // The handler SUCCEEDED — for a `@Transactional()` route the DB COMMIT
+      // already happened inside `next.handle()`. Store the success record.
+      // mergeMap (not tap): the response only goes out once the record is stored,
+      // so a client can't observe success then miss the replay.
+      //
+      // If THIS `set` rejects (Redis blip / eviction) the error propagates with
+      // NO `catchError` downstream, so the claim is DELIBERATELY left in place:
+      // the write is durable, and releasing it would let a same-key retry
+      // re-execute and create a DUPLICATE (resource / window creates have no
+      // uniqueness backstop; only bookings are caught by the EXCLUDE → 409). With
+      // the pending claim retained, the retry hits `replay()` → 409 (or a replay
+      // once a later store wins), never a duplicate.
       mergeMap((body: unknown) =>
         from(
           this.redis.set(
@@ -148,10 +171,6 @@ export class IdempotencyInterceptor implements NestInterceptor {
             "XX",
           ),
         ).pipe(mergeMap(() => of(body))),
-      ),
-      // On failure release the claim so the client may retry the same key.
-      catchError((error: unknown) =>
-        from(this.redis.del(redisKey)).pipe(mergeMap(() => throwError(() => error))),
       ),
     );
   }

@@ -29,7 +29,10 @@ export default {
     require.resolve("prettier-plugin-tailwindcss"),
   ],
   importOrder: ["<BUILTIN_MODULES>", "<THIRD_PARTY_MODULES>", "", "^@repo/(.*)$", "", "^[./]"],
-  // apps/api (NestJS) uses legacy decorators — without this the sort-imports
-  // babel parse fails on every decorated file and skips sorting.
-  importOrderParserPlugins: ["typescript", "decorators-legacy"],
+  // Setting this REPLACES the @ianvs default (["typescript", "jsx"]) — it does
+  // not merge — so adding "decorators-legacy" for apps/api (NestJS legacy
+  // decorators) silently dropped "jsx", and the sort-imports babel parse then
+  // skipped EVERY .tsx file (no import ordering on any component). List all
+  // three so decorated .ts AND .tsx are both sorted.
+  importOrderParserPlugins: ["typescript", "decorators-legacy", "jsx"],
 };

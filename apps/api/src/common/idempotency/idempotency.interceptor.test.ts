@@ -189,4 +189,19 @@ describe("IdempotencyInterceptor", () => {
     expect(redis.del).toHaveBeenCalledWith(KEY);
     expect(redis.set).toHaveBeenCalledTimes(1); // claim only — nothing stored
   });
+
+  it("retains the claim when the success-store (SET XX) rejects — the write is durable, so a retry must replay-or-409, never re-execute", async () => {
+    redis.set.mockResolvedValueOnce("OK"); // NX claim
+    redis.set.mockRejectedValueOnce(new Error("redis blip")); // XX store fails post-commit
+    const next = makeNext();
+
+    const result = await makeInterceptor().intercept(makeContext(makeRequest()), next);
+    await expect(lastValueFrom(result)).rejects.toThrow("redis blip");
+
+    // The handler already committed; releasing the claim would let a retry
+    // duplicate the write. The claim MUST be retained — DEL is never called.
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(next.handle).toHaveBeenCalledOnce();
+    expect(redis.set).toHaveBeenCalledTimes(2); // NX claim + the failed XX store
+  });
 });
