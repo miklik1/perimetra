@@ -11,6 +11,7 @@ import { Panel } from "@repo/ui";
 
 import { usePriceBlind } from "../../lib/use-role";
 import { deriveForUi } from "./derive";
+import { DeviationPanel } from "./deviation-panel";
 import { FinishPicker } from "./finish-picker";
 import type { CatalogBundle, ConfigurableProduct } from "./products";
 import { ResultsPanel } from "./results-panel";
@@ -159,6 +160,7 @@ function ConfiguratorInner({
           <div key={product.release.id} className="flex flex-col gap-6">
             <SceneViewport scene={derivation.scene} />
             <FinishPicker />
+            <DeviationPanel result={derivation.result} />
             <ResultsPanel result={derivation.result} priceBlind={priceBlind} />
           </div>
         </div>

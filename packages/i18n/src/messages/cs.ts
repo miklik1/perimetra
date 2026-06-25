@@ -182,6 +182,8 @@ const cs = {
     sceneInvalid: "Konfigurace není platná — opravte problémy níže.",
     finishTitle: "Barva a povrch",
     ralCaveat: "Barva orientační — potvrďte dle vzorku.",
+    deviationsTitle: "Odchylky",
+    deviationHighlight: "Zvýraznit odchylky",
     noProducts: "Zatím nejsou publikovány žádné produkty.",
     noPrices: "Pro vaši roli nebo organizaci není k dispozici aktivní ceník.",
   },

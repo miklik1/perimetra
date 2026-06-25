@@ -183,6 +183,8 @@ const en: MessagesInput = {
     sceneInvalid: "The configuration is not valid — fix the issues below.",
     finishTitle: "Colour & finish",
     ralCaveat: "Colour is indicative — confirm against a physical sample.",
+    deviationsTitle: "Deviations",
+    deviationHighlight: "Highlight deviations",
     noProducts: "No products have been published yet.",
     noPrices: "No active price table for your role or organization.",
   },
