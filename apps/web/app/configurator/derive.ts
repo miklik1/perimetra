@@ -17,7 +17,14 @@ import {
   type PriceTable,
 } from "@repo/engine";
 import type { Catalog, Scope, Site } from "@repo/model";
-import { buildScene, type Scene3D } from "@repo/renderers";
+import {
+  buildScene,
+  buildSitePlan,
+  buildWorkshopDrawing,
+  type Scene3D,
+  type SitePlan,
+  type WorkshopDrawing,
+} from "@repo/renderers";
 
 import { type ConfigurableProduct } from "./products";
 
@@ -29,6 +36,11 @@ export interface UiDerivation {
   /** Present only for a valid result (an invalid site has no geometric truth
    *  to render — I5). */
   scene?: Scene3D;
+  /** Front-elevation workshop drawing (technique 10) — the Summary spec sheet +
+   *  the WebGL-unavailable fallback. Pure data off the same valid result. */
+  drawing?: WorkshopDrawing;
+  /** Top-down site plan (Půdorys) for the Lokalita step. */
+  plan?: SitePlan;
 }
 
 const PREVIEW_INSTANCE = "preview";
@@ -70,6 +82,11 @@ export function deriveForUi(
   return {
     result: detailed.result,
     ...(detailed.scope && { scope: detailed.scope }),
-    ...(siteResult.isValid && { scene: buildScene(previewSite, siteResult) }),
+    // The instance result is valid here, so its pure 2D/3D products all build.
+    drawing: buildWorkshopDrawing(detailed.result),
+    ...(siteResult.isValid && {
+      scene: buildScene(previewSite, siteResult),
+      plan: buildSitePlan(previewSite, siteResult),
+    }),
   };
 }

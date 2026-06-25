@@ -1,14 +1,21 @@
 "use client";
 
-import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
+import {
+  CameraControls,
+  type CameraControlsImpl,
+  ContactShadows,
+  Environment,
+  Lightformer,
+} from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ACESFilmicToneMapping, SRGBColorSpace, Vector3, type Vector3Tuple } from "three";
 
 import { useTranslations } from "@repo/i18n/web";
 import type { Scene3D, Vec3 } from "@repo/renderers";
 import { Badge, IconButton } from "@repo/ui";
 
+import { cameraPose, type CameraView } from "./camera-poses";
 import { useDeviation } from "./deviation";
 import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
 import { frameScene } from "./frame";
@@ -24,6 +31,10 @@ import { SceneRenderer } from "./scene-renderer";
  * gives invisible image-based PBR fill (CSP-clean, no external HDR) + a key
  * `directionalLight` + `<ContactShadows>` grounding on `frame.groundY`.
  *
+ * Camera choreography (ADR 0077, technique 6): one persistent `<CameraControls>`
+ * (OrbitControls dropped) — a named pose per wizard step (`view`) the rig
+ * animates to with `smoothTime` + `setLookAt(…, true)`, interruptible by the user.
+ *
  * Deviation surfacing (ADR 0076, CORE_SPEC §6): every deviated piece gets a
  * ref-driven DOM **edge marker** that rides the viewport edge when the piece
  * leaves the frustum (the per-frame `vec3.project(camera)` lives in
@@ -33,10 +44,10 @@ import { SceneRenderer } from "./scene-renderer";
  */
 export default function SceneCanvas({
   scene,
-  cam = "default",
+  view = "hero",
 }: {
   scene: Scene3D;
-  cam?: "default" | "away";
+  view?: CameraView;
 }) {
   const t = useTranslations("configurator");
   const frame = useMemo(() => frameScene(scene), [scene]);
@@ -51,25 +62,7 @@ export default function SceneCanvas({
     frame.center[2] + frame.radius,
   ];
 
-  // `cam="away"` (the e2e off-screen check, ADR 0076): point the camera AWAY from
-  // the scene so every deviated piece is behind the frustum — the §6 guarantee
-  // must still surface a marker. The look-at is the camera position reflected
-  // through the scene centre, so the gate sits squarely behind the camera.
-  const away = cam === "away";
-  const cameraPosition: Vec3 = away
-    ? [
-        frame.center[0] + frame.radius * 1.4,
-        frame.center[1] + frame.radius * 0.5,
-        frame.center[2] + frame.radius * 1.4,
-      ]
-    : frame.cameraPosition;
-  const target: Vec3 = away
-    ? [
-        2 * cameraPosition[0] - frame.center[0],
-        2 * cameraPosition[1] - frame.center[1],
-        2 * cameraPosition[2] - frame.center[2],
-      ]
-    : frame.center;
+  const pose = useMemo(() => cameraPose(view, frame), [view, frame]);
 
   return (
     <div className="relative h-full w-full">
@@ -80,7 +73,7 @@ export default function SceneCanvas({
           toneMappingExposure: 1.0,
           outputColorSpace: SRGBColorSpace,
         }}
-        camera={{ fov: 45, near: 10, far: 120000, position: cameraPosition }}
+        camera={{ fov: 45, near: 10, far: 120000, position: pose.position }}
         dpr={[1, 2]}
       >
         {/* The Bombardier warm-grey field (brand `--color-field`); IBL stays invisible above it. */}
@@ -148,7 +141,7 @@ export default function SceneCanvas({
           <DeviationProjector centers={deviatedCenters} markerRefs={markerRefs} />
         )}
 
-        <OrbitControls makeDefault target={target} />
+        <CameraRig pose={pose} />
       </Canvas>
 
       {/* §6 edge markers — pointer-transparent overlay; the projector toggles each
@@ -190,6 +183,29 @@ export default function SceneCanvas({
       )}
     </div>
   );
+}
+
+/** The single camera controller (ADR 0077): animates to the step's named pose
+ *  with `smoothTime` + `setLookAt(…, true)`, interruptible by user orbit. */
+function CameraRig({ pose }: { pose: { position: Vec3; target: Vec3 } }) {
+  const controls = useRef<CameraControlsImpl>(null);
+
+  useEffect(() => {
+    const c = controls.current;
+    if (c === null) return;
+    c.smoothTime = 0.55;
+    void c.setLookAt(
+      pose.position[0],
+      pose.position[1],
+      pose.position[2],
+      pose.target[0],
+      pose.target[1],
+      pose.target[2],
+      true,
+    );
+  }, [pose]);
+
+  return <CameraControls ref={controls} makeDefault />;
 }
 
 /** A small warning triangle (no icon lib) — the deviation glyph. */
