@@ -56,6 +56,7 @@ import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
+import { formatQuoteNumber } from "./document-number.js";
 import { quoteMarginPct } from "./margin.js";
 import { QuotesRepository } from "./quotes.repository.js";
 
@@ -151,6 +152,7 @@ function toSummary(row: QuoteRow, role: OrgRole): QuoteSummary {
     id: row.id,
     projectId: row.projectId,
     status: row.status,
+    documentNumber: row.documentNumber,
     currency: row.currency,
     // Workshop is price-blind: the total is nulled server-side (I10 string otherwise).
     total: isPriceBlind(role) ? null : row.totalMoney,
@@ -312,9 +314,17 @@ export class QuotesService {
     };
     const stamps = result.stamps;
 
+    // Allocate the gap-free document number INSIDE this issue transaction (ADR
+    // 0079): the increment commits or rolls back with the quote insert below, so
+    // a failed issue leaves no gap in the org's per-year series. The wall clock
+    // lives in the app layer (like shareToken), never the engine.
+    const year = new Date().getFullYear();
+    const documentNumber = formatQuoteNumber(year, await this.quotes.allocateNumber(scope, year));
+
     const row = await this.quotes.insert(scope, {
       projectId: input.projectId ?? null,
       status: "issued",
+      documentNumber,
       currency: priceTable.currency,
       shareToken: randomUUID(),
       validUntil: input.validUntil ? new Date(input.validUntil) : null,

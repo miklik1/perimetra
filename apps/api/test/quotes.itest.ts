@@ -33,6 +33,7 @@ import {
 interface QuoteDetail {
   id: string;
   status: string;
+  documentNumber: string;
   currency: string;
   total: string;
   stamps: {
@@ -162,6 +163,70 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         reproduced: true,
         mismatches: [],
       });
+    });
+  });
+
+  describe("document numbering (gap-free per-org/year series, ADR 0079)", () => {
+    const year = new Date().getFullYear();
+
+    it("assigns sequential, gap-free numbers; a failed issue consumes none", async () => {
+      const org = await signUpUser(app, "quote-numbering");
+      await seedGoldenCorpusFor(app, db, org);
+      expect((await post(org, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+
+      const first = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(first.documentNumber).toBe(`${year}/0001`);
+      const second = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(second.documentNumber).toBe(`${year}/0002`);
+
+      // A failed issue (invalid site → 422) must NOT consume a number: allocation
+      // lives INSIDE the issue tx (ADR 0079), so the next success is 0003, not 0004.
+      const tooSteep = {
+        ...steppedSite,
+        terrain: [
+          { id: "s1", elevation_mm: 0 },
+          { id: "s2", elevation_mm: 400 },
+        ],
+      };
+      expect((await post(org, "/v1/quotes", { ...issueBody, site: tooSteep })).statusCode).toBe(
+        422,
+      );
+
+      const third = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(third.documentNumber).toBe(`${year}/0003`);
+    });
+
+    it("numbers each org independently (the series is org-scoped)", async () => {
+      const orgA = await signUpUser(app, "quote-numbering-a");
+      await seedGoldenCorpusFor(app, db, orgA);
+      expect((await post(orgA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+      const a = (await post(orgA, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(a.documentNumber).toBe(`${year}/0001`);
+
+      const orgB = await signUpUser(app, "quote-numbering-b");
+      await seedGoldenCorpusFor(app, db, orgB);
+      expect((await post(orgB, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+      const b = (await post(orgB, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      // Independent counter — orgB also starts at 0001 despite orgA's quote.
+      expect(b.documentNumber).toBe(`${year}/0001`);
+    });
+
+    it("serializes concurrent issues into distinct numbers (row-lock + unique-index backstop)", async () => {
+      const org = await signUpUser(app, "quote-numbering-concurrent");
+      await seedGoldenCorpusFor(app, db, org);
+      expect((await post(org, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+
+      const [r1, r2] = await Promise.all([
+        post(org, "/v1/quotes", issueBody),
+        post(org, "/v1/quotes", issueBody),
+      ]);
+      expect(r1.statusCode).toBe(201);
+      expect(r2.statusCode).toBe(201);
+      const nums = [
+        (r1.json() as QuoteDetail).documentNumber,
+        (r2.json() as QuoteDetail).documentNumber,
+      ].sort();
+      expect(nums).toEqual([`${year}/0001`, `${year}/0002`]);
     });
   });
 

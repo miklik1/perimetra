@@ -18,6 +18,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -46,6 +47,12 @@ export const quote = pgTable(
     /** Nullable until project persistence lands (a quote can freeze a transient site). */
     projectId: uuid("project_id").references(() => project.id, { onDelete: "set null" }),
     status: text("status").notNull().$type<QuoteStatus>(),
+    /** Gap-free, org-scoped, per-year document/evidence number (ADR 0079) —
+     *  allocated INSIDE the issue tx (a rolled-back issue rolls back the
+     *  increment, so no gaps). Format `{year}/{seq:04d}`; unique per org. This is
+     *  the legal evidenční číslo on the document, not part of the I3 re-derivation
+     *  (it's a row identifier, not an engine output). */
+    documentNumber: text("document_number").notNull(),
     currency: text("currency").notNull(),
     shareToken: text("share_token").notNull(),
     validUntil: timestamp("valid_until", { withTimezone: true }),
@@ -66,8 +73,37 @@ export const quote = pgTable(
   (t) => [
     index("quote_org_id_id_idx").on(t.organizationId, t.id),
     uniqueIndex("quote_share_token_uq").on(t.shareToken),
+    // Structural backstop for the gap-free series — no two quotes in an org can
+    // share a document number even under a race (the atomic allocator serializes;
+    // this guarantees it at the storage layer).
+    uniqueIndex("quote_org_document_number_uq").on(t.organizationId, t.documentNumber),
   ],
 );
 
 export type QuoteRow = typeof quote.$inferSelect;
 export type NewQuoteRow = typeof quote.$inferInsert;
+
+/**
+ * Per-org, per-year quote document-number counter (ADR 0079). One row per
+ * (org, year); `lastNumber` is the last assigned sequence value (first
+ * allocation returns 1). Allocation is a single atomic
+ * `INSERT … ON CONFLICT DO UPDATE … RETURNING last_number` inside the issue
+ * transaction — gap-free (a rolled-back issue rolls back the increment too) and
+ * transaction-pooling-safe (no DB sequence, no advisory lock, no session GUC).
+ * Operational state, NOT a legal artifact: the org FK CASCADEs (the immutable
+ * `quote` rows carry I3 durability via RESTRICT, the counter need not).
+ */
+export const quoteNumberSequence = pgTable(
+  "quote_number_sequence",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    lastNumber: integer("last_number").notNull(),
+    ...timestamps(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.year] })],
+);
+
+export type QuoteNumberSequenceRow = typeof quoteNumberSequence.$inferSelect;

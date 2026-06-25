@@ -63,6 +63,8 @@ export const quoteSummarySchema = z.object({
   id: z.uuid(),
   projectId: z.uuid().nullable(),
   status: quoteStatusSchema,
+  /** Gap-free, org-scoped, per-year evidence number (ADR 0079), `{year}/{seq:04d}`. */
+  documentNumber: z.string(),
   currency: z.string(),
   /**
    * Decimal-string total (I10), or `null` for the PRICE-BLIND `workshop` view
