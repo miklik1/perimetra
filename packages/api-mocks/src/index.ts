@@ -23,8 +23,12 @@ export {
 
 export { authRoutes } from "./handlers/auth";
 export { projectRoutes } from "./handlers/projects";
+export { quoteRoutes } from "./handlers/quotes";
+export { customerRoutes } from "./handlers/customers";
 export { routeGroups, selectRoutes, allRoutes, createMockConfig } from "./config";
 export { listMockUsers } from "./fixtures/users";
 export { listProjectFixtures, resetProjects } from "./fixtures/projects";
+export { listQuoteFixtures, resetQuotes } from "./fixtures/quotes";
+export { listCustomerFixtures, resetCustomers } from "./fixtures/customers";
 export { resetSessions } from "./fixtures/session";
 // @gen:exports — `pnpm gen api-resource` adds the resource mock route export here.

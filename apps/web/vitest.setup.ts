@@ -8,7 +8,13 @@ import "@repo/vitest-config/setup/react";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
 
-import { allRoutes, resetProjects, resetSessions } from "@repo/api-mocks";
+import {
+  allRoutes,
+  resetCustomers,
+  resetProjects,
+  resetQuotes,
+  resetSessions,
+} from "@repo/api-mocks";
 import { createMswHandlers } from "@repo/api-mocks/msw";
 
 // Web-app setup layered on top of the shared jsdom/jest-dom/cleanup setup
@@ -27,5 +33,7 @@ afterEach(() => {
   server.resetHandlers();
   resetSessions();
   resetProjects();
+  resetQuotes();
+  resetCustomers();
 });
 afterAll(() => server.close());

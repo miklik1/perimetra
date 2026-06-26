@@ -25,6 +25,7 @@ import {
 } from "./derive";
 import { DEMO_RELEASE_IDS, demoInstances, demoSite } from "./initial";
 import { InstancePanel } from "./instance-panel";
+import { IssueQuotePanel } from "./issue-quote-panel";
 import { Palette } from "./palette";
 import { toSavePayload } from "./persistence";
 import { PlanCanvas } from "./plan-canvas";
@@ -436,6 +437,14 @@ function SiteCanvas({
           />
           <SceneViewport scene={derivation.scene} />
           <SiteResultsPanel result={derivation.result} priceBlind={priceBlind} />
+          {/* Issue a quote (ADR 0083) — sales/admin only (workshop is price-blind +
+              403 on issue); the configured site + roster freeze into the quote. */}
+          {!priceBlind && derivation.result.isValid && (
+            <IssueQuotePanel
+              projectId={projectId}
+              payload={{ site: currentPayload.site, instances: currentPayload.instances }}
+            />
+          )}
         </div>
       </div>
     </main>

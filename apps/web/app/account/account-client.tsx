@@ -37,6 +37,7 @@ function AccountContent() {
   const router = useRouter();
   const t = useTranslations("account");
   const tTeam = useTranslations("team");
+  const tQuotes = useTranslations("quotes");
   const tAdmin = useTranslations("admin");
   const tPlatform = useTranslations("platform");
   const { logout } = useAuth();
@@ -55,6 +56,9 @@ function AccountContent() {
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
       <p className="text-muted-foreground">{t("signedInAs", { email: user?.email ?? "" })}</p>
+      <Link href="/quotes" className={buttonVariants({ variant: "outline" })}>
+        {tQuotes("title")}
+      </Link>
       <Link href="/team" className={buttonVariants({ variant: "outline" })}>
         {tTeam("title")}
       </Link>

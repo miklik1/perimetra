@@ -33,6 +33,8 @@ export const routes = {
   projects: { path: "/projects" },
   configurator: { path: "/configurator" },
   site: { path: "/site/:projectId", params: { projectId: "string" } },
+  quotes: { path: "/quotes" },
+  quote: { path: "/quotes/:id", params: { id: "string" } },
   // @gen:exports — `pnpm gen route` registers the new route entry here.
 } as const;
 
