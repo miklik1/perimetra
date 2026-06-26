@@ -17,6 +17,7 @@ import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { CatalogVersionsModule } from "./modules/catalog-versions/catalog-versions.module.js";
+import { CustomersModule } from "./modules/customers/customers.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { JobsModule } from "./modules/jobs/jobs.module.js";
@@ -98,6 +99,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     // default release set when a fresh org is auto-provisioned. HTTP app only.
     OrgProvisioningModule,
     ReleaseDraftsModule,
+    CustomersModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

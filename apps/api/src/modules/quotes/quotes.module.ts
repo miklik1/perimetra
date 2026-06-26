@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { CatalogVersionsModule } from "../catalog-versions/catalog-versions.module.js";
+import { CustomersModule } from "../customers/customers.module.js";
 import { PriceTablesModule } from "../price-tables/price-tables.module.js";
 import { ReleasesModule } from "../releases/releases.module.js";
 import { QuotesController } from "./quotes.controller.js";
@@ -16,7 +17,7 @@ import { QuotesService } from "./quotes.service.js";
  * `marginFloorPct` at issue, so there is no env/DI constant to wire here.
  */
 @Module({
-  imports: [AuthModule, ReleasesModule, CatalogVersionsModule, PriceTablesModule],
+  imports: [AuthModule, ReleasesModule, CatalogVersionsModule, PriceTablesModule, CustomersModule],
   controllers: [QuotesController],
   providers: [QuotesService, QuotesRepository],
 })

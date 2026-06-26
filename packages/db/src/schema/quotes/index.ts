@@ -27,6 +27,7 @@ import {
 
 import { id, timestamps } from "../../columns.js";
 import { organization, user } from "../auth/index.js";
+import { customer } from "../customers/index.js";
 import { project } from "../projects/index.js";
 
 export const QUOTE_STATUSES = ["draft", "issued", "accepted", "expired"] as const;
@@ -46,6 +47,10 @@ export const quote = pgTable(
       .references(() => organization.id, { onDelete: "restrict" }),
     /** Nullable until project persistence lands (a quote can freeze a transient site). */
     projectId: uuid("project_id").references(() => project.id, { onDelete: "set null" }),
+    /** The attached buyer (odběratel, ADR 0082) — nullable (a quote may be issued
+     *  without one). RESTRICT: a customer referenced by an issued quote is an I3
+     *  dependency and is anonymized-in-place, never deleted (ADR 0071). */
+    customerId: uuid("customer_id").references(() => customer.id, { onDelete: "restrict" }),
     status: text("status").notNull().$type<QuoteStatus>(),
     /** Gap-free, org-scoped, per-year document/evidence number (ADR 0079) —
      *  allocated INSIDE the issue tx (a rolled-back issue rolls back the

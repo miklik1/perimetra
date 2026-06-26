@@ -33,6 +33,7 @@ export interface QuotesPageRows {
 export type InsertQuoteData = Pick<
   QuoteRow,
   | "projectId"
+  | "customerId"
   | "status"
   | "documentNumber"
   | "currency"
@@ -44,26 +45,41 @@ export type InsertQuoteData = Pick<
   | "snapshot"
 >;
 
+/** Per-rep ownership narrowing (ADR 0082) — layered ON TOP of the org scope,
+ *  never replacing it. admin sees the whole org; a rep is narrowed to own rows. */
+export interface QuoteScopeOpts {
+  restrictToOwner: boolean;
+}
+
 @Injectable()
 export class QuotesRepository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
   /**
-   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope. `ownerId`
-   * stays on the row as the creator/audit ref but is no longer the boundary.
+   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope, plus the
+   * per-rep ownership narrowing (ADR 0082) layered on top — a rep sees only its
+   * own quotes (`ownerId`), admin the whole org. `ownerId` is the creator/audit
+   * ref; the org filter is never dropped.
    */
-  private scoped(scope: RequestScope) {
-    return eq(quote.organizationId, scope.organizationId);
+  private scoped(scope: RequestScope, opts: QuoteScopeOpts) {
+    return and(
+      eq(quote.organizationId, scope.organizationId),
+      opts.restrictToOwner ? eq(quote.ownerId, scope.userId) : undefined,
+    );
   }
 
-  async list(scope: RequestScope, params: ListQuotesParams): Promise<QuotesPageRows> {
+  async list(
+    scope: RequestScope,
+    opts: QuoteScopeOpts,
+    params: ListQuotesParams,
+  ): Promise<QuotesPageRows> {
     const ascending = params.sort === "createdAt:asc";
     const rows = await this.txHost.tx
       .select()
       .from(quote)
       .where(
         and(
-          this.scoped(scope),
+          this.scoped(scope, opts),
           params.status ? eq(quote.status, params.status) : undefined,
           params.cursor
             ? ascending
@@ -80,11 +96,15 @@ export class QuotesRepository {
     return { items, nextCursor };
   }
 
-  async findById(scope: RequestScope, quoteId: string): Promise<QuoteRow | null> {
+  async findById(
+    scope: RequestScope,
+    opts: QuoteScopeOpts,
+    quoteId: string,
+  ): Promise<QuoteRow | null> {
     const [row] = await this.txHost.tx
       .select()
       .from(quote)
-      .where(and(this.scoped(scope), eq(quote.id, quoteId)))
+      .where(and(this.scoped(scope, opts), eq(quote.id, quoteId)))
       .limit(1);
     return row ?? null;
   }

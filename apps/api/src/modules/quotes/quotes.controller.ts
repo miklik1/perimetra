@@ -81,8 +81,9 @@ export class QuotesController {
   @ZodSerializerDto(QuoteReproductionDto)
   verify(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<QuoteReproduction> {
-    return this.quotes.verifyReproducibility(scope, id);
+    return this.quotes.verifyReproducibility(scope, role, id);
   }
 }

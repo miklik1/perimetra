@@ -32,6 +32,10 @@ export type QuoteInstanceInput = z.infer<typeof quoteInstanceInputSchema>;
 export const issueQuoteSchema = z.object({
   /** Nullable until project persistence lands. */
   projectId: z.uuid().optional(),
+  /** The attached buyer (odběratel, ADR 0082). When present, the §92e VAT-status
+   *  is auto-filled from the customer (the request `tax.customerVatPayer` is
+   *  ignored in favour of the customer's own flag). */
+  customerId: z.uuid().optional(),
   /** The Site graph (terrain/placements/connections) — engine-validated. */
   site: z.unknown(),
   instances: z.array(quoteInstanceInputSchema).min(1),
@@ -75,6 +79,7 @@ export type QuoteStamps = z.infer<typeof quoteStampsSchema>;
 export const quoteSummarySchema = z.object({
   id: z.uuid(),
   projectId: z.uuid().nullable(),
+  customerId: z.uuid().nullable(),
   status: quoteStatusSchema,
   /** Gap-free, org-scoped, per-year evidence number (ADR 0079), `{year}/{seq:04d}`. */
   documentNumber: z.string(),

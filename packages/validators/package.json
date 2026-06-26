@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./customers": {
+      "types": "./dist/customers.d.ts",
+      "default": "./dist/customers.js"
+    },
     "./release-drafts": {
       "types": "./dist/release-drafts.d.ts",
       "default": "./dist/release-drafts.js"

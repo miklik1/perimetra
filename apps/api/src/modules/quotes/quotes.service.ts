@@ -65,11 +65,17 @@ import { isPriceBlind, type OrgRole } from "../../common/rbac/org-role.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
+import { CustomersService } from "../customers/customers.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import { formatQuoteNumber } from "./document-number.js";
 import { quoteMarginPct } from "./margin.js";
-import { QuotesRepository } from "./quotes.repository.js";
+import { QuotesRepository, type QuoteScopeOpts } from "./quotes.repository.js";
+
+/** admin sees the whole org; every other rep is narrowed to their own quotes. */
+function scopeOpts(role: OrgRole): QuoteScopeOpts {
+  return { restrictToOwner: role !== "admin" };
+}
 
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
 interface QuoteSnapshot {
@@ -192,6 +198,7 @@ function toSummary(row: QuoteRow, role: OrgRole): QuoteSummary {
   return {
     id: row.id,
     projectId: row.projectId,
+    customerId: row.customerId,
     status: row.status,
     documentNumber: row.documentNumber,
     currency: row.currency,
@@ -216,16 +223,17 @@ export class QuotesService {
     private readonly releases: ReleasesService,
     private readonly catalogVersions: CatalogVersionsService,
     private readonly priceTables: PriceTablesService,
+    private readonly customers: CustomersService,
     private readonly audit: AuditService,
   ) {}
 
   async list(scope: RequestScope, role: OrgRole, query: ListQuotesQuery): Promise<QuotesPage> {
-    const { items, nextCursor } = await this.quotes.list(scope, query);
+    const { items, nextCursor } = await this.quotes.list(scope, scopeOpts(role), query);
     return { items: items.map((row) => toSummary(row, role)), nextCursor };
   }
 
   async get(scope: RequestScope, role: OrgRole, quoteId: string): Promise<QuoteDetail> {
-    const row = await this.quotes.findById(scope, quoteId);
+    const row = await this.quotes.findById(scope, scopeOpts(role), quoteId);
     if (!row) throw new NotFoundException("Quote not found");
     return toDetail(row, role);
   }
@@ -340,14 +348,20 @@ export class QuotesService {
       }
     }
 
+    // Attach the buyer (ADR 0082) — ownership-validated via the customers service
+    // (404 on another rep's / a missing customer; the rep must own it or be admin).
+    const attachedCustomer = input.customerId
+      ? await this.customers.get(scope, role, input.customerId)
+      : null;
+
     // §92e/DPH (ADR 0080) — the tax mode is a per-transaction decision. The
-    // supplier (this org issuing DPH quotes) is a VAT payer; the buyer's status +
-    // the construction/assembly scope come from the issue request (auto-filled
-    // from the attached customer once ADR 0082 lands). The structured breakdown
-    // is frozen below and re-derived at verify (I3).
+    // supplier (this org issuing DPH quotes) is a VAT payer; the buyer's VAT
+    // status is auto-filled from the attached customer when present (else the
+    // request flag), and the construction/assembly scope from the request. The
+    // structured breakdown is frozen below and re-derived at verify (I3).
     const taxMode = resolveTaxMode({
       supplierVatPayer: true,
-      customerVatPayer: input.tax?.customerVatPayer ?? false,
+      customerVatPayer: attachedCustomer?.vatPayer ?? input.tax?.customerVatPayer ?? false,
       constructionAssembly: input.tax?.constructionAssembly ?? false,
     });
     const tax = computeQuoteTax(result, priceTable, taxMode);
@@ -380,6 +394,7 @@ export class QuotesService {
 
     const row = await this.quotes.insert(scope, {
       projectId: input.projectId ?? null,
+      customerId: attachedCustomer?.id ?? null,
       status: "issued",
       documentNumber,
       currency: priceTable.currency,
@@ -426,8 +441,12 @@ export class QuotesService {
    * raw internal floats (`totals`, `bom[].totalPrice`) which need not survive
    * JSONB exactly.
    */
-  async verifyReproducibility(scope: RequestScope, quoteId: string): Promise<QuoteReproduction> {
-    const row = await this.quotes.findById(scope, quoteId);
+  async verifyReproducibility(
+    scope: RequestScope,
+    role: OrgRole,
+    quoteId: string,
+  ): Promise<QuoteReproduction> {
+    const row = await this.quotes.findById(scope, scopeOpts(role), quoteId);
     if (!row) throw new NotFoundException("Quote not found");
     const snapshot = row.snapshot as QuoteSnapshot;
     const stamps = row.stamps as QuoteStamps;
