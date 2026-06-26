@@ -4,7 +4,7 @@
  * emits one rolled-up line, as in the MVP). The cut list / 3D / 2D emitters are
  * later steps and consume the same parts (I4).
  */
-import { toMoneyString } from "@repo/model";
+import { DEFAULT_ROUNDING_POLICY, roundMoney, type RoundingPolicy } from "@repo/model";
 
 import type { CategoryTotals, CostTable, MoneyTotals, Part, PriceTable } from "./types.js";
 
@@ -63,14 +63,23 @@ export function costParts(parts: Part[], costs: CostTable): Part[] {
   });
 }
 
-/** The I10 boundary: totals leave the engine as decimal strings too. */
-export function toMoneyTotals(totals: CategoryTotals): MoneyTotals {
+/**
+ * The I10 boundary: totals leave the engine as decimal strings, rounded to the
+ * commercial scale (haléř) under the supplied {@link RoundingPolicy} — exact
+ * decimal, not float canonicalisation (ADR 0081). Each rolled-up category total
+ * is round(raw sum); per-line money rounds each line (site.ts). The policy's
+ * `granularity` is a tax-base concern, not the engine's rollup (see money.ts).
+ */
+export function toMoneyTotals(
+  totals: CategoryTotals,
+  policy: RoundingPolicy = DEFAULT_ROUNDING_POLICY,
+): MoneyTotals {
   return {
-    material: toMoneyString(totals.material),
-    accessory: toMoneyString(totals.accessory),
-    manufacturing: toMoneyString(totals.manufacturing),
-    installation: toMoneyString(totals.installation),
-    total: toMoneyString(totals.total),
+    material: roundMoney(totals.material, policy),
+    accessory: roundMoney(totals.accessory, policy),
+    manufacturing: roundMoney(totals.manufacturing, policy),
+    installation: roundMoney(totals.installation, policy),
+    total: roundMoney(totals.total, policy),
   };
 }
 

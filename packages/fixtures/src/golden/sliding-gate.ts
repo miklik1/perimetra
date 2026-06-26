@@ -81,7 +81,10 @@ export const planka_100_2d_3panel: SlidingGoldenCase = {
     hProfileLength: 1205,
   },
   expectedFill: { count: 11, fillLength: 1313.3333333333333 },
-  expectedTotalPrice: 81451.504,
+  // Re-baselined to haléř under the commercial rounding policy (ADR 0081): the
+  // raw delta-0 sum is 81451.504 (Excel U34), the money boundary now rounds it
+  // to 81451.5 (only the sub-haléř rack_mount/accessory line moves).
+  expectedTotalPrice: 81451.5,
 };
 
 export const lamela_113_3d_2panel: SlidingGoldenCase = {
@@ -139,7 +142,8 @@ export const steel_frame_3panel: SlidingGoldenCase = {
   },
   expectedDimensions: planka_100_2d_3panel.expectedDimensions,
   expectedFill: planka_100_2d_3panel.expectedFill,
-  expectedTotalPrice: 73741.504,
+  // Re-baselined to haléř (ADR 0081): raw 73741.504 → 73741.5.
+  expectedTotalPrice: 73741.5,
 };
 
 export const slidingGateGoldens: SlidingGoldenCase[] = [

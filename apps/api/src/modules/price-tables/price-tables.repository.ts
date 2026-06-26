@@ -12,7 +12,11 @@ import { and, asc, desc, eq, gt, isNull, lt, lte, or } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { priceTable, type PriceTableRow } from "@repo/db/schema/price-tables";
-import { type CostTableData, type PriceTableData } from "@repo/validators/price-tables";
+import {
+  type CostTableData,
+  type PriceTableData,
+  type RoundingPolicyContract,
+} from "@repo/validators/price-tables";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 
@@ -34,7 +38,7 @@ export interface InsertPriceTableData {
   effectiveTo: Date | null;
   marginFloorPct: string | null;
   dphRate: string;
-  reverseCharge: boolean;
+  roundingPolicy: RoundingPolicyContract;
   table: PriceTableData;
   cost: CostTableData | null;
 }
@@ -125,7 +129,7 @@ export class PriceTablesRepository {
         effectiveTo: data.effectiveTo,
         marginFloorPct: data.marginFloorPct,
         dphRate: data.dphRate,
-        reverseCharge: data.reverseCharge,
+        roundingPolicy: data.roundingPolicy,
         table: data.table,
         cost: data.cost,
       })

@@ -9,5 +9,6 @@ export * from "./money.js";
 export * from "./override.js";
 export * from "./schema.js";
 export * from "./site.js";
+export * from "./tax.js";
 export * from "./ui.js";
 export * from "./validate.js";

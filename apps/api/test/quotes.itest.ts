@@ -41,7 +41,19 @@ interface QuoteDetail {
     catalogVersions: Record<string, number>;
     priceTableVersion: number;
   };
-  snapshot: { money: { total: string }; costMoney?: { total: string } };
+  snapshot: {
+    money: { total: string };
+    costMoney?: { total: string };
+    tax: {
+      mode: string;
+      legend?: string;
+      currency: string;
+      lines: { ratePct: string; netBase: string; vatAmount: string; gross: string }[];
+      netTotal: string;
+      vatTotal: string;
+      grossTotal: string;
+    };
+  };
 }
 
 /** The active price table the quote stamps against — with a cost layer (ADR
@@ -96,8 +108,8 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
       expect(quote.status).toBe("issued");
       expect(quote.currency).toBe("CZK");
-      expect(quote.total).toBe("129891.504");
-      expect(quote.snapshot.money.total).toBe("129891.504");
+      expect(quote.total).toBe("129891.5");
+      expect(quote.snapshot.money.total).toBe("129891.5");
       // Cost-of-goods is frozen in the snapshot (ADR 0059) — verify re-derives it.
       expect(quote.snapshot.costMoney?.total).toBe("79039.86");
       expect(quote.stamps.releaseIds).toEqual({
@@ -110,6 +122,33 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         "fence-run@1": 2,
       });
       expect(quote.stamps.priceTableVersion).toBe(2);
+    });
+
+    it("freezes the structured DPH tax breakdown (standard 21 %, ADR 0080)", async () => {
+      const quote = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      // No tax conditions → standard VAT; the net is the re-baselined site total.
+      expect(quote.snapshot.tax.mode).toBe("standard_vat");
+      expect(quote.snapshot.tax.legend).toBeUndefined();
+      expect(quote.snapshot.tax.netTotal).toBe("129891.5");
+      expect(quote.snapshot.tax.vatTotal).toBe("27277.22"); // 129891.5 × 21% → haléř
+      expect(quote.snapshot.tax.grossTotal).toBe("157168.72");
+      expect(quote.snapshot.tax.lines).toEqual([
+        { ratePct: "21", netBase: "129891.5", vatAmount: "27277.22", gross: "157168.72" },
+      ]);
+    });
+
+    it("issues a §92e reverse-charge document — NO VAT line + mandatory legend", async () => {
+      const quote = (
+        await post(tenant, "/v1/quotes", {
+          ...issueBody,
+          tax: { customerVatPayer: true, constructionAssembly: true },
+        })
+      ).json() as QuoteDetail;
+      expect(quote.snapshot.tax.mode).toBe("reverse_charge_92e");
+      expect(quote.snapshot.tax.vatTotal).toBe("0");
+      expect(quote.snapshot.tax.grossTotal).toBe("129891.5"); // gross == net
+      expect(quote.snapshot.tax.lines[0]!.vatAmount).toBe("0");
+      expect(quote.snapshot.tax.legend).toMatch(/§ ?92e/);
     });
 
     it("rejects a release that is not published (400)", async () => {
@@ -255,7 +294,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       await seedGoldenCorpusFor(app, db, author);
       expect((await post(author, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
       const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
-      expect(issued.total).toBe("129891.504");
+      expect(issued.total).toBe("129891.5");
 
       // owner_id is ON DELETE RESTRICT: deleting the author must fail at the FK,
       // proving the I3 commercial record cannot vanish with its creator.

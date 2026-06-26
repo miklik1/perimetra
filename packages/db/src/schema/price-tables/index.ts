@@ -18,13 +18,17 @@
  * - `cost` is the engine `CostTable` JSONB (same shape as `table`, cost-of-goods
  *   numbers) — co-located so the SAME `version` stamps it (I3, ADR 0059); null
  *   on pre-cost-model rows. A real `(price − cost)/price` margin needs it.
- * - `currency`, `marginFloorPct`, `dphRate`, `reverseCharge` are the commercial
- *   guardrails (CORE_SPEC §6); margin floor + DPH are applied APP-side at quote
- *   issue / invoice, never inside the deterministic engine. The per-org margin
- *   floor (ADR 0059) reads `marginFloorPct` from the active table here.
+ * - `currency`, `marginFloorPct`, `dphRate`, `roundingPolicy` are the commercial
+ *   guardrails (CORE_SPEC §6); margin floor + DPH/§92e are applied APP-side at
+ *   quote issue / invoice, never inside the deterministic engine. The per-org
+ *   margin floor (ADR 0059) reads `marginFloorPct` from the active table here.
+ *   `roundingPolicy` (ADR 0081) is the commercial rounding rule (haléř / mode /
+ *   granularity) the money + tax boundary uses; stamped via `version` so a
+ *   re-derived quote rounds identically (I3). The old `reverseCharge` boolean is
+ *   GONE (ADR 0080) — §92e is per-TRANSACTION (decided at issue from both
+ *   parties' VAT status + the construction/assembly scope), never a table flag.
  */
 import {
-  boolean,
   index,
   integer,
   jsonb,
@@ -61,9 +65,14 @@ export const priceTable = pgTable(
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     /** Margin floor as a percent (decimal-as-string); null = no floor. */
     marginFloorPct: numeric("margin_floor_pct"),
-    /** DPH/VAT rate as a percent (decimal-as-string), e.g. "21". */
+    /** DPH/VAT rate as a percent (decimal-as-string), e.g. "21". The standard
+     *  rate this table prices at; the §92e mode is decided per-transaction. */
     dphRate: numeric("dph_rate").notNull(),
-    reverseCharge: boolean("reverse_charge").notNull().default(false),
+    /** Commercial rounding policy `{scale,mode,granularity}` (ADR 0081); typed
+     *  at the apps/api edge. Nullable in the column (backfilled), resolved to the
+     *  provisional default at read — but a published row always carries a
+     *  concrete policy (frozen for I3, immutable row). */
+    roundingPolicy: jsonb("rounding_policy"),
     /** Engine `PriceTable` payload (JSONB); typed at the apps/api edge. */
     table: jsonb("table").notNull(),
     /** Engine `CostTable` payload (JSONB, ADR 0059); null until cost authored.

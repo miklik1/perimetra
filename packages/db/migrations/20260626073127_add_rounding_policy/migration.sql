@@ -1,0 +1,1 @@
+ALTER TABLE "price_table" ADD COLUMN "rounding_policy" jsonb;

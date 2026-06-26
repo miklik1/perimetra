@@ -45,6 +45,19 @@ export const issueQuoteSchema = z.object({
    * non-admin roles — sales gets a 422 they cannot override.
    */
   marginOverride: z.object({ reason: z.string().min(1) }).optional(),
+  /**
+   * Tax facts for the §92e/DPH decision (ADR 0080). §92e reverse charge is a
+   * per-TRANSACTION call: it applies only when the buyer is a CZ VAT payer AND
+   * the supply is construction/assembly. Absent → standard VAT. The buyer's VAT
+   * status is auto-filled from the attached customer once that entity lands
+   * (ADR 0082); supplied explicitly here until then.
+   */
+  tax: z
+    .object({
+      customerVatPayer: z.boolean().optional(),
+      constructionAssembly: z.boolean().optional(),
+    })
+    .optional(),
 });
 export type IssueQuoteInput = z.infer<typeof issueQuoteSchema>;
 

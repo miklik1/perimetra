@@ -56,7 +56,7 @@ describe("PriceTablesService.publish", () => {
       effectiveTo: null,
       marginFloorPct: null,
       dphRate: "21",
-      reverseCharge: false,
+      roundingPolicy: null, // exercises the provisional-default fallback in toDetail
       table: TABLE,
       createdAt: now,
       updatedAt: now,
@@ -66,8 +66,18 @@ describe("PriceTablesService.publish", () => {
 
     expect(repo.insert).toHaveBeenCalledWith(
       SCOPE,
-      expect.objectContaining({ version: 7, currency: "CZK" }),
+      expect.objectContaining({
+        version: 7,
+        currency: "CZK",
+        // Provisional default frozen at publish when unset (ADR 0081).
+        roundingPolicy: { scale: 2, mode: "half-up", granularity: "end-of-invoice" },
+      }),
     );
+    expect(result.roundingPolicy).toEqual({
+      scale: 2,
+      mode: "half-up",
+      granularity: "end-of-invoice",
+    });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "price-table.publish" }),
     );

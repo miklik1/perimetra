@@ -41,7 +41,7 @@ describe("configurator (step 6 slice 1)", () => {
   it("derives the Excel-anchored golden total in the UI compute path", () => {
     const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalogs);
     expect(derivation.result.isValid).toBe(true);
-    expect(derivation.result.money.total).toBe("81451.504");
+    expect(derivation.result.money.total).toBe("81451.5");
     // The degenerate one-instance site renders: pieces present, none shared away.
     expect(derivation.scene?.instances).toHaveLength(1);
     expect(derivation.scene!.instances[0]!.pieces.length).toBeGreaterThan(10);

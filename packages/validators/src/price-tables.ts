@@ -18,6 +18,18 @@ export type PriceTableCurrency = z.infer<typeof priceTableCurrencySchema>;
  *  `numeric` representation so a bad value is a 422, not a DB 500. */
 const decimalString = z.string().regex(/^\d+(\.\d+)?$/, "must be a decimal string");
 
+/** Commercial rounding policy (ADR 0081) — mirrors @repo/model `RoundingPolicy`
+ *  structurally (validators carries no engine dep). The money + tax boundary
+ *  rounds to `scale` places under `mode`; `granularity` governs the tax rate-base
+ *  aggregation. Stamped via the price-table version → a re-derived quote rounds
+ *  identically (I3). */
+export const roundingPolicySchema = z.object({
+  scale: z.number().int().min(0).max(4),
+  mode: z.enum(["half-up", "half-even"]),
+  granularity: z.enum(["per-line", "end-of-invoice"]),
+});
+export type RoundingPolicyContract = z.infer<typeof roundingPolicySchema>;
+
 /** The engine price layer (mirrors @repo/engine `PriceTable`) — the JSONB body
  *  the engine consumes as a pure data argument. */
 /** Values are non-negative numbers — negative price/cost is nonsense money; zero
@@ -57,7 +69,9 @@ export type PriceTableSummary = z.infer<typeof priceTableSummarySchema>;
 export const priceTableSchema = priceTableSummarySchema.extend({
   marginFloorPct: z.string().nullable(),
   dphRate: z.string(),
-  reverseCharge: z.boolean(),
+  /** Resolved commercial rounding policy (never null on the wire — defaulted
+   *  server-side, ADR 0081). */
+  roundingPolicy: roundingPolicySchema,
   table: priceTableDataSchema,
   cost: costTableDataSchema.nullable(),
 });
@@ -69,7 +83,8 @@ export const publishPriceTableSchema = z.object({
   effectiveTo: isoDatetime.nullable().optional(),
   marginFloorPct: decimalString.optional(),
   dphRate: decimalString,
-  reverseCharge: z.boolean().optional(),
+  /** Optional — defaults to the provisional policy server-side (ADR 0081). */
+  roundingPolicy: roundingPolicySchema.optional(),
   table: priceTableDataSchema,
   cost: costTableDataSchema.optional(),
 });

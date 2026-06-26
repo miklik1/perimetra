@@ -18,7 +18,13 @@
  * Determinism (I1): given the same (release, input, prices, catalog,
  * overrides) the result is byte-identical — the whole path is pure.
  */
-import type { Catalog, ProductModelRelease, Scope } from "@repo/model";
+import {
+  DEFAULT_ROUNDING_POLICY,
+  type Catalog,
+  type ProductModelRelease,
+  type RoundingPolicy,
+  type Scope,
+} from "@repo/model";
 
 import { applyArtifactOverrides } from "./artifacts.js";
 import { resolveCascade, type CascadeLayers } from "./cascade.js";
@@ -37,6 +43,10 @@ export interface DeriveOptions {
   /** Cost-of-goods layer (ADR 0059). When supplied the result carries
    *  `costTotals`/`costMoney`; `price:` overrides never patch it. */
   costs?: CostTable;
+  /** Commercial rounding policy (ADR 0081) — the money boundary rounds every
+   *  emitted figure to its scale/mode. Threaded from the price table; defaults
+   *  to {@link DEFAULT_ROUNDING_POLICY} (the provisional haléř policy). */
+  rounding?: RoundingPolicy;
 }
 
 /** deriveInstance plus the full post-derivation evaluation scope (params +
@@ -49,14 +59,14 @@ export interface DetailedDerivation {
 }
 
 /** An invalid configuration never emits a BOM/price — typed issues only (I5). */
-function invalid(issues: Issue[], stamps: Stamps): DerivationResult {
+function invalid(issues: Issue[], stamps: Stamps, policy: RoundingPolicy): DerivationResult {
   const totals = { material: 0, accessory: 0, manufacturing: 0, installation: 0, total: 0 };
   return {
     isValid: false,
     derived: {},
     parts: [],
     totals,
-    money: toMoneyTotals(totals),
+    money: toMoneyTotals(totals, policy),
     issues,
     stamps,
   };
@@ -70,6 +80,7 @@ export function deriveInstanceDetailed(
   options: DeriveOptions = {},
 ): DetailedDerivation {
   const evaluator = options.constraintEvaluator ?? forwardChecker;
+  const policy = options.rounding ?? DEFAULT_ROUNDING_POLICY;
 
   const cascade = resolveCascade(release, input, prices, options.overrides ?? {});
   const stamps: Stamps = {
@@ -80,7 +91,7 @@ export function deriveInstanceDetailed(
   };
 
   if (cascade.issues.some((i) => i.severity === "error")) {
-    return { result: invalid(cascade.issues, stamps) };
+    return { result: invalid(cascade.issues, stamps, policy) };
   }
 
   let scope;
@@ -88,7 +99,7 @@ export function deriveInstanceDetailed(
     scope = buildScope(release, cascade.effectiveInput, cascade.effectivePrices);
   } catch (error) {
     if (error instanceof ConfigError) {
-      return { result: invalid([...cascade.issues, error.issue], stamps) };
+      return { result: invalid([...cascade.issues, error.issue], stamps, policy) };
     }
     throw error;
   }
@@ -98,7 +109,7 @@ export function deriveInstanceDetailed(
   // A failed constraint of severity "error" stops before derivation — we never
   // emit a BOM/price for an invalid configuration (I5).
   if (issues.some((i) => i.severity === "error")) {
-    return { result: invalid(issues, stamps) };
+    return { result: invalid(issues, stamps, policy) };
   }
 
   // The cost layer overlays the SELL scope with cost numbers (ADR 0059): same
@@ -111,7 +122,7 @@ export function deriveInstanceDetailed(
   const graph = derive(release, scope, catalog, costScope);
   if (graph.issues.length > 0) {
     // Catalog resolution gaps — the full missing-triple worklist, no partial BOM.
-    return { result: invalid([...issues, ...graph.issues], stamps) };
+    return { result: invalid([...issues, ...graph.issues], stamps, policy) };
   }
 
   let priced = priceParts(graph.parts, cascade.effectivePrices);
@@ -119,7 +130,7 @@ export function deriveInstanceDetailed(
   const artifacts = applyArtifactOverrides(priced, cascade.artifactOverrides);
   issues.push(...artifacts.issues);
   if (artifacts.issues.some((i) => i.severity === "error")) {
-    return { result: invalid(issues, stamps) };
+    return { result: invalid(issues, stamps, policy) };
   }
 
   const totals = sumByCategory(artifacts.parts);
@@ -134,10 +145,10 @@ export function deriveInstanceDetailed(
       parts: artifacts.parts,
       ...(anchors !== undefined && { anchors }),
       totals,
-      money: toMoneyTotals(totals),
+      money: toMoneyTotals(totals, policy),
       ...(costTotals !== undefined && {
         costTotals,
-        costMoney: toMoneyTotals(costTotals),
+        costMoney: toMoneyTotals(costTotals, policy),
       }),
       issues,
       stamps,

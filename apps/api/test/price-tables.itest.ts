@@ -116,7 +116,7 @@ describe("price-table store (HTTP, real stack)", () => {
         ]),
       );
       expect(result.isValid).toBe(true);
-      expect(result.money.total).toBe("129891.504");
+      expect(result.money.total).toBe("129891.5");
       expect(result.stamps.priceTableVersion).toBe(2);
     });
   });

@@ -31,7 +31,11 @@ export function PriceTableForm() {
   const [effectiveTo, setEffectiveTo] = useState("");
   const [marginFloorPct, setMarginFloorPct] = useState("");
   const [dphRate, setDphRate] = useState("21");
-  const [reverseCharge, setReverseCharge] = useState(false);
+  // Commercial rounding policy (ADR 0081) — provisional defaults, accountant-gated.
+  const [roundingMode, setRoundingMode] = useState<"half-up" | "half-even">("half-up");
+  const [roundingGranularity, setRoundingGranularity] = useState<"per-line" | "end-of-invoice">(
+    "end-of-invoice",
+  );
   const [tableJson, setTableJson] = useState("");
   const [costJson, setCostJson] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
@@ -87,7 +91,7 @@ export function PriceTableForm() {
         effectiveTo: effectiveToIso,
         marginFloorPct: marginFloorPct.trim() || undefined,
         dphRate,
-        reverseCharge: reverseCharge || undefined,
+        roundingPolicy: { scale: 2, mode: roundingMode, granularity: roundingGranularity },
         table,
         cost,
       },
@@ -158,14 +162,30 @@ export function PriceTableForm() {
           />
         </label>
 
-        <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={reverseCharge}
-            onChange={(e) => setReverseCharge(e.target.checked)}
-            className="h-4 w-4"
-          />
-          {t("reverseCharge")}
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          {t("roundingMode")}
+          <select
+            value={roundingMode}
+            onChange={(e) => setRoundingMode(e.target.value as "half-up" | "half-even")}
+            className={inputClass}
+          >
+            <option value="half-up">half-up</option>
+            <option value="half-even">half-even</option>
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          {t("roundingGranularity")}
+          <select
+            value={roundingGranularity}
+            onChange={(e) =>
+              setRoundingGranularity(e.target.value as "per-line" | "end-of-invoice")
+            }
+            className={inputClass}
+          >
+            <option value="end-of-invoice">end-of-invoice</option>
+            <option value="per-line">per-line</option>
+          </select>
         </label>
       </div>
 

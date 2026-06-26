@@ -160,7 +160,9 @@ async function bootstrap(): Promise<void> {
           currency: "CZK",
           effectiveFrom: "2020-01-01T00:00:00.000Z",
           effectiveTo: null,
-          dphRate: "0.21",
+          // DPH as a PERCENT (ADR 0080) — the old "0.21" was a latent bug, never
+          // applied (the tax field was vestigial); now the tax layer uses it.
+          dphRate: "21",
           table: sitePrices,
           cost: siteCosts,
         }),

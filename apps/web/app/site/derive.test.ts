@@ -16,7 +16,7 @@ describe("site canvas derive", () => {
   it("derives the golden three-instance aggregate (delta-0 at site scope)", () => {
     const d = deriveSiteForUi(goldenCtx, demoSite(), demoInstances(goldenProducts));
     expect(d.result.isValid).toBe(true);
-    expect(d.result.money.total).toBe("129891.504");
+    expect(d.result.money.total).toBe("129891.5");
     expect(d.instances).toHaveLength(3);
     // The multi-instance 3D scene renders all three; every instance is outlined.
     expect(d.scene?.instances).toHaveLength(3);
@@ -32,7 +32,7 @@ describe("site canvas derive", () => {
     const unjoined = { ...site, connections: site.connections.filter((_, i) => i !== 1) };
     const d = deriveSiteForUi(goldenCtx, unjoined, instances);
     expect(d.result.isValid).toBe(true);
-    expect(d.result.money.total).toBe("130241.504");
+    expect(d.result.money.total).toBe("130241.5");
   });
 
   it("surfaces a connection issue and keeps footprints when a terrain step is too steep (I5)", () => {

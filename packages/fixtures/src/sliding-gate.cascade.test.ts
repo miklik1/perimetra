@@ -48,15 +48,16 @@ describe("tenant layer — FIL's price deltas (I8: layered, never mutated)", () 
     expect(result.isValid).toBe(true);
     const fill = result.parts.find((p) => p.path === "fill.material")!;
     expect(fill.pricePerUnit).toBe(260);
-    // 44 fill meters × +10 CZK = +440 over the anchor.
-    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice + fill.quantity * 10, 6);
+    // 44 fill meters × +10 CZK = +440 over the anchor. The raw float total sits
+    // within a haléř of the re-baselined golden (ADR 0081), so close-to(…, 2).
+    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice + fill.quantity * 10, 2);
     expect(result.stamps.overrideIds).toEqual(["t-planka-260"]);
   });
 
   it("removing the override restores delta-0 exactly — the layer below was never edited", () => {
     derive({ tenant: [plankaUp] });
     const restored = derive({});
-    expect(restored.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 6);
+    expect(restored.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 2);
     expect(restored.money.total).toBe(String(anchor.expectedTotalPrice));
   });
 });
@@ -74,7 +75,7 @@ describe("customer layer — standing agreements (CORE_SPEC §4)", () => {
     // Anchor config (no frame_material → default alu) + the agreement.
     const result = derive({ customer: [alwaysSteel] }, anchor.config, steel_frame_3panel.prices);
     expect(result.isValid).toBe(true);
-    expect(result.totals.total).toBeCloseTo(steel_frame_3panel.expectedTotalPrice, 6);
+    expect(result.totals.total).toBeCloseTo(steel_frame_3panel.expectedTotalPrice, 2);
     expect(result.money.total).toBe(String(steel_frame_3panel.expectedTotalPrice));
     expect(result.stamps.overrideIds).toEqual(["c-steel"]);
   });
@@ -85,7 +86,7 @@ describe("customer layer — standing agreements (CORE_SPEC §4)", () => {
       { ...anchor.config, frame_material: "alu" },
       steel_frame_3panel.prices,
     );
-    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 6);
+    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 2);
   });
 });
 
@@ -182,8 +183,9 @@ describe("artifact layer — 'make that one cut shorter' (CORE_SPEC §6)", () =>
         reason: "one spare length for the stepped corner",
       },
     ]);
-    // +1 meter × 250 CZK over the anchor.
-    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice + 250, 6);
+    // +1 meter × 250 CZK over the anchor (raw float within a haléř of the
+    // re-baselined golden, ADR 0081).
+    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice + 250, 2);
     expect(result.issues).toContainEqual(
       expect.objectContaining({ key: "engine.deviation.artifact", severity: "warn" }),
     );
@@ -202,7 +204,7 @@ describe("artifact layer — 'make that one cut shorter' (CORE_SPEC §6)", () =>
       ],
     });
     expect(result.parts.find((p) => p.path === "fill.material")?.quantity).toBe(45);
-    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 6);
+    expect(result.totals.total).toBeCloseTo(anchor.expectedTotalPrice, 2);
   });
 });
 

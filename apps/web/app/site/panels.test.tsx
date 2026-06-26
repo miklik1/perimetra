@@ -38,7 +38,7 @@ describe("site results panel", () => {
       currency: "CZK",
       maximumFractionDigits: 3,
     })
-      .format(Number("129891.504"))
+      .format(Number("129891.5"))
       // Match Testing Library's default whitespace normalisation (it collapses
       // the formatter's narrow-no-break spaces to ordinary spaces).
       .replace(/\s+/g, " ");

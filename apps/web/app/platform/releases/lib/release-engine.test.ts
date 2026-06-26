@@ -113,7 +113,7 @@ describe("runReleasePreview", () => {
     expect(p.status).toBe("ok");
     if (p.status !== "ok") return;
     expect(p.result.isValid).toBe(true);
-    expect(p.result.money.total).toBe("81451.504");
+    expect(p.result.money.total).toBe("81451.5");
     expect(p.result.parts.length).toBeGreaterThan(0);
     expect(p.scope).not.toBeNull();
   });

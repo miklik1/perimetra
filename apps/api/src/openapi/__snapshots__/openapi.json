@@ -1799,8 +1799,34 @@
             "type": "string",
             "pattern": "^\\d+(\\.\\d+)?$"
           },
-          "reverseCharge": {
-            "type": "boolean"
+          "roundingPolicy": {
+            "type": "object",
+            "properties": {
+              "scale": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "half-up",
+                  "half-even"
+                ]
+              },
+              "granularity": {
+                "type": "string",
+                "enum": [
+                  "per-line",
+                  "end-of-invoice"
+                ]
+              }
+            },
+            "required": [
+              "scale",
+              "mode",
+              "granularity"
+            ]
           },
           "table": {
             "type": "object",
@@ -1949,6 +1975,17 @@
             "required": [
               "reason"
             ]
+          },
+          "tax": {
+            "type": "object",
+            "properties": {
+              "customerVatPayer": {
+                "type": "boolean"
+              },
+              "constructionAssembly": {
+                "type": "boolean"
+              }
+            }
           }
         },
         "required": [

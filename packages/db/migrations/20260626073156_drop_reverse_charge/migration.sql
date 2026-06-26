@@ -1,0 +1,1 @@
+ALTER TABLE "price_table" DROP COLUMN "reverse_charge";

@@ -565,7 +565,8 @@ export const slidingGateV1: ProductModelRelease = {
           fillCount: 11,
           fillPieceLength: 1313.3333333333333,
         },
-        totalPrice: 81451.504,
+        // Haléř re-baseline (ADR 0081): raw 81451.504 → 81451.5.
+        totalPrice: 81451.5,
       },
     },
   ],

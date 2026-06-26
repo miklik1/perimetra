@@ -12,6 +12,7 @@ import { Transactional } from "@nestjs-cls/transactional";
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { type PriceTableRow } from "@repo/db/schema/price-tables";
+import { DEFAULT_ROUNDING_POLICY } from "@repo/model";
 import {
   type CostTableData,
   type ListPriceTablesQuery,
@@ -20,6 +21,7 @@ import {
   type PriceTablesPage,
   type PriceTableSummary,
   type PublishPriceTableInput,
+  type RoundingPolicyContract,
 } from "@repo/validators/price-tables";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
@@ -43,7 +45,10 @@ function toDetail(row: PriceTableRow): PriceTableDetail {
     ...toSummary(row),
     marginFloorPct: row.marginFloorPct,
     dphRate: row.dphRate,
-    reverseCharge: row.reverseCharge,
+    // Resolve to the provisional policy for any pre-ADR-0081 row (null); a
+    // published row always carries a concrete, immutable policy (I3).
+    roundingPolicy:
+      (row.roundingPolicy as RoundingPolicyContract | null) ?? DEFAULT_ROUNDING_POLICY,
     table: row.table as PriceTableData,
     cost: (row.cost as CostTableData | null) ?? null,
   };
@@ -97,7 +102,9 @@ export class PriceTablesService {
       effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
       marginFloorPct: input.marginFloorPct ?? null,
       dphRate: input.dphRate,
-      reverseCharge: input.reverseCharge ?? false,
+      // Freeze a concrete policy at publish (provisional default when unset) so
+      // the immutable row always re-derives a quote identically (I3, ADR 0081).
+      roundingPolicy: input.roundingPolicy ?? DEFAULT_ROUNDING_POLICY,
       table: input.table,
       cost: input.cost ?? null,
     });

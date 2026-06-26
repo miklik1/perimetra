@@ -31,13 +31,15 @@
  * instanceId is the site author's stable name, never an array position.
  */
 import {
-  toMoneyString,
+  DEFAULT_ROUNDING_POLICY,
+  roundMoney,
   type BomCategory,
   type BomUnit,
   type Catalog,
   type MoneyString,
   type PortDef,
   type ProductModelRelease,
+  type RoundingPolicy,
   type Scope,
   type Site,
   type Value,
@@ -74,6 +76,10 @@ export interface SiteDeriveOptions {
   /** Cost-of-goods layer (ADR 0059) — applied to every instance; the site
    *  result then carries `costTotals`/`costMoney` over the SHARED parts (I6). */
   costs?: CostTable;
+  /** Commercial rounding policy (ADR 0081) — applied to every per-line and
+   *  rolled-up money figure (haléř). Threaded from the price table; defaults to
+   *  {@link DEFAULT_ROUNDING_POLICY}. */
+  rounding?: RoundingPolicy;
 }
 
 /** A resolved shared element (I6): the consumer's part is not counted; the
@@ -198,6 +204,7 @@ export function deriveSite(
   options: SiteDeriveOptions = {},
 ): SiteResult {
   const evaluator = options.constraintEvaluator ?? forwardChecker;
+  const policy = options.rounding ?? DEFAULT_ROUNDING_POLICY;
   const issues: Issue[] = [];
   const instanceResults: Record<string, DerivationResult> = {};
 
@@ -231,7 +238,7 @@ export function deriveSite(
       sharing: [],
       bom: [],
       totals,
-      money: toMoneyTotals(totals),
+      money: toMoneyTotals(totals, policy),
       issues,
       stamps,
     };
@@ -381,6 +388,7 @@ export function deriveSite(
       }),
       ...(instance.overrides !== undefined && { overrides: instance.overrides }),
       ...(options.costs !== undefined && { costs: options.costs }),
+      rounding: policy,
     };
     const { result, scope } = deriveInstanceDetailed(
       instance.release,
@@ -489,13 +497,13 @@ export function deriveSite(
     // the category totals do — no per-line float ever leaves the engine.
     bom: [...lines.values()].map((line) => ({
       ...line,
-      totalPriceMoney: toMoneyString(line.totalPrice),
+      totalPriceMoney: roundMoney(line.totalPrice, policy),
     })),
     totals,
-    money: toMoneyTotals(totals),
+    money: toMoneyTotals(totals, policy),
     ...(costTotals !== undefined && {
       costTotals,
-      costMoney: toMoneyTotals(costTotals),
+      costMoney: toMoneyTotals(costTotals, policy),
     }),
     issues,
     stamps,

@@ -139,7 +139,7 @@ describe("release version pin / opt-in upgrade (HTTP, real stack)", () => {
     const issued = await postAs(userA, "/v1/quotes", issueBody);
     expect(issued.statusCode, JSON.stringify(issued.json())).toBe(201);
     const q = issued.json() as { id: string; total: string };
-    expect(q.total).toBe("129891.504");
+    expect(q.total).toBe("129891.5");
     quoteId = q.id;
   });
 
@@ -186,7 +186,7 @@ describe("release version pin / opt-in upgrade (HTTP, real stack)", () => {
     // still issues (the pin governs the default offer, not authorization).
     const reissue = await postAs(userA, "/v1/quotes", issueBody);
     expect(reissue.statusCode, JSON.stringify(reissue.json())).toBe(201);
-    expect((reissue.json() as { total: string }).total).toBe("129891.504");
+    expect((reissue.json() as { total: string }).total).toBe("129891.5");
   });
 
   it("opting into a non-assigned version is refused (you can only pin what the vendor made available)", async () => {

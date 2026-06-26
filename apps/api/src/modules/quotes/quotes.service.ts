@@ -31,7 +31,17 @@ import {
   type SiteInstance,
   type SiteResult,
 } from "@repo/engine";
-import { type Catalog, type ProductModelRelease, type Site } from "@repo/model";
+import {
+  addMoney,
+  deriveTaxBreakdown,
+  resolveTaxMode,
+  type Catalog,
+  type ProductModelRelease,
+  type RoundingPolicy,
+  type Site,
+  type TaxBreakdown,
+  type TaxModeKind,
+} from "@repo/model";
 import {
   buildCutList,
   buildSitePlan,
@@ -40,6 +50,7 @@ import {
   type SitePlan,
   type WorkshopDrawing,
 } from "@repo/renderers";
+import { type PriceTableDetail } from "@repo/validators/price-tables";
 import {
   type IssueQuoteInput,
   type ListQuotesQuery,
@@ -74,6 +85,36 @@ interface QuoteSnapshot {
   inputs: Record<string, { releaseId: string; input: ConfigInput; overrides?: CascadeLayers }>;
   site: Site;
   cutOptions: { kerfMm: number };
+  /** The structured §92e/DPH tax document (ADR 0080) — frozen so a re-derived
+   *  quote reproduces its tax breakdown byte-identically (I3). Carries the rate
+   *  lines + the rounding policy + the §92e legend. */
+  tax: TaxBreakdown;
+}
+
+/**
+ * Compute the structured tax breakdown over a derived result (ADR 0080). Pure +
+ * deterministic, so it re-derives (I3): the net rate-base comes from the I10
+ * money strings (per-line sum for `per-line` granularity, the rolled-up net for
+ * `end-of-invoice`), the rate + rounding policy from the (immutable, stamped)
+ * price table, and the §92e/standard `mode` from the caller. Single rate today;
+ * the breakdown shape carries many (mixed-rate is a data change).
+ */
+function computeQuoteTax(
+  result: SiteResult,
+  priceTable: PriceTableDetail,
+  mode: TaxModeKind,
+): TaxBreakdown {
+  const policy = priceTable.roundingPolicy as RoundingPolicy;
+  const netBase =
+    policy.granularity === "per-line"
+      ? addMoney(result.bom.map((l) => l.totalPriceMoney))
+      : result.money.total;
+  return deriveTaxBreakdown(
+    [{ ratePct: priceTable.dphRate, netBase }],
+    mode,
+    policy,
+    priceTable.currency,
+  );
 }
 
 /** The frozen artifacts (bom/totals/money/cost/cutList/drawings) off a site result. */
@@ -258,6 +299,9 @@ export class QuotesService {
     const costs = (priceTable.cost ?? undefined) as CostTable | undefined;
     const result = deriveSite(site, siteInstances, priceTable.table as never, catalogs, {
       ...(costs !== undefined && { costs }),
+      // Round money to the table's commercial policy (ADR 0081) — the same
+      // policy verify re-derives under (the table is immutable, I3).
+      rounding: priceTable.roundingPolicy as RoundingPolicy,
     });
     if (!result.isValid) {
       throw new UnprocessableEntityException({
@@ -270,7 +314,7 @@ export class QuotesService {
     // Margin-floor guard (ADR 0056 → ADR 0059): the floor is per-org, read from
     // the active price table; margin is the REAL (price − cost)/price. The guard
     // is a pure read of the derived totals — it never touches derivation, so
-    // reproducibility (golden 129891.504) holds. A floor with no cost data is a
+    // reproducibility (golden 129891.5, re-baselined ADR 0081) holds. A floor with no cost data is a
     // misconfiguration surfaced, never silently passed (I5).
     const floorPct = priceTable.marginFloorPct !== null ? Number(priceTable.marginFloorPct) : null;
     let marginAudit: { marginPct: number; floorPct: number; reason: string } | undefined;
@@ -296,6 +340,18 @@ export class QuotesService {
       }
     }
 
+    // §92e/DPH (ADR 0080) — the tax mode is a per-transaction decision. The
+    // supplier (this org issuing DPH quotes) is a VAT payer; the buyer's status +
+    // the construction/assembly scope come from the issue request (auto-filled
+    // from the attached customer once ADR 0082 lands). The structured breakdown
+    // is frozen below and re-derived at verify (I3).
+    const taxMode = resolveTaxMode({
+      supplierVatPayer: true,
+      customerVatPayer: input.tax?.customerVatPayer ?? false,
+      constructionAssembly: input.tax?.constructionAssembly ?? false,
+    });
+    const tax = computeQuoteTax(result, priceTable, taxMode);
+
     const kerfMm = input.kerfMm ?? 0;
     const snapshot: QuoteSnapshot = {
       ...artifactsOf(result, site, kerfMm),
@@ -311,6 +367,7 @@ export class QuotesService {
       ),
       site,
       cutOptions: { kerfMm },
+      tax,
     };
     const stamps = result.stamps;
 
@@ -419,10 +476,15 @@ export class QuotesService {
     const costs = (priceTable!.cost ?? undefined) as CostTable | undefined;
     const result = deriveSite(snapshot.site, siteInstances, priceTable!.table as never, catalogs, {
       ...(costs !== undefined && { costs }),
+      rounding: priceTable!.roundingPolicy as RoundingPolicy,
     });
     if (!result.isValid)
       return { quoteId, reproduced: false, mismatches: ["re-derivation:invalid"] };
     const fresh = artifactsOf(result, snapshot.site, snapshot.cutOptions.kerfMm);
+    // Re-derive the structured tax document from the SAME stamped inputs + the
+    // frozen mode (a per-transaction decision, not derivable from stamps) — it
+    // must reproduce the frozen breakdown byte-identically (I3, ADR 0080).
+    const freshTax = computeQuoteTax(result, priceTable!, snapshot.tax.mode);
 
     // Compare the I10-canonical representation (money strings), never the raw
     // internal floats: `money` (MoneyTotals) stands in for `totals`, and the BOM
@@ -435,6 +497,7 @@ export class QuotesService {
       ["costMoney", fresh.costMoney, snapshot.costMoney],
       ["cutList", fresh.cutList, snapshot.cutList],
       ["drawings", fresh.drawings, snapshot.drawings],
+      ["tax", freshTax, snapshot.tax],
     ];
     for (const [key, a, b] of checks) if (!isDeepStrictEqual(a, b)) mismatches.push(key);
     // Stamps must re-derive identically too (release pins + versions + override set).

@@ -8,7 +8,7 @@
  *   + fenceA (24 570) + fenceB (24 570)
  *   − 2 × 350 shared posts (I6: fenceA.start → gate tower post,
  *                                fenceB.start → fenceA end post)
- *   = 129 891.504
+ *   = 129 891.504 raw → 129 891.5 at the haléř money boundary (ADR 0081)
  *
  * Fence hand-derivation (run 5 000 × 1 500, planka fill, 8 h, no install):
  *   fieldCount = roundUp(5000/2500) = 2 ; innerPostCount = 1 ; fieldWidth 2500
@@ -143,13 +143,15 @@ export const siteGolden = {
   site: {
     moneyTotals: {
       material: "60983",
-      accessory: "31548.504",
+      accessory: "31548.5",
       manufacturing: "26860",
       installation: "10500",
-      total: "129891.504",
+      total: "129891.5",
     },
     /** Cost-of-goods over the SAME shared parts (I6): shares costed once, like
-     *  the price. Margin = (129891.504 − 79039.86)/129891.504 ≈ 39.15 %. */
+     *  the price. Margin = (129891.5 − 79039.86)/129891.5 ≈ 39.15 %.
+     *  Re-baselined to haléř (ADR 0081): accessory/total .504 → .5; cost is
+     *  already at haléř (79039.86) so it is unchanged. */
     costMoney: {
       material: "37847.5",
       accessory: "20712.36",
@@ -167,5 +169,5 @@ export const siteGolden = {
   /** Aggregate with connection 1 (fenceA—fenceB) removed: fenceB's start post
    *  is no longer consumed — removing the connection restores the part (I8's
    *  cascade discipline, structurally). */
-  siteWithoutFenceJoint: { moneyTotal: "130241.504", fencePostCount: 5 },
+  siteWithoutFenceJoint: { moneyTotal: "130241.5", fencePostCount: 5 },
 } as const;
