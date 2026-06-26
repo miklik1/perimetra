@@ -7,5 +7,6 @@
  */
 export * from "./cutlist.js";
 export * from "./drawing2d.js";
+export * from "./nabidka.js";
 export * from "./scene3d.js";
 export { add, consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared.js";
