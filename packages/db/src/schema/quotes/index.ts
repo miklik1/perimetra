@@ -30,7 +30,10 @@ import { organization, user } from "../auth/index.js";
 import { customer } from "../customers/index.js";
 import { project } from "../projects/index.js";
 
-export const QUOTE_STATUSES = ["draft", "issued", "accepted", "expired"] as const;
+// `declined` is additive (text column, no DB enum) — no migration; kept in
+// lockstep with @repo/validators QUOTE_STATUSES. `expired` is DERIVED on read
+// from `validUntil` (ADR 0083), not a stored transition (no cron needed).
+export const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export const quote = pgTable(

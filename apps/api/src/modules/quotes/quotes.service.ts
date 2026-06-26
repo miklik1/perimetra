@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from "node:util";
 import { Transactional } from "@nestjs-cls/transactional";
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -54,6 +55,7 @@ import { type PriceTableDetail } from "@repo/validators/price-tables";
 import {
   type IssueQuoteInput,
   type ListQuotesQuery,
+  type QuoteAcceptance,
   type QuoteDetail,
   type QuoteReproduction,
   type QuotesPage,
@@ -70,6 +72,7 @@ import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import { formatQuoteNumber } from "./document-number.js";
 import { quoteMarginPct } from "./margin.js";
+import { canBuyerResolve, effectiveStatus } from "./quote-lifecycle.js";
 import { QuotesRepository, type QuoteScopeOpts } from "./quotes.repository.js";
 
 /** admin sees the whole org; every other rep is narrowed to their own quotes. */
@@ -199,7 +202,8 @@ function toSummary(row: QuoteRow, role: OrgRole): QuoteSummary {
     id: row.id,
     projectId: row.projectId,
     customerId: row.customerId,
-    status: row.status,
+    // `expired` is derived from validUntil at read time (ADR 0083) — never stored.
+    status: effectiveStatus(row.status, row.validUntil, new Date()),
     documentNumber: row.documentNumber,
     currency: row.currency,
     // Workshop is price-blind: the total is nulled server-side (I10 string otherwise).
@@ -523,5 +527,47 @@ export class QuotesService {
     if (!isDeepStrictEqual(result.stamps, stamps)) mismatches.push("stamps");
 
     return { quoteId, reproduced: mismatches.length === 0, mismatches };
+  }
+
+  /**
+   * Buyer resolution via the shareToken (ADR 0083) — the unauthenticated
+   * accept/decline path. The unguessable token IS the authorization (no org
+   * scope). Legal only from an *effectively* `issued` quote (live, not lapsed,
+   * not already resolved) — else 409. The I3 snapshot is untouched; only the
+   * status moves. Audited with a null actor (an external party). Idempotent-safe:
+   * a second accept on an already-accepted quote 409s rather than re-emitting.
+   */
+  @Transactional()
+  private async resolveByShareToken(
+    shareToken: string,
+    to: "accepted" | "declined",
+  ): Promise<QuoteAcceptance> {
+    const row = await this.quotes.findByShareToken(shareToken);
+    if (!row) throw new NotFoundException("Quote not found");
+    const effective = effectiveStatus(row.status, row.validUntil, new Date());
+    if (!canBuyerResolve(effective)) {
+      throw new ConflictException({
+        message: `quote is ${effective}, not open for buyer resolution`,
+        code: "quote_not_open",
+        status: effective,
+      });
+    }
+    await this.quotes.setStatus(row.id, to);
+    await this.audit.record({
+      actorId: null, // an external buyer, not a platform user
+      action: to === "accepted" ? "quote.accept" : "quote.decline",
+      entityType: "quote",
+      entityId: row.id,
+      diff: { before: { status: "issued" }, after: { status: to, via: "shareToken" } },
+    });
+    return { documentNumber: row.documentNumber, status: to };
+  }
+
+  acceptByShareToken(shareToken: string): Promise<QuoteAcceptance> {
+    return this.resolveByShareToken(shareToken, "accepted");
+  }
+
+  declineByShareToken(shareToken: string): Promise<QuoteAcceptance> {
+    return this.resolveByShareToken(shareToken, "declined");
   }
 }

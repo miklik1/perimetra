@@ -4,6 +4,7 @@
 import {
   issueQuoteSchema,
   listQuotesQuerySchema,
+  quoteAcceptanceSchema,
   quoteReproductionSchema,
   quoteSchema,
   quotesPageSchema,
@@ -18,3 +19,4 @@ export class ListQuotesQueryDto extends createZodDto(listQuotesQuerySchema) {}
 export class QuoteDto extends createZodDto(quoteSchema) {}
 export class QuotesPageDto extends createZodDto(quotesPageSchema) {}
 export class QuoteReproductionDto extends createZodDto(quoteReproductionSchema) {}
+export class QuoteAcceptanceDto extends createZodDto(quoteAcceptanceSchema) {}

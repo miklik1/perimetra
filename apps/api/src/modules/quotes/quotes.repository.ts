@@ -132,6 +132,30 @@ export class QuotesRepository {
     return row!.lastNumber;
   }
 
+  /**
+   * Resolve a quote by its `shareToken` — the buyer's bearer credential (ADR
+   * 0083). Deliberately SCOPE-LESS: the buyer has no session/org; the unguessable
+   * token IS the authorization. The unique index makes it a single-row lookup.
+   */
+  async findByShareToken(shareToken: string): Promise<QuoteRow | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from(quote)
+      .where(eq(quote.shareToken, shareToken))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /** Move the status field (the only mutable field on an issued quote — the I3
+   *  snapshot is never touched). Scope-less: the caller has already authorized
+   *  (buyer via shareToken, or a scoped service read). */
+  async setStatus(quoteId: string, status: QuoteStatus): Promise<void> {
+    await this.txHost.tx
+      .update(quote)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(quote.id, quoteId));
+  }
+
   async insert(scope: RequestScope, data: InsertQuoteData): Promise<QuoteRow> {
     const [row] = await this.txHost.tx
       .insert(quote)

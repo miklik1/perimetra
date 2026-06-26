@@ -5,6 +5,7 @@ import { CatalogVersionsModule } from "../catalog-versions/catalog-versions.modu
 import { CustomersModule } from "../customers/customers.module.js";
 import { PriceTablesModule } from "../price-tables/price-tables.module.js";
 import { ReleasesModule } from "../releases/releases.module.js";
+import { QuotesPublicController } from "./quotes-public.controller.js";
 import { QuotesController } from "./quotes.controller.js";
 import { QuotesRepository } from "./quotes.repository.js";
 import { QuotesService } from "./quotes.service.js";
@@ -18,7 +19,7 @@ import { QuotesService } from "./quotes.service.js";
  */
 @Module({
   imports: [AuthModule, ReleasesModule, CatalogVersionsModule, PriceTablesModule, CustomersModule],
-  controllers: [QuotesController],
+  controllers: [QuotesController, QuotesPublicController],
   providers: [QuotesService, QuotesRepository],
 })
 export class QuotesModule {}

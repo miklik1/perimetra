@@ -35,6 +35,8 @@ interface QuoteDetail {
   status: string;
   documentNumber: string;
   currency: string;
+  shareToken: string;
+  validUntil: string | null;
   total: string;
   stamps: {
     releaseIds: Record<string, string>;
@@ -303,6 +305,57 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // And the quote is still there.
       const [row] = await db.select().from(quoteTable).where(eq(quoteTable.id, issued.id)).limit(1);
       expect(row?.id).toBe(issued.id);
+    });
+  });
+
+  describe("lifecycle transitions (ADR 0083)", () => {
+    const issue = async () => (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+    const read = async (id: string) =>
+      (
+        await inject(app, {
+          method: "GET",
+          url: `/v1/quotes/${id}`,
+          headers: { cookie: tenant.cookie },
+        })
+      ).json() as QuoteDetail;
+    const publicPost = (url: string) => inject(app, { method: "POST", url });
+
+    it("a fresh quote is issued; the buyer accepts via shareToken (issued→accepted)", async () => {
+      const q = await issue();
+      expect(q.status).toBe("issued");
+      const res = await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toEqual({ documentNumber: q.documentNumber, status: "accepted" });
+      expect((await read(q.id)).status).toBe("accepted");
+    });
+
+    it("a second resolution is rejected (409 — not open)", async () => {
+      const q = await issue();
+      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`)).statusCode).toBe(200);
+      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/decline`)).statusCode).toBe(409);
+    });
+
+    it("the buyer can decline (issued→declined)", async () => {
+      const q = await issue();
+      const res = await publicPost(`/v1/quotes/shared/${q.shareToken}/decline`);
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ status: "declined" });
+      expect((await read(q.id)).status).toBe("declined");
+    });
+
+    it("a quote past validUntil reads as expired and cannot be accepted", async () => {
+      const q = (
+        await post(tenant, "/v1/quotes", {
+          ...issueBody,
+          validUntil: "2020-01-01T00:00:00.000Z",
+        })
+      ).json() as QuoteDetail;
+      expect((await read(q.id)).status).toBe("expired"); // derived from validUntil
+      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`)).statusCode).toBe(409);
+    });
+
+    it("an unknown shareToken 404s", async () => {
+      expect((await publicPost(`/v1/quotes/shared/no-such-token/accept`)).statusCode).toBe(404);
     });
   });
 });

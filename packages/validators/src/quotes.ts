@@ -13,7 +13,7 @@ import { z } from "zod";
 import { cursorQuerySchema, paginated } from "./api/pagination";
 import { isoDatetime } from "./primitives";
 
-export const QUOTE_STATUSES = ["draft", "issued", "accepted", "expired"] as const;
+export const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
 export const quoteStatusSchema = z.enum(QUOTE_STATUSES);
 export type QuoteStatus = z.infer<typeof quoteStatusSchema>;
 
@@ -110,6 +110,15 @@ export type ListQuotesQuery = z.infer<typeof listQuotesQuerySchema>;
 
 export const quotesPageSchema = paginated(quoteSummarySchema);
 export type QuotesPage = z.infer<typeof quotesPageSchema>;
+
+/** Buyer-facing acknowledgement of an accept/decline via shareToken (ADR 0083) —
+ *  deliberately minimal (the document number + the new status), never the priced
+ *  snapshot. */
+export const quoteAcceptanceSchema = z.object({
+  documentNumber: z.string(),
+  status: quoteStatusSchema,
+});
+export type QuoteAcceptance = z.infer<typeof quoteAcceptanceSchema>;
 
 /** Result of the I3 reproducibility check (the verification path). */
 export const quoteReproductionSchema = z.object({

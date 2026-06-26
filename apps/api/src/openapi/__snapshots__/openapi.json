@@ -1085,6 +1085,7 @@
                 "draft",
                 "issued",
                 "accepted",
+                "declined",
                 "expired"
               ]
             }
@@ -1165,6 +1166,52 @@
         },
         "tags": [
           "Quotes"
+        ]
+      }
+    },
+    "/v1/quotes/shared/{shareToken}/accept": {
+      "post": {
+        "operationId": "QuotesPublicController_accept_v1",
+        "parameters": [
+          {
+            "name": "shareToken",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "QuotesPublic"
+        ]
+      }
+    },
+    "/v1/quotes/shared/{shareToken}/decline": {
+      "post": {
+        "operationId": "QuotesPublicController_decline_v1",
+        "parameters": [
+          {
+            "name": "shareToken",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "QuotesPublic"
         ]
       }
     },
