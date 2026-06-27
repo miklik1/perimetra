@@ -70,10 +70,14 @@ const CATEGORY_KEYS = ["material", "accessory", "manufacturing", "installation"]
  * Build the nabídka document. Pure + deterministic — a re-derived quote yields
  * the identical document (I3). The order-sensitive line list mirrors the engine's
  * BOM order (already canonical at issue time).
+ *
+ * `result` is narrowed to the fields the nabídka reads (`bom` + `money`), so the
+ * thin PDF surface can feed the frozen quote snapshot directly (it stores exactly
+ * those, I10-canonical) without reconstructing or re-deriving a full SiteResult.
  */
 export function buildNabidka(
   site: Site,
-  result: SiteResult,
+  result: Pick<SiteResult, "bom" | "money">,
   options: NabidkaOptions,
 ): NabidkaDocument {
   const lines: NabidkaLine[] = result.bom.map((line) => ({

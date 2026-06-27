@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useApiClient, useMutation } from "@repo/api/react";
 import { useLocale, useTranslations } from "@repo/i18n/web";
 import { type TaxBreakdown } from "@repo/model";
@@ -36,7 +38,15 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
         <DisplayLabel as="h1" className="font-data">
           {quote.documentNumber}
         </DisplayLabel>
-        <QuoteStatusBadge status={quote.status} />
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/quotes/${quote.id}/nabidka`}
+            className="text-copper text-sm font-medium hover:underline"
+          >
+            {t("nabidka.open")}
+          </Link>
+          <QuoteStatusBadge status={quote.status} />
+        </div>
       </div>
 
       {/* The tax document */}
