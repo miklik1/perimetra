@@ -45,9 +45,12 @@ import {
 } from "@repo/model";
 import {
   buildCutList,
+  buildNabidka,
   buildSitePlan,
   buildWorkshopDrawing,
   type CutList,
+  type NabidkaCustomer,
+  type NabidkaSupplier,
   type SitePlan,
   type WorkshopDrawing,
 } from "@repo/renderers";
@@ -61,6 +64,7 @@ import {
   type QuotesPage,
   type QuoteStamps,
   type QuoteSummary,
+  type SharedNabidka,
 } from "@repo/validators/quotes";
 
 import { isPriceBlind, type OrgRole } from "../../common/rbac/org-role.js";
@@ -680,5 +684,69 @@ export class QuotesService {
 
   declineByShareToken(shareToken: string): Promise<QuoteAcceptance> {
     return this.resolveByShareToken(shareToken, "declined");
+  }
+
+  /**
+   * Buyer-facing public nabídka by shareToken (ADR 0089) — the read counterpart
+   * to accept/decline. UNAUTHENTICATED: the unguessable token IS the credential
+   * (no org scope). Builds the pure-data `NabidkaDocument` (the L layer, ADR 0085)
+   * SERVER-SIDE off the FROZEN snapshot — no re-derive, so it is byte-consistent
+   * with the issued document (I3), the SAME pure `buildNabidka` the rep print
+   * route runs. The boundary is load-bearing security: it returns ONLY the
+   * document + effective status + validUntil, so the snapshot's cost/margin
+   * (ADR 0059), re-derivation seeds (`site`/`inputs`), and the I3 `stamps` NEVER
+   * cross to the unauthenticated buyer (allowlist by construction; the response
+   * DTO's strip semantics are the second line).
+   *
+   * Unlike accept/decline this does NOT 409 a non-issued quote: a buyer who opens
+   * an emailed link must always SEE their offer (accepted / declined / expired) —
+   * the effective status drives an at-a-glance banner + the accept/decline
+   * affordance in the view. A shareToken only ever exists on an issued-or-later
+   * quote, so a resolvable token never surfaces a draft; an unknown token 404s.
+   * A malformed/price-blind snapshot (no tax/money/bom) fails closed (404).
+   */
+  async getSharedNabidka(shareToken: string): Promise<SharedNabidka> {
+    const row = await this.quotes.findByShareToken(shareToken);
+    if (!row) throw new NotFoundException("Quote not found");
+    const snapshot = row.snapshot as QuoteSnapshot;
+    // Fail closed on a partial/price-blind snapshot (a 404, never a 500): every
+    // field buildNabidka reads must be present. Always true for an issued quote.
+    if (!snapshot.tax || !snapshot.money || !snapshot.bom || !snapshot.site) {
+      throw new NotFoundException("Quote not found");
+    }
+
+    const supplier: NabidkaSupplier | null = snapshot.supplier
+      ? {
+          name: snapshot.supplier.name,
+          ico: snapshot.supplier.ico,
+          dic: snapshot.supplier.dic,
+          addressLine: snapshot.supplier.addressLine,
+          city: snapshot.supplier.city,
+          postalCode: snapshot.supplier.postalCode,
+          bankAccount: snapshot.supplier.bankAccount,
+          registrationNote: snapshot.supplier.registrationNote,
+        }
+      : null;
+    const customer: NabidkaCustomer | null = snapshot.customer
+      ? {
+          name: snapshot.customer.name,
+          ico: snapshot.customer.ico,
+          dic: snapshot.customer.dic,
+          addressLine: snapshot.customer.addressLine,
+          city: snapshot.customer.city,
+          postalCode: snapshot.customer.postalCode,
+        }
+      : null;
+
+    const document = buildNabidka(
+      snapshot.site,
+      { bom: snapshot.bom, money: snapshot.money },
+      { documentNumber: row.documentNumber, tax: snapshot.tax, supplier, customer },
+    );
+    return {
+      document,
+      status: effectiveStatus(row.status, row.validUntil, new Date()),
+      validUntil: row.validUntil ? row.validUntil.toISOString() : null,
+    };
   }
 }

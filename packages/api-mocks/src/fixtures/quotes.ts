@@ -1,8 +1,10 @@
 import {
+  type NabidkaDocumentDto,
   type QuoteAcceptance,
   type QuoteDetail,
   type QuoteReproduction,
   type QuoteSummary,
+  type SharedNabidka,
 } from "@repo/validators";
 
 /**
@@ -110,6 +112,78 @@ export function findQuoteFixture(id: string): QuoteDetail | undefined {
 
 export function findQuoteByShareToken(token: string): QuoteDetail | undefined {
   return quotes.find((q) => q.shareToken === token);
+}
+
+/** A representative supplier (dodavatel) block (ADR 0088) for the mock buyer
+ *  view — the real API freezes the org legal profile at issue. */
+const mockSupplier = {
+  name: "Perimetra Vrata s.r.o.",
+  ico: "01234567",
+  dic: "CZ01234567",
+  addressLine: "Tovární 5",
+  city: "Olomouc",
+  postalCode: "779 00",
+  bankAccount: "2000145399/2010",
+  registrationNote: "Zapsáno v OR vedeném Krajským soudem v Ostravě, oddíl C.",
+};
+
+/**
+ * The buyer-facing public nabídka by shareToken (ADR 0089). The real API builds
+ * the `NabidkaDocument` server-side off the frozen snapshot; the mock assembles a
+ * representative one from the seeded quote so the no-session buyer route renders
+ * without a backend. NO cost data — mirrors the real boundary.
+ */
+export function findSharedNabidkaFixture(token: string): SharedNabidka | undefined {
+  const quote = quotes.find((q) => q.shareToken === token);
+  if (!quote) return undefined;
+  const snap = quote.snapshot as { tax: NabidkaDocumentDto["tax"] };
+  const { tax } = snap;
+  const document: NabidkaDocumentDto = {
+    documentNumber: quote.documentNumber,
+    supplier: mockSupplier,
+    customer: quote.customerId
+      ? {
+          name: "Stavby Vrata s.r.o.",
+          ico: "27074358",
+          dic: "CZ27074358",
+          addressLine: "Průmyslová 12",
+          city: "Brno",
+          postalCode: "61200",
+        }
+      : null,
+    currency: tax.currency,
+    instanceCount: 1,
+    lines: [
+      {
+        componentCode: "GATE-FRAME",
+        name: "Rám brány",
+        unit: "ks",
+        category: "material",
+        quantity: 1,
+        totalPriceMoney: tax.netTotal,
+      },
+    ],
+    categories: [
+      { key: "material", total: tax.netTotal },
+      { key: "accessory", total: "0" },
+      { key: "manufacturing", total: "0" },
+      { key: "installation", total: "0" },
+    ],
+    tax,
+    netTotal: tax.netTotal,
+    vatTotal: tax.vatTotal,
+    grossTotal: tax.grossTotal,
+    ...(tax.legend !== undefined ? { legend: tax.legend } : {}),
+  };
+  // Mirror the real API's effective status (ADR 0083): a lapsed `issued` quote
+  // reads as `expired`, so mock-mode dev sees the same banner as production.
+  const effective =
+    quote.status === "issued" &&
+    quote.validUntil !== null &&
+    new Date(quote.validUntil).getTime() <= Date.now()
+      ? "expired"
+      : quote.status;
+  return { document, status: effective, validUntil: quote.validUntil };
 }
 
 /** Issue: freeze a new quote from a site payload. The mock derives nothing — it

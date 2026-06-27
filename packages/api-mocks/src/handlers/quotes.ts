@@ -4,6 +4,7 @@ import { MockHttpError, type MockRoute } from "../core/types";
 import {
   findQuoteByShareToken,
   findQuoteFixture,
+  findSharedNabidkaFixture,
   insertQuoteFixture,
   listQuoteFixtures,
   setQuoteStatusFixture,
@@ -56,6 +57,18 @@ export const quoteRoutes: MockRoute[] = [
         ...(parsed.data.tax !== undefined ? { tax: parsed.data.tax } : {}),
       });
       return { data: quote, status: 201 };
+    },
+  },
+  {
+    // Buyer-facing public nabídka by shareToken (ADR 0089). The matcher keys on
+    // segment count, so `/v1/quotes/shared/:token` (4) never collides with
+    // `/v1/quotes/:id` (3) regardless of declaration order.
+    method: "GET",
+    pattern: "/v1/quotes/shared/:shareToken",
+    handler: ({ params }) => {
+      const result = findSharedNabidkaFixture(params.shareToken ?? "");
+      if (!result) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
+      return { data: result };
     },
   },
   {

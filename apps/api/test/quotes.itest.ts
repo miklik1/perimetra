@@ -551,4 +551,95 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       expect((res.json() as { code: string }).code).toBe("legal_profile_required");
     });
   });
+
+  describe("buyer-facing public nabídka (ADR 0089)", () => {
+    const publicGet = (url: string) => inject(app, { method: "GET", url });
+    const publicPost = (url: string) => inject(app, { method: "POST", url });
+    const buyer = {
+      name: "Stavby Vrata s.r.o.",
+      ico: "27074358",
+      dic: "CZ27074358",
+      vatPayer: true,
+      addressLine: "Průmyslová 12",
+      city: "Brno",
+      postalCode: "61200",
+      country: "CZ",
+    };
+
+    it("returns the built nabídka by shareToken — no session, full supplier + buyer blocks", async () => {
+      const customer = (
+        await inject(app, {
+          method: "POST",
+          url: "/v1/customers",
+          headers: { cookie: tenant.cookie },
+          payload: buyer,
+        })
+      ).json() as { id: string };
+      const issued = (
+        await post(tenant, "/v1/quotes", { ...issueBody, customerId: customer.id })
+      ).json() as QuoteDetail;
+
+      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as {
+        document: {
+          documentNumber: string;
+          supplier: { name: string } | null;
+          customer: { name: string } | null;
+          netTotal: string;
+          lines: unknown[];
+        };
+        status: string;
+      };
+      expect(body.status).toBe("issued");
+      expect(body.document.documentNumber).toBe(issued.documentNumber);
+      expect(body.document.supplier?.name).toBe(TEST_LEGAL_PROFILE.name);
+      expect(body.document.customer?.name).toBe("Stavby Vrata s.r.o.");
+      expect(body.document.netTotal).toBe("129891.5");
+      expect(body.document.lines.length).toBeGreaterThan(0);
+    });
+
+    it("NEVER leaks cost/margin, stamps, or re-derivation seeds to the unauthenticated buyer", async () => {
+      const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      expect(res.statusCode).toBe(200);
+      // The cost golden (79039.86) + the cost/stamp/seed + workshop-internal keys
+      // must be ABSENT — the boundary returns ONLY the buyer document (ADR 0089).
+      expect(res.body).not.toContain("79039.86");
+      expect(res.body).not.toContain("costMoney");
+      expect(res.body).not.toContain("costTotals");
+      expect(res.body).not.toContain("stamps");
+      expect(res.body).not.toContain("releaseIds");
+      expect(res.body).not.toContain("catalogVersions");
+      expect(res.body).not.toContain("priceTableVersion");
+      expect(res.body).not.toContain("overrideIds");
+      expect(res.body).not.toContain("cutList");
+      expect(res.body).not.toContain("drawings");
+      expect(res.body).not.toContain("cutOptions");
+      expect(res.body).not.toContain('"inputs"');
+    });
+
+    it("still serves the document after the buyer resolves it (accepted → 200, not 409)", async () => {
+      const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect((await publicPost(`/v1/quotes/shared/${issued.shareToken}/accept`)).statusCode).toBe(
+        200,
+      );
+      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { status: string }).status).toBe("accepted");
+    });
+
+    it("serves an expired quote's document with status 'expired'", async () => {
+      const issued = (
+        await post(tenant, "/v1/quotes", { ...issueBody, validUntil: "2020-01-01T00:00:00.000Z" })
+      ).json() as QuoteDetail;
+      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { status: string }).status).toBe("expired");
+    });
+
+    it("an unknown shareToken 404s", async () => {
+      expect((await publicGet(`/v1/quotes/shared/no-such-token`)).statusCode).toBe(404);
+    });
+  });
 });

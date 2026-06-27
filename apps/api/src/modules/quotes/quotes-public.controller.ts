@@ -5,13 +5,13 @@
  * tightens it further against token-guessing. Responses are stripped to a minimal
  * acknowledgement (document number + new status) — never the priced snapshot.
  */
-import { Controller, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
+import { Controller, Get, HttpCode, HttpStatus, Param, Post } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 
-import { type QuoteAcceptance } from "@repo/validators/quotes";
+import { type QuoteAcceptance, type SharedNabidka } from "@repo/validators/quotes";
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
-import { QuoteAcceptanceDto } from "./quotes.dto.js";
+import { QuoteAcceptanceDto, SharedNabidkaDto } from "./quotes.dto.js";
 import { QuotesService } from "./quotes.service.js";
 
 @Controller("quotes/shared")
@@ -19,6 +19,17 @@ import { QuotesService } from "./quotes.service.js";
 @Throttle({ default: { ttl: 60_000, limit: 10 } })
 export class QuotesPublicController {
   constructor(private readonly quotes: QuotesService) {}
+
+  /**
+   * Buyer-facing read of the nabídka by shareToken (ADR 0089). No SessionGuard —
+   * the token is the credential; inherits the class throttle (10/min). Returns
+   * the server-built `NabidkaDocument` + effective status, never the cost/stamps.
+   */
+  @Get(":shareToken")
+  @ZodSerializerDto(SharedNabidkaDto)
+  shared(@Param("shareToken") shareToken: string): Promise<SharedNabidka> {
+    return this.quotes.getSharedNabidka(shareToken);
+  }
 
   @Post(":shareToken/accept")
   @HttpCode(HttpStatus.OK)

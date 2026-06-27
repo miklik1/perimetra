@@ -344,6 +344,14 @@ const cs = {
       },
       generatedNote: "Tato nabídka je reprodukovatelná z evidovaných vstupů (I3).",
     },
+    buyer: {
+      accept: "Přijmout nabídku",
+      decline: "Odmítnout nabídku",
+      accepted: "Nabídku jste přijali. Děkujeme.",
+      declined: "Nabídku jste odmítli.",
+      expired: "Platnost této nabídky vypršela.",
+      error: "Akci se nepodařilo dokončit. Zkuste to prosím znovu.",
+    },
   },
   errors: {
     title: "Něco se pokazilo",

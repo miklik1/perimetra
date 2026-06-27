@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { useLocale, useTranslations } from "@repo/i18n/web";
 import type { NabidkaDocument } from "@repo/renderers";
@@ -18,8 +19,20 @@ import { formatMoney } from "../../../../lib/format-money";
  *
  * Render-taste (weights/scale/accent) is owed to Martin's eye — built to the
  * Part-A brand hierarchy; the specimen is the calibration target.
+ *
+ * Reused by both surfaces (ADR 0089): the authed rep print route passes
+ * `backHref` (← back to the quote); the public buyer route passes `actions` (the
+ * accept/decline bar) and no back link. Both slots are optional + no-print.
  */
-export function NabidkaDocumentView({ doc, backHref }: { doc: NabidkaDocument; backHref: string }) {
+export function NabidkaDocumentView({
+  doc,
+  backHref,
+  actions,
+}: {
+  doc: NabidkaDocument;
+  backHref?: string;
+  actions?: ReactNode;
+}) {
   const t = useTranslations("quotes");
   const locale = useLocale();
   const money = (d: string) => formatMoney(d, locale);
@@ -42,12 +55,19 @@ export function NabidkaDocumentView({ doc, backHref }: { doc: NabidkaDocument; b
 
       {/* Toolbar — screen only */}
       <div className="no-print mx-auto flex w-full max-w-[210mm] items-center justify-between gap-4 px-6 pt-6">
-        <Link href={backHref} className="text-muted-foreground text-sm hover:underline">
-          ← {t("title")}
-        </Link>
-        <Button type="button" variant="copper-outline" onClick={() => window.print()}>
-          {t("nabidka.print")}
-        </Button>
+        {backHref ? (
+          <Link href={backHref} className="text-muted-foreground text-sm hover:underline">
+            ← {t("title")}
+          </Link>
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-3">
+          {actions}
+          <Button type="button" variant="copper-outline" onClick={() => window.print()}>
+            {t("nabidka.print")}
+          </Button>
+        </div>
       </div>
 
       {/* The document sheet */}

@@ -345,6 +345,14 @@ const en: MessagesInput = {
       },
       generatedNote: "This quote is reproducible from its recorded inputs (I3).",
     },
+    buyer: {
+      accept: "Accept quote",
+      decline: "Decline quote",
+      accepted: "You have accepted this quote. Thank you.",
+      declined: "You have declined this quote.",
+      expired: "This quote has expired.",
+      error: "The action could not be completed. Please try again.",
+    },
   },
   errors: {
     title: "Something went wrong",

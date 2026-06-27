@@ -61,8 +61,9 @@ export default async function NabidkaPage({ params }: { params: Promise<{ id: st
 
   const snap = quote.snapshot as NabidkaSnapshot | null;
   // No tax/money ⇒ the price-blind workshop projection (ADR 0056); the priced
-  // nabídka is not theirs to render.
-  if (!snap?.tax || !snap.money) notFound();
+  // nabídka is not theirs to render. Guard every field buildNabidka reads so a
+  // partial snapshot fails closed (symmetric with the public route, ADR 0089).
+  if (!snap?.tax || !snap.money || !snap.bom || !snap.site) notFound();
 
   const supplier: NabidkaSupplier | null = snap.supplier
     ? {

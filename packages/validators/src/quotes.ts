@@ -12,6 +12,8 @@
 import { z } from "zod";
 
 import { cursorQuerySchema, paginated } from "./api/pagination";
+// Reuse the price-table rounding policy (ADR 0081) — one source of the shape.
+import { roundingPolicySchema } from "./price-tables";
 import { isoDatetime } from "./primitives";
 
 export const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
@@ -121,6 +123,107 @@ export const quoteAcceptanceSchema = z.object({
   status: quoteStatusSchema,
 });
 export type QuoteAcceptance = z.infer<typeof quoteAcceptanceSchema>;
+
+// --- Buyer-facing public nabídka (ADR 0089) ----------------------------------
+//
+// The shapes below mirror the pure-data `NabidkaDocument` (the L layer, ADR 0085,
+// in `@repo/renderers`) so the buyer-facing `GET /v1/quotes/shared/:token` can
+// return a TYPED, zod-stripped document. The boundary is load-bearing security:
+// the endpoint is UNAUTHENTICATED (the unguessable shareToken IS the credential),
+// so the server builds the document from the frozen snapshot and returns ONLY
+// these fields — the snapshot's cost/margin (ADR 0059), re-derivation seeds, and
+// I3 stamps NEVER cross. The schema's strip semantics are the belt to that
+// allowlist-by-construction suspenders.
+
+/** One per-rate line of the §92e/DPH breakdown (ADR 0080). */
+export const taxRateLineSchema = z.object({
+  ratePct: z.string(),
+  netBase: z.string(),
+  vatAmount: z.string(),
+  gross: z.string(),
+});
+
+/** The structured, frozen §92e/DPH tax document (ADR 0080) — mirrors
+ *  `TaxBreakdown` from `@repo/model`. */
+export const taxBreakdownSchema = z.object({
+  mode: z.enum(["standard_vat", "reverse_charge_92e"]),
+  legend: z.string().optional(),
+  currency: z.string(),
+  rounding: roundingPolicySchema,
+  lines: z.array(taxRateLineSchema),
+  netTotal: z.string(),
+  vatTotal: z.string(),
+  grossTotal: z.string(),
+});
+
+/** Supplier (dodavatel) block — the §29-ZDPH identity (ADR 0088). */
+export const nabidkaSupplierSchema = z.object({
+  name: z.string(),
+  ico: z.string().nullish(),
+  dic: z.string().nullish(),
+  addressLine: z.string().nullish(),
+  city: z.string().nullish(),
+  postalCode: z.string().nullish(),
+  bankAccount: z.string().nullish(),
+  registrationNote: z.string().nullish(),
+});
+
+/** Buyer (odběratel) block — the document-identity subset (ADR 0086). No
+ *  bankAccount, no contact fields. */
+export const nabidkaCustomerSchema = z.object({
+  name: z.string(),
+  ico: z.string().nullish(),
+  dic: z.string().nullish(),
+  addressLine: z.string().nullish(),
+  city: z.string().nullish(),
+  postalCode: z.string().nullish(),
+});
+
+/** One priced offer line (a rolled-up BOM line) — the SELLING price only; the
+ *  cost is never part of this shape. */
+export const nabidkaLineSchema = z.object({
+  componentCode: z.string(),
+  name: z.string(),
+  unit: z.string(),
+  category: z.string(),
+  quantity: z.number(),
+  totalPriceMoney: z.string(),
+});
+
+/** A net subtotal per BOM category. */
+export const nabidkaCategorySchema = z.object({
+  key: z.enum(["material", "accessory", "manufacturing", "installation"]),
+  total: z.string(),
+});
+
+/** The pure-data nabídka the buyer renders — mirrors `NabidkaDocument`
+ *  (`@repo/renderers`). Carries prices (the buyer's own quote) but NO cost. */
+export const nabidkaDocumentSchema = z.object({
+  documentNumber: z.string(),
+  supplier: nabidkaSupplierSchema.nullable(),
+  customer: nabidkaCustomerSchema.nullable(),
+  currency: z.string(),
+  instanceCount: z.number(),
+  lines: z.array(nabidkaLineSchema),
+  categories: z.array(nabidkaCategorySchema),
+  tax: taxBreakdownSchema,
+  netTotal: z.string(),
+  vatTotal: z.string(),
+  grossTotal: z.string(),
+  legend: z.string().optional(),
+});
+export type NabidkaDocumentDto = z.infer<typeof nabidkaDocumentSchema>;
+
+/** The buyer-facing envelope returned by `GET /v1/quotes/shared/:token` (ADR
+ *  0089): the built document + the effective status (so the buyer view gates
+ *  accept/decline and shows an accepted/declined/expired banner) + validUntil.
+ *  The document holds no cost, no stamps, no re-derivation seeds. */
+export const sharedNabidkaSchema = z.object({
+  document: nabidkaDocumentSchema,
+  status: quoteStatusSchema,
+  validUntil: isoDatetime.nullable(),
+});
+export type SharedNabidka = z.infer<typeof sharedNabidkaSchema>;
 
 /** Result of the I3 reproducibility check (the verification path). */
 export const quoteReproductionSchema = z.object({

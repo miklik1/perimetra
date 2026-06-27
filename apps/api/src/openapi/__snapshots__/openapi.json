@@ -1169,6 +1169,29 @@
         ]
       }
     },
+    "/v1/quotes/shared/{shareToken}": {
+      "get": {
+        "operationId": "QuotesPublicController_shared_v1",
+        "parameters": [
+          {
+            "name": "shareToken",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "QuotesPublic"
+        ]
+      }
+    },
     "/v1/quotes/shared/{shareToken}/accept": {
       "post": {
         "operationId": "QuotesPublicController_accept_v1",

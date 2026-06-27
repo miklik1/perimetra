@@ -90,6 +90,10 @@ describe("NabidkaDocumentView (print surface, ADR 0087)", () => {
     renderDoc(STANDARD);
     expect(screen.getByRole("heading", { level: 1, name: "Nabídka" })).toBeInTheDocument();
     expect(screen.getByText("2026/0007")).toBeInTheDocument();
+    // The authed toolbar (ADR 0087, now a shared component, ADR 0089): the back
+    // link resolves to backHref + the print button is present.
+    expect(screen.getByRole("link", { name: /Nabídky/ })).toHaveAttribute("href", "/quotes/abc");
+    expect(screen.getByRole("button", { name: "Tisk / Uložit PDF" })).toBeInTheDocument();
     // Buyer block (frozen identity, ADR 0086).
     expect(screen.getByText("Stavby Vrata s.r.o.")).toBeInTheDocument();
     expect(screen.getByText("Průmyslová 12")).toBeInTheDocument();
