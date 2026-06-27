@@ -5,8 +5,9 @@
  * → typed issues, I5), so site/overrides cross as opaque payloads here.
  *
  * `stamps` is the engine `SiteStamps` (full I3 addressing); `snapshot` is the
- * frozen engine/renderer output — opaque to zod (it is the engine's own valid
- * output, not a leak vector).
+ * frozen engine/renderer output — opaque to zod (the engine's own valid output).
+ * It ALSO carries the frozen buyer identity (ADR 0086): authorized-issuer data,
+ * stripped server-side for the price-blind workshop, so passthrough is sound.
  */
 import { z } from "zod";
 
@@ -98,7 +99,8 @@ export type QuoteSummary = z.infer<typeof quoteSummarySchema>;
 
 export const quoteSchema = quoteSummarySchema.extend({
   stamps: quoteStampsSchema,
-  /** Frozen outputs: bom / totals / money / cutList / drawings / inputs / site. */
+  /** Frozen outputs: bom / totals / money / cutList / drawings / inputs / site /
+   *  tax + the frozen buyer identity (ADR 0086). Opaque passthrough. */
   snapshot: z.unknown(),
 });
 export type QuoteDetail = z.infer<typeof quoteSchema>;

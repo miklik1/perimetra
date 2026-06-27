@@ -80,6 +80,31 @@ function scopeOpts(role: OrgRole): QuoteScopeOpts {
   return { restrictToOwner: role !== "admin" };
 }
 
+/**
+ * The buyer identity FROZEN onto the issued document at issue (ADR 0086,
+ * realizing ADR 0071). A CAPTURED FACT — copied from the (mutable) customer
+ * entity, never re-derived — so it is deliberately ABSENT from the I3 `checks`
+ * (verifyReproducibility compares only re-derived artifacts) AND it SURVIVES the
+ * customer's Art.17 anonymization untouched: the issued daňový doklad retains
+ * its buyer fields under the legal-obligation basis while the live customer goes
+ * PII-free. The field-set is the document-identifying subset only — email/phone/
+ * note are NOT frozen (data minimisation: contact, not document identity).
+ * PROVISIONAL: the EXACT retained set + statutory period are accountant-gated
+ * (the ADR-0071 open check).
+ */
+interface FrozenCustomerIdentity {
+  /** Link back to the (mutable) live row — navigation only; the identity is frozen. */
+  customerId: string;
+  name: string;
+  ico: string | null;
+  dic: string | null;
+  vatPayer: boolean;
+  addressLine: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string;
+}
+
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
 interface QuoteSnapshot {
   bom: SiteBomLine[];
@@ -98,6 +123,10 @@ interface QuoteSnapshot {
    *  quote reproduces its tax breakdown byte-identically (I3). Carries the rate
    *  lines + the rounding policy + the §92e legend. */
   tax: TaxBreakdown;
+  /** The buyer identity frozen at issue (ADR 0086/0071) — a captured fact, NOT
+   *  re-derived (so absent from the I3 `checks`) and NOT erased when the live
+   *  customer is anonymized. Absent for an unattached (walk-in) quote. */
+  customer?: FrozenCustomerIdentity;
 }
 
 /**
@@ -177,7 +206,9 @@ function bomForCompare(bom: SiteBomLine[]) {
  * copied through (bom components/quantities, cut list, drawings, site, inputs),
  * so the money rollups (`money`, `totals`) and every per-line price are dropped —
  * AND a future snapshot field that happens to carry a price can't leak by being
- * forgotten. Stripping happens HERE, server-side, never merely FE-hidden.
+ * forgotten. The frozen buyer PII (`customer`, ADR 0086) is likewise NOT
+ * whitelisted, so the workshop never sees the odběratel. Stripping happens HERE,
+ * server-side, never merely FE-hidden.
  */
 function blindSnapshot(snapshot: QuoteSnapshot): Record<string, unknown> {
   return {
@@ -386,6 +417,21 @@ export class QuotesService {
       site,
       cutOptions: { kerfMm },
       tax,
+      // Freeze the buyer identity onto the document (ADR 0086/0071) — captured
+      // from the live customer here, retained even after Art.17 anonymizes it.
+      ...(attachedCustomer && {
+        customer: {
+          customerId: attachedCustomer.id,
+          name: attachedCustomer.name,
+          ico: attachedCustomer.ico,
+          dic: attachedCustomer.dic,
+          vatPayer: attachedCustomer.vatPayer,
+          addressLine: attachedCustomer.addressLine,
+          city: attachedCustomer.city,
+          postalCode: attachedCustomer.postalCode,
+          country: attachedCustomer.country,
+        },
+      }),
     };
     const stamps = result.stamps;
 
@@ -514,6 +560,10 @@ export class QuotesService {
     // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`). Cost
     // is compared the same way — `costMoney` strings, not the raw cost floats
     // (both undefined when no cost layer → deep-equal holds).
+    // NB: snapshot.customer (ADR 0086) is deliberately NOT a check — the frozen
+    // buyer is a captured fact, not a re-derived artifact, so it has no fresh
+    // counterpart to compare and must not gate reproducibility (it survives a
+    // since-anonymized customer, by design).
     const checks: Array<readonly [string, unknown, unknown]> = [
       ["bom", bomForCompare(fresh.bom), bomForCompare(snapshot.bom)],
       ["money", fresh.money, snapshot.money],

@@ -32,6 +32,7 @@ import {
 
 interface QuoteDetail {
   id: string;
+  customerId: string | null;
   status: string;
   documentNumber: string;
   currency: string;
@@ -46,6 +47,18 @@ interface QuoteDetail {
   snapshot: {
     money: { total: string };
     costMoney?: { total: string };
+    /** The buyer identity FROZEN at issue (ADR 0086/0071) — captured, not re-derived. */
+    customer?: {
+      customerId: string;
+      name: string;
+      ico: string | null;
+      dic: string | null;
+      vatPayer: boolean;
+      addressLine: string | null;
+      city: string | null;
+      postalCode: string | null;
+      country: string;
+    };
     tax: {
       mode: string;
       legend?: string;
@@ -356,6 +369,105 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
     it("an unknown shareToken 404s", async () => {
       expect((await publicPost(`/v1/quotes/shared/no-such-token/accept`)).statusCode).toBe(404);
+    });
+  });
+
+  describe("customer-identity freeze (ADR 0086 / 0071)", () => {
+    const buyer = {
+      name: "Stavby Vrata s.r.o.",
+      ico: "27074358",
+      dic: "CZ27074358",
+      vatPayer: true,
+      addressLine: "Průmyslová 12",
+      city: "Brno",
+      postalCode: "61200",
+      country: "CZ",
+    };
+    const createCustomer = async (user: TestUser) =>
+      (
+        await inject(app, {
+          method: "POST",
+          url: "/v1/customers",
+          headers: { cookie: user.cookie },
+          payload: buyer,
+        })
+      ).json() as { id: string };
+    const readQuote = async (user: TestUser, id: string) =>
+      (
+        await inject(app, {
+          method: "GET",
+          url: `/v1/quotes/${id}`,
+          headers: { cookie: user.cookie },
+        })
+      ).json() as QuoteDetail;
+
+    it("freezes the buyer identity into the immutable snapshot at issue", async () => {
+      const customer = await createCustomer(tenant);
+      const quote = (
+        await post(tenant, "/v1/quotes", { ...issueBody, customerId: customer.id })
+      ).json() as QuoteDetail;
+
+      expect(quote.customerId).toBe(customer.id);
+      expect(quote.snapshot.customer).toEqual({
+        customerId: customer.id,
+        name: "Stavby Vrata s.r.o.",
+        ico: "27074358",
+        dic: "CZ27074358",
+        vatPayer: true,
+        addressLine: "Průmyslová 12",
+        city: "Brno",
+        postalCode: "61200",
+        country: "CZ",
+      });
+    });
+
+    it("retains the frozen buyer after the live customer is Art.17-erased — without breaking I3", async () => {
+      const customer = await createCustomer(tenant);
+      const issued = (
+        await post(tenant, "/v1/quotes", { ...issueBody, customerId: customer.id })
+      ).json() as QuoteDetail;
+
+      // Art.17 erase anonymizes the LIVE customer PII in place (ADR 0071).
+      const del = await inject(app, {
+        method: "DELETE",
+        url: `/v1/customers/${customer.id}`,
+        headers: { cookie: tenant.cookie },
+      });
+      expect(del.statusCode).toBe(204);
+      // The live customer is now anonymized + soft-deleted → gone from scoped reads.
+      const live = await inject(app, {
+        method: "GET",
+        url: `/v1/customers/${customer.id}`,
+        headers: { cookie: tenant.cookie },
+      });
+      expect(live.statusCode).toBe(404);
+
+      // ...but the issued daňový doklad keeps its frozen buyer (legal-obligation basis).
+      const reread = await readQuote(tenant, issued.id);
+      expect(reread.snapshot.customer?.name).toBe("Stavby Vrata s.r.o.");
+      expect(reread.snapshot.customer?.dic).toBe("CZ27074358");
+
+      // The freeze is a captured fact, NOT in the I3 checks — verify still reproduces.
+      const verify = await inject(app, {
+        method: "POST",
+        url: `/v1/quotes/${issued.id}/verify`,
+        headers: { cookie: tenant.cookie },
+      });
+      expect(verify.json()).toEqual({ quoteId: issued.id, reproduced: true, mismatches: [] });
+    });
+
+    it("auto-fills the §92e decision from the attached VAT-payer customer", async () => {
+      const customer = await createCustomer(tenant);
+      const quote = (
+        await post(tenant, "/v1/quotes", {
+          ...issueBody,
+          customerId: customer.id,
+          tax: { constructionAssembly: true },
+        })
+      ).json() as QuoteDetail;
+      // customer.vatPayer === true + construction/assembly → reverse charge, no VAT line.
+      expect(quote.snapshot.tax.mode).toBe("reverse_charge_92e");
+      expect(quote.snapshot.tax.vatTotal).toBe("0");
     });
   });
 });
