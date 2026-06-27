@@ -29,6 +29,7 @@ import { ClsService } from "nestjs-cls";
 
 import { type Db } from "@repo/db";
 import { member, organization, user } from "@repo/db/schema/auth";
+import { legalProfile } from "@repo/db/schema/legal-profiles";
 import {
   catalogV1,
   catalogV2,
@@ -145,6 +146,28 @@ async function bootstrap(): Promise<void> {
           releases.assign(SYSTEM_SCOPE.userId, orgId, releaseId),
         );
       }
+
+      // Demo legal profile (ADR 0088) so this org can ISSUE (a quote 422s
+      // `legal_profile_required` without one) + the §92e demo works (vatPayer).
+      // onConflictDoNothing: a re-seed never clobbers a profile the org has edited.
+      await db
+        .insert(legalProfile)
+        .values({
+          organizationId: orgId,
+          ownerId,
+          name: "Perimetra Demo s.r.o.",
+          ico: "01234567",
+          dic: "CZ01234567",
+          vatPayer: true,
+          addressLine: "Tovární 5",
+          city: "Olomouc",
+          postalCode: "779 00",
+          country: "CZ",
+          bankAccount: "123456789/0800",
+          registrationNote:
+            "Zapsáno v OR vedeném Krajským soudem v Ostravě, oddíl C, vložka 12345.",
+        })
+        .onConflictDoNothing({ target: legalProfile.organizationId });
 
       // Idempotency check: skip if this org already has a table at this version.
       const existing = await cls.run(() => priceTables.loadByVersion(orgScope, sitePrices.version));

@@ -46,6 +46,7 @@ import {
   inject,
   orgIdOf,
   promotePlatformAdmin,
+  setupLegalProfile,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
@@ -146,6 +147,8 @@ describe("release retire (HTTP, real stack)", () => {
       "fence-run@1",
     ]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088).
+    await setupLegalProfile(app, userA);
 
     const [row] = await db.select().from(release).where(eq(release.releaseId, "retire-demo@1"));
     demoV1RowId = row!.id;

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { type SiteResult } from "@repo/engine";
 import { type Site, type TaxBreakdown } from "@repo/model";
-import { buildNabidka, type NabidkaCustomer } from "@repo/renderers";
+import { buildNabidka, type NabidkaCustomer, type NabidkaSupplier } from "@repo/renderers";
 import { quoteSchema, type QuoteDetail } from "@repo/validators";
 
 import { createServerApiClient } from "../../../../lib/server-api";
@@ -16,6 +16,18 @@ interface NabidkaSnapshot {
   bom: SiteResult["bom"];
   money: SiteResult["money"];
   tax: TaxBreakdown;
+  /** The supplier (dodavatel) frozen at issue (ADR 0088). Absent only on a legacy
+   *  quote issued before the legal-profile slice. */
+  supplier?: {
+    name: string;
+    ico: string | null;
+    dic: string | null;
+    addressLine: string | null;
+    city: string | null;
+    postalCode: string | null;
+    bankAccount: string | null;
+    registrationNote: string | null;
+  };
   customer?: {
     name: string;
     ico: string | null;
@@ -52,6 +64,19 @@ export default async function NabidkaPage({ params }: { params: Promise<{ id: st
   // nabídka is not theirs to render.
   if (!snap?.tax || !snap.money) notFound();
 
+  const supplier: NabidkaSupplier | null = snap.supplier
+    ? {
+        name: snap.supplier.name,
+        ico: snap.supplier.ico,
+        dic: snap.supplier.dic,
+        addressLine: snap.supplier.addressLine,
+        city: snap.supplier.city,
+        postalCode: snap.supplier.postalCode,
+        bankAccount: snap.supplier.bankAccount,
+        registrationNote: snap.supplier.registrationNote,
+      }
+    : null;
+
   const customer: NabidkaCustomer | null = snap.customer
     ? {
         name: snap.customer.name,
@@ -66,7 +91,7 @@ export default async function NabidkaPage({ params }: { params: Promise<{ id: st
   const doc = buildNabidka(
     snap.site,
     { bom: snap.bom, money: snap.money },
-    { documentNumber: quote.documentNumber, tax: snap.tax, customer },
+    { documentNumber: quote.documentNumber, tax: snap.tax, supplier, customer },
   );
 
   return <NabidkaDocumentView doc={doc} backHref={`/quotes/${id}`} />;

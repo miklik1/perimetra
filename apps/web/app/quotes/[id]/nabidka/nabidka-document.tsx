@@ -24,6 +24,7 @@ export function NabidkaDocumentView({ doc, backHref }: { doc: NabidkaDocument; b
   const locale = useLocale();
   const money = (d: string) => formatMoney(d, locale);
   const reverse = doc.tax.mode === "reverse_charge_92e";
+  const supp = doc.supplier;
   const cust = doc.customer;
   // Literal keys (next-intl's typed `t` rejects dynamic template-literal keys).
   const categoryLabel: Record<NabidkaDocument["categories"][number]["key"], string> = {
@@ -62,7 +63,37 @@ export function NabidkaDocumentView({ doc, backHref }: { doc: NabidkaDocument; b
             <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">
               {t("nabidka.supplier")}
             </h2>
-            <p className="text-muted-foreground italic">{t("nabidka.supplierTodo")}</p>
+            {supp ? (
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">{supp.name}</span>
+                {supp.addressLine && <span>{supp.addressLine}</span>}
+                {(supp.postalCode || supp.city) && (
+                  <span>{[supp.postalCode, supp.city].filter(Boolean).join(" ")}</span>
+                )}
+                {supp.ico && (
+                  <span className="font-data text-xs">
+                    {t("nabidka.ico")}: {supp.ico}
+                  </span>
+                )}
+                {supp.dic && (
+                  <span className="font-data text-xs">
+                    {t("nabidka.dic")}: {supp.dic}
+                  </span>
+                )}
+                {supp.bankAccount && (
+                  <span className="font-data text-xs">
+                    {t("nabidka.bankAccount")}: {supp.bankAccount}
+                  </span>
+                )}
+                {supp.registrationNote && (
+                  <span className="text-muted-foreground mt-1 text-xs">
+                    {supp.registrationNote}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground italic">{t("nabidka.supplierTodo")}</p>
+            )}
           </div>
           <div>
             <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">

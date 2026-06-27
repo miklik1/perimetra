@@ -173,6 +173,7 @@ export async function seedGoldenCorpusFor(
   app: NestFastifyApplication,
   db: Db,
   orgUser: TestUser,
+  opts: { legalProfile?: boolean } = {},
 ): Promise<void> {
   const platform = await signUpUser(app, "platform-seed");
   await promotePlatformAdmin(db, platform.id);
@@ -193,6 +194,48 @@ export async function seedGoldenCorpusFor(
     "sliding-gate@1",
     "fence-run@1",
   ]);
+  // Every org that gets the corpus can issue — and issuing now requires a legal
+  // profile (ADR 0088). Set it as the org owner (admin) so the quote paths work.
+  // Opt out (`legalProfile: false`) to exercise the no-profile 422 path.
+  if (opts.legalProfile !== false) {
+    await setupLegalProfile(app, orgUser);
+  }
+}
+
+/**
+ * A complete §29-ZDPH supplier block (ADR 0088). `issue()` 422s
+ * `legal_profile_required` without one, so any org that issues a quote in a test
+ * must have its legal profile set (folded into `seedGoldenCorpusFor`; called
+ * explicitly where a test sets an issuing org up without that helper). The
+ * IČO/DIČ/bank values are checksum-valid so the upsert's zod gate accepts them.
+ */
+export const TEST_LEGAL_PROFILE = {
+  name: "Perimetra Vrata s.r.o.",
+  ico: "27074358",
+  dic: "CZ27074358",
+  vatPayer: true,
+  addressLine: "Tovární 5",
+  city: "Olomouc",
+  postalCode: "779 00",
+  country: "CZ",
+  bankAccount: "2000145399/2010",
+  registrationNote: "Zapsáno v OR vedeném Krajským soudem v Ostravě, oddíl C, vložka 12345.",
+} as const;
+
+/** Set the org's singleton legal profile as `orgUser` (its admin/owner). */
+export async function setupLegalProfile(
+  app: NestFastifyApplication,
+  orgUser: TestUser,
+): Promise<void> {
+  const res = await inject(app, {
+    method: "PUT",
+    url: "/v1/org/legal-profile",
+    headers: { cookie: orgUser.cookie },
+    payload: TEST_LEGAL_PROFILE,
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`seed legal profile failed (${res.statusCode}): ${res.body}`);
+  }
 }
 
 /** Poll until `predicate` resolves true — for worker-processed effects. */

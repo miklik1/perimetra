@@ -43,6 +43,7 @@ import {
   inject,
   orgIdOf,
   promotePlatformAdmin,
+  setupLegalProfile,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
@@ -135,6 +136,8 @@ describe("vendor broadcast upgrade-offer fan-out (HTTP, real stack)", () => {
     // orgA: on gate@1 + fence@1 (+ a price table → can issue the I3 baseline).
     await assignReleases(app, platform, orgA, ["sliding-gate@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088).
+    await setupLegalProfile(app, userA);
 
     // orgB: assigned gate@1 then gate@2, and has OPTED IN to gate@2 (pinned @2).
     await assignReleases(app, platform, orgB, ["sliding-gate@1", "sliding-gate@2"]);

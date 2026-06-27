@@ -21,6 +21,7 @@ import { CustomersModule } from "./modules/customers/customers.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { JobsModule } from "./modules/jobs/jobs.module.js";
+import { LegalProfilesModule } from "./modules/legal-profiles/legal-profiles.module.js";
 import { OutboxModule } from "./modules/outbox/outbox.module.js";
 import { PlatformModule } from "./modules/platform/platform.module.js";
 import { PriceTablesModule } from "./modules/price-tables/price-tables.module.js";
@@ -100,6 +101,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     OrgProvisioningModule,
     ReleaseDraftsModule,
     CustomersModule,
+    LegalProfilesModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

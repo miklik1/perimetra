@@ -35,6 +35,7 @@ import {
   inject,
   orgIdOf,
   promotePlatformAdmin,
+  setupLegalProfile,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
@@ -111,6 +112,8 @@ describe("per-release catalog — mixed versions in one quote (HTTP, real stack)
     // orgA gets BOTH (different catalogs) + a price table → can issue a mixed quote.
     await assignReleases(app, platform, orgA, ["sliding-gate-c1@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // Issuing now requires a legal profile (ADR 0088).
+    await setupLegalProfile(app, userA);
   });
 
   afterAll(async () => {

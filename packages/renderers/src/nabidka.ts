@@ -22,6 +22,19 @@ export interface NabidkaCustomer {
   postalCode?: string | null;
 }
 
+/** Supplier (dodavatel) identity — the fabricator's org legal profile frozen
+ *  onto the document (ADR 0088); the §29-ZDPH supplier block of a daňový doklad. */
+export interface NabidkaSupplier {
+  name: string;
+  ico?: string | null;
+  dic?: string | null;
+  addressLine?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  bankAccount?: string | null;
+  registrationNote?: string | null;
+}
+
 /** One priced offer line (a rolled-up BOM line). */
 export interface NabidkaLine {
   componentCode: string;
@@ -43,6 +56,9 @@ export interface NabidkaCategory {
  *  document, and totals. The presentation surface lays this out. */
 export interface NabidkaDocument {
   documentNumber: string;
+  /** The supplier (dodavatel) block — the org's frozen legal identity (ADR 0088).
+   *  Null only for a legacy document issued before the legal-profile slice. */
+  supplier: NabidkaSupplier | null;
   customer: NabidkaCustomer | null;
   currency: string;
   /** Number of configured assemblies on the site (placements). */
@@ -61,6 +77,7 @@ export interface NabidkaDocument {
 export interface NabidkaOptions {
   documentNumber: string;
   tax: TaxBreakdown;
+  supplier?: NabidkaSupplier | null;
   customer?: NabidkaCustomer | null;
 }
 
@@ -96,6 +113,7 @@ export function buildNabidka(
 
   return {
     documentNumber: options.documentNumber,
+    supplier: options.supplier ?? null,
     customer: options.customer ?? null,
     currency: options.tax.currency,
     instanceCount: site.placements.length,

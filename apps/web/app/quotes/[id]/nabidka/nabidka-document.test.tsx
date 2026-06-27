@@ -9,6 +9,16 @@ import { NabidkaDocumentView } from "./nabidka-document";
 
 const STANDARD: NabidkaDocument = {
   documentNumber: "2026/0007",
+  supplier: {
+    name: "Perimetra Vrata s.r.o.",
+    ico: "01234567",
+    dic: "CZ01234567",
+    addressLine: "Tovární 5",
+    city: "Olomouc",
+    postalCode: "779 00",
+    bankAccount: "2000145399/2010",
+    registrationNote: "Zapsáno v OR vedeném Krajským soudem v Ostravě, oddíl C.",
+  },
   customer: {
     name: "Stavby Vrata s.r.o.",
     ico: "27074358",
@@ -89,7 +99,13 @@ describe("NabidkaDocumentView (print surface, ADR 0087)", () => {
     expect(screen.getByText("Standardní DPH")).toBeInTheDocument();
     // Gross total renders (14 938,18) — appears on the rate line and the total row.
     expect(screen.getAllByText((t) => t.includes("938")).length).toBeGreaterThan(0);
-    // Supplier block is the flagged placeholder (org legal profile is a follow-on).
+    // Supplier block is the frozen org legal profile (ADR 0088): name + bank account.
+    expect(screen.getByText("Perimetra Vrata s.r.o.")).toBeInTheDocument();
+    expect(screen.getByText((t) => t.includes("2000145399/2010"))).toBeInTheDocument();
+  });
+
+  it("falls back to the supplier placeholder for a legacy quote with no supplier", () => {
+    renderDoc({ ...STANDARD, supplier: null });
     expect(screen.getByText("Doplňte profil firmy (IČO, DIČ, adresa)")).toBeInTheDocument();
   });
 

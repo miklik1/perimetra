@@ -1373,6 +1373,42 @@
         ]
       }
     },
+    "/v1/org/legal-profile": {
+      "get": {
+        "operationId": "LegalProfilesController_get_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "LegalProfiles"
+        ]
+      },
+      "put": {
+        "operationId": "LegalProfilesController_put_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertLegalProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "LegalProfiles"
+        ]
+      }
+    },
     "/v1/platform/releases": {
       "get": {
         "operationId": "PlatformController_listReleases_v1",
@@ -2332,6 +2368,62 @@
             ]
           }
         }
+      },
+      "UpsertLegalProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ico": {
+            "type": "string",
+            "pattern": "^\\d{8}$",
+            "nullable": true
+          },
+          "dic": {
+            "type": "string",
+            "pattern": "^CZ\\d{8,10}$",
+            "nullable": true
+          },
+          "vatPayer": {
+            "type": "boolean"
+          },
+          "addressLine": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120,
+            "nullable": true
+          },
+          "postalCode": {
+            "type": "string",
+            "maxLength": 20,
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "bankAccount": {
+            "type": "string",
+            "pattern": "^(?:\\d{1,6}-)?\\d{2,10}\\/\\d{4}$",
+            "nullable": true
+          },
+          "registrationNote": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          }
+        },
+        "required": [
+          "name"
+        ]
       },
       "AssignReleaseDto": {
         "type": "object",

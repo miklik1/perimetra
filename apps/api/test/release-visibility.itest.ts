@@ -35,6 +35,7 @@ import {
   inject,
   orgIdOf,
   promotePlatformAdmin,
+  setupLegalProfile,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
@@ -107,6 +108,8 @@ describe("per-tenant release visibility (HTTP, real stack)", () => {
 
     // orgA needs a price table to issue (per-org, ADR 0055).
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // Issuing requires a legal profile (ADR 0088).
+    await setupLegalProfile(app, userA);
   });
 
   afterAll(async () => {

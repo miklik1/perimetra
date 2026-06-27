@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { deriveSite, type SiteInstance } from "@repo/engine";
 import { DEFAULT_ROUNDING_POLICY, deriveTaxBreakdown, type Catalog } from "@repo/model";
-import { buildNabidka, type NabidkaCustomer } from "@repo/renderers";
+import { buildNabidka, type NabidkaCustomer, type NabidkaSupplier } from "@repo/renderers";
 
 import { catalogV2 } from "./catalog/catalog-v2.js";
 import { siteFenceConfig, siteGateConfig, sitePrices, steppedSite } from "./golden/site.js";
@@ -31,6 +31,17 @@ const customer: NabidkaCustomer = {
   city: "Brno",
 };
 
+const supplier: NabidkaSupplier = {
+  name: "Perimetra Vrata s.r.o.",
+  ico: "01234567",
+  dic: "CZ01234567",
+  addressLine: "Tovární 5",
+  city: "Olomouc",
+  postalCode: "77900",
+  bankAccount: "123456789/0800",
+  registrationNote: "Zapsáno v OR vedeném Krajským soudem v Ostravě, oddíl C.",
+};
+
 describe("buildNabidka — the pure-data commercial document", () => {
   const result = deriveSite(steppedSite, instances(), sitePrices, cats);
   const standardTax = deriveTaxBreakdown(
@@ -43,10 +54,15 @@ describe("buildNabidka — the pure-data commercial document", () => {
   it("carries the header, line items, category subtotals + standard-VAT totals", () => {
     const doc = buildNabidka(steppedSite, result, {
       documentNumber: "2026/0001",
+      supplier,
       customer,
       tax: standardTax,
     });
     expect(doc.documentNumber).toBe("2026/0001");
+    // The supplier (dodavatel) block is carried through as pure data (ADR 0088).
+    expect(doc.supplier?.name).toBe("Perimetra Vrata s.r.o.");
+    expect(doc.supplier?.dic).toBe("CZ01234567");
+    expect(doc.supplier?.bankAccount).toBe("123456789/0800");
     expect(doc.customer?.dic).toBe("CZ27074358");
     expect(doc.currency).toBe("CZK");
     expect(doc.instanceCount).toBe(3);
@@ -85,6 +101,7 @@ describe("buildNabidka — the pure-data commercial document", () => {
     const build = () =>
       buildNabidka(steppedSite, deriveSite(steppedSite, instances(), sitePrices, cats), {
         documentNumber: "2026/0001",
+        supplier,
         customer,
         tax: standardTax,
       });

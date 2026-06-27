@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
@@ -69,6 +70,12 @@ function TeamContent() {
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <OrgSwitcher />
       </header>
+
+      {isAdmin && (
+        <Link href="/team/legal-profile" className="text-copper text-sm hover:underline">
+          {t("legalProfileLink")} →
+        </Link>
+      )}
 
       {isAdmin && <InviteForm onInvited={invalidateOrg} />}
       {!isAdmin && <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>}

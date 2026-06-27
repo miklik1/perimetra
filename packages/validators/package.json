@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./legal-profiles": {
+      "types": "./dist/legal-profiles.d.ts",
+      "default": "./dist/legal-profiles.js"
+    },
     "./customers": {
       "types": "./dist/customers.d.ts",
       "default": "./dist/customers.js"

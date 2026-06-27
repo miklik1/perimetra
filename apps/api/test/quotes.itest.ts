@@ -26,7 +26,9 @@ import {
   createApiApp,
   inject,
   seedGoldenCorpusFor,
+  setupLegalProfile,
   signUpUser,
+  TEST_LEGAL_PROFILE,
   type TestUser,
 } from "./setup/app.js";
 
@@ -58,6 +60,19 @@ interface QuoteDetail {
       city: string | null;
       postalCode: string | null;
       country: string;
+    };
+    /** The supplier (dodavatel) identity FROZEN at issue (ADR 0088) — captured. */
+    supplier?: {
+      name: string;
+      ico: string | null;
+      dic: string | null;
+      vatPayer: boolean;
+      addressLine: string | null;
+      city: string | null;
+      postalCode: string | null;
+      country: string;
+      bankAccount: string | null;
+      registrationNote: string | null;
     };
     tax: {
       mode: string;
@@ -468,6 +483,72 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // customer.vatPayer === true + construction/assembly → reverse charge, no VAT line.
       expect(quote.snapshot.tax.mode).toBe("reverse_charge_92e");
       expect(quote.snapshot.tax.vatTotal).toBe("0");
+    });
+  });
+
+  describe("supplier-identity freeze (ADR 0088)", () => {
+    it("freezes the org legal profile as the supplier block at issue", async () => {
+      const quote = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      // The dodavatel block is the org's legal profile, captured at issue.
+      expect(quote.snapshot.supplier).toEqual({
+        name: TEST_LEGAL_PROFILE.name,
+        ico: TEST_LEGAL_PROFILE.ico,
+        dic: TEST_LEGAL_PROFILE.dic,
+        vatPayer: TEST_LEGAL_PROFILE.vatPayer,
+        addressLine: TEST_LEGAL_PROFILE.addressLine,
+        city: TEST_LEGAL_PROFILE.city,
+        postalCode: TEST_LEGAL_PROFILE.postalCode,
+        country: TEST_LEGAL_PROFILE.country,
+        bankAccount: TEST_LEGAL_PROFILE.bankAccount,
+        registrationNote: TEST_LEGAL_PROFILE.registrationNote,
+      });
+    });
+
+    it("a later profile edit does NOT alter an already-issued document (I3)", async () => {
+      const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      expect(issued.snapshot.supplier?.name).toBe(TEST_LEGAL_PROFILE.name);
+
+      // Edit the org's LIVE legal profile (rename the company).
+      const edit = await inject(app, {
+        method: "PUT",
+        url: "/v1/org/legal-profile",
+        headers: { cookie: tenant.cookie },
+        payload: { ...TEST_LEGAL_PROFILE, name: "Renamed Vrata a.s." },
+      });
+      expect(edit.statusCode).toBe(200);
+
+      // The issued daňový doklad keeps its FROZEN supplier (a captured fact, like
+      // the buyer — it survives a since-edited org profile, ADR 0088).
+      const reread = (
+        await inject(app, {
+          method: "GET",
+          url: `/v1/quotes/${issued.id}`,
+          headers: { cookie: tenant.cookie },
+        })
+      ).json() as QuoteDetail;
+      expect(reread.snapshot.supplier?.name).toBe(TEST_LEGAL_PROFILE.name);
+
+      // And verify still reproduces — the supplier is NOT in the I3 checks.
+      const verify = await inject(app, {
+        method: "POST",
+        url: `/v1/quotes/${issued.id}/verify`,
+        headers: { cookie: tenant.cookie },
+      });
+      expect(verify.json()).toEqual({ quoteId: issued.id, reproduced: true, mismatches: [] });
+
+      // Restore the shared tenant's profile (defensive — this is the last block).
+      await setupLegalProfile(app, tenant);
+    });
+
+    it("refuses to issue when the org has not completed its legal profile (422)", async () => {
+      const noProfile = await signUpUser(app, "quote-no-profile");
+      // Corpus assigned + a price table, but deliberately NO legal profile.
+      await seedGoldenCorpusFor(app, db, noProfile, { legalProfile: false });
+      expect((await post(noProfile, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+
+      const res = await post(noProfile, "/v1/quotes", issueBody);
+      expect(res.statusCode).toBe(422);
+      expect((res.json() as { code: string }).code).toBe("legal_profile_required");
     });
   });
 });

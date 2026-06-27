@@ -68,6 +68,7 @@ import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { CustomersService } from "../customers/customers.service.js";
+import { LegalProfilesService } from "../legal-profiles/legal-profiles.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import { formatQuoteNumber } from "./document-number.js";
@@ -105,6 +106,28 @@ interface FrozenCustomerIdentity {
   country: string;
 }
 
+/**
+ * The supplier (dodavatel) identity FROZEN onto the issued document at issue
+ * (ADR 0088, the same captured-fact pattern as the buyer block above). It is the
+ * §29-ZDPH supplier block of the daňový doklad — copied from the org's mutable
+ * legal profile, so editing the profile NEVER retro-alters an issued document
+ * (I3); like the buyer, it is ABSENT from the verifyReproducibility `checks`.
+ * Always present on a quote issued after the legal-profile slice (`issue` 422s
+ * `legal_profile_required` without one); absent only on a legacy quote.
+ */
+interface FrozenSupplierIdentity {
+  name: string;
+  ico: string | null;
+  dic: string | null;
+  vatPayer: boolean;
+  addressLine: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string;
+  bankAccount: string | null;
+  registrationNote: string | null;
+}
+
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
 interface QuoteSnapshot {
   bom: SiteBomLine[];
@@ -127,6 +150,11 @@ interface QuoteSnapshot {
    *  re-derived (so absent from the I3 `checks`) and NOT erased when the live
    *  customer is anonymized. Absent for an unattached (walk-in) quote. */
   customer?: FrozenCustomerIdentity;
+  /** The supplier (dodavatel) identity frozen at issue (ADR 0088) — the same
+   *  captured-fact pattern as `customer`. Present on every quote issued after the
+   *  legal-profile slice (issue 422s without one); optional only so a legacy quote
+   *  still casts. NOT in the I3 `checks` (a captured fact, not re-derived). */
+  supplier?: FrozenSupplierIdentity;
 }
 
 /**
@@ -259,6 +287,7 @@ export class QuotesService {
     private readonly catalogVersions: CatalogVersionsService,
     private readonly priceTables: PriceTablesService,
     private readonly customers: CustomersService,
+    private readonly legalProfiles: LegalProfilesService,
     private readonly audit: AuditService,
   ) {}
 
@@ -389,13 +418,28 @@ export class QuotesService {
       ? await this.customers.get(scope, role, input.customerId)
       : null;
 
+    // The supplier (dodavatel) — the org's own legal identity (ADR 0088). A
+    // complete daňový doklad (§29 ZDPH) legally requires the supplier block, so a
+    // not-yet-completed profile is a hard 422 (no honest legal document without a
+    // supplier identity), never a silent placeholder. Loaded server-side here so
+    // any rep can issue (the live profile is admin-edited, but reading it to issue
+    // is not role-gated); frozen into the snapshot below.
+    const supplierProfile = await this.legalProfiles.get(scope);
+    if (!supplierProfile) {
+      throw new UnprocessableEntityException({
+        message: "the organization has not completed its legal profile",
+        code: "legal_profile_required",
+      });
+    }
+
     // §92e/DPH (ADR 0080) — the tax mode is a per-transaction decision. The
-    // supplier (this org issuing DPH quotes) is a VAT payer; the buyer's VAT
-    // status is auto-filled from the attached customer when present (else the
-    // request flag), and the construction/assembly scope from the request. The
-    // structured breakdown is frozen below and re-derived at verify (I3).
+    // supplier's VAT-payer status comes from its legal profile (ADR 0088 — a
+    // non-VAT-payer supplier can never reverse-charge); the buyer's is auto-filled
+    // from the attached customer when present (else the request flag), and the
+    // construction/assembly scope from the request. The structured breakdown is
+    // frozen below and re-derived at verify from the frozen mode (I3).
     const taxMode = resolveTaxMode({
-      supplierVatPayer: true,
+      supplierVatPayer: supplierProfile.vatPayer,
       customerVatPayer: attachedCustomer?.vatPayer ?? input.tax?.customerVatPayer ?? false,
       constructionAssembly: input.tax?.constructionAssembly ?? false,
     });
@@ -417,6 +461,22 @@ export class QuotesService {
       site,
       cutOptions: { kerfMm },
       tax,
+      // Freeze the supplier (dodavatel) identity onto the document (ADR 0088) —
+      // captured from the org legal profile here, so a later profile edit never
+      // retro-alters this issued daňový doklad (I3). A captured fact like the
+      // buyer below — absent from the verifyReproducibility `checks`.
+      supplier: {
+        name: supplierProfile.name,
+        ico: supplierProfile.ico,
+        dic: supplierProfile.dic,
+        vatPayer: supplierProfile.vatPayer,
+        addressLine: supplierProfile.addressLine,
+        city: supplierProfile.city,
+        postalCode: supplierProfile.postalCode,
+        country: supplierProfile.country,
+        bankAccount: supplierProfile.bankAccount,
+        registrationNote: supplierProfile.registrationNote,
+      },
       // Freeze the buyer identity onto the document (ADR 0086/0071) — captured
       // from the live customer here, retained even after Art.17 anonymizes it.
       ...(attachedCustomer && {
@@ -560,10 +620,11 @@ export class QuotesService {
     // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`). Cost
     // is compared the same way — `costMoney` strings, not the raw cost floats
     // (both undefined when no cost layer → deep-equal holds).
-    // NB: snapshot.customer (ADR 0086) is deliberately NOT a check — the frozen
-    // buyer is a captured fact, not a re-derived artifact, so it has no fresh
-    // counterpart to compare and must not gate reproducibility (it survives a
-    // since-anonymized customer, by design).
+    // NB: snapshot.customer (ADR 0086) and snapshot.supplier (ADR 0088) are
+    // deliberately NOT checks — the frozen buyer and the frozen dodavatel are
+    // captured facts, not re-derived artifacts, so they have no fresh counterpart
+    // to compare and must not gate reproducibility (the buyer survives a
+    // since-anonymized customer; the supplier survives a since-edited org profile).
     const checks: Array<readonly [string, unknown, unknown]> = [
       ["bom", bomForCompare(fresh.bom), bomForCompare(snapshot.bom)],
       ["money", fresh.money, snapshot.money],

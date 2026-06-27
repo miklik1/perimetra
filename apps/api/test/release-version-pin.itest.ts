@@ -37,6 +37,7 @@ import {
   inject,
   orgIdOf,
   promotePlatformAdmin,
+  setupLegalProfile,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
@@ -119,6 +120,8 @@ describe("release version pin / opt-in upgrade (HTTP, real stack)", () => {
     // orgA gets the v1 corpus (gate@1 + fence@1) + a price table → can issue.
     await assignReleases(app, platform, orgA, ["sliding-gate@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    // Issuing requires a legal profile (ADR 0088).
+    await setupLegalProfile(app, userA);
   });
 
   afterAll(async () => {
