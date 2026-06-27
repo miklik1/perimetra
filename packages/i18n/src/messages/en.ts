@@ -106,6 +106,17 @@ const en: MessagesInput = {
       registrationNote: "Commercial register entry",
     },
   },
+  lookup: {
+    aresLoad: "Load from ARES",
+    aresLoading: "Loading…",
+    aresNotFound: "Business ID not found in the ARES register",
+    aresUnavailable: "The ARES register is temporarily unavailable",
+    aresDissolved: "Warning: the subject is dissolved in the register",
+    viesChecking: "Validating VAT ID…",
+    viesValid: "VAT ID validated in VIES",
+    viesInvalid: "VAT ID is not valid (VIES)",
+    viesUnavailable: "VAT ID could not be validated — VIES is unavailable",
+  },
   team: {
     title: "Team",
     members: "Members",

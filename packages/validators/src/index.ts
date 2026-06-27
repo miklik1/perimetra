@@ -18,6 +18,8 @@ export * from "./platform";
 export * from "./release-drafts";
 export * from "./customers";
 export * from "./legal-profiles";
+// Registry-lookup contracts (ADR 0090): ARES (IČO) prefill + VIES (DIČ) validation.
+export * from "./lookups";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";
 // Project site persistence (ADR 0054) — kept OUT of the skeleton-owned projects.ts

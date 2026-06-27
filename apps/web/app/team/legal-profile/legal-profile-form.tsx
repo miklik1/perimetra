@@ -3,14 +3,21 @@
 import { useId } from "react";
 import { z } from "zod";
 
-import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
+import { useApiClient, useMutation, useQuery, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
-import { type LegalProfile, type UpsertLegalProfileInput } from "@repo/validators";
+import {
+  lookupDicSchema,
+  lookupIcoSchema,
+  type LegalProfile,
+  type UpsertLegalProfileInput,
+} from "@repo/validators";
 
 import { devErrorDetail, errorMessageKey } from "../../../lib/error-messages";
 import { createLegalProfileQueries, legalProfileKeys } from "../../../lib/legal-profile-queries";
+import { createLookupsQueries } from "../../../lib/lookups-queries";
+import { aresPrefill, ViesBadge } from "../../../lib/registry-lookup";
 import { toast } from "../../../lib/toast";
 
 /**
@@ -74,15 +81,19 @@ const inputClass =
 export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) {
   const t = useTranslations("legalProfile");
   const tErrors = useTranslations("errors");
+  const tLookup = useTranslations("lookup");
   const client = useApiClient();
   const queryClient = useQueryClient();
   const queries = createLegalProfileQueries(client);
+  const lookupsQueries = createLookupsQueries(client);
   const nameId = useId();
   const nameErrorId = useId();
 
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useZodForm(legalProfileFormSchema, { defaultValues: toDefaults(initial) });
 
@@ -93,6 +104,38 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
       toast.success(t("saved"));
     },
     onError: (error) => toast.error(tErrors(errorMessageKey(error))),
+  });
+
+  // IČO → ARES prefill of the supplier's own identity (name + DIČ + sídlo). The
+  // IČO field is watched so the button enables on a well-formed value; vatPayer
+  // is left to the explicit toggle.
+  const icoValue = watch("ico").trim();
+  const ares = useMutation({
+    ...lookupsQueries.ares(),
+    onSuccess: (result) => {
+      const prefill = aresPrefill(result);
+      if (!prefill) {
+        toast.error(tLookup(result.status === "not_found" ? "aresNotFound" : "aresUnavailable"));
+        return;
+      }
+      const set = (key: keyof LegalProfileFormValues, value: string) =>
+        setValue(key, value, { shouldValidate: true, shouldDirty: true });
+      if (prefill.name) set("name", prefill.name);
+      if (prefill.dic) set("dic", prefill.dic);
+      if (prefill.addressLine) set("addressLine", prefill.addressLine);
+      if (prefill.city) set("city", prefill.city);
+      if (prefill.postalCode) set("postalCode", prefill.postalCode);
+      set("country", prefill.country);
+      if (result.dissolved) toast.warning(tLookup("aresDissolved"));
+    },
+    onError: () => toast.error(tLookup("aresUnavailable")),
+  });
+
+  // DIČ → VIES validity badge — reactive, gated on a well-formed DIČ.
+  const dicValue = watch("dic").trim().toUpperCase();
+  const vies = useQuery({
+    ...lookupsQueries.vies(dicValue),
+    enabled: lookupDicSchema.safeParse(dicValue).success,
   });
 
   const field = (key: Exclude<keyof LegalProfileFormValues, "vatPayer">) => (
@@ -131,6 +174,18 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
       <div className="grid grid-cols-2 gap-4">
         {field("ico")}
         {field("dic")}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => ares.mutate(icoValue)}
+          disabled={!lookupIcoSchema.safeParse(icoValue).success || ares.isPending}
+        >
+          {ares.isPending ? tLookup("aresLoading") : tLookup("aresLoad")}
+        </Button>
+        <ViesBadge result={vies.data} loading={vies.isFetching} />
       </div>
 
       <label className="flex items-center gap-2 font-medium">

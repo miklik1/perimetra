@@ -105,6 +105,17 @@ const cs = {
       registrationNote: "Zápis v obchodním rejstříku",
     },
   },
+  lookup: {
+    aresLoad: "Načíst z ARES",
+    aresLoading: "Načítám…",
+    aresNotFound: "IČO nenalezeno v registru ARES",
+    aresUnavailable: "Registr ARES je dočasně nedostupný",
+    aresDissolved: "Pozor: subjekt je v registru zaniklý",
+    viesChecking: "Ověřuji DIČ…",
+    viesValid: "DIČ ověřeno v systému VIES",
+    viesInvalid: "DIČ není platné (VIES)",
+    viesUnavailable: "DIČ nelze ověřit — systém VIES je nedostupný",
+  },
   team: {
     title: "Tým",
     members: "Členové",

@@ -1902,6 +1902,54 @@
           "ReleaseDrafts"
         ]
       }
+    },
+    "/v1/lookups/ares": {
+      "post": {
+        "operationId": "LookupsController_ares_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AresLookupRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lookups"
+        ]
+      }
+    },
+    "/v1/lookups/vies": {
+      "post": {
+        "operationId": "LookupsController_vies_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViesLookupRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Lookups"
+        ]
+      }
     }
   },
   "info": {
@@ -2519,6 +2567,32 @@
           },
           "body": {}
         }
+      },
+      "AresLookupRequestDto": {
+        "type": "object",
+        "properties": {
+          "ico": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "ico"
+        ]
+      },
+      "ViesLookupRequestDto": {
+        "type": "object",
+        "properties": {
+          "dic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "dic"
+        ]
       }
     }
   }

@@ -15,6 +15,10 @@
       "types": "./dist/customers.d.ts",
       "default": "./dist/customers.js"
     },
+    "./lookups": {
+      "types": "./dist/lookups.d.ts",
+      "default": "./dist/lookups.js"
+    },
     "./release-drafts": {
       "types": "./dist/release-drafts.d.ts",
       "default": "./dist/release-drafts.js"

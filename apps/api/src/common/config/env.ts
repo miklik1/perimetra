@@ -61,6 +61,23 @@ const envSchema = z.object({
   /** Must equal centrifugo's client.token.hmac_secret_key. */
   CENTRIFUGO_TOKEN_SECRET: z.string().min(1).default("dev-centrifugo-token-secret"),
 
+  // ---- registry lookups (ADR 0090) — public CZ ARES + EU VIES ----------
+  /**
+   * ARES (Administrativní registr ekonomických subjektů) REST base — the public
+   * CZ economic-subject register (no auth). The default IS the production URL
+   * (there is no local equivalent); a deployment behind a corporate proxy or a
+   * test double overrides it. The lookup fails soft, so a bad value degrades the
+   * IČO-prefill convenience, never the api.
+   */
+  ARES_BASE_URL: z.url().default("https://ares.gov.cz/ekonomicke-subjekty-v-be/rest"),
+  /**
+   * VIES (EU VAT Information Exchange System) REST base — the EU VAT-validation
+   * service (no auth). Default is the production URL; overridable for a proxy or
+   * a test double. Fails soft (an `MS_UNAVAILABLE`/timeout reads as inconclusive,
+   * never invalid).
+   */
+  VIES_BASE_URL: z.url().default("https://ec.europa.eu/taxation_customs/vies"),
+
   // ---- throttling (ADR 0044 baseline) -----------------------------------
   /** Default tier for Nest controller routes (per user-or-ip). */
   THROTTLE_TTL_MS: z.coerce.number().int().positive().default(60_000),

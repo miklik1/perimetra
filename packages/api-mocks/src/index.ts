@@ -25,6 +25,7 @@ export { authRoutes } from "./handlers/auth";
 export { projectRoutes } from "./handlers/projects";
 export { quoteRoutes } from "./handlers/quotes";
 export { customerRoutes } from "./handlers/customers";
+export { lookupRoutes } from "./handlers/lookups";
 export { routeGroups, selectRoutes, allRoutes, createMockConfig } from "./config";
 export { listMockUsers } from "./fixtures/users";
 export { listProjectFixtures, resetProjects } from "./fixtures/projects";
