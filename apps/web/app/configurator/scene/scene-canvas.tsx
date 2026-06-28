@@ -76,6 +76,13 @@ export default function SceneCanvas({
   // both ends (assembled and fully bloomed) so the §6 markers lerp through the
   // explode without drift.
   const offsets = useMemo(() => pieceExplodeOffsets(scene), [scene]);
+  // Explode only does something when ≥2 parts can separate; a single-part release
+  // blooms to nothing, so the toggle is disabled and the camera never pulls back
+  // (no dead "camera moves, gate stays assembled" toggle).
+  const canExplode = useMemo(
+    () => [...offsets.values()].some((o) => o[0] !== 0 || o[1] !== 0 || o[2] !== 0),
+    [offsets],
+  );
   const deviatedCenters = useMemo(() => deviatedPieceCenters(scene), [scene]);
   const deviatedBloomed = useMemo(() => deviatedPieceCenters(scene, offsets), [scene, offsets]);
   const markerRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -115,7 +122,8 @@ export default function SceneCanvas({
   // Explode overrides the step pose with the pulled-back iso reveal; keyed off the
   // discrete `target` (not the animating `factor`) so the pose never recomputes
   // mid-transition — the camera animates once, then the user can orbit freely.
-  const effectiveView: CameraView = explodeTarget > 0 ? "exploded" : view;
+  const explodeActive = explodeTarget > 0 && canExplode;
+  const effectiveView: CameraView = explodeActive ? "exploded" : view;
   const pose = useMemo(() => cameraPose(effectiveView, frame), [effectiveView, frame]);
 
   return (
@@ -244,9 +252,10 @@ export default function SceneCanvas({
         <IconCluster>
           <IconButton
             size="sm"
-            active={explodeTarget > 0}
+            active={explodeActive}
+            disabled={!canExplode}
             onClick={toggleExplode}
-            aria-pressed={explodeTarget > 0}
+            aria-pressed={explodeActive}
             aria-label={t("explode")}
             title={t("explode")}
           >
@@ -263,44 +272,53 @@ export default function SceneCanvas({
             <SectionGlyph />
           </IconButton>
         </IconCluster>
+        {/* Each control sits in its OWN fixed `h-8` row (matching the `size-8`
+            toggle) at `items-center`, so it lines up with its own toggle —
+            present-but-empty when that mode is off, so the section row never
+            slides up under the explode toggle. */}
         <div className="flex flex-col gap-2">
-          {explodeTarget > 0 && (
-            // Floored at 5% so a scrub can never drive the target to 0 — full
-            // collapse is the toggle's job, so the slider never unmounts itself
-            // (and yanks the camera home) from under a drag.
-            <input
-              type="range"
-              min={5}
-              max={100}
-              value={Math.round(explodeTarget * 100)}
-              onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
-              aria-label={t("explodeAmount")}
-              className="accent-copper mt-0.5 h-1 w-28 cursor-pointer"
-            />
-          )}
-          {sectionEnabled && (
-            <div className="flex items-center gap-2">
-              <IconButton
-                size="sm"
-                onClick={cycleSectionAxis}
-                aria-label={t("sectionAxis")}
-                title={t("sectionAxis")}
-              >
-                <span className="font-data text-[11px] font-semibold uppercase">{sectionAxis}</span>
-              </IconButton>
-              {/* Full 0..1 range — position is WHERE the cut sits, not whether
-                  section is on (that's the toggle), so 0/1 are valid ends. */}
+          <div className="flex h-8 items-center">
+            {explodeActive && (
+              // Floored at 5% so a scrub can never drive the target to 0 — full
+              // collapse is the toggle's job, so the slider never unmounts itself.
               <input
                 type="range"
-                min={0}
+                min={5}
                 max={100}
-                value={Math.round(sectionPosition * 100)}
-                onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
-                aria-label={t("sectionPosition")}
+                value={Math.round(explodeTarget * 100)}
+                onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
+                aria-label={t("explodeAmount")}
                 className="accent-copper h-1 w-28 cursor-pointer"
               />
-            </div>
-          )}
+            )}
+          </div>
+          <div className="flex h-8 items-center gap-2">
+            {sectionEnabled && (
+              <>
+                <IconButton
+                  size="sm"
+                  onClick={cycleSectionAxis}
+                  aria-label={t("sectionAxis")}
+                  title={t("sectionAxis")}
+                >
+                  <span className="font-data text-[11px] font-semibold uppercase">
+                    {sectionAxis}
+                  </span>
+                </IconButton>
+                {/* Full 0..1 range — position is WHERE the cut sits, not whether
+                    section is on (that's the toggle), so 0/1 are valid ends. */}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(sectionPosition * 100)}
+                  onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
+                  aria-label={t("sectionPosition")}
+                  className="accent-copper h-1 w-28 cursor-pointer"
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
 

@@ -4,11 +4,10 @@ import type { Scene3D, Vec3 } from "@repo/renderers";
 
 import { DEFAULT_EXPLODE_SPREAD, explodedPosition, pieceExplodeOffsets } from "./explode-offsets";
 
-const ARCMIN_QUARTER = 5400;
-
-/** A single-instance scene whose pieces lie on the X axis at the given origins
- *  (length 1000, unrotated → each midpoint is origin + [500,0,0]). */
-function lineScene(origins: Vec3[]): Scene3D {
+/** A single-instance scene; each entry is `[partKey, midX, midY, midZ]` — the
+ *  piece is unrotated length 1000, so `at = mid - [500,0,0]`. The id encodes the
+ *  part so pieces sharing a `partKey` are one part. */
+function scene(pieces: [string, number, number, number][]): Scene3D {
   return {
     units: "mm",
     instances: [
@@ -17,12 +16,12 @@ function lineScene(origins: Vec3[]): Scene3D {
         releaseId: "r@1",
         at: [0, 0, 0],
         rotationArcMin: [0, 0, 0],
-        pieces: origins.map((at, i) => ({
-          id: `i0/part/${i}`,
+        pieces: pieces.map(([part, mx, my, mz], i) => ({
+          id: `i0/${part}/${i}`,
           componentCode: "c",
-          name: "P",
+          name: part,
           lengthMm: 1000,
-          at,
+          at: [mx - 500, my, mz] as Vec3,
           rotationArcMin: [0, 0, 0] as Vec3,
         })),
       },
@@ -31,120 +30,98 @@ function lineScene(origins: Vec3[]): Scene3D {
 }
 
 describe("pieceExplodeOffsets", () => {
-  it("blooms each piece away from the instance centroid (equal-and-opposite, sums to zero)", () => {
-    // mids: [500,0,0] and [1500,0,0] → centroid [1000,0,0].
+  it("moves each PART rigidly — every piece of a part shares one offset (no per-piece scatter)", () => {
+    // Parts: frame (two pieces, centroid [-1000,1000,0]) + lock (one piece,
+    // [2000,1000,0]). Assembly centroid = [0,1000,0].
     const offsets = pieceExplodeOffsets(
-      lineScene([
-        [0, 0, 0],
-        [1000, 0, 0],
+      scene([
+        ["frame", -1000, 0, 0],
+        ["frame", -1000, 2000, 0],
+        ["lock", 2000, 1000, 0],
       ]),
       1,
     );
-    expect(offsets.get("i0/part/0")).toEqual([-500, 0, 0]);
-    expect(offsets.get("i0/part/1")).toEqual([500, 0, 0]);
+    // Both frame pieces get the SAME offset (the part travels as a unit).
+    expect(offsets.get("i0/frame/0")).toEqual([-1000, 0, 0]);
+    expect(offsets.get("i0/frame/1")).toEqual([-1000, 0, 0]);
+    expect(offsets.get("i0/lock/2")).toEqual([2000, 0, 0]);
+  });
+
+  it("blooms parts away from the assembly centroid, summing to zero", () => {
+    const offsets = pieceExplodeOffsets(
+      scene([
+        ["left", 500, 0, 0],
+        ["right", 2500, 0, 0],
+      ]),
+      1,
+    );
+    // Centroid [1500,0,0]; the two single-piece parts move equal-and-opposite.
+    expect(offsets.get("i0/left/0")).toEqual([-1000, 0, 0]);
+    expect(offsets.get("i0/right/1")).toEqual([1000, 0, 0]);
     const sum = [...offsets.values()].reduce(
-      (acc, o) => [acc[0] + o[0], acc[1] + o[1], acc[2] + o[2]],
+      (a, o) => [a[0] + o[0], a[1] + o[1], a[2] + o[2]],
       [0, 0, 0],
     );
     expect(sum).toEqual([0, 0, 0]);
   });
 
-  it("scales the displacement linearly with the spread factor", () => {
+  it("does NOT explode a single-part assembly (nothing to separate)", () => {
     const offsets = pieceExplodeOffsets(
-      lineScene([
-        [0, 0, 0],
-        [1000, 0, 0],
-      ]),
-      0.5,
-    );
-    expect(offsets.get("i0/part/0")).toEqual([-250, 0, 0]);
-    expect(offsets.get("i0/part/1")).toEqual([250, 0, 0]);
-  });
-
-  it("leaves a piece sitting on the centroid in place", () => {
-    // mids: -500, 0, +500 → centroid 0; the middle piece has zero offset.
-    const offsets = pieceExplodeOffsets(
-      lineScene([
-        [-1000, 0, 0],
-        [-500, 0, 0],
-        [0, 0, 0],
+      scene([
+        ["frame", 0, 0, 0],
+        ["frame", 1000, 0, 0],
+        ["frame", 2000, 0, 0],
       ]),
       1,
     );
-    expect(offsets.get("i0/part/1")).toEqual([0, 0, 0]);
-    expect(offsets.get("i0/part/0")).toEqual([-500, 0, 0]);
-    expect(offsets.get("i0/part/2")).toEqual([500, 0, 0]);
+    for (const o of offsets.values()) expect(o).toEqual([0, 0, 0]);
   });
 
-  it("uses each piece's rotated axis midpoint (instance-local)", () => {
-    // One vertical piece (rotated +90° about Z): mid = at + rotate([500,0,0]) = at + [0,500,0].
-    const scene: Scene3D = {
-      units: "mm",
-      instances: [
-        {
-          instanceId: "i0",
-          releaseId: "r@1",
-          at: [0, 0, 0],
-          rotationArcMin: [0, 0, 0],
-          pieces: [
-            {
-              id: "i0/post/0",
-              componentCode: "c",
-              name: "post",
-              lengthMm: 1000,
-              at: [0, 0, 0],
-              rotationArcMin: [0, 0, ARCMIN_QUARTER],
-            },
-            {
-              id: "i0/post/1",
-              componentCode: "c",
-              name: "post",
-              lengthMm: 1000,
-              at: [0, 2000, 0],
-              rotationArcMin: [0, 0, ARCMIN_QUARTER],
-            },
-          ],
-        },
-      ],
-    };
-    // mids: [0,500,0] and [0,2500,0] → centroid [0,1500,0].
-    const offsets = pieceExplodeOffsets(scene, 1);
-    expect(offsets.get("i0/post/0")).toEqual([0, -1000, 0]);
-    expect(offsets.get("i0/post/1")).toEqual([0, 1000, 0]);
+  it("treats distinct part paths (dots/brackets) as distinct parts", () => {
+    const offsets = pieceExplodeOffsets(
+      scene([
+        ["frame.post[left]", 0, 0, 0],
+        ["frame.rail[top]", 2000, 0, 0],
+      ]),
+      1,
+    );
+    expect(offsets.get("i0/frame.post[left]/0")).toEqual([-1000, 0, 0]);
+    expect(offsets.get("i0/frame.rail[top]/1")).toEqual([1000, 0, 0]);
   });
 
-  it("emits nothing for an empty instance and a zero offset for a lone piece", () => {
-    expect(pieceExplodeOffsets({ units: "mm", instances: [] }).size).toBe(0);
-    const lone = pieceExplodeOffsets(lineScene([[0, 0, 0]]), 1);
-    expect(lone.get("i0/part/0")).toEqual([0, 0, 0]);
+  it("scales the displacement linearly with the spread factor", () => {
+    const offsets = pieceExplodeOffsets(
+      scene([
+        ["left", 500, 0, 0],
+        ["right", 2500, 0, 0],
+      ]),
+      0.5,
+    );
+    expect(offsets.get("i0/left/0")).toEqual([-500, 0, 0]);
+    expect(offsets.get("i0/right/1")).toEqual([500, 0, 0]);
   });
 
   it("defaults to DEFAULT_EXPLODE_SPREAD when the spread is omitted", () => {
-    const scene = lineScene([
-      [0, 0, 0],
-      [1000, 0, 0],
+    const s = scene([
+      ["left", 500, 0, 0],
+      ["right", 2500, 0, 0],
     ]);
-    expect([...pieceExplodeOffsets(scene).entries()]).toEqual([
-      ...pieceExplodeOffsets(scene, DEFAULT_EXPLODE_SPREAD).entries(),
+    expect([...pieceExplodeOffsets(s).entries()]).toEqual([
+      ...pieceExplodeOffsets(s, DEFAULT_EXPLODE_SPREAD).entries(),
     ]);
   });
 
+  it("emits nothing for an empty instance", () => {
+    expect(pieceExplodeOffsets({ units: "mm", instances: [] }).size).toBe(0);
+  });
+
   it("is deterministic", () => {
-    const a = pieceExplodeOffsets(
-      lineScene([
-        [0, 0, 0],
-        [1000, 0, 0],
-        [3000, 0, 0],
-      ]),
-    );
-    const b = pieceExplodeOffsets(
-      lineScene([
-        [0, 0, 0],
-        [1000, 0, 0],
-        [3000, 0, 0],
-      ]),
-    );
-    expect([...a.entries()]).toEqual([...b.entries()]);
+    const s = scene([
+      ["a", 0, 0, 0],
+      ["b", 1000, 0, 0],
+      ["c", 3000, 0, 0],
+    ]);
+    expect([...pieceExplodeOffsets(s).entries()]).toEqual([...pieceExplodeOffsets(s).entries()]);
   });
 });
 

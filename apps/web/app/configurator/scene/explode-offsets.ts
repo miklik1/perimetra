@@ -5,11 +5,13 @@
  * in app-land and is a deterministic transform of the already-derived `Scene3D`.
  * No three.js, no React, so the geometry is unit-testable in plain node.
  *
- * The rule is a linear "bloom": every piece slides away from its instance's
- * piece-cloud centroid along the line through its own axis midpoint. Perimeter
- * pieces (frame rails, posts) travel far; central pieces (infill near the middle)
- * barely move — so the original arrangement stays legible while the assembly
- * opens up. The midpoint convention matches `deviation-markers.ts` exactly
+ * The rule is a linear "bloom" BY PART: each part (all the pieces sharing a
+ * partPath) slides AS A RIGID UNIT away from the instance's centroid, along the
+ * line through the part's own centroid. Grouping is what makes it read as an
+ * exploded ASSEMBLY rather than a per-piece scatter — the four bars of a frame
+ * travel together, the infill travels together, the lock travels together;
+ * perimeter parts travel far, central parts barely move, so the arrangement
+ * stays legible. The midpoint convention matches `deviation-markers.ts` exactly
  * (instance-local `at` + the rotated half-length), so a deviated piece's edge
  * marker tracks the bloomed position with no drift (the §6 guarantee holds
  * through the explode — see `scene-canvas.tsx`).
@@ -21,11 +23,10 @@
  */
 import { add, rotate, type Scene3D, type Vec3 } from "@repo/renderers";
 
-/** How far the bloom throws a piece, as a fraction of its distance from the
- *  centroid (1 = the piece doubles its distance from centre at full explode). */
+/** How far the bloom throws a part, as a fraction of its distance from the
+ *  centroid (1 = the part doubles its distance from centre at full explode). */
 export const DEFAULT_EXPLODE_SPREAD = 0.85;
 
-const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const scaleVec = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
 
 /** Instance-local axis midpoint of a piece (origin + rotated half-length). */
@@ -33,10 +34,25 @@ function pieceMid(at: Vec3, rotationArcMin: Vec3, lengthMm: number): Vec3 {
   return add(at, rotate([lengthMm / 2, 0, 0], rotationArcMin));
 }
 
+/** The part address inside a piece id `<instanceId>/<partPath>/<pieceId>` (I9) —
+ *  everything between the instance and the piece segment, so pieces of one part
+ *  share it and bloom together. */
+function partKey(id: string): string {
+  const segs = id.split("/");
+  return segs.length >= 3 ? segs.slice(1, -1).join("/") : id;
+}
+
+interface PartAccum {
+  ids: string[];
+  sum: Vec3;
+  n: number;
+}
+
 /**
  * `Map<pieceId, displacement-at-factor-1>` — each piece's full bloom offset in
- * instance-local space. A lone piece (or one sitting on the centroid) gets a
- * zero offset; an empty instance contributes nothing.
+ * instance-local space, shared across the part so the part stays rigid. A
+ * single-part assembly (or a part on the centroid) gets a zero offset; an empty
+ * instance contributes nothing. The offsets sum to zero (a balanced bloom).
  */
 export function pieceExplodeOffsets(
   scene: Scene3D,
@@ -46,16 +62,41 @@ export function pieceExplodeOffsets(
   for (const instance of scene.instances) {
     const n = instance.pieces.length;
     if (n === 0) continue;
-    const mids = instance.pieces.map((p) => pieceMid(p.at, p.rotationArcMin, p.lengthMm));
-    const centroid: Vec3 = [0, 0, 0];
-    for (const m of mids) {
-      centroid[0] += m[0] / n;
-      centroid[1] += m[1] / n;
-      centroid[2] += m[2] / n;
+
+    // Group pieces by part; accumulate each part's midpoint sum + the assembly's.
+    const parts = new Map<string, PartAccum>();
+    const all: Vec3 = [0, 0, 0];
+    for (const piece of instance.pieces) {
+      const m = pieceMid(piece.at, piece.rotationArcMin, piece.lengthMm);
+      all[0] += m[0];
+      all[1] += m[1];
+      all[2] += m[2];
+      const key = partKey(piece.id);
+      let part = parts.get(key);
+      if (part === undefined) {
+        part = { ids: [], sum: [0, 0, 0], n: 0 };
+        parts.set(key, part);
+      }
+      part.ids.push(piece.id);
+      part.sum[0] += m[0];
+      part.sum[1] += m[1];
+      part.sum[2] += m[2];
+      part.n += 1;
     }
-    instance.pieces.forEach((piece, i) => {
-      out.set(piece.id, scaleVec(sub(mids[i]!, centroid), spread));
-    });
+    const centroid: Vec3 = [all[0] / n, all[1] / n, all[2] / n];
+
+    for (const part of parts.values()) {
+      const partCentroid: Vec3 = [part.sum[0] / part.n, part.sum[1] / part.n, part.sum[2] / part.n];
+      const offset = scaleVec(
+        [
+          partCentroid[0] - centroid[0],
+          partCentroid[1] - centroid[1],
+          partCentroid[2] - centroid[2],
+        ],
+        spread,
+      );
+      for (const id of part.ids) out.set(id, offset);
+    }
   }
   return out;
 }
