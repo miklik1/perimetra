@@ -35,6 +35,19 @@ describe("cameraPose", () => {
     expect(pullback).toBeGreaterThan(detail);
   });
 
+  it("exploded is a pulled-back isometric three-quarter looking at the centre", () => {
+    const p = cameraPose("exploded", frame);
+    expect(p.target).toEqual(frame.center);
+    // Further out than the hero fit (the bloom grows the assembly) and lifted
+    // above + offset on both x and z (an isometric vantage).
+    const exploded = len(sub(p.position, frame.center));
+    const hero = len(sub(frame.cameraPosition, frame.center));
+    expect(exploded).toBeGreaterThan(hero);
+    expect(p.position[0]).toBeGreaterThan(frame.center[0]);
+    expect(p.position[1]).toBeGreaterThan(frame.center[1]);
+    expect(p.position[2]).toBeGreaterThan(frame.center[2]);
+  });
+
   it("away looks AWAY from the scene — the target is the position reflected past the centre", () => {
     const p = cameraPose("away", frame);
     const toCamera = sub(p.position, frame.center);

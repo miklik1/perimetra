@@ -12,7 +12,7 @@ import type { Vec3 } from "@repo/renderers";
 
 import type { SceneFrame } from "./frame";
 
-export type CameraView = "hero" | "front" | "detail" | "pullback" | "away";
+export type CameraView = "hero" | "front" | "detail" | "pullback" | "away" | "exploded";
 
 export interface CameraPose {
   position: Vec3;
@@ -35,6 +35,12 @@ export function cameraPose(view: CameraView, frame: SceneFrame): CameraPose {
     case "pullback":
       // The Summary reveal — pulled back, generous three-quarter.
       return { position: [cx + r * 1.15, cy + r * 0.95, cz + r * 2.7], target: frame.center };
+    case "exploded":
+      // The §9 exploded reveal (ADR 0091): a pulled-back isometric three-quarter
+      // that frames the bloomed assembly (which grows the AABB by ~the explode
+      // spread), so every separated piece stays in shot. Distances are tuned for
+      // DEFAULT_EXPLODE_SPREAD; the camera stays user-interruptible (ADR 0077).
+      return { position: [cx + r * 2.9, cy + r * 2.3, cz + r * 2.9], target: frame.center };
     case "away": {
       // Point the camera AWAY: the look-at is the position reflected through the
       // centre, so the scene is squarely behind the frustum (the §6 e2e check).

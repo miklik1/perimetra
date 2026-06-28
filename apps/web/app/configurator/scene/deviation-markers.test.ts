@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Scene3D } from "@repo/renderers";
+import type { Scene3D, Vec3 } from "@repo/renderers";
 
 import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
 
@@ -61,6 +61,13 @@ describe("deviatedPieceCenters", () => {
 
   it("collects every deviated piece", () => {
     expect(deviatedPieceCenters(sceneWith(["a", "b"]))).toHaveLength(2);
+  });
+
+  it("shifts the centre by an explode offset so the §6 marker tracks the bloom", () => {
+    // Piece 'a' assembled centre is [1000,0,0]; with the instance unrotated the
+    // bloom offset adds straight through.
+    const offsets = new Map<string, Vec3>([["a", [50, -30, 20]]]);
+    expect(deviatedPieceCenters(sceneWith(["a"]), offsets)).toEqual([[1050, -30, 20]]);
   });
 });
 

@@ -218,6 +218,8 @@ const cs = {
     ralCaveat: "Barva orientační — potvrďte dle vzorku.",
     deviationsTitle: "Odchylky",
     deviationHighlight: "Zvýraznit odchylky",
+    explode: "Rozložit",
+    explodeAmount: "Míra rozložení",
     stepProdukt: "Produkt",
     stepLokalita: "Lokalita",
     stepKonfigurace: "Konfigurace",

@@ -11,14 +11,22 @@ import { add, rotate, type Scene3D, type Vec3 } from "@repo/renderers";
 /** World-space centre of every deviated piece in the scene (instance pose ∘
  *  piece pose ∘ axis midpoint) — the points the edge markers track. Matches the
  *  exact arc-minute trig the walker draws with, so a marker points where the
- *  piece actually is. */
-export function deviatedPieceCenters(scene: Scene3D): Vec3[] {
+ *  piece actually is.
+ *
+ *  `offsets` (ADR 0091) shifts each piece's instance-local origin by its FULL
+ *  explode displacement, so passing the bloom map yields the centres at full
+ *  explode. The world centre is linear in the explode factor, so the projector
+ *  lerps between the assembled (no offsets) and bloomed (with offsets) centres —
+ *  the §6 guarantee holds through the explode, with no marker drift. */
+export function deviatedPieceCenters(scene: Scene3D, offsets?: Map<string, Vec3>): Vec3[] {
   const centers: Vec3[] = [];
   for (const instance of scene.instances) {
     for (const piece of instance.pieces) {
       if (piece.deviated !== true) continue;
       const mid = add(piece.at, rotate([piece.lengthMm / 2, 0, 0], piece.rotationArcMin));
-      centers.push(add(instance.at, rotate(mid, instance.rotationArcMin)));
+      const off = offsets?.get(piece.id);
+      const local = off === undefined ? mid : add(mid, off);
+      centers.push(add(instance.at, rotate(local, instance.rotationArcMin)));
     }
   }
   return centers;

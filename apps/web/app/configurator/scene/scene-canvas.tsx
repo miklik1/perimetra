@@ -9,17 +9,29 @@ import {
 } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { ACESFilmicToneMapping, SRGBColorSpace, Vector3, type Vector3Tuple } from "three";
+import {
+  ACESFilmicToneMapping,
+  MathUtils,
+  SRGBColorSpace,
+  Vector3,
+  type Vector3Tuple,
+} from "three";
 
 import { useTranslations } from "@repo/i18n/web";
 import type { Scene3D, Vec3 } from "@repo/renderers";
-import { Badge, IconButton } from "@repo/ui";
+import { Badge, IconButton, IconCluster } from "@repo/ui";
 
 import { cameraPose, type CameraView } from "./camera-poses";
 import { useDeviation } from "./deviation";
 import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
+import { useExplode } from "./explode";
+import { pieceExplodeOffsets } from "./explode-offsets";
 import { frameScene } from "./frame";
 import { SceneRenderer } from "./scene-renderer";
+
+/** Damping rate for the assemble↔explode transition — perceptually settled in
+ *  ~0.5 s, fully snapped by ~0.9 s (ADR 0091; the exact feel is render-taste). */
+const EXPLODE_LAMBDA = 6;
 
 /**
  * The configurator's studio canvas (ADR 0073/0074/0075/0076). World units are mm
@@ -51,10 +63,18 @@ export default function SceneCanvas({
 }) {
   const t = useTranslations("configurator");
   const frame = useMemo(() => frameScene(scene), [scene]);
+  // Exploded view (ADR 0091): the per-piece bloom + the deviated-piece centres at
+  // both ends (assembled and fully bloomed) so the §6 markers lerp through the
+  // explode without drift.
+  const offsets = useMemo(() => pieceExplodeOffsets(scene), [scene]);
   const deviatedCenters = useMemo(() => deviatedPieceCenters(scene), [scene]);
+  const deviatedBloomed = useMemo(() => deviatedPieceCenters(scene, offsets), [scene, offsets]);
   const markerRefs = useRef<(HTMLDivElement | null)[]>([]);
   const highlight = useDeviation((s) => s.highlight);
   const toggleHighlight = useDeviation((s) => s.toggle);
+  const explodeTarget = useExplode((s) => s.target);
+  const toggleExplode = useExplode((s) => s.toggle);
+  const setExplodeTarget = useExplode((s) => s.setTarget);
 
   const keyLight: Vector3Tuple = [
     frame.center[0] + frame.radius,
@@ -62,7 +82,11 @@ export default function SceneCanvas({
     frame.center[2] + frame.radius,
   ];
 
-  const pose = useMemo(() => cameraPose(view, frame), [view, frame]);
+  // Explode overrides the step pose with the pulled-back iso reveal; keyed off the
+  // discrete `target` (not the animating `factor`) so the pose never recomputes
+  // mid-transition — the camera animates once, then the user can orbit freely.
+  const effectiveView: CameraView = explodeTarget > 0 ? "exploded" : view;
+  const pose = useMemo(() => cameraPose(effectiveView, frame), [effectiveView, frame]);
 
   return (
     <div className="relative h-full w-full">
@@ -84,7 +108,7 @@ export default function SceneCanvas({
         {/* One warm key for directional modelling + specular pop on the profile edges. */}
         <directionalLight position={keyLight} intensity={1.6} color="#fff6ec" />
 
-        <SceneRenderer scene={scene} />
+        <SceneRenderer scene={scene} offsets={offsets} />
 
         {/* Soft contact shadow grounds the gate on the scene floor (hero mode, no grid). */}
         <ContactShadows
@@ -136,10 +160,18 @@ export default function SceneCanvas({
           />
         </Environment>
 
-        {/* §6: per-frame projection of each deviated piece → its DOM edge marker. */}
+        {/* §6: per-frame projection of each deviated piece → its DOM edge marker
+            (lerped through the live explode so the marker tracks the bloom). */}
         {deviatedCenters.length > 0 && (
-          <DeviationProjector centers={deviatedCenters} markerRefs={markerRefs} />
+          <DeviationProjector
+            centers={deviatedCenters}
+            bloomed={deviatedBloomed}
+            markerRefs={markerRefs}
+          />
         )}
+
+        {/* Eases the explode factor toward its target each frame (ADR 0091). */}
+        <ExplodeAnimator />
 
         <CameraRig pose={pose} />
       </Canvas>
@@ -161,6 +193,37 @@ export default function SceneCanvas({
             <WarningGlyph />
           </div>
         ))}
+      </div>
+
+      {/* Exploded-view control (ADR 0091, §9 reveal) — a toggle plus a scrub
+          slider once engaged; a viewport affordance, like the deviation cluster. */}
+      <div className="absolute left-3 top-3 flex items-start gap-2">
+        <IconCluster>
+          <IconButton
+            size="sm"
+            active={explodeTarget > 0}
+            onClick={toggleExplode}
+            aria-pressed={explodeTarget > 0}
+            aria-label={t("explode")}
+            title={t("explode")}
+          >
+            <ExplodeGlyph />
+          </IconButton>
+        </IconCluster>
+        {explodeTarget > 0 && (
+          // Floored at 5% so a scrub can never drive the target to 0 — full
+          // collapse is the toggle's job, so the slider never unmounts itself
+          // (and yanks the camera home) from under a drag.
+          <input
+            type="range"
+            min={5}
+            max={100}
+            value={Math.round(explodeTarget * 100)}
+            onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
+            aria-label={t("explodeAmount")}
+            className="accent-copper mt-2 h-1 w-28 cursor-pointer"
+          />
+        )}
       </div>
 
       {/* Count badge + highlight toggle — only when something deviates (§6 chrome). */}
@@ -220,12 +283,17 @@ function WarningGlyph() {
 }
 
 /** Inside the Canvas: project each deviated piece every frame and drive its DOM
- *  marker by ref (visibility + clamped edge position). No React state per frame. */
+ *  marker by ref (visibility + clamped edge position). No React state per frame.
+ *  The projected centre is lerped between the assembled (`centers`) and fully
+ *  bloomed (`bloomed`) positions by the live explode factor (linear, ADR 0091),
+ *  so the §6 marker keeps pointing at the piece all the way through the explode. */
 function DeviationProjector({
   centers,
+  bloomed,
   markerRefs,
 }: {
   centers: Vec3[];
+  bloomed: Vec3[];
   markerRefs: React.RefObject<(HTMLDivElement | null)[]>;
 }) {
   const camera = useThree((s) => s.camera);
@@ -233,11 +301,17 @@ function DeviationProjector({
   const v = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
+    const factor = useExplode.getState().factor;
     for (let i = 0; i < centers.length; i += 1) {
       const el = markerRefs.current[i];
       if (el === null || el === undefined) continue;
-      const c = centers[i]!;
-      v.set(c[0], c[1], c[2]).project(camera);
+      const a = centers[i]!;
+      const b = bloomed[i]!;
+      v.set(
+        a[0] + (b[0] - a[0]) * factor,
+        a[1] + (b[1] - a[1]) * factor,
+        a[2] + (b[2] - a[2]) * factor,
+      ).project(camera);
       const p = placeEdgeMarker({ x: v.x, y: v.y, z: v.z }, size.width, size.height);
       if (!p.offscreen) {
         el.style.display = "none";
@@ -249,4 +323,38 @@ function DeviationProjector({
   });
 
   return null;
+}
+
+/** Inside the Canvas: eases the live explode `factor` toward the `target` each
+ *  frame (ADR 0091). Reads/writes the store imperatively so this node never
+ *  re-renders, and stops touching state once it settles (no perpetual churn). */
+function ExplodeAnimator() {
+  useFrame((_, dt) => {
+    const { factor, target, setFactor } = useExplode.getState();
+    if (factor === target) return;
+    const next = MathUtils.damp(factor, target, EXPLODE_LAMBDA, dt);
+    setFactor(Math.abs(next - target) < 5e-3 ? target : next);
+  });
+  return null;
+}
+
+/** Four corner-arrows bursting outward — the explode/expand glyph (no icon lib,
+ *  matching the `WarningGlyph` precedent). */
+function ExplodeGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 4H5v4M5 5l5 5" />
+      <path d="M15 4h4v4M19 5l-5 5" />
+      <path d="M9 20H5v-4M5 19l5-5" />
+      <path d="M15 20h4v-4M19 19l-5-5" />
+    </svg>
+  );
 }

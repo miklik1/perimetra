@@ -219,6 +219,8 @@ const en: MessagesInput = {
     ralCaveat: "Colour is indicative — confirm against a physical sample.",
     deviationsTitle: "Deviations",
     deviationHighlight: "Highlight deviations",
+    explode: "Explode",
+    explodeAmount: "Explode amount",
     stepProdukt: "Product",
     stepLokalita: "Location",
     stepKonfigurace: "Configuration",
