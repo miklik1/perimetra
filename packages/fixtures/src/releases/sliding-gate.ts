@@ -240,14 +240,19 @@ export const slidingGateV1: ProductModelRelease = {
             at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40"), expr("0")],
             rotation: [expr("0"), expr("0"), expr("90")],
           },
-          // The cantilever suspension diagonal: rises from the rear post top
-          // toward the front at the suspension angle — its mitre cut is the
-          // cut list's angled-cut proof.
+          // The cantilever suspension diagonal: a brace from the post crown that
+          // DESCENDS into the leaf to the bottom rail at the suspension angle
+          // (ADR 0095 — was `180 - angle`, which made it ascend up-and-out of the
+          // gate into the sky, attached to nothing). `180 + angle` points local
+          // +X down-and-left, so the far end lands at rail level inside the leaf.
+          // NOTE (flagged): the Excel řez for member D is 55 / 17,5 — the authored
+          // cuts below (angle / 90) do NOT match and are a cut-list fidelity fix
+          // owed in the cut-angle slice; geometry placement is corrected here.
           {
             key: "diagonal",
             length: expr("diagonal"),
             at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40 + postB"), expr("0")],
-            rotation: [expr("0"), expr("0"), expr("180 - suspension_angle")],
+            rotation: [expr("0"), expr("0"), expr("180 + suspension_angle")],
             cuts: { left: expr("suspension_angle"), right: expr("90") },
           },
           {
@@ -357,11 +362,19 @@ export const slidingGateV1: ProductModelRelease = {
         name: "Nosník V-horní vedení",
         // Literal 6.5 m (MVP Excel T23, not rounded).
         bom: { unit: "meter", quantity: expr("6.5"), lengthMm: expr("6500"), category: "material" },
+        // ADR 0095: the 6.5 m Nosník V is the LONGEST member (> railLength) — the
+        // ground carrier/track the cantilever leaf rides on, which must extend well
+        // past the opening for the gate to slide fully open. It was authored at
+        // `clear_height + 60` (overhead), so it floated as a full-width beam above
+        // the gate attached to nothing. Seat it at ground level, extending toward
+        // the open side. NOTE (flagged): the exact role/section/end-positions of
+        // this member are inferred (the proven gates-MVP render omits it entirely);
+        // confirm against FIL / the Excel workshop diagram in the fidelity pass.
         geometry: [
           {
             key: "beam",
             length: expr("6500"),
-            at: [expr("-150"), expr("ground_elevation_mm + clear_height_mm + 60"), expr("0")],
+            at: [expr("-150"), expr("ground_elevation_mm"), expr("0")],
           },
         ],
       },

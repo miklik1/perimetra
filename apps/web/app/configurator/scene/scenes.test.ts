@@ -12,15 +12,17 @@ describe("sceneById", () => {
     expect(sceneById("nope").id).toBe("studio");
   });
 
-  it("studio is the invisible default (no ground, no context)", () => {
+  it("studio is the neutral default: a floor but no context geometry (ADR 0095)", () => {
+    // Studio gained a real ground plane — a gate over a void reads as floating
+    // (the configurator's "models floating in air" defect). It still carries no
+    // pillars/fence/hedge context (that's what distinguishes it from the others).
     const studio = sceneById("studio");
-    expect(studio.ground).toBeNull();
+    expect(studio.ground).not.toBeNull();
     expect(studio.context).toBe("none");
   });
 
-  it("every non-studio scene carries a visible ground", () => {
+  it("every scene carries a visible ground (no scene floats the gate)", () => {
     for (const s of SCENES) {
-      if (s.id === "studio") continue;
       expect(s.ground).not.toBeNull();
     }
   });

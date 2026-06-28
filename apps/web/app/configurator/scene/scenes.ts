@@ -34,7 +34,16 @@ export interface ScenePreset {
 /** The curated install contexts. `studio` is the v1 neutral field (default);
  *  the rest place the gate on a coloured ground with light context geometry. */
 export const SCENES: ScenePreset[] = [
-  { id: "studio", label: "Studio", sky: "#ededed", ground: null, context: "none" },
+  // Studio is the neutral default — but it still needs a real floor: a gate
+  // rendered over a void reads as "floating in air" (ADR 0095). A soft concrete
+  // ground + the ContactShadows seat it on a surface; no context geometry.
+  {
+    id: "studio",
+    label: "Studio",
+    sky: "#eef1f3",
+    ground: { colorHex: "#c7c4be", roughness: 0.92 },
+    context: "none",
+  },
   {
     id: "prijezd",
     label: "Příjezd",
