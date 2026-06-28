@@ -28,7 +28,9 @@ import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
 import { useExplode } from "./explode";
 import { pieceExplodeOffsets } from "./explode-offsets";
 import { frameScene, type SceneFrame } from "./frame";
+import { SceneBackdrop } from "./scene-backdrop";
 import { SceneRenderer } from "./scene-renderer";
+import { sceneById, SCENES, useScene } from "./scenes";
 import { useSection } from "./section";
 import { sectionPlane } from "./section-plane";
 
@@ -98,6 +100,12 @@ export default function SceneCanvas({
     [sectionEnabled],
   );
 
+  // In-context preset scene (ADR 0093) — sky tint + backdrop; the memo'd walker
+  // is unaffected (its props don't change), so switching scenes never reconciles
+  // the piece tree.
+  const sceneId = useScene((s) => s.sceneId);
+  const setScene = useScene((s) => s.setScene);
+
   const keyLight: Vector3Tuple = [
     frame.center[0] + frame.radius,
     frame.center[1] + frame.radius * 1.6,
@@ -125,19 +133,25 @@ export default function SceneCanvas({
         camera={{ fov: 45, near: 10, far: 120000, position: pose.position }}
         dpr={[1, 2]}
       >
-        {/* The Bombardier warm-grey field (brand `--color-field`); IBL stays invisible above it. */}
-        <color attach="background" args={["#ededed"]} />
+        {/* The field / sky tint — the studio grey (brand `--color-field`) or the
+            chosen scene's sky (ADR 0093); IBL stays invisible above it. */}
+        <color attach="background" args={[sceneById(sceneId).sky]} />
 
         {/* Soft floor so shadowed faces never crush to black — the IBL carries the fill. */}
         <ambientLight intensity={0.3} />
         {/* One warm key for directional modelling + specular pop on the profile edges. */}
         <directionalLight position={keyLight} intensity={1.6} color="#fff6ec" />
 
+        {/* In-context backdrop (ADR 0093) — ground + context, or nothing in studio. */}
+        <SceneBackdrop sceneId={sceneId} frame={frame} />
+
         <SceneRenderer scene={scene} offsets={offsets} clippingPlanes={clippingPlanes} />
 
-        {/* Soft contact shadow grounds the gate on the scene floor (hero mode, no grid). */}
+        {/* Soft contact shadow grounds the gate on the scene floor (hero mode, no
+            grid) — at the gate's true solid bottom (`min[1]`) so it sits on the
+            ADR-0093 backdrop floor, not the axis centreline. */}
         <ContactShadows
-          position={[frame.center[0], frame.groundY, frame.center[2]]}
+          position={[frame.center[0], frame.min[1], frame.center[2]]}
           scale={frame.radius * 2.6}
           resolution={1024}
           blur={2.6}
@@ -308,6 +322,28 @@ export default function SceneCanvas({
           </IconButton>
         </div>
       )}
+
+      {/* In-context scene picker (ADR 0093) — a pill row; labels are domain data. */}
+      <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
+        {SCENES.map((s) => {
+          const active = s.id === sceneId;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setScene(s.id)}
+              className={
+                active
+                  ? "border-copper bg-chrome text-foreground shadow-soft rounded-full border px-3 py-1 text-xs font-medium"
+                  : "border-border bg-chrome-subtle/80 text-muted-foreground hover:border-copper/60 rounded-full border px-3 py-1 text-xs"
+              }
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
