@@ -3,9 +3,10 @@
 **Status:** Accepted (2026-06-26 — Phase A, the legal-document spine; interlocked
 with ADR 0080). **Implementation:** Implemented (model `money.ts` exact-decimal
 arithmetic + `RoundingPolicy`; the engine money boundary rounds under the
-threaded policy; goldens re-baselined). The **new canonical golden values + the
-provisional rounding policy are flagged for Martin's sign-off** (the re-baseline
-is a real, signed-off change, not a pretended-stable invariant).
+threaded policy; goldens re-baselined). The **canonical golden values are signed
+off (2026-06-28, Martin)**; the **rounding-policy parameters remain
+accountant-gated** (the re-baseline is a real, signed-off change, not a
+pretended-stable invariant).
 
 ## Context
 
@@ -62,11 +63,17 @@ sum, but **not valid CZK money** (you cannot invoice 0.4 haléř). The tax layer
   harness's raw-float `toBeCloseTo(golden, 6)` checks dropped to `, 2)` (the raw
   float now sits within a haléř of the rounded golden — same precedent the delta0
   harness already used).
-- **FLAGGED for Martin's sign-off:** (a) the new canonical numbers above; (b) the
-  provisional default policy (haléř / half-up / end-of-invoice). The accountant
-  must confirm: haléř vs whole-CZK rounding (cash zaokrouhlení), half-up vs
-  half-even, and per-line vs end-of-invoice for the VAT base. The policy is data on
-  the price table, so changing it is a publish, not a code change.
+- **SIGNED OFF (2026-06-28, Martin):** (a) the new canonical golden numbers above
+  are the accepted baseline. The `.504 → .5` move is the unavoidable consequence of
+  rounding the I10 money boundary to at least haléř (sub-haléř values were never
+  invoiceable CZK), so the values are blessed independent of the finer policy
+  questions below.
+- **STILL accountant-gated (provisional):** (b) the default policy _parameters_
+  (haléř / half-up / end-of-invoice). The accountant must confirm: haléř vs
+  whole-CZK rounding (cash zaokrouhlení), half-up vs half-even, and per-line vs
+  end-of-invoice for the VAT base. The policy is data on the price table, so a later
+  change is a publish, not a code change — but it WOULD re-baseline the goldens again
+  (tracked at that change, not a reopening of this sign-off).
 
 Related: ADR 0045 (the Expr numeric domain — float, untouched), ADR 0080 (the tax
 layer rounds VAT/gross under this policy), CORE_SPEC I10. Roadmap: [vault]
