@@ -10,6 +10,8 @@ const frame: SceneFrame = {
   radius: 2000,
   cameraPosition: [2800, 2350, 3600],
   groundY: 0,
+  min: [-1000, 0, -1000],
+  max: [3000, 1500, 1000],
 };
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];

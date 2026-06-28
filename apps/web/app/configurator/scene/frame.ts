@@ -13,42 +13,68 @@ export interface SceneFrame {
   /** World-space scene floor (AABB min Y) — where the studio `<ContactShadows>`
    *  plane sits so the gate is grounded, not floating (ADR 0074). */
   groundY: number;
+  /** World AABB corners (pre-pad) — the section cut plane slides across these
+   *  (ADR 0092). */
+  min: Vec3;
+  max: Vec3;
 }
 
 export function frameScene(scene: Scene3D): SceneFrame {
-  const min: Vec3 = [Infinity, Infinity, Infinity];
-  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
-  const grow = (p: Vec3) => {
+  // Two boxes: the AXIS box (piece centrelines) drives the camera fit + shadow
+  // ground exactly as before; the SOLID box (axis box grown by each piece's
+  // profile cross-section) drives the section cut (ADR 0092), so no axis is ever
+  // degenerate — a planar gate keeps real depth for the Z cut to slide across.
+  const aMin: Vec3 = [Infinity, Infinity, Infinity];
+  const aMax: Vec3 = [-Infinity, -Infinity, -Infinity];
+  const sMin: Vec3 = [Infinity, Infinity, Infinity];
+  const sMax: Vec3 = [-Infinity, -Infinity, -Infinity];
+  const grow = (lo: Vec3, hi: Vec3, p: Vec3, half: number) => {
     for (let i = 0; i < 3; i += 1) {
-      min[i] = Math.min(min[i]!, p[i]!);
-      max[i] = Math.max(max[i]!, p[i]!);
+      lo[i] = Math.min(lo[i]!, p[i]! - half);
+      hi[i] = Math.max(hi[i]!, p[i]! + half);
     }
   };
 
   for (const instance of scene.instances) {
     for (const piece of instance.pieces) {
-      // Piece axis endpoints through piece + instance transforms (the
-      // cross-section pad below covers profile thickness).
+      // Half the larger cross-section dimension — the renderer's box fallback is
+      // 40mm, so a profile-less piece reads as ±20. Conservative (axis-aligned
+      // exact, a rotated profile within a hair) — the section box is presentation.
+      const half =
+        piece.profile === undefined
+          ? 20
+          : Math.max(piece.profile.wMm ?? 40, piece.profile.dMm ?? 40) / 2;
       const ends: Vec3[] = [
         piece.at,
         add(piece.at, rotate([piece.lengthMm, 0, 0], piece.rotationArcMin)),
       ];
-      for (const end of ends) grow(add(instance.at, rotate(end, instance.rotationArcMin)));
+      for (const end of ends) {
+        const world = add(instance.at, rotate(end, instance.rotationArcMin));
+        grow(aMin, aMax, world, 0);
+        grow(sMin, sMax, world, half);
+      }
     }
   }
 
-  if (min[0] === Infinity) {
-    return { center: [0, 1000, 0], radius: 3000, cameraPosition: [3000, 2500, 5000], groundY: 0 };
+  if (aMin[0] === Infinity) {
+    return {
+      center: [0, 1000, 0],
+      radius: 3000,
+      cameraPosition: [3000, 2500, 5000],
+      groundY: 0,
+      min: [-1500, 0, -1500],
+      max: [1500, 2000, 1500],
+    };
   }
 
   const pad = 150;
-  const center: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+  const center: Vec3 = [(aMin[0] + aMax[0]) / 2, (aMin[1] + aMax[1]) / 2, (aMin[2] + aMax[2]) / 2];
   const radius =
-    Math.hypot(max[0] - min[0] + pad, max[1] - min[1] + pad, max[2] - min[2] + pad) / 2;
+    Math.hypot(aMax[0] - aMin[0] + pad, aMax[1] - aMin[1] + pad, aMax[2] - aMin[2] + pad) / 2;
   const cameraPosition: Vec3 = [
     center[0] + radius * 0.9,
     center[1] + radius * 0.8,
     center[2] + radius * 1.8,
   ];
-  return { center, radius, cameraPosition, groundY: min[1] };
+  return { center, radius, cameraPosition, groundY: aMin[1], min: sMin, max: sMax };
 }

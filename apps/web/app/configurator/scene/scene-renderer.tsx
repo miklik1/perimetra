@@ -1,8 +1,8 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Euler, type Group, type Texture } from "three";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { Euler, type Group, type Plane, type Texture } from "three";
 
 import type { Scene3D, ScenePiece, Vec3 } from "@repo/renderers";
 
@@ -29,6 +29,12 @@ import { buildPieceGeometry } from "./profile-geometry";
  * discipline) — never through React state — so the walker re-renders only on
  * scene/finish/highlight, never per animation frame. Each piece registers its
  * group + assembled origin + bloom offset on mount.
+ *
+ * Section view (ADR 0092): a world-space clipping plane (passed as `clippingPlanes`,
+ * a STABLE array whose plane is mutated imperatively in `scene-canvas`) cuts the
+ * pieces so the hollow profiles reveal. The walker is `memo`'d so an explode/
+ * section SCRUB (which re-renders the canvas) never reconciles the piece tree —
+ * only a scene/finish/highlight/clip-toggle change does.
  *
  * Conventions (packages/renderers/src/shared.ts): piece origin is the START
  * of its axis, cross-section centered on the axis, rotation applied X→Y→Z
@@ -70,6 +76,7 @@ function Piece({
   material,
   woodMap,
   highlight,
+  clippingPlanes,
 }: {
   piece: ScenePiece;
   /** This piece's full-explode displacement (ADR 0091); zero = never blooms. */
@@ -78,6 +85,8 @@ function Piece({
   material: FinishMaterial;
   woodMap: Texture | null;
   highlight: boolean;
+  /** Section cut planes (ADR 0092); empty = no clip. */
+  clippingPlanes: Plane[];
 }) {
   const rotation = useMemo(() => euler(piece.rotationArcMin), [piece.rotationArcMin]);
   // Procedural profile extrusion (ADR 0073): a real cross-section solid, cached
@@ -139,6 +148,8 @@ function Piece({
       emissiveIntensity={emissiveIntensity}
       metalness={metalness}
       roughness={roughness}
+      clippingPlanes={clippingPlanes}
+      clipShadows
     />
   );
 
@@ -164,13 +175,17 @@ function Piece({
   );
 }
 
-export function SceneRenderer({
+export const SceneRenderer = memo(function SceneRenderer({
   scene,
   offsets,
+  clippingPlanes,
 }: {
   scene: Scene3D;
   /** Per-piece full explode displacement (ADR 0091); empty/zero = assembled. */
   offsets: Map<string, Vec3>;
+  /** Section cut planes (ADR 0092); a STABLE ref so a scrub never re-renders the
+   *  walker — the plane is mutated imperatively in `scene-canvas`. */
+  clippingPlanes: Plane[];
 }) {
   // One subscription each: the resolved finish material is a stable reference
   // until the chosen finish changes; `highlight` is the §6 emphasis toggle. The
@@ -215,10 +230,11 @@ export function SceneRenderer({
               material={material}
               woodMap={woodMap}
               highlight={highlight}
+              clippingPlanes={clippingPlanes}
             />
           ))}
         </group>
       ))}
     </>
   );
-}
+});

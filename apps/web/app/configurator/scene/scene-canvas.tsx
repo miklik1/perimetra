@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   ACESFilmicToneMapping,
   MathUtils,
+  Plane,
   SRGBColorSpace,
   Vector3,
   type Vector3Tuple,
@@ -26,8 +27,14 @@ import { useDeviation } from "./deviation";
 import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
 import { useExplode } from "./explode";
 import { pieceExplodeOffsets } from "./explode-offsets";
-import { frameScene } from "./frame";
+import { frameScene, type SceneFrame } from "./frame";
 import { SceneRenderer } from "./scene-renderer";
+import { useSection } from "./section";
+import { sectionPlane } from "./section-plane";
+
+/** Stable empty clip set — a no-section scene passes this so the memo'd walker
+ *  never re-renders for the toggle's "off" state. */
+const NO_PLANES: Plane[] = [];
 
 /** Damping rate for the assemble↔explode transition — perceptually settled in
  *  ~0.5 s, fully snapped by ~0.9 s (ADR 0091; the exact feel is render-taste). */
@@ -76,6 +83,21 @@ export default function SceneCanvas({
   const toggleExplode = useExplode((s) => s.toggle);
   const setExplodeTarget = useExplode((s) => s.setTarget);
 
+  // Section (ADR 0092): a single stable Plane the SectionPlaneRig mutates each
+  // frame; the clip set passed to the (memo'd) walker switches ref only on the
+  // on/off toggle, so axis/position scrubs never reconcile the piece tree.
+  const sectionEnabled = useSection((s) => s.enabled);
+  const sectionAxis = useSection((s) => s.axis);
+  const sectionPosition = useSection((s) => s.position);
+  const toggleSection = useSection((s) => s.toggle);
+  const cycleSectionAxis = useSection((s) => s.cycleAxis);
+  const setSectionPosition = useSection((s) => s.setPosition);
+  const sectionPlaneRef = useRef(new Plane(new Vector3(0, 0, -1), 0));
+  const clippingPlanes = useMemo(
+    () => (sectionEnabled ? [sectionPlaneRef.current] : NO_PLANES),
+    [sectionEnabled],
+  );
+
   const keyLight: Vector3Tuple = [
     frame.center[0] + frame.radius,
     frame.center[1] + frame.radius * 1.6,
@@ -96,6 +118,9 @@ export default function SceneCanvas({
           toneMapping: ACESFilmicToneMapping,
           toneMappingExposure: 1.0,
           outputColorSpace: SRGBColorSpace,
+          // Per-material section clipping (ADR 0092) — pieces only; the studio
+          // shadow/IBL stay whole.
+          localClippingEnabled: true,
         }}
         camera={{ fov: 45, near: 10, far: 120000, position: pose.position }}
         dpr={[1, 2]}
@@ -108,7 +133,7 @@ export default function SceneCanvas({
         {/* One warm key for directional modelling + specular pop on the profile edges. */}
         <directionalLight position={keyLight} intensity={1.6} color="#fff6ec" />
 
-        <SceneRenderer scene={scene} offsets={offsets} />
+        <SceneRenderer scene={scene} offsets={offsets} clippingPlanes={clippingPlanes} />
 
         {/* Soft contact shadow grounds the gate on the scene floor (hero mode, no grid). */}
         <ContactShadows
@@ -173,6 +198,9 @@ export default function SceneCanvas({
         {/* Eases the explode factor toward its target each frame (ADR 0091). */}
         <ExplodeAnimator />
 
+        {/* Mutates the section plane each frame off the live cut (ADR 0092). */}
+        <SectionPlaneRig plane={sectionPlaneRef.current} frame={frame} />
+
         <CameraRig pose={pose} />
       </Canvas>
 
@@ -195,8 +223,9 @@ export default function SceneCanvas({
         ))}
       </div>
 
-      {/* Exploded-view control (ADR 0091, §9 reveal) — a toggle plus a scrub
-          slider once engaged; a viewport affordance, like the deviation cluster. */}
+      {/* Viewport mode cluster (ADR 0091 explode + ADR 0092 section) — toggles
+          plus their contextual scrub controls; an affordance like the deviation
+          cluster on the right. */}
       <div className="absolute left-3 top-3 flex items-start gap-2">
         <IconCluster>
           <IconButton
@@ -209,21 +238,56 @@ export default function SceneCanvas({
           >
             <ExplodeGlyph />
           </IconButton>
+          <IconButton
+            size="sm"
+            active={sectionEnabled}
+            onClick={toggleSection}
+            aria-pressed={sectionEnabled}
+            aria-label={t("section")}
+            title={t("section")}
+          >
+            <SectionGlyph />
+          </IconButton>
         </IconCluster>
-        {explodeTarget > 0 && (
-          // Floored at 5% so a scrub can never drive the target to 0 — full
-          // collapse is the toggle's job, so the slider never unmounts itself
-          // (and yanks the camera home) from under a drag.
-          <input
-            type="range"
-            min={5}
-            max={100}
-            value={Math.round(explodeTarget * 100)}
-            onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
-            aria-label={t("explodeAmount")}
-            className="accent-copper mt-2 h-1 w-28 cursor-pointer"
-          />
-        )}
+        <div className="flex flex-col gap-2">
+          {explodeTarget > 0 && (
+            // Floored at 5% so a scrub can never drive the target to 0 — full
+            // collapse is the toggle's job, so the slider never unmounts itself
+            // (and yanks the camera home) from under a drag.
+            <input
+              type="range"
+              min={5}
+              max={100}
+              value={Math.round(explodeTarget * 100)}
+              onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
+              aria-label={t("explodeAmount")}
+              className="accent-copper mt-0.5 h-1 w-28 cursor-pointer"
+            />
+          )}
+          {sectionEnabled && (
+            <div className="flex items-center gap-2">
+              <IconButton
+                size="sm"
+                onClick={cycleSectionAxis}
+                aria-label={t("sectionAxis")}
+                title={t("sectionAxis")}
+              >
+                <span className="font-data text-[11px] font-semibold uppercase">{sectionAxis}</span>
+              </IconButton>
+              {/* Full 0..1 range — position is WHERE the cut sits, not whether
+                  section is on (that's the toggle), so 0/1 are valid ends. */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(sectionPosition * 100)}
+                onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
+                aria-label={t("sectionPosition")}
+                className="accent-copper h-1 w-28 cursor-pointer"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Count badge + highlight toggle — only when something deviates (§6 chrome). */}
@@ -336,6 +400,38 @@ function ExplodeAnimator() {
     setFactor(Math.abs(next - target) < 5e-3 ? target : next);
   });
   return null;
+}
+
+/** Inside the Canvas: mutates the single section `Plane` in place each frame off
+ *  the live cut (ADR 0092). Reads the store imperatively (no subscription, no
+ *  re-render); a no-op while the section is off (the clip set is empty then). */
+function SectionPlaneRig({ plane, frame }: { plane: Plane; frame: SceneFrame }) {
+  useFrame(() => {
+    const { enabled, axis, position } = useSection.getState();
+    if (!enabled) return;
+    const { normal, constant } = sectionPlane(frame, axis, position);
+    plane.normal.set(normal[0], normal[1], normal[2]);
+    plane.constant = constant;
+  });
+  return null;
+}
+
+/** A framed square with a dashed cut line — the section/řez glyph. */
+function SectionGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M4 13h16" strokeDasharray="2 2.5" />
+    </svg>
+  );
 }
 
 /** Four corner-arrows bursting outward — the explode/expand glyph (no icon lib,

@@ -54,6 +54,18 @@ describe("frameScene", () => {
     expect(f.cameraPosition[1]).toBeGreaterThan(f.center[1]!); // camera looks down
     expect(f.radius).toBeGreaterThan(1000);
     expect(f.radius).toBeLessThan(1400);
+    // The SOLID AABB the section plane slides across — the axis box grown by the
+    // profile half-extent (±20 for the profile-less box fallback), so it has real
+    // depth on every axis (camera/ground above stay on the axis box).
+    expect(f.min).toEqual([-20, -20, -20]);
+    expect(f.max).toEqual([2020, 1020, 20]);
+  });
+
+  it("gives the section box real depth on a planar (z=0) scene so the depth cut can slide", () => {
+    // Every piece axis sits at z=0, but the profile cross-section gives the
+    // section box a non-degenerate Z extent — the ADR-0092 depth slider has travel.
+    const f = frameScene(scene());
+    expect(f.min[2]).toBeLessThan(f.max[2]!);
   });
 
   it("falls back to a sane pose (groundY 0) for an empty scene", () => {
