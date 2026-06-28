@@ -86,3 +86,34 @@ describe("proxyToBackend upstream failure", () => {
     expect(logger.error).toHaveBeenCalledWith("Backend proxy failed", { error: boom });
   });
 });
+
+describe("proxyToBackend Location rewrite (origin hiding)", () => {
+  // Security regression: with redirect:"manual" an upstream 3xx is returned
+  // verbatim. An absolute Location pointing at the (hidden) backend origin would
+  // leak the internal host:port to the browser — defeating the proxy's purpose.
+  it("rewrites a backend-origin Location to the same-origin /api mount", async () => {
+    fetchSpy = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: `${backendBaseUrl}/v1/projects/42` },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const res = await proxyToBackend(makeRequest(), { backendBaseUrl });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/api/v1/projects/42");
+  });
+
+  it("passes a cross-origin Location (e.g. an OAuth provider) through unchanged", async () => {
+    const external = "https://accounts.example-idp.com/o/oauth2/auth?client_id=x";
+    fetchSpy = vi.fn(
+      async () => new Response(null, { status: 302, headers: { location: external } }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const res = await proxyToBackend(makeRequest(), { backendBaseUrl });
+    expect(res.headers.get("location")).toBe(external);
+  });
+});

@@ -30,28 +30,3 @@ export const loginResponseSchema = z.object({
 });
 
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
-
-/**
- * `POST /auth/refresh` response envelope. Only a fresh access token comes back —
- * the rotated refresh token rides in a new httpOnly `Set-Cookie`. Parsed by the
- * refresh flow in `@repo/auth` (bare fetch, outside the middleware chain).
- */
-export const refreshResponseSchema = z.object({
-  data: z.object({
-    accessToken: z.string().min(1),
-  }),
-});
-
-export type RefreshResponse = z.infer<typeof refreshResponseSchema>;
-
-/**
- * The persisted auth session (user identity only — never tokens). Validated when
- * rehydrating from platform storage (web `localStorage`, mobile secure-store),
- * which is a trust boundary: a stale/tampered value must not hydrate an invalid
- * `User` into the store (ADR 0014 — parse at the boundary).
- */
-export const authSessionSchema = z.object({
-  user: userSchema,
-});
-
-export type AuthSession = z.infer<typeof authSessionSchema>;

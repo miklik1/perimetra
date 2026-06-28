@@ -24,9 +24,19 @@ export class MeController {
   async me(
     @CurrentSession() session: SessionContext,
     @CurrentRole() role: OrgRole,
-  ): Promise<SessionContext["user"] & { role: OrgRole; isPlatformAdmin: boolean }> {
-    // Fresh per request (the cached `session.user.role` would be ≤5min stale).
+  ): Promise<
+    Pick<SessionContext["user"], "id" | "email" | "name" | "createdAt"> & {
+      role: OrgRole;
+      isPlatformAdmin: boolean;
+    }
+  > {
+    // Fresh per request (the cached `session.user.role` would be ≤60s stale).
     const isPlatformAdmin = await this.membership.isPlatformOperator(session.user.id);
-    return { ...session.user, role, isPlatformAdmin };
+    // Explicit client-safe allow-list (mirrors `meResponseSchema`): the admin()
+    // + twoFactor plugins add banned/banReason/banExpires/twoFactorEnabled to
+    // session.user, so spreading it would ship those over the wire. Field-pick
+    // only the contract fields; the org `role` + `isPlatformAdmin` are added fresh.
+    const { id, email, name, createdAt } = session.user;
+    return { id, email, name, createdAt, role, isPlatformAdmin };
   }
 }

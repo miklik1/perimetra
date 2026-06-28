@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { stripApiPrefix } from "@repo/api-mocks";
 import { logger } from "@repo/utils";
 
 /**
@@ -34,6 +33,18 @@ const DISALLOWED_RESPONSE_HEADERS = new Set([
   "content-length",
 ]);
 
+// Strip the mount prefix from a pathname, guarding on the `/` boundary so a
+// prefix-adjacent path (e.g. `/apidocs` under `/api`) is left intact. Inlined
+// (kept identical to @repo/api-mocks `core/dispatch.stripApiPrefix`) so the BFF
+// proxy — which DOES ship to the production server bundle — carries zero
+// dependency on the mock package and its demo fixtures (ADR 0018). The mock
+// dispatcher applies the same normalisation on its own copy.
+function stripApiPrefix(pathname: string, prefix?: string): string {
+  if (!prefix) return pathname || "/";
+  if (pathname === prefix) return "/";
+  return pathname.startsWith(`${prefix}/`) ? pathname.slice(prefix.length) : pathname;
+}
+
 export interface ProxyOptions {
   /** Real backend origin, e.g. `https://api.example.com`. */
   backendBaseUrl: string;
@@ -57,7 +68,8 @@ export async function proxyToBackend(request: Request, options: ProxyOptions): P
   } = options;
   const url = new URL(request.url);
   const path = stripApiPrefix(url.pathname, prefix);
-  const target = `${backendBaseUrl.replace(/\/$/, "")}${path}${url.search}`;
+  const backendOrigin = backendBaseUrl.replace(/\/$/, "");
+  const target = `${backendOrigin}${path}${url.search}`;
 
   const allowed = forwardCredentials
     ? [...ALLOWED_REQUEST_HEADERS, ...CREDENTIAL_HEADERS]
@@ -102,7 +114,17 @@ export async function proxyToBackend(request: Request, options: ProxyOptions): P
   for (const [name, value] of upstream.headers) {
     const lower = name.toLowerCase();
     if (lower === "set-cookie") continue; // handled below to preserve multiples
-    if (!DISALLOWED_RESPONSE_HEADERS.has(lower)) responseHeaders.set(name, value);
+    if (DISALLOWED_RESPONSE_HEADERS.has(lower)) continue;
+    if (lower === "location" && value.startsWith(backendOrigin)) {
+      // An upstream redirect (`redirect: "manual"`) whose absolute Location
+      // points back at the hidden backend origin would leak the internal
+      // host:port to the browser — defeating the origin-hiding this proxy
+      // exists for. Rewrite it to the same-origin BFF mount so only the path is
+      // exposed; cross-origin Locations (OAuth providers, etc.) pass through.
+      responseHeaders.set("location", `${prefix}${value.slice(backendOrigin.length)}`);
+      continue;
+    }
+    responseHeaders.set(name, value);
   }
   // Preserve every Set-Cookie (forEach/iterator folds them into one value).
   for (const cookie of upstream.headers.getSetCookie()) {

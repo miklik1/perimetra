@@ -111,10 +111,10 @@ describe("privacy erasure (real worker + queue)", () => {
     });
 
     // Session and credential account ROWS are gone. (No 401 assertion on
-    // the old cookie here: Better Auth's signed cookie cache —
-    // `cookieCache.maxAge: 300` in auth.instance.ts — answers getSession()
-    // without a store round-trip for up to 5 minutes by design, so
-    // revocation propagates within that window rather than instantly.)
+    // the old cookie here: Better Auth's signed cookie cache — the env-driven
+    // `cookieCache.maxAge` window (SESSION_COOKIE_CACHE_MAX_AGE_S, default 60s)
+    // in auth.instance.ts — answers getSession() without a store round-trip for
+    // that window by design, so revocation propagates within it, not instantly.)
     expect(await db.select().from(session).where(eq(session.userId, user.id))).toHaveLength(0);
     expect(await db.select().from(account).where(eq(account.userId, user.id))).toHaveLength(0);
     // The TOTP credential is purged too (ADR 0040 erasure path).

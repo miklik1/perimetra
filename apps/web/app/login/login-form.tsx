@@ -6,7 +6,7 @@ import { useId } from "react";
 import { useMutation } from "@repo/api/react";
 import { useAuthClient } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, FieldError } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { loginSchema, type LoginInput } from "@repo/validators";
 
@@ -99,11 +99,7 @@ export function LoginForm() {
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? emailErrorId : undefined}
         />
-        {errors.email && (
-          <p id={emailErrorId} className="text-destructive text-xs">
-            {errors.email.message}
-          </p>
-        )}
+        <FieldError id={emailErrorId} error={errors.email} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -118,11 +114,7 @@ export function LoginForm() {
           aria-invalid={errors.password ? true : undefined}
           aria-describedby={errors.password ? passwordErrorId : undefined}
         />
-        {errors.password && (
-          <p id={passwordErrorId} className="text-destructive text-xs">
-            {errors.password.message}
-          </p>
-        )}
+        <FieldError id={passwordErrorId} error={errors.password} />
       </div>
 
       <Button type="submit" disabled={mutation.isPending}>

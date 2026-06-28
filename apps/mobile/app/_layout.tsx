@@ -22,6 +22,7 @@ import { LocaleEffect } from "../components/locale-effect";
 import { ThemeEffect } from "../components/theme-effect";
 import { Toaster } from "../components/toaster";
 import { Button, SafeArea, Text, Stack as UIStack } from "../components/ui";
+import { ZodI18nBoot } from "../components/zod-i18n-boot";
 import { createMobileAuthClient } from "../lib/auth-client";
 import { bootFlags } from "../lib/flags";
 import { localeStore } from "../lib/locale";
@@ -123,6 +124,7 @@ export default function RootLayout() {
           <ThemeEffect />
           <LocaleEffect />
           <I18nProvider locale={locale} messages={getMessages(locale)}>
+            <ZodI18nBoot />
             <SafeAreaProvider>
               <Stack screenOptions={{ headerShown: false }} />
               {/* Mounted once, inside SafeAreaProvider (it reads insets) — the

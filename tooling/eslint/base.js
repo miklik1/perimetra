@@ -103,11 +103,13 @@ export const baseConfig = [
                 "!@repo/config/constants",
                 // @repo/db published subpaths (ADR 0032). NOTE: schema/*
                 // per-module entries are allowed one-by-one (not `schema/*`)
-                // for app code — a dedicated boundaries rule scoping apps/api
-                // modules to their own schema dir is still planned; tooling
-                // (drizzle-kit, seeds) uses the package root. `schema` itself
-                // is listed because a gitignore-style negation only re-opens a
-                // child if its parent is re-allowed.
+                // for app code; tooling (drizzle-kit, seeds) uses the package
+                // root. This allow-list only gates the cross-PACKAGE deep-import
+                // (by specifier) — it cannot express WHICH api module may reach
+                // WHICH schema. That per-module ownership scoping is enforced by
+                // the `local/no-cross-module-schema-import` rule below. `schema`
+                // itself is listed because a gitignore-style negation only
+                // re-opens a child if its parent is re-allowed.
                 "!@repo/db/client",
                 "!@repo/db/columns",
                 "!@repo/db/pii",
@@ -344,6 +346,15 @@ export const baseConfig = [
       //     allowedPathFragments: ["/packages/formatting/src/", "/packages/i18n/src/"]
       //   }]
       "local/no-direct-date-imports": "warn",
+      // ADR 0032 module-schema ownership: an `apps/api/src/modules/<m>/` file
+      // may import only `@repo/db/schema/<m>`. The global `no-restricted-imports`
+      // allow-list above re-opens every published `@repo/db/schema/*` subpath at
+      // the cross-PACKAGE level and cannot tell WHICH module reaches WHICH
+      // schema; this rule closes that gap. The `allow` map declares the only
+      // sanctioned cross-module reader: the privacy module anonymises the auth
+      // `user` row and writes the audit log (it owns the GDPR erasure boundary,
+      // ADR 0058). "warn" per the only-warn convention; `--max-warnings 0` blocks.
+      "local/no-cross-module-schema-import": ["warn", { allow: { privacy: ["auth", "audit"] } }],
     },
   },
   {

@@ -5,7 +5,7 @@ import { useId } from "react";
 import { invalidateKeys } from "@repo/api";
 import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, FieldError } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { createProjectSchema } from "@repo/validators";
 
@@ -81,11 +81,7 @@ export function CreateProjectForm() {
           aria-invalid={errors.name ? true : undefined}
           aria-describedby={errors.name ? nameErrorId : undefined}
         />
-        {errors.name && (
-          <p id={nameErrorId} className="text-destructive text-xs">
-            {errors.name.message}
-          </p>
-        )}
+        <FieldError id={nameErrorId} error={errors.name} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -99,11 +95,7 @@ export function CreateProjectForm() {
           aria-invalid={errors.description ? true : undefined}
           aria-describedby={errors.description ? descriptionErrorId : undefined}
         />
-        {errors.description && (
-          <p id={descriptionErrorId} className="text-destructive text-xs">
-            {errors.description.message}
-          </p>
-        )}
+        <FieldError id={descriptionErrorId} error={errors.description} />
       </div>
 
       <Button type="submit" disabled={mutation.isPending}>

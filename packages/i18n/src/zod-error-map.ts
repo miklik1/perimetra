@@ -1,4 +1,4 @@
-import type { ZodErrorMap } from "zod";
+import { z, type ZodErrorMap } from "zod";
 
 /**
  * Minimal translator shape — `(key, values?) => string`. Structurally satisfied
@@ -70,4 +70,16 @@ export function createZodErrorMap(t: Translator): ZodErrorMap {
         return undefined;
     }
   };
+}
+
+/**
+ * Install the error-map on the shared zod instance (`z.config`, ADR 0020) so
+ * every `@repo/validators` schema renders generic-code messages through `t`.
+ * This is the one place that touches zod's global config; the apps' boot
+ * components (`ZodI18nBoot`) call this and never import zod themselves — which
+ * also keeps the wiring on the SAME zod instance the validators use (one
+ * catalog version, deduped). Re-call on locale change to re-wire.
+ */
+export function installZodErrorMap(t: Translator): void {
+  z.config({ customError: createZodErrorMap(t) });
 }

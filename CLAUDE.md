@@ -310,7 +310,7 @@ and fresh clones use compose defaults (5432/6379/8000/9000/1025).
   state change + event row share one transaction, always (ADR 0037).
 - **Payloads are IDs-only, never PII** (jobs and outbox events). Processors
   re-fetch. This keeps Redis non-PII-bearing and rebuildable.
-- **PII columns must use `pii()`** from `@repo/db/columns` — the registry
+- **PII columns must use `pii()`** from `@repo/db/pii` — the registry
   drives GDPR export/erasure AND log redaction. A raw column leaks.
 - **Cron = BullMQ repeatables only**; `@nestjs/schedule` is banned (fires
   once per replica). Singleton work: jobId dedup or pg advisory lock.

@@ -7,7 +7,7 @@ Zod schemas + inferred types: the single source of runtime contracts, consumed b
 Barrel (`@repo/validators`):
 
 - User (`./user`): `userSchema` (`User`), `userListSchema`, `usersPageSchema` (`UsersPage`), `createUserSchema` (`CreateUserInput`).
-- Auth (`./auth`): `loginSchema` (`LoginInput`), `loginResponseSchema` (`LoginResponse`), `refreshResponseSchema` (`RefreshResponse`), `authSessionSchema` (`AuthSession`).
+- Auth (`./auth`): `loginSchema` (`LoginInput`), `loginResponseSchema` (`LoginResponse`).
 - API error (`./api-error`): `apiErrorEnvelopeSchema` (`ApiErrorEnvelope`).
 - Generic primitives (`./primitives`): `password`, `phoneE164`, `url`, `slug`, `positiveInt`, `money` — message-agnostic (translated copy comes from `@repo/i18n`'s zod error-map).
 

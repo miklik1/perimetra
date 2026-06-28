@@ -112,7 +112,7 @@ describe("auth (real Better Auth + Postgres + Redis)", () => {
     // admin() audit trail is what's under test here, not the platform MFA gate.
     await grantAdminRole(db, adminUser.id);
     // Fresh session AFTER the role grant — the signup session predates it, and
-    // the 5-min cookie cache would otherwise serve a stale (non-admin) session.
+    // the signed cookie cache would otherwise serve a stale (non-admin) session.
     const signIn = await inject(app, {
       method: "POST",
       url: "/api/auth/sign-in/email",

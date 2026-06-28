@@ -58,6 +58,23 @@ describe("loadEnv", () => {
     expect(env.BETTER_AUTH_SECRET).toBe("x".repeat(32));
   });
 
+  it("requires a strong bull-board password only when the board is enabled in production", () => {
+    // Disabled (the default) → a weak / placeholder password is irrelevant; the board never mounts.
+    expect(() => loadEnv({ ...STRONG_PRODUCTION, BULL_BOARD_PASSWORD: "admin" })).not.toThrow();
+    // Enabled with the weak default → rejected.
+    expect(() =>
+      loadEnv({ ...STRONG_PRODUCTION, BULL_BOARD_ENABLED: "true", BULL_BOARD_PASSWORD: "admin" }),
+    ).toThrow(/BULL_BOARD_PASSWORD/);
+    // Enabled with a strong password → accepted.
+    expect(() =>
+      loadEnv({
+        ...STRONG_PRODUCTION,
+        BULL_BOARD_ENABLED: "true",
+        BULL_BOARD_PASSWORD: "y".repeat(20),
+      }),
+    ).not.toThrow();
+  });
+
   it("does not enforce the secret guard outside production", () => {
     // Same placeholder secrets, but development → defaults stand, no throw.
     expect(loadEnv({}).BETTER_AUTH_SECRET).toBe("dev-secret-change-me");

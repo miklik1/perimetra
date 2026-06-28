@@ -93,11 +93,56 @@ describe("PrivacyProcessor export (Art. 20)", () => {
     expect(init.method).toBe("PUT");
     const body = JSON.parse(init.body) as { userId: string; data: Record<string, unknown> };
     expect(body.userId).toBe("u-1");
+    // Each entity carries its GDPR data-category alongside the handler's
+    // collections; absent `dataCategory` ⇒ "ordinary" (ADR 0040).
     expect(body.data).toEqual({
-      project: { projects: [{ id: "p1" }] },
-      comment: { comments: [] },
+      project: { projects: [{ id: "p1" }], category: "ordinary" },
+      comment: { comments: [], category: "ordinary" },
     });
     expect(presignArgs.contentLength).toBe(Buffer.byteLength(init.body));
+  });
+
+  it("tags each entity with its data-category — authoritative over a handler collision", async () => {
+    // Mechanical envelope only (ADR 0040): the FACTUAL category label.
+    // Escalating a real handler to "special-category" (and the Art. 9(2)
+    // basis-condition / basis-filtering it implies) is a per-module legal
+    // decision, deliberately NOT exercised here.
+    const handlers: PrivacyHandler[] = [
+      // Default (no dataCategory) ⇒ "ordinary".
+      {
+        entityType: "project",
+        exportUser: vi.fn().mockResolvedValue({ projects: [] }),
+        eraseUser: vi.fn(),
+      },
+      // Explicit special-category flows through unchanged.
+      {
+        entityType: "scan",
+        dataCategory: "special-category",
+        exportUser: vi.fn().mockResolvedValue({ scans: [] }),
+        eraseUser: vi.fn(),
+      },
+      // A handler that returns its OWN `category` key cannot clobber the
+      // authoritative tag — it is spread LAST.
+      {
+        entityType: "note",
+        exportUser: vi.fn().mockResolvedValue({ notes: [], category: "special-category" }),
+        eraseUser: vi.fn(),
+      },
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+
+    const { processor } = makeProcessor({ handlers });
+    await processor.process(job(PRIVACY_JOBS.export));
+
+    const fetchInit = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
+      body: string;
+    };
+    const data = (JSON.parse(fetchInit.body) as { data: Record<string, { category: string }> })
+      .data;
+    expect(data.project!.category).toBe("ordinary");
+    expect(data.scan!.category).toBe("special-category");
+    // The handler's own "category" collection key is overridden by the tag.
+    expect(data.note!.category).toBe("ordinary");
   });
 
   it("throws (so BullMQ retries) when the S3 upload is rejected", async () => {

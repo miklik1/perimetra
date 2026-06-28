@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loginResponseSchema, loginSchema, refreshResponseSchema } from "./auth";
+import { loginResponseSchema, loginSchema } from "./auth";
 
 const validUser = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -52,17 +52,5 @@ describe("loginResponseSchema", () => {
       data: { accessToken: "", user: validUser },
     });
     expect(r.success).toBe(false);
-  });
-});
-
-describe("refreshResponseSchema", () => {
-  it("parses the refresh envelope (accessToken only)", () => {
-    expect(refreshResponseSchema.parse({ data: { accessToken: "fresh" } })).toEqual({
-      data: { accessToken: "fresh" },
-    });
-  });
-
-  it("rejects an empty accessToken", () => {
-    expect(refreshResponseSchema.safeParse({ data: { accessToken: "" } }).success).toBe(false);
   });
 });

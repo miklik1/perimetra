@@ -41,13 +41,15 @@ const ANY_PATTERN = new RegExp(STRING_PATTERNS.map((p) => `(?:${p.source})`).joi
 // The PII registry (packages/db/src/pii.ts, ADR 0040) "drives the Sentry
 // beforeSend scrubber", so every pii()-registered column NAME is mirrored here:
 // name/email/image (user), ip_address/user_agent (session), identifier
-// (verification). Add the bare column name when a new pii() column lands — the
-// registry is the source of truth, this list is the telemetry-sink mirror. (A
-// cross-package drift-guard test is owed but blocked: telemetry must stay
-// extension-less for Metro, so a NodeNext consumer like apps/api can't import it
-// to assert the contract — see the vault finding.)
+// (verification), and the customer odběratel fields ico/dic/phone/address_line/
+// city/postal_code (ADR 0071/0082). Add the bare column name when a new pii()
+// column lands — the registry is the source of truth, this list is the
+// telemetry-sink mirror. `scrub.pii-contract.test.ts` guards the mirror against
+// drift: telemetry can't import @repo/db (extension-less for Metro + the DAG
+// forbids the edge), so the test reads the schema SOURCE and asserts the
+// scrubber redacts every pii() column name rather than importing the registry.
 const SENSITIVE_KEYS =
-  /^(authorization|cookie|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|rodne[-_]?cislo|birth[-_]?number|name|image|ip[-_]?address|user[-_]?agent|identifier)$/i;
+  /^(authorization|cookie|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|rodne[-_]?cislo|birth[-_]?number|name|image|ip[-_]?address|user[-_]?agent|identifier|ico|dic|phone|address[-_]?line|city|postal[-_]?code)$/i;
 
 // SDK/build metadata that is never user input: stack-frame locations, module
 // and symbol names, release/build identifiers. Exempt from string redaction so

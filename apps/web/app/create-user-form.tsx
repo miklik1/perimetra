@@ -5,7 +5,7 @@ import { useId } from "react";
 import { invalidateKeys, keys, optimisticUpdate } from "@repo/api";
 import { useMutation, useQueryClient, useUsersQueries } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, FieldError } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { createUserSchema, type CreateUserInput, type User } from "@repo/validators";
 
@@ -95,11 +95,7 @@ export function CreateUserForm() {
           aria-invalid={errors.name ? true : undefined}
           aria-describedby={errors.name ? nameErrorId : undefined}
         />
-        {errors.name && (
-          <p id={nameErrorId} className="text-destructive text-xs">
-            {errors.name.message}
-          </p>
-        )}
+        <FieldError id={nameErrorId} error={errors.name} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -114,11 +110,7 @@ export function CreateUserForm() {
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? emailErrorId : undefined}
         />
-        {errors.email && (
-          <p id={emailErrorId} className="text-destructive text-xs">
-            {errors.email.message}
-          </p>
-        )}
+        <FieldError id={emailErrorId} error={errors.email} />
       </div>
 
       <Button type="submit" disabled={mutation.isPending}>

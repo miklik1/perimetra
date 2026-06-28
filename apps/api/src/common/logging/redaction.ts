@@ -3,8 +3,12 @@
  * PII-registry column name as a request/response body path — declaring a
  * column `pii()` in the schema is the ONLY step needed for it to be redacted
  * from logs. The schema import populates the registry as a side effect.
+ *
+ * `piiBodyKeys()` emits both the snake_case and camelCase form of each column,
+ * so a multi-word column (`ip_address`) is redacted under the casing the body /
+ * Drizzle row actually uses (`ipAddress`) — a snake-only path silently no-ops.
  */
-import { piiColumnNames } from "@repo/db/pii";
+import { piiBodyKeys } from "@repo/db/pii";
 
 import "@repo/db/schema";
 
@@ -17,6 +21,6 @@ const STATIC_PATHS = [
 export function buildRedactPaths(): string[] {
   return [
     ...STATIC_PATHS,
-    ...piiColumnNames().flatMap((name) => [`req.body.${name}`, `res.body.${name}`]),
+    ...piiBodyKeys().flatMap((name) => [`req.body.${name}`, `res.body.${name}`]),
   ];
 }

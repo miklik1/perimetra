@@ -64,6 +64,10 @@ export const nextJsConfig = [
       // wipe that breaks edit pre-fill and inline errors in modal forms.
       "local/no-rhf-reset-in-modal-useeffect": "warn",
 
+      // Bans raw `{errors.x.message}` renders — forces the i18n-wired
+      // <FieldError> sink so validation messages localize through z.config.
+      "local/no-raw-field-error-message": "warn",
+
       // React-Compiler memo-directive rules — OFF until React Compiler is
       // adopted. Enable these when `reactCompiler: true` is added to
       // next.config.js and the compiler Babel plugin is wired in.

@@ -22,7 +22,7 @@ test("home response carries the security headers and a nonce CSP", async ({ page
   // per-request nonce on script-src.
   const csp = headers["content-security-policy"];
   expect(csp).toBeTruthy();
-  expect(csp).toContain("frame-ancestors 'self'");
+  expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).toContain("object-src 'none'");
   expect(csp).toMatch(/script-src [^;]*'nonce-[^']+'/);
 

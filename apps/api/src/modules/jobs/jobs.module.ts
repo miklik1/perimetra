@@ -8,9 +8,11 @@
  * - Repeatables-only cron: schedule via `upsertScheduler()` —
  *   `@nestjs/schedule` is BANNED (in-process cron fires once PER REPLICA;
  *   BullMQ job schedulers are Redis-coordinated and replica-safe).
- * - bull-board mounted on the raw Fastify instance behind basic auth,
- *   non-production only (it lives outside Nest's router, so Nest guards
- *   can't protect it — same constraint as the Better Auth mount).
+ * - bull-board mounted on the raw Fastify instance behind basic auth, gated by
+ *   an explicit `BULL_BOARD_ENABLED` flag (auto-on for local development only).
+ *   It lives outside Nest's router, so Nest guards can't protect it — same
+ *   constraint as the Better Auth mount; the prod-secret guard (env.ts) forces a
+ *   strong password whenever it is enabled in production.
  */
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
@@ -78,7 +80,11 @@ export class JobsModule {
 
   async onModuleInit(): Promise<void> {
     const fastify = this.adapterHost?.httpAdapter?.getInstance<FastifyInstance>();
-    if (!fastify || this.env.NODE_ENV === "production") return;
+    // Explicit opt-in for any deployed env; auto-on for local development only.
+    // NODE_ENV inference alone exposed admin/admin on any staging that forgot
+    // NODE_ENV=production — fail closed unless BULL_BOARD_ENABLED is set.
+    const mount = this.env.BULL_BOARD_ENABLED || this.env.NODE_ENV === "development";
+    if (!fastify || !mount) return;
 
     const serverAdapter = new BullBoardFastifyAdapter();
     createBullBoard({

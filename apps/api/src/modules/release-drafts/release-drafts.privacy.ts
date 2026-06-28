@@ -16,6 +16,7 @@ import { type Db } from "@repo/db";
 import { releaseDraft } from "@repo/db/schema/release-drafts";
 
 import { DB } from "../../common/db/db.module.js";
+import { stripInternalColumns } from "../privacy/privacy-export.mapper.js";
 import { type PrivacyHandler } from "../privacy/privacy.tokens.js";
 
 @Injectable()
@@ -26,7 +27,7 @@ export class ReleaseDraftsPrivacyHandler implements PrivacyHandler {
 
   async exportUser(userId: string): Promise<Record<string, unknown>> {
     const rows = await this.db.select().from(releaseDraft).where(eq(releaseDraft.ownerId, userId));
-    return { releaseDrafts: rows };
+    return { releaseDrafts: stripInternalColumns(rows) };
   }
 
   async eraseUser(): Promise<void> {

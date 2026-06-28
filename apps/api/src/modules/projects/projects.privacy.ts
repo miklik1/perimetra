@@ -20,6 +20,7 @@ import { type Db } from "@repo/db";
 import { project } from "@repo/db/schema/projects";
 
 import { DB } from "../../common/db/db.module.js";
+import { stripInternalColumns } from "../privacy/privacy-export.mapper.js";
 import { type PrivacyHandler } from "../privacy/privacy.tokens.js";
 
 @Injectable()
@@ -30,7 +31,7 @@ export class ProjectsPrivacyHandler implements PrivacyHandler {
 
   async exportUser(userId: string): Promise<Record<string, unknown>> {
     const rows = await this.db.select().from(project).where(eq(project.ownerId, userId));
-    return { projects: rows };
+    return { projects: stripInternalColumns(rows) };
   }
 
   async eraseUser(): Promise<void> {

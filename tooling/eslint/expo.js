@@ -61,6 +61,10 @@ export const expoConfig = [
       // wipe that breaks pre-fill and inline errors (applies equally in RN forms).
       "local/no-rhf-reset-in-modal-useeffect": "warn",
 
+      // Bans raw `{errors.x.message}` renders — forces the i18n-wired
+      // <FieldError> sink (the RN mirror) so messages localize through z.config.
+      "local/no-raw-field-error-message": "warn",
+
       // React-Compiler memo-directive rules — OFF until React Compiler is
       // adopted. Enable these when the compiler is configured for this Expo app.
       // "local/no-tanstack-table-without-no-memo-directive": "warn",

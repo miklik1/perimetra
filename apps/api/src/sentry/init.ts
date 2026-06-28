@@ -8,10 +8,13 @@
  * Scrubbing (ADR 0040): cookies/auth headers always dropped; any object key
  * matching the PII registry (or the usual secret names) is masked. The
  * registry import is side-effectful — loading the schema populates it.
+ * `piiBodyKeys()` carries both the snake_case and camelCase form so a
+ * multi-word column (`ip_address`/`ipAddress`) is matched whichever the event
+ * key uses — a snake-only set silently misses the camelCase Drizzle/body key.
  */
 import * as Sentry from "@sentry/node";
 
-import { piiColumnNames } from "@repo/db/pii";
+import { piiBodyKeys } from "@repo/db/pii";
 
 import "@repo/db/schema";
 
@@ -43,7 +46,7 @@ export function scrubEvent<T extends Sentry.ErrorEvent>(event: T): T {
       }
     }
   }
-  const piiKeys = new Set(piiColumnNames().map((k) => k.toLowerCase()));
+  const piiKeys = new Set(piiBodyKeys().map((k) => k.toLowerCase()));
   scrubObject(event.extra, piiKeys);
   if (event.contexts) {
     for (const context of Object.values(event.contexts)) scrubObject(context, piiKeys);

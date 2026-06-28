@@ -7,6 +7,7 @@ import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { createUserSchema } from "@repo/validators";
 
 import { toast } from "../lib/toast";
+import { FieldError } from "./field-error";
 import { Button, Stack, Text } from "./ui";
 
 /**
@@ -64,11 +65,7 @@ export function CreateUserForm() {
           />
         )}
       />
-      {errors.name && (
-        <Text variant="caption" className="text-destructive">
-          {errors.name.message}
-        </Text>
-      )}
+      <FieldError error={errors.name} />
 
       <Controller
         control={control}
@@ -85,11 +82,7 @@ export function CreateUserForm() {
           />
         )}
       />
-      {errors.email && (
-        <Text variant="caption" className="text-destructive">
-          {errors.email.message}
-        </Text>
-      )}
+      <FieldError error={errors.email} />
 
       <Button
         label={mutation.isPending ? "Creating…" : "Create user"}

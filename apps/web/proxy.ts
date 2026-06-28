@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSessionCookie } from "@repo/auth";
+import { hasSessionCookie } from "@repo/auth";
 import { env } from "@repo/config/env/web";
 
 /**
@@ -25,6 +25,21 @@ import { env } from "@repo/config/env/web";
 
 /** Routes that require a session cookie to be present. */
 const PROTECTED_PREFIXES = ["/account", "/projects", "/configurator", "/site", "/quotes", "/admin"];
+
+// The static security header set re-applied to the middleware auth redirect,
+// which bypasses next.config.js `headers()` (a first-visit HTTP hit on a
+// protected route would otherwise reach /login with no HSTS / framing / sniffing
+// guard). MUST stay in sync with `securityHeaders` in next.config.js — the
+// redirect test pins HSTS + X-Frame-Options here, the e2e spec pins the config
+// copy. (A shared module isn't viable: next.config.js is loaded by the native
+// ESM config loader, which can't resolve the @repo/config barrel's TS re-export.)
+const STATIC_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
+  ["Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"],
+  ["X-Content-Type-Options", "nosniff"],
+  ["Referrer-Policy", "strict-origin-when-cross-origin"],
+  ["X-Frame-Options", "DENY"],
+  ["Permissions-Policy", "camera=(), microphone=(), geolocation=()"],
+];
 
 export function buildCsp(nonce: string): string {
   const isDev = env.NODE_ENV !== "production";
@@ -69,8 +84,11 @@ export function buildCsp(nonce: string): string {
     `img-src 'self' data: blob:`,
     `font-src 'self'`,
     `connect-src ${connectSrc.join(" ")}`,
-    // Standalone deploy — only this origin may frame the app.
-    `frame-ancestors 'self'`,
+    // Standalone deploy — deny framing outright. The legacy `X-Frame-Options:
+    // DENY` (next.config.js / STATIC_SECURITY_HEADERS) is only a fallback: when
+    // both are present browsers honour `frame-ancestors`, so this MUST match it
+    // ('none', not 'self', or same-origin framing would silently be allowed).
+    `frame-ancestors 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,
     `object-src 'none'`,
@@ -82,12 +100,10 @@ export function proxy(request: NextRequest) {
   // Auth gate first: a missing session cookie on a protected route short-circuits
   // to /login before we bother computing a CSP for a redirect.
   const isProtected = PROTECTED_PREFIXES.some((p) => request.nextUrl.pathname.startsWith(p));
-  // `getSessionCookie` covers the bare + `__Secure-` cookie names; the API
-  // service uses the `__Host-` prefix in production (design §7.1), which it
-  // does not check, so that spelling is covered explicitly.
-  const hasSessionCookie =
-    getSessionCookie(request) !== null || request.cookies.has("__Host-better-auth.session_token");
-  if (isProtected && !hasSessionCookie) {
+  // Presence-only session check via `@repo/auth` `hasSessionCookie` — covers the
+  // bare, `__Secure-`, and production `__Host-` cookie spellings (design §7.1).
+  // Never validates; the API service stays the authority.
+  if (isProtected && !hasSessionCookie(request)) {
     // Carry where the visitor was headed so the login form can send them back
     // (read + re-validated through `safeNextPath` on the client — the value is
     // never trusted on the way back out). The original path is server-derived
@@ -98,7 +114,11 @@ export function proxy(request: NextRequest) {
     url.pathname = "/login";
     url.search = "";
     url.searchParams.set("next", next);
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    // Re-apply the static security headers — middleware responses bypass
+    // next.config.js `headers()` (see STATIC_SECURITY_HEADERS above).
+    for (const [key, value] of STATIC_SECURITY_HEADERS) redirect.headers.set(key, value);
+    return redirect;
   }
 
   // Per-request nonce (ADR 0026). base64 of 16 random bytes.

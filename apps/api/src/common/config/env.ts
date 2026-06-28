@@ -30,13 +30,32 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.url().default("http://localhost:4000"),
   /** Web app origin — Better Auth trusted origin (its origin/CSRF check on /api/auth/*). */
   WEB_ORIGIN: z.url().default("http://localhost:3000"),
+  /**
+   * Session signed-cookie-cache window in seconds. `getSession()` serves the
+   * signed payload with NO DB/Redis read for this long, so a ban / revoke /
+   * erasure only takes effect within it — treat it as the revocation SLA, not a
+   * perf knob (was a hardcoded 300s). 0 disables the cache (every `getSession`
+   * reads fresh); the integration suite sets 0 so a DB-side ban / emailVerified
+   * flip is observed immediately. ADR 0033.
+   */
+  SESSION_COOKIE_CACHE_MAX_AGE_S: z.coerce.number().int().min(0).default(60),
   /** Dev default matches docker/compose.yaml. Session secondary storage (and BullMQ queues, ADR 0043). */
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
 
   // ---- jobs / outbox (ADR 0037/0043) ----------------------------------
   /** Outbox relay poll interval. 500ms is the latency/load sweet spot (ADR 0037 — no LISTEN/NOTIFY). */
   OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().positive().default(500),
-  /** bull-board basic-auth credentials (non-production only; the board never mounts in prod). */
+  /**
+   * bull-board mount switch. Explicit opt-in for any DEPLOYED env (the board
+   * auto-mounts for local development only — see JobsModule). NODE_ENV inference
+   * alone exposed the admin UI with admin/admin on any staging that forgot
+   * NODE_ENV=production; a forgotten flag now fails closed (no board).
+   */
+  BULL_BOARD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /** bull-board basic-auth credentials (dev / explicit opt-in only; prod requires a strong password — guarded below). */
   BULL_BOARD_USER: z.string().min(1).default("admin"),
   BULL_BOARD_PASSWORD: z.string().min(1).default("admin"),
 
@@ -144,14 +163,14 @@ export const ENV = Symbol("ENV");
  * Secrets that ship with a dev placeholder default so `pnpm dev` runs with no
  * `.env` — but a forgotten env var in production then boots green on a
  * publicly-known value. For a signing/admin key (the auth secret, the realtime
- * token + api key, the bull-board password) that is a forgeable-credential
- * trap, so production MUST override them.
+ * token + api key) that is a forgeable-credential trap, so production MUST
+ * override them. (The bull-board password is guarded SEPARATELY below — only
+ * when the board is actually enabled, since it never mounts otherwise.)
  */
 const PRODUCTION_FORBIDDEN_DEFAULTS: Readonly<Record<string, string>> = {
   BETTER_AUTH_SECRET: "dev-secret-change-me",
   CENTRIFUGO_API_KEY: "dev-centrifugo-api-key",
   CENTRIFUGO_TOKEN_SECRET: "dev-centrifugo-token-secret",
-  BULL_BOARD_PASSWORD: "admin",
 };
 
 /** Signing secrets that must additionally meet a minimum entropy in production. */
@@ -179,6 +198,16 @@ function assertProductionSecrets(env: Env): void {
     if (typeof value === "string" && value.length < min) {
       issues.push(`  ${key}: must be at least ${min} characters in production`);
     }
+  }
+  // bull-board, when explicitly enabled in production, mounts OUTSIDE Nest's
+  // guards (it lives on the raw Fastify instance) — so its basic-auth password
+  // must be strong and non-default. Only checked when the board is on; a prod
+  // deploy that never enables it carries no requirement (the default "admin" is
+  // a 5-char value that fails this check, so the length floor also bans it).
+  if (env.BULL_BOARD_ENABLED && env.BULL_BOARD_PASSWORD.length < 16) {
+    issues.push(
+      "  BULL_BOARD_PASSWORD: must be at least 16 characters when BULL_BOARD_ENABLED is set in production",
+    );
   }
   if (issues.length > 0) {
     throw new Error(`Insecure production environment:\n${issues.join("\n")}`);

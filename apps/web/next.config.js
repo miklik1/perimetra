@@ -11,11 +11,13 @@ import { env } from "@repo/config/env/web";
 // middleware; the locale comes from the cookie inside `./i18n/request.ts`.
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
-// Static security headers (ADR 0026) applied to every response. The per-request
-// nonce-based Content-Security-Policy is NOT here — a static `headers()` value
-// can't carry a fresh per-request nonce — it is set in `proxy.ts` (middleware).
-// These are the request-independent half: transport, sniffing, framing, and
-// feature-policy hardening for a standalone deploy.
+// Static security headers (ADR 0026) applied to every routed response. The
+// per-request nonce-based Content-Security-Policy is NOT here — a static
+// `headers()` value can't carry a fresh per-request nonce — it is set in
+// `proxy.ts` (middleware). These are the request-independent half: transport,
+// sniffing, framing, and feature-policy hardening for a standalone deploy. NOTE:
+// `proxy.ts` keeps a copy (`STATIC_SECURITY_HEADERS`) to re-apply on its auth
+// redirect, which bypasses this `headers()` hook — keep the two in sync.
 // Auth/API rewrite proxy (design §9): `/api/auth/*` (Better Auth) and
 // `/api/v1/*` (versioned API) go straight to the API service so the httpOnly
 // session cookie stays first-party (same-origin, no CORS). Server-only target —
@@ -38,8 +40,9 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Standalone (not iframed) — deny framing outright; belt-and-suspenders with
-  // the CSP `frame-ancestors 'self'` set in proxy.ts.
+  // Standalone (not iframed) — deny framing outright; matches the CSP
+  // `frame-ancestors 'none'` set in proxy.ts (when both are present browsers
+  // honour frame-ancestors, so the two MUST agree).
   { key: "X-Frame-Options", value: "DENY" },
   // Deny the high-risk powerful features by default; opt in per-feature later.
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },

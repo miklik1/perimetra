@@ -69,6 +69,21 @@ export interface CreateAuthDeps {
 const REDIS_KEY_PREFIX = "better-auth:";
 
 /**
+ * Password-reset stub delivery (no template ships — projects own the real
+ * flow). Records only THAT a reset was requested, keyed by the opaque user id;
+ * it logs NEITHER the email (PII) NOR the reset url — the url carries the
+ * single-use reset token, an account-takeover credential. Redaction is
+ * deny-by-omission: a token written to a log sink can't be un-logged. The
+ * verification path uses REAL delivery (Mailpit) and likewise logs no PII.
+ */
+export function logPasswordResetRequest(
+  logger: { log(message: string): void },
+  user: { id: string },
+): void {
+  logger.log(`[email stub] password reset requested for user ${user.id}`);
+}
+
+/**
  * admin() plugin endpoints whose mutations must leave an audit trail (ADR 0040),
  * keyed by Better Auth's request-hook `ctx.path` (relative to `basePath`). Each
  * carries the target user in `body.userId`. Read-only admin endpoints (list/get)
@@ -274,8 +289,11 @@ export function createAuth({
       // mail still goes out on signup, see emailVerification below); a
       // project that wants the hard gate flips this one flag.
       requireEmailVerification: false,
-      sendResetPassword: async ({ user, url }) => {
-        logger.log(`[email stub] password reset for ${user.email}: ${url}`);
+      // `url` (single-use reset token) and `user.email` are deliberately NOT
+      // destructured here — they must never reach a log sink. See
+      // logPasswordResetRequest.
+      sendResetPassword: async ({ user }) => {
+        logPasswordResetRequest(logger, user);
       },
     },
     emailVerification: {
@@ -298,9 +316,20 @@ export function createAuth({
       },
     },
     session: {
-      // Signed cookie cache: getSession() skips the DB/Redis round-trip for
-      // 5 minutes; revocations propagate within maxAge.
-      cookieCache: { enabled: true, maxAge: 300 },
+      // Explicit lifetime policy: 7-day expiry with a 1-day sliding refresh.
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
+      // Signed cookie cache: getSession() serves the signed payload with NO
+      // DB/Redis round-trip for maxAge seconds — so a ban / revoke / erasure
+      // only takes effect within this window. Bounded by
+      // SESSION_COOKIE_CACHE_MAX_AGE_S (default 60s, was a hardcoded 300s) and
+      // treated as the revocation SLA, not a perf knob; 0 disables it (the
+      // integration suite sets 0 so a DB-side ban / emailVerified flip is seen
+      // at once).
+      cookieCache: {
+        enabled: env.SESSION_COOKIE_CACHE_MAX_AGE_S > 0,
+        maxAge: env.SESSION_COOKIE_CACHE_MAX_AGE_S,
+      },
     },
     advanced: {
       // Explicit `false` is load-bearing: it suppresses the automatic

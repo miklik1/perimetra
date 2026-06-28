@@ -13,7 +13,11 @@ import { env } from "@repo/config/env/web";
 export const runtime = "nodejs";
 
 export function GET(): Response {
-  if (env.NEXT_PUBLIC_DEBUG_API !== "true") {
+  // Defense-in-depth: `NEXT_PUBLIC_DEBUG_API` is baked at build time, so a
+  // production image accidentally built with it "true" would otherwise serve the
+  // in-memory API ring buffer to any unauthenticated caller. Fail closed in
+  // production regardless of the flag.
+  if (env.NODE_ENV === "production" || env.NEXT_PUBLIC_DEBUG_API !== "true") {
     return NextResponse.json({ message: "Not found", code: "NOT_FOUND" }, { status: 404 });
   }
   return NextResponse.json({ entries: getApiLog() });

@@ -18,6 +18,6 @@ export {
 export { getMessages, cs, en } from "./messages";
 export type { Messages } from "./messages.types";
 
-export { createZodErrorMap, type Translator } from "./zod-error-map";
+export { createZodErrorMap, installZodErrorMap, type Translator } from "./zod-error-map";
 
 export { createLocaleStore, type LocaleStorage, type LocaleState } from "./store";

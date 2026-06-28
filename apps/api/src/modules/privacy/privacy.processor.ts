@@ -109,7 +109,14 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
   private async exportUser(userId: string): Promise<void> {
     const data: Record<string, unknown> = {};
     for (const handler of this.handlers) {
-      data[handler.entityType] = await handler.exportUser(userId);
+      // Tag every entity with its GDPR data-category (Art. 9 special-category
+      // data is identified, not basis-blind) alongside the handler's collections.
+      // `category` is spread LAST so the classification is always authoritative —
+      // a handler collection key can never clobber it.
+      data[handler.entityType] = {
+        ...(await handler.exportUser(userId)),
+        category: handler.dataCategory ?? "ordinary",
+      };
     }
 
     const body = JSON.stringify({ userId, exportedAt: new Date().toISOString(), data }, null, 2);

@@ -41,17 +41,10 @@ export const GC = {
 } as const;
 
 /**
- * Auth token lifetimes (ADR 0016). Platform-neutral so `@repo/auth` (middleware,
- * SessionMonitor) and the web MSW mock derive the same numbers. `ACCESS_TOKEN_TTL_MS`
- * is the assumed access-token lifetime when the JWT carries no `exp`;
- * `REFRESH_PROACTIVE_BUFFER_MS` is how early SessionMonitor refreshes before
- * expiry; `SESSION_MONITOR_INTERVAL_MS` is its poll cadence.
+ * Access-token lifetime (ADR 0016): the assumed lifetime when a JWT carries no
+ * `exp`. Platform-neutral so the web MSW mock mints tokens with the same value.
  */
 export const ACCESS_TOKEN_TTL_MS = 15 * 60_000;
-
-export const REFRESH_PROACTIVE_BUFFER_MS = 2 * 60_000;
-
-export const SESSION_MONITOR_INTERVAL_MS = 60_000;
 
 /**
  * Auth cookie names (ADR 0016 follow-up). Platform-neutral so the web cookie

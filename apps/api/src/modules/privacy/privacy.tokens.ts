@@ -13,9 +13,30 @@
 /** Multi-provider token: domain modules register `PrivacyHandler[]` under it. */
 export const PRIVACY_HANDLERS = Symbol("PRIVACY_HANDLERS");
 
+/**
+ * GDPR data-category of an exported entity. `"special-category"` marks Art. 9
+ * data (health / biometric / …) so the export DOCUMENT identifies it instead of
+ * being basis-blind. FACTUAL classification only, driven by the schema's own
+ * designation — the specific Art. 9(2) lawful-basis CONDITION and whether
+ * export/erasure should be basis-FILTERED remain a documented legal decision per
+ * derived project, NOT asserted here. The skeleton ships only the ordinary
+ * reference handler; escalating one is a per-module legal call.
+ *
+ * Module-local: handlers set the field with the string literal (structurally
+ * checked against {@link PrivacyHandler.dataCategory}), so nothing imports this
+ * name yet. A module that escalates and wants the type can re-export it.
+ */
+type DataCategory = "ordinary" | "special-category";
+
 export interface PrivacyHandler {
   /** Key the handler's export lands under in the export JSON ("project", …). */
   readonly entityType: string;
+  /**
+   * GDPR data-category of this handler's entity. Absent ⇒ `"ordinary"`. Set
+   * `"special-category"` only where the schema designates Art. 9 data, so the
+   * export marks it (see {@link DataCategory}).
+   */
+  readonly dataCategory?: DataCategory;
   /** Everything this module stores about the user (Art. 20 portability). */
   exportUser(userId: string): Promise<Record<string, unknown>>;
   /** Delete or anonymize it (Art. 17). MUST be idempotent — jobs retry. */

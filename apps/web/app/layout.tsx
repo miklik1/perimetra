@@ -8,6 +8,7 @@ import { I18nProvider } from "@repo/i18n/web";
 import { getLocale } from "@repo/i18n/web/server";
 
 import { Providers } from "./providers";
+import { ZodI18nBoot } from "./zod-i18n-boot";
 
 import "./globals.css";
 
@@ -107,6 +108,7 @@ export default async function RootLayout({
          * use `getTranslations` directly.
          */}
         <I18nProvider locale={locale} messages={messages} timeZone={DEFAULT_TIME_ZONE}>
+          <ZodI18nBoot />
           <Providers flagsBootstrap={flagsBootstrap}>{children}</Providers>
         </I18nProvider>
       </body>

@@ -81,4 +81,50 @@ describe("SessionGuard", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject(user);
   });
+
+  it("field-picks /v1/me so admin()/twoFactor plugin fields never leak over the wire", async () => {
+    // session.user carries the admin() + twoFactor plugin fields (banned/
+    // banReason/banExpires/twoFactorEnabled) + a plugin `role`; the controller
+    // must ship ONLY the client-safe contract {id,email,name,createdAt} plus the
+    // freshly-resolved org `role` + `isPlatformAdmin`.
+    getSession.mockResolvedValue({
+      session: { id: "s_1", userId: "u_1", activeOrganizationId: "org_1" },
+      user: {
+        id: "u_1",
+        email: "ada@example.com",
+        name: "Ada",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        role: "owner",
+        banned: true,
+        banReason: "spam",
+        banExpires: "2026-12-31T00:00:00.000Z",
+        twoFactorEnabled: true,
+        image: "https://example.com/a.png",
+      },
+    });
+    app = await bootApp();
+
+    const response = await app
+      .getHttpAdapter()
+      .getInstance()
+      .inject({ method: "GET", url: "/v1/me" });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as Record<string, unknown>;
+    expect(body).toMatchObject({
+      id: "u_1",
+      email: "ada@example.com",
+      name: "Ada",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      // the org role is the MembershipService-resolved value, NOT the leaked
+      // admin-plugin `role: "owner"`; isPlatformAdmin is resolved fresh.
+      role: "admin",
+      isPlatformAdmin: false,
+    });
+    expect(body).not.toHaveProperty("banned");
+    expect(body).not.toHaveProperty("banReason");
+    expect(body).not.toHaveProperty("banExpires");
+    expect(body).not.toHaveProperty("twoFactorEnabled");
+    expect(body).not.toHaveProperty("image");
+  });
 });

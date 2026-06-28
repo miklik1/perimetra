@@ -37,4 +37,21 @@ describe("sentry scrubEvent (ADR 0040)", () => {
     expect(scrubbed.contexts.state.email).toBe("[scrubbed]");
     expect(scrubbed.contexts.state.count).toBe(3);
   });
+
+  it("masks a MULTI-WORD pii column under its camelCase key (ipAddress/userAgent)", () => {
+    // session.ip_address / session.user_agent are pii() columns; a Drizzle row
+    // or body carries them as ipAddress / userAgent. A snake-only key set
+    // silently misses these — the regression this guards.
+    const event = {
+      extra: { ipAddress: "203.0.113.7", userAgent: "Mozilla/5.0", safe: "keep-me" },
+    } as unknown as AnyEvent;
+
+    const scrubbed = scrubEvent(event) as unknown as {
+      extra: { ipAddress: string; userAgent: string; safe: string };
+    };
+
+    expect(scrubbed.extra.ipAddress).toBe("[scrubbed]");
+    expect(scrubbed.extra.userAgent).toBe("[scrubbed]");
+    expect(scrubbed.extra.safe).toBe("keep-me");
+  });
 });
