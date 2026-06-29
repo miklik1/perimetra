@@ -53,6 +53,43 @@ const aluComponents = {
   guide_roller: 333,
 };
 
+/** The 2026 Excel `Výplet` H-column sell prices (cena/m). The 2D and 3D variant
+ *  of one physical profile share a catalog component, so four prices serve all
+ *  seven infill types (Excel shows identical cena/m within each pair). */
+const fillPrices = {
+  planka_100: 250,
+  lamela_113: 217,
+  lamela_120: 275,
+  planka_120: 275,
+};
+
+/** Shared base config for the per-fill-type regression cases: the Excel anchor
+ *  geometry (4.0 m × 1.5 m, 3-panel, 35°), varying ONLY the fill type so each
+ *  new option is proven to resolve through the catalog and price correctly. */
+const regressionBase: ConfigInput = {
+  opening_width_mm: 4000,
+  clear_height_mm: 1500,
+  suspension_angle: 35,
+  panel_count: 3,
+  opening_direction: "left",
+  include_motor: true,
+  include_installation: true,
+  manufacturing_hours: 18,
+};
+
+/** Dimensions every 4.0 m × 1.5 m 3-panel case shares (fill type changes only
+ *  the count + piece length, never the frame chain). */
+const base40Dims = {
+  postA: 1320,
+  postB: 1220,
+  diagonal: 2214,
+  railLength: 5332,
+  bottomRail: 4700,
+  panelWidth: 1300,
+  hProfileLength: 1205,
+};
+const regressionPrices = { components: { ...aluComponents, ...fillPrices }, ...sharedPrices };
+
 export const planka_100_2d_3panel: SlidingGoldenCase = {
   name: "PLAŇKA 100 2D · 3-panel · 4.0 m (Excel U34 delta-0)",
   anchored: true,
@@ -146,8 +183,116 @@ export const steel_frame_3panel: SlidingGoldenCase = {
   expectedTotalPrice: 73741.5,
 };
 
+/**
+ * The 5 m výroba Excel case (sheet `…do 5m-výroba.xlsx`, Kalkulace U34 =
+ * 83 522.442) — the SECOND genuine Excel anchor: LAMELA 113 3D at 4.5 m, 3-panel.
+ * The generic engine reproduces it byte-for-byte (every BOM line verified
+ * cell-for-cell). Note this sheet's own motor (12 300) and JRS-30 (323) prices,
+ * distinct from the 4.5 m sheet's 12 600 / 333. The raw delta-0 sum is
+ * 83522.442; the money boundary rounds it to haléř (ADR 0081) → 83522.44.
+ *
+ * (The third workbook — `…do 4,5m - výroba.xlsx`, U34 = 81 849.192 — is NOT a
+ * valid anchor: its rail formula is `=Q4*1.334`, a hand-typed VZOR-sample typo
+ * for the canonical `1.333` that both the KALK sheet and this 5 m sheet use. The
+ * engine's 1.333 is correct, so that workbook is deliberately not locked here.)
+ */
+export const lamela_113_3d_5m: SlidingGoldenCase = {
+  name: "LAMELA 113 3D · 3-panel · 4.5 m (Excel 5m-výroba U34 delta-0)",
+  anchored: true,
+  config: {
+    opening_width_mm: 4500,
+    clear_height_mm: 1500,
+    suspension_angle: 35,
+    panel_count: 3,
+    fill_type_id: "lamela_113_3d",
+    opening_direction: "left",
+    include_motor: true,
+    include_installation: true,
+    manufacturing_hours: 18,
+  },
+  prices: {
+    components: { ...aluComponents, ...fillPrices, motor: 12300, guide_roller: 323 },
+    ...sharedPrices,
+  },
+  expectedDimensions: {
+    postA: 1320,
+    postB: 1220,
+    diagonal: 2214,
+    railLength: 5998.5,
+    bottomRail: 5200,
+    panelWidth: 1466.6666666666667,
+    hProfileLength: 1205,
+  },
+  expectedFill: { count: 13, fillLength: 1480 },
+  expectedTotalPrice: 83522.44,
+};
+
+/**
+ * Per-fill-type regression coverage for the five infill types added in the
+ * "complete the 7 Výplet types" slice (no Excel example exists for these exact
+ * configs, so they regression-lock the corrected engine, not an external anchor).
+ * Each is the shared 4.0 m base config with only the fill type changed; the
+ * expected total is what the engine derives against the standard alu prices.
+ * fillCount = floor(1205 / min_spacing): 90→13, 105→11, 95→12, 121→9, 88→13.
+ */
+export const lamela_120_3d_3panel: SlidingGoldenCase = {
+  name: "LAMELA 120 3D · 3-panel · 4.0 m (regression — new fill type)",
+  anchored: false,
+  config: { ...regressionBase, fill_type_id: "lamela_120_3d" },
+  prices: regressionPrices,
+  expectedDimensions: base40Dims,
+  expectedFill: { count: 13, fillLength: 1313.3333333333333 },
+  expectedTotalPrice: 84871.5,
+};
+
+export const planka_120_3d_3panel: SlidingGoldenCase = {
+  name: "PLAŇKA 120 3D · 3-panel · 4.0 m (regression — new fill type)",
+  anchored: false,
+  config: { ...regressionBase, fill_type_id: "planka_120_3d" },
+  prices: regressionPrices,
+  expectedDimensions: base40Dims,
+  expectedFill: { count: 11, fillLength: 1313.3333333333333 },
+  expectedTotalPrice: 82551.5,
+};
+
+export const lamela_113_2d_3panel: SlidingGoldenCase = {
+  name: "LAMELA 113 2D · 3-panel · 4.0 m (regression — new fill type)",
+  anchored: false,
+  config: { ...regressionBase, fill_type_id: "lamela_113_2d" },
+  prices: regressionPrices,
+  expectedDimensions: base40Dims,
+  expectedFill: { count: 12, fillLength: 1313.3333333333333 },
+  expectedTotalPrice: 80927.5,
+};
+
+export const planka_120_2d_3panel: SlidingGoldenCase = {
+  name: "PLAŇKA 120 2D · 3-panel · 4.0 m (regression — new fill type)",
+  anchored: false,
+  config: { ...regressionBase, fill_type_id: "planka_120_2d" },
+  prices: regressionPrices,
+  expectedDimensions: base40Dims,
+  expectedFill: { count: 9, fillLength: 1313.3333333333333 },
+  expectedTotalPrice: 80231.5,
+};
+
+export const planka_100_3d_3panel: SlidingGoldenCase = {
+  name: "PLAŇKA 100 3D · 3-panel · 4.0 m (regression — new fill type)",
+  anchored: false,
+  config: { ...regressionBase, fill_type_id: "planka_100_3d" },
+  prices: regressionPrices,
+  expectedDimensions: base40Dims,
+  expectedFill: { count: 13, fillLength: 1313.3333333333333 },
+  expectedTotalPrice: 83571.5,
+};
+
 export const slidingGateGoldens: SlidingGoldenCase[] = [
   planka_100_2d_3panel,
   lamela_113_3d_2panel,
   steel_frame_3panel,
+  lamela_113_3d_5m,
+  lamela_120_3d_3panel,
+  planka_120_3d_3panel,
+  lamela_113_2d_3panel,
+  planka_120_2d_3panel,
+  planka_100_3d_3panel,
 ];

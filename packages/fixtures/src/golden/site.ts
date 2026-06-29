@@ -43,7 +43,13 @@ export const sitePrices: PriceTable = {
     gsm_module: 491,
     rack_mount: 192,
     guide_roller: 333,
+    // Fill prices — the 2026 Excel `Výplet` H-column (cena/m), so the live
+    // configurator can price all seven infill types. 2D/3D of one profile share
+    // a component + price.
     planka_100: 250,
+    lamela_113: 217,
+    lamela_120: 275,
+    planka_120: 275,
     fence_post_60: 350,
     fence_rail_40x20: 95,
   },
@@ -73,7 +79,13 @@ export const siteCosts: CostTable = {
     gsm_module: 310,
     rack_mount: 120,
     guide_roller: 210,
+    // Fill buy-costs — DEMO values (this whole cost table is demo, not FIL data),
+    // at planka_100's ~0.62 sell ratio so margin stays plausible until real
+    // supplier costs land (the FIL/price slice). One per shared fill component.
     planka_100: 155,
+    lamela_113: 135,
+    lamela_120: 170,
+    planka_120: 170,
     fence_post_60: 210,
     fence_rail_40x20: 58,
   },

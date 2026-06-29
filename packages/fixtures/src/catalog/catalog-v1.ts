@@ -28,6 +28,8 @@ export const catalogV1: Catalog = {
     { code: "h50", shape: "U", w_mm: 50, materials: ["alu", "steel"] },
     { code: "planka_100", shape: "flat", w_mm: 100, materials: ["alu", "steel"] },
     { code: "lamela_113", shape: "flat", w_mm: 113, materials: ["alu", "steel"] },
+    { code: "lamela_120", shape: "flat", w_mm: 120, materials: ["alu", "steel"] },
+    { code: "planka_120", shape: "flat", w_mm: 120, materials: ["alu", "steel"] },
   ],
 
   components: [
@@ -120,6 +122,42 @@ export const catalogV1: Catalog = {
       material: "steel",
       section: "lamela_113",
       attrs: { profile_mm: 113 },
+    },
+    {
+      code: "lamela_120",
+      name: "Lamela 120 (alu)",
+      unit: "meter",
+      roles: ["fill"],
+      material: "alu",
+      section: "lamela_120",
+      attrs: { profile_mm: 120 },
+    },
+    {
+      code: "lamela_120_steel",
+      name: "Lamela 120 (ocel)",
+      unit: "meter",
+      roles: ["fill"],
+      material: "steel",
+      section: "lamela_120",
+      attrs: { profile_mm: 120 },
+    },
+    {
+      code: "planka_120",
+      name: "PLAŇKA 120 (alu)",
+      unit: "meter",
+      roles: ["fill"],
+      material: "alu",
+      section: "planka_120",
+      attrs: { profile_mm: 120 },
+    },
+    {
+      code: "planka_120_steel",
+      name: "PLAŇKA 120 (ocel)",
+      unit: "meter",
+      roles: ["fill"],
+      material: "steel",
+      section: "planka_120",
+      attrs: { profile_mm: 120 },
     },
 
     // --- material-agnostic hardware ------------------------------------------

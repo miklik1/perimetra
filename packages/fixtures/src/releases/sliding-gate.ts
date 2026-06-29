@@ -135,21 +135,25 @@ export const slidingGateV1: ProductModelRelease = {
     },
   ],
 
+  // The seven cantilever Výplet (infill) types, transcribed from the 2026 Excel
+  // `Výplet` sheet (`~/gates/reference_files_unlocked/2026-PC_Samonosna_brana…`)
+  // — the SAME data the gates-MVP `fillType` seed carries (both ground truths
+  // agree cell-for-cell). `min_spacing_mm` drives the unified 2026 fill count
+  // (`floor((postA−115) / min_spacing)`); `dimension_type` selects the 2-panel
+  // rail multiplier (3D ⇒ 1.4, 2D ⇒ 1.333). The placement attrs
+  // (`end_offset_*`, `max_spacing_mm`, `max_overlap_mm`, `disable_max_spacing`)
+  // are authored NOW for completeness but stay inert until the real Výplet
+  // spacing engine consumes them (the next slice) — today the geometry still
+  // stacks at `min_spacing_mm` pitch (approximate). JAKL 20/20 is deliberately
+  // deferred (manual count + a distinct tube-spacing branch). Profile→component:
+  // the 2D/3D pair of one physical profile resolves to ONE catalog component at
+  // ONE price/m (Excel shows identical `cena/m` for each pair), so lamela_113
+  // and planka_100 each serve both their 2D and 3D options.
   optionSets: [
     {
       key: "fill",
       selectedBy: "fill_type_id",
       options: [
-        {
-          id: "planka_100_2d",
-          label: "PLAŇKA 100 2D",
-          attrs: {
-            profile_mm: 100,
-            dimension_type: "2D",
-            min_spacing_mm: 101,
-            section_code: "planka_100",
-          },
-        },
         {
           id: "lamela_113_3d",
           label: "Lamela 113 3D",
@@ -158,6 +162,101 @@ export const slidingGateV1: ProductModelRelease = {
             dimension_type: "3D",
             min_spacing_mm: 90,
             section_code: "lamela_113",
+            end_offset_1_mm: 43,
+            end_offset_2_mm: 64,
+            max_spacing_mm: 104,
+            max_overlap_mm: 104,
+            disable_max_spacing: false,
+          },
+        },
+        {
+          id: "lamela_120_3d",
+          label: "Lamela 120 3D",
+          attrs: {
+            profile_mm: 120,
+            dimension_type: "3D",
+            min_spacing_mm: 90,
+            section_code: "lamela_120",
+            end_offset_1_mm: 24,
+            end_offset_2_mm: 90,
+            max_spacing_mm: 113,
+            max_overlap_mm: 113,
+            disable_max_spacing: false,
+          },
+        },
+        {
+          id: "planka_120_3d",
+          label: "PLAŇKA 120 3D",
+          attrs: {
+            profile_mm: 120,
+            dimension_type: "3D",
+            min_spacing_mm: 105,
+            section_code: "planka_120",
+            end_offset_1_mm: 31,
+            end_offset_2_mm: 92,
+            max_spacing_mm: 122,
+            max_overlap_mm: 122,
+            disable_max_spacing: false,
+          },
+        },
+        {
+          id: "lamela_113_2d",
+          label: "Lamela 113 2D",
+          attrs: {
+            profile_mm: 113,
+            dimension_type: "2D",
+            min_spacing_mm: 95,
+            section_code: "lamela_113",
+            end_offset_1_mm: 48,
+            end_offset_2_mm: 65,
+            max_spacing_mm: 180,
+            max_overlap_mm: 113,
+            disable_max_spacing: true,
+          },
+        },
+        {
+          id: "planka_120_2d",
+          label: "PLAŇKA 120 2D",
+          attrs: {
+            profile_mm: 120,
+            dimension_type: "2D",
+            min_spacing_mm: 121,
+            section_code: "planka_120",
+            end_offset_1_mm: 30,
+            end_offset_2_mm: 90,
+            max_spacing_mm: 180,
+            max_overlap_mm: 121,
+            disable_max_spacing: true,
+          },
+        },
+        {
+          id: "planka_100_3d",
+          label: "PLAŇKA 100 3D",
+          attrs: {
+            profile_mm: 100,
+            dimension_type: "3D",
+            min_spacing_mm: 88,
+            section_code: "planka_100",
+            end_offset_1_mm: 26,
+            end_offset_2_mm: 77,
+            max_spacing_mm: 102,
+            max_overlap_mm: 102,
+            disable_max_spacing: false,
+          },
+        },
+        {
+          id: "planka_100_2d",
+          label: "PLAŇKA 100 2D",
+          attrs: {
+            profile_mm: 100,
+            dimension_type: "2D",
+            min_spacing_mm: 101,
+            section_code: "planka_100",
+            end_offset_1_mm: 10,
+            end_offset_2_mm: 10,
+            max_spacing_mm: 120,
+            max_overlap_mm: 101,
+            disable_max_spacing: true,
           },
         },
       ],
