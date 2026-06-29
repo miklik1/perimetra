@@ -41,7 +41,10 @@ export const SCENES: ScenePreset[] = [
     id: "studio",
     label: "Studio",
     sky: "#eef1f3",
-    ground: { colorHex: "#c7c4be", roughness: 0.92 },
+    // A mid-light concrete (ADR 0096) — the prior near-white floor let a white
+    // finish (bílá) melt into it; this reads as a real surface and separates
+    // every finish, dark and light, from the ground.
+    ground: { colorHex: "#b8b3ab", roughness: 0.92 },
     context: "none",
   },
   {

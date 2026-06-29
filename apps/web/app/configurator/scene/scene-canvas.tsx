@@ -118,6 +118,13 @@ export default function SceneCanvas({
     frame.center[1] + frame.radius * 1.6,
     frame.center[2] + frame.radius,
   ];
+  // A cool fill from the opposite side (ADR 0096) so a dark finish's shadowed
+  // face is modelled grey, not crushed to black.
+  const fillLight: Vector3Tuple = [
+    frame.center[0] - frame.radius,
+    frame.center[1] + frame.radius * 0.9,
+    frame.center[2] - frame.radius,
+  ];
 
   // Explode overrides the step pose with the pulled-back iso reveal; keyed off the
   // discrete `target` (not the animating `factor`) so the pose never recomputes
@@ -132,7 +139,11 @@ export default function SceneCanvas({
         gl={{
           antialias: true,
           toneMapping: ACESFilmicToneMapping,
-          toneMappingExposure: 1.0,
+          // Lifted from 1.0 → 1.18 (ADR 0096): the studio IBL was tuned so dim
+          // that a dark powder albedo (antracit RAL 7016) crushed to near-black.
+          // The dark-lift comes mostly from the brighter ambient/hemisphere FILL
+          // (below), not exposure — so a light finish (bílá) doesn't blow out.
+          toneMappingExposure: 1.18,
           outputColorSpace: SRGBColorSpace,
           // Per-material section clipping (ADR 0092) — pieces only; the studio
           // shadow/IBL stay whole.
@@ -145,10 +156,19 @@ export default function SceneCanvas({
             chosen scene's sky (ADR 0093); IBL stays invisible above it. */}
         <color attach="background" args={[sceneById(sceneId).sky]} />
 
-        {/* Soft floor so shadowed faces never crush to black — the IBL carries the fill. */}
-        <ambientLight intensity={0.3} />
-        {/* One warm key for directional modelling + specular pop on the profile edges. */}
-        <directionalLight position={keyLight} intensity={1.6} color="#fff6ec" />
+        {/* Relit for dark powder finishes (ADR 0096): a lifted ambient floor + a
+            sky/ground hemisphere fill so a dark albedo (antracit, černá) reads as
+            modelled anthracite metal instead of a black silhouette. Matches the
+            proven gates-MVP light levels (ambient 1.0 + hemi + two directionals)
+            but keeps the procedural CSP-clean IBL — no binary HDRI (ADR 0074). */}
+        <ambientLight intensity={0.55} />
+        <hemisphereLight args={["#eef3f8", "#5a6470", 0.5]} />
+        {/* One warm key for directional modelling + specular pop on the profile
+            edges — carries the panel/ground tonal separation so a white finish
+            doesn't melt into a light ground. */}
+        <directionalLight position={keyLight} intensity={1.7} color="#fff6ec" />
+        {/* Cool fill opposite the key — lifts the shadowed side off black. */}
+        <directionalLight position={fillLight} intensity={0.7} color="#e9eef5" />
 
         {/* In-context backdrop (ADR 0093) — ground + context, or nothing in studio. */}
         <SceneBackdrop sceneId={sceneId} frame={frame} />
@@ -163,44 +183,47 @@ export default function SceneCanvas({
           scale={frame.radius * 2.6}
           resolution={1024}
           blur={2.6}
-          opacity={0.5}
+          opacity={0.6}
           far={frame.radius * 2.2}
           color="#0a0a0a"
         />
 
-        {/* Procedural studio IBL — invisible (no background), no external HDR (CSP-clean). */}
+        {/* Procedural studio IBL — invisible (no background), no external HDR
+            (CSP-clean). Intensities lifted ~1.3× (ADR 0096) so the environment
+            contribution models a dark metal's form/sheen rather than reflecting
+            the near-black void the dim rig used to. */}
         <Environment resolution={256} frames={1} background={false}>
           <Lightformer
             form="rect"
-            intensity={3.2}
+            intensity={3.6}
             color="#fff6ec"
             position={[2, 5, 6]}
             scale={[10, 10, 1]}
           />
           <Lightformer
             form="rect"
-            intensity={1.1}
+            intensity={1.5}
             color="#eef2f6"
             position={[-7, 2, 2]}
             scale={[6, 6, 1]}
           />
           <Lightformer
             form="rect"
-            intensity={1.1}
+            intensity={1.5}
             color="#eef2f6"
             position={[7, 1, -2]}
             scale={[6, 6, 1]}
           />
           <Lightformer
             form="rect"
-            intensity={2.4}
+            intensity={2.6}
             color="#ffffff"
             position={[0, 4, -8]}
             scale={[10, 5, 1]}
           />
           <Lightformer
             form="rect"
-            intensity={0.5}
+            intensity={0.8}
             color="#ededed"
             position={[0, -6, 0]}
             scale={[12, 12, 1]}
