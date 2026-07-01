@@ -3,7 +3,17 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import { catalogV1, planka_100_2d_3panel, slidingGateV1 } from "@repo/fixtures";
+import {
+  catalogV1,
+  lamela_113_2d_3panel,
+  lamela_113_3d_2panel,
+  lamela_120_3d_3panel,
+  planka_100_2d_3panel,
+  planka_100_3d_3panel,
+  planka_120_2d_3panel,
+  planka_120_3d_3panel,
+  slidingGateV1,
+} from "@repo/fixtures";
 import type { Catalog } from "@repo/model";
 
 import { deriveForUi } from "../configurator/derive";
@@ -26,9 +36,11 @@ import { syntheticGate } from "./synthetic-scene";
  *                       synthetic scene can never surface)
  *
  * Query knobs (capture harness + e2e, ADR 0075/0076/0077):
- *   ?finish=<id>     drive the finish slice (e.g. zinek, drevo)
- *   ?highlight=1     turn on deviation highlight (emissive amber + desaturate)
- *   ?cam=<view>      a named camera pose — hero|front|detail|pullback|away
+ *   ?finish=<id>       drive the finish slice (e.g. zinek, drevo)
+ *   ?highlight=1       turn on deviation highlight (emissive amber + desaturate)
+ *   ?cam=<view>        a named camera pose — hero|front|detail|pullback|away
+ *   ?fill_type_id=<id> render a specific Výplet fill in its own golden config
+ *                      (eyes-on the 7 fills; default is the U34 planka_100_2d)
  */
 const SceneCanvas = dynamic(() => import("../configurator/scene/scene-canvas"), {
   ssr: false,
@@ -36,11 +48,25 @@ const SceneCanvas = dynamic(() => import("../configurator/scene/scene-canvas"), 
 
 /** The real Excel-anchored sliding gate, derived through the same engine path
  *  the configurator uses (deriveForUi → deriveInstanceDetailed + buildScene). */
-function realSlidingGateScene() {
+/** The 7 Výplet fill types, each in its OWN validated golden config — the
+ *  regression fills were authored on a different base than the U34/5m anchors,
+ *  so forcing them onto one config invalidates the derivation (empty scene). */
+const fillGoldens = {
+  planka_100_2d: planka_100_2d_3panel,
+  planka_100_3d: planka_100_3d_3panel,
+  lamela_113_2d: lamela_113_2d_3panel,
+  lamela_113_3d: lamela_113_3d_2panel,
+  lamela_120_3d: lamela_120_3d_3panel,
+  planka_120_2d: planka_120_2d_3panel,
+  planka_120_3d: planka_120_3d_3panel,
+} as const;
+
+function realSlidingGateScene(fillTypeId?: string) {
   const catalogs: ReadonlyMap<string, Catalog> = new Map([[slidingGateV1.id, catalogV1]]);
-  const product = { release: slidingGateV1, initialInput: planka_100_2d_3panel.config };
-  return deriveForUi(product, planka_100_2d_3panel.config, planka_100_2d_3panel.prices, catalogs)
-    .scene;
+  const golden =
+    (fillTypeId && fillGoldens[fillTypeId as keyof typeof fillGoldens]) ?? planka_100_2d_3panel;
+  const product = { release: slidingGateV1, initialInput: golden.config };
+  return deriveForUi(product, golden.config, golden.prices, catalogs).scene;
 }
 
 export function SceneLabClient() {
@@ -48,6 +74,7 @@ export function SceneLabClient() {
   const setHighlight = useDeviation((s) => s.setHighlight);
   const [view, setView] = useState<CameraView>("hero");
   const [source, setSource] = useState<"synthetic" | "sliding-gate">("synthetic");
+  const [fillTypeId, setFillTypeId] = useState<string | undefined>();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -55,6 +82,8 @@ export function SceneLabClient() {
     if (finish !== null && finish !== "") setFinish(finish);
     if (params.get("highlight") === "1") setHighlight(true);
     if (params.get("scene") === "sliding-gate") setSource("sliding-gate");
+    const fill = params.get("fill_type_id");
+    if (fill !== null && fill !== "") setFillTypeId(fill);
     const cam = params.get("cam");
     if (
       cam === "hero" ||
@@ -68,8 +97,8 @@ export function SceneLabClient() {
   }, [setFinish, setHighlight]);
 
   const realScene = useMemo(
-    () => (source === "sliding-gate" ? realSlidingGateScene() : undefined),
-    [source],
+    () => (source === "sliding-gate" ? realSlidingGateScene(fillTypeId) : undefined),
+    [source, fillTypeId],
   );
   const scene = source === "sliding-gate" ? realScene : syntheticGate();
 

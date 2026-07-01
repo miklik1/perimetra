@@ -141,10 +141,10 @@ export const slidingGateV1: ProductModelRelease = {
   // agree cell-for-cell). `min_spacing_mm` drives the unified 2026 fill count
   // (`floor((postA−115) / min_spacing)`); `dimension_type` selects the 2-panel
   // rail multiplier (3D ⇒ 1.4, 2D ⇒ 1.333). The placement attrs
-  // (`end_offset_*`, `max_spacing_mm`, `max_overlap_mm`, `disable_max_spacing`)
-  // are authored NOW for completeness but stay inert until the real Výplet
-  // spacing engine consumes them (the next slice) — today the geometry still
-  // stacks at `min_spacing_mm` pitch (approximate). JAKL 20/20 is deliberately
+  // (`end_offset_*`, `max_spacing_mm`, `disable_max_spacing`) are now consumed by
+  // the real Výplet spacing engine (ADR 0098 — the `fill*` derived keys + the
+  // fill `at.y`, the Excel `Kalkulace` placement math); `max_overlap_mm` is the
+  // I2 data guard (`sliding.fill.overlap_within_max`). JAKL 20/20 is deliberately
   // deferred (manual count + a distinct tube-spacing branch). Profile→component:
   // the 2D/3D pair of one physical profile resolves to ONE catalog component at
   // ONE price/m (Excel shows identical `cena/m` for each pair), so lamela_113
@@ -279,6 +279,19 @@ export const slidingGateV1: ProductModelRelease = {
       severity: "warn",
       scope: "instance",
     },
+    // ADR 0098: the Výplet `max_overlap_mm` guard (Excel `max. překrytí`). At the
+    // tightest (min-spacing) pitch the slat overlap is `profile − min_spacing`;
+    // the authored fill data must not overlap more than its allowed maximum. Attr-
+    // only (instance constraints evaluate pre-derivation, so no `fill*` derived
+    // keys here) — the actual distributed pitch is ≥ min_spacing, so this min-pitch
+    // bound is conservative.
+    {
+      key: "sliding.fill.overlap_within_max",
+      kind: "range",
+      expr: expr("fill.profile_mm - fill.min_spacing_mm <= fill.max_overlap_mm"),
+      severity: "warn",
+      scope: "instance",
+    },
   ],
 
   derivation: {
@@ -304,6 +317,39 @@ export const slidingGateV1: ProductModelRelease = {
       },
       { key: "fillCount", expr: expr("floor(hProfileLength / fill.min_spacing_mm)") },
       { key: "totalPieces", expr: expr("fillCount * panel_count") },
+      // --- Real Výplet spacing (ADR 0098) — the Excel `Kalkulace` placement math,
+      // consuming the slice-3 attrs that were authored-but-inert (ADR 0097). The
+      // slat COUNT is still `floor(hProfileLength / min_spacing)` (unchanged — the
+      // golden-locked count); these keys only redistribute that count across the
+      // fill height with the real end-margins + pitch, so BOM/price are untouched.
+      // gaps = count − 1 (guarded ≥ 1 so a 1-slat fill can't divide by zero).
+      { key: "fillGaps", expr: expr("max(fillCount - 1, 1)") },
+      // Raw even pitch: the count distributed over the height minus both end margins
+      // (Excel J20: ROUNDDOWN((F32 − minC − minD) / gaps)).
+      {
+        key: "fillRawPitch",
+        expr: expr(
+          "floor((hProfileLength - fill.end_offset_1_mm - fill.end_offset_2_mm) / fillGaps)",
+        ),
+      },
+      // Cap the pitch at max_spacing unless the fill disables the max (Excel J20's
+      // `IF(Vypnout max?=FALSE, MIN(raw, maxF), raw)`) — this is what spreads the 2D
+      // planks (disable_max) into a visible gap while 3D profiles stay tight.
+      {
+        key: "fillPitch",
+        expr: expr(
+          "if(fill.disable_max_spacing, fillRawPitch, min(fillRawPitch, fill.max_spacing_mm))",
+        ),
+      },
+      // The floored-pitch leftover, re-centered between the two ends (Excel H20/K20:
+      // offset1 gets ROUNDUP(rem/2), so the two end gaps differ by ≤ 1 mm).
+      {
+        key: "fillRemainder",
+        expr: expr(
+          "hProfileLength - fillGaps * fillPitch - fill.end_offset_1_mm - fill.end_offset_2_mm",
+        ),
+      },
+      { key: "fillOffset1", expr: expr("fill.end_offset_1_mm + roundUp(fillRemainder / 2)") },
       { key: "railMeters", expr: expr("railLength / 1000") },
       // The site reference plane (step 4): what a connected neighbor's
       // connection constraints read as `other.topLine`.
@@ -448,7 +494,11 @@ export const slidingGateV1: ProductModelRelease = {
             length: expr("fillPieceLength"),
             at: [
               expr("70 + floor(i / fillCount) * (outerFrameWidth / panel_count)"),
-              expr("ground_elevation_mm + 130 + (i % fillCount) * fill.min_spacing_mm"),
+              // ADR 0098: real spacing — slat i's centre sits `fillOffset1` above the
+              // h-profile foot (ground_elevation + 90, the fill region's "end 1") then
+              // steps by the real `fillPitch`. Was `+ 130 + i*min_spacing` (a fixed
+              // min-pitch stack from an approximate base, ignoring the end margins).
+              expr("ground_elevation_mm + 90 + fillOffset1 + (i % fillCount) * fillPitch"),
               expr("0"),
             ],
             repeat: { count: expr("totalPieces"), var: "i" },
