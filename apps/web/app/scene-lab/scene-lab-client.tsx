@@ -64,7 +64,8 @@ const fillGoldens = {
 function realSlidingGateScene(fillTypeId?: string) {
   const catalogs: ReadonlyMap<string, Catalog> = new Map([[slidingGateV1.id, catalogV1]]);
   const golden =
-    (fillTypeId && fillGoldens[fillTypeId as keyof typeof fillGoldens]) ?? planka_100_2d_3panel;
+    (fillTypeId ? fillGoldens[fillTypeId as keyof typeof fillGoldens] : undefined) ??
+    planka_100_2d_3panel;
   const product = { release: slidingGateV1, initialInput: golden.config };
   return deriveForUi(product, golden.config, golden.prices, catalogs).scene;
 }
