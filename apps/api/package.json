@@ -10,6 +10,7 @@
     "start:worker": "node --enable-source-maps --import ./dist/otel/loader.js --env-file-if-exists=.env.local dist/worker.js",
     "migrate": "node --enable-source-maps --import ./dist/otel/loader.js --env-file-if-exists=.env.local dist/migrate.js",
     "seed": "node --enable-source-maps --env-file-if-exists=.env.local dist/seed.js",
+    "seed:reset": "node --enable-source-maps --env-file-if-exists=.env.local dist/seed-reset.js",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run",

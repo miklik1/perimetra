@@ -25,6 +25,10 @@
         // Golden-corpus seed (admin-publish slice, WS4): the one legitimate
         // runtime consumer of @repo/fixtures in apps/api.
         "src/seed.ts",
+        // Dev-only reseed reset (ADR 0098 follow-up): wipes the immutable model
+        // stores so `seed` republishes HEAD fixtures — the process entrypoint for
+        // `pnpm --filter api seed:reset`.
+        "src/seed-reset.ts",
         "src/otel/loader.ts",
         "src/otel/register.ts",
         // Testcontainers integration suite (spec §14): knip's vitest plugin
