@@ -29,6 +29,19 @@ let projects: Project[] = [];
 let idempotencyStore = new Map<string, Project>();
 let createSeq = SEED_COUNT;
 
+/** A project's site document, mock-tier shape — mirrors `ProjectSite`
+ *  (step 6.3c / ADR 0054): opaque `site` + roster + optimistic-lock version. */
+export interface ProjectSiteFixture {
+  site: unknown;
+  instances: unknown[];
+  version: number;
+}
+
+/** In-memory site-document store, keyed by project id. An absent key is a
+ *  project with nothing designed yet — the real API's fresh-project default
+ *  (`site: null, instances: [], version: 1`). */
+let projectSites = new Map<string, ProjectSiteFixture>();
+
 function seed(): Project[] {
   return Array.from({ length: SEED_COUNT }, (_, i) => seedProject(i + 1));
 }
@@ -87,9 +100,37 @@ export function recallIdempotentCreate(key: string): Project | undefined {
   return idempotencyStore.get(key);
 }
 
+/** GET /v1/projects/:id/site — the current doc, or the fresh-project default. */
+export function getProjectSiteFixture(id: string): ProjectSiteFixture {
+  return projectSites.get(id) ?? { site: null, instances: [], version: 1 };
+}
+
+/**
+ * PUT /v1/projects/:id/site — full-document replace, guarded by the
+ * optimistic-lock `expectedVersion` (ADR 0054): a mismatch against the CURRENT
+ * version returns `"conflict"` (the caller 409s) instead of silently
+ * overwriting a co-member's save.
+ */
+export function saveProjectSiteFixture(
+  id: string,
+  doc: { site: unknown; instances: unknown[] },
+  expectedVersion: number,
+): ProjectSiteFixture | "conflict" {
+  const current = getProjectSiteFixture(id);
+  if (current.version !== expectedVersion) return "conflict";
+  const next: ProjectSiteFixture = {
+    site: doc.site,
+    instances: doc.instances,
+    version: current.version + 1,
+  };
+  projectSites.set(id, next);
+  return next;
+}
+
 /** Test helper — restore the seed set between cases. */
 export function resetProjects(): void {
   projects = seed();
   idempotencyStore = new Map();
   createSeq = SEED_COUNT;
+  projectSites = new Map();
 }

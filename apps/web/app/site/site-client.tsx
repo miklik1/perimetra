@@ -27,14 +27,13 @@ import { DEMO_RELEASE_IDS, demoInstances, demoSite } from "./initial";
 import { InstancePanel } from "./instance-panel";
 import { IssueQuotePanel } from "./issue-quote-panel";
 import { Palette } from "./palette";
-import { toSavePayload } from "./persistence";
+import { PLACE_SPACING_MM, toSavePayload } from "./persistence";
 import { PlanCanvas } from "./plan-canvas";
 import { SiteResultsPanel } from "./site-results-panel";
 import { TerrainPanel } from "./terrain-panel";
 
 const QUARTER_TURN = 5400; // arc-minutes (I10)
 const FULL_TURN = 21600;
-const PLACE_SPACING_MM = 6000;
 
 /**
  * The site canvas (CORE_SPEC §8, step 6 slice 2): the generated configurator at
@@ -54,6 +53,7 @@ export function SiteClient({
   initialSite,
   initialInstances,
   initialVersion,
+  initialSelectedId,
   bundle,
 }: {
   projectId: string;
@@ -61,6 +61,11 @@ export function SiteClient({
   initialInstances: PlacedInstance[];
   /** The site's optimistic-lock version as loaded (ADR 0054) — echoed on save. */
   initialVersion: number;
+  /** Land-selected (CAR-13): the instance to open selected on mount, e.g. the
+   *  one a configurator hand-off just appended (`?focus=` on the route). An id
+   *  absent from `initialInstances` is harmless — nothing matches, so the
+   *  panel/canvas just render unselected, same as the default. */
+  initialSelectedId?: string;
   bundle: CatalogBundle | null;
 }) {
   const router = useRouter();
@@ -94,6 +99,7 @@ export function SiteClient({
           initialSite={initialSite}
           initialInstances={initialInstances}
           initialVersion={initialVersion}
+          initialSelectedId={initialSelectedId}
           ctx={{ products: bundle.products, catalogs: bundle.catalogs, prices: bundle.prices }}
         />
       )}
@@ -108,12 +114,14 @@ function SiteCanvas({
   initialSite,
   initialInstances,
   initialVersion,
+  initialSelectedId,
   ctx,
 }: {
   projectId: string;
   initialSite: Site;
   initialInstances: PlacedInstance[];
   initialVersion: number;
+  initialSelectedId?: string;
   ctx: SiteDeriveContext;
 }) {
   const t = useTranslations("site");
@@ -121,7 +129,7 @@ function SiteCanvas({
 
   const [site, setSite] = useState<Site>(initialSite);
   const [instances, setInstances] = useState<PlacedInstance[]>(initialInstances);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialSelectedId);
   const [connectFrom, setConnectFrom] = useState<
     { instanceId: string; portId: string } | undefined
   >();

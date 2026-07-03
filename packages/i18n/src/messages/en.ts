@@ -250,6 +250,18 @@ const en: MessagesInput = {
     leadThanks: "Thank you — we'll be in touch shortly.",
     noProducts: "No products have been published yet.",
     noPrices: "No active price table for your role or organization.",
+    saveToProject: {
+      title: "Save to project",
+      newProject: "New project",
+      projectName: "Project name",
+      existingProject: "Add to an existing project",
+      selectProject: "Select a project",
+      loadingProjects: "Loading projects…",
+      noProjects: "No projects yet — create a new one.",
+      submit: "Save to project",
+      saving: "Saving…",
+      saved: "Configuration saved to the project.",
+    },
   },
   site: {
     title: "Site canvas",

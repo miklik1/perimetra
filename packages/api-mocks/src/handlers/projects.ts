@@ -1,13 +1,20 @@
-import { createProjectSchema, updateProjectSchema, type Project } from "@repo/validators";
+import {
+  createProjectSchema,
+  saveProjectSiteSchema,
+  updateProjectSchema,
+  type Project,
+} from "@repo/validators";
 
 import { MockHttpError, type MockRoute } from "../core/types";
 import {
   deleteProjectFixture,
   findProjectFixture,
+  getProjectSiteFixture,
   insertProjectFixture,
   listProjectFixtures,
   recallIdempotentCreate,
   rememberIdempotentCreate,
+  saveProjectSiteFixture,
   updateProjectFixture,
 } from "../fixtures/projects";
 
@@ -89,6 +96,39 @@ export const projectRoutes: MockRoute[] = [
       const project = updateProjectFixture(params.id ?? "", parsed.data);
       if (!project) throw new MockHttpError(404, "NOT_FOUND", "Project not found");
       return { data: project };
+    },
+  },
+  {
+    // GET /v1/projects/:id/site (step 6.3c / ADR 0054): the project's designed
+    // site + roster, or the fresh-project default. Mock parity for the
+    // configurator → project hand-off (CAR-13), which reads this before
+    // appending an instance, and for the site canvas's own RSC load.
+    method: "GET",
+    pattern: "/v1/projects/:id/site",
+    handler: ({ params }) => {
+      const project = findProjectFixture(params.id ?? "");
+      if (!project) throw new MockHttpError(404, "NOT_FOUND", "Project not found");
+      return { data: getProjectSiteFixture(params.id ?? "") };
+    },
+  },
+  {
+    // PUT /v1/projects/:id/site — full-document replace guarded by the
+    // optimistic-lock `expectedVersion`; a stale version 409s (mirrors the
+    // real API's conditional UPDATE) instead of clobbering a co-member's save.
+    method: "PUT",
+    pattern: "/v1/projects/:id/site",
+    handler: async ({ params, getBody }) => {
+      const id = params.id ?? "";
+      const project = findProjectFixture(id);
+      if (!project) throw new MockHttpError(404, "NOT_FOUND", "Project not found");
+      const parsed = saveProjectSiteSchema.safeParse(await getBody());
+      if (!parsed.success) throw new MockHttpError(422, "INVALID_INPUT", "Invalid input");
+      const { expectedVersion, ...doc } = parsed.data;
+      const result = saveProjectSiteFixture(id, doc, expectedVersion);
+      if (result === "conflict") {
+        throw new MockHttpError(409, "CONFLICT", "Site was modified since it was loaded");
+      }
+      return { data: result };
     },
   },
   {

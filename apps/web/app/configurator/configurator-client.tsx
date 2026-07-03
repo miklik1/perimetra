@@ -270,6 +270,8 @@ function StepBody({
           priceBlind={priceBlind}
           shareToken={shareToken}
           drawing={drawing}
+          releaseId={release.id}
+          productLabel={release.modelId}
         />
       );
     default:

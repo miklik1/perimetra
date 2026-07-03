@@ -249,6 +249,18 @@ const cs = {
     leadThanks: "Děkujeme, brzy se vám ozveme.",
     noProducts: "Zatím nejsou publikovány žádné produkty.",
     noPrices: "Pro vaši roli nebo organizaci není k dispozici aktivní ceník.",
+    saveToProject: {
+      title: "Uložit do projektu",
+      newProject: "Nový projekt",
+      projectName: "Název projektu",
+      existingProject: "Do stávajícího projektu",
+      selectProject: "Vyberte projekt",
+      loadingProjects: "Načítání projektů…",
+      noProjects: "Zatím žádné projekty — vytvořte nový.",
+      submit: "Uložit do projektu",
+      saving: "Ukládání…",
+      saved: "Konfigurace uložena do projektu.",
+    },
   },
   site: {
     title: "Plán projektu",

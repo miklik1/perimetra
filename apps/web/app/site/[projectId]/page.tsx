@@ -22,9 +22,21 @@ import { SiteClient } from "../site-client";
  *   same resilience the projects page's prefetch has).
  *
  * Access is owned by the proxy gate (`/site` in PROTECTED_PREFIXES) + AuthGuard.
+ *
+ * `?focus=<instanceId>` lands the canvas with that instance selected — the
+ * configurator → project hand-off (CAR-13) appends an instance server-side
+ * then navigates here with its id, so the user opens straight onto what they
+ * just configured instead of an unselected canvas.
  */
-export default async function SitePage({ params }: { params: Promise<{ projectId: string }> }) {
+export default async function SitePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ focus?: string }>;
+}) {
   const { projectId } = await params;
+  const { focus } = await searchParams;
   const api = await createServerApiClient();
 
   let bundle: CatalogBundle | null = null;
@@ -51,6 +63,7 @@ export default async function SitePage({ params }: { params: Promise<{ projectId
         initialSite={emptySite(projectId)}
         initialInstances={[]}
         initialVersion={1}
+        initialSelectedId={focus}
         bundle={bundle}
       />
     );
@@ -63,6 +76,7 @@ export default async function SitePage({ params }: { params: Promise<{ projectId
       initialSite={site}
       initialInstances={instances}
       initialVersion={data.version}
+      initialSelectedId={focus}
       bundle={bundle}
     />
   );

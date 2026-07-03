@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { DerivationResult } from "@repo/engine";
+import type { ConfigInput, DerivationResult } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
 import type { OptionSet, ResolvedUiStep, Scope, Value } from "@repo/model";
 import type { WorkshopDrawing } from "@repo/renderers";
@@ -11,6 +11,7 @@ import { Button, Panel } from "@repo/ui";
 import { DeviationPanel } from "./deviation-panel";
 import { WorkshopDrawingSvg } from "./drawing-svg";
 import { ResultsPanel } from "./results-panel";
+import { SaveToProjectPanel } from "./save-to-project-panel";
 import { finishById, useFinish } from "./scene/finish";
 
 /**
@@ -24,6 +25,9 @@ import { finishById, useFinish } from "./scene/finish";
  * The lead SUBMIT is a presentation confirmation for v1 — the configurator
  * preview is not yet a persisted project, so wiring it to the projects/quotes
  * issue path is a follow-on; the share link already makes the config durable.
+ * The hand-off TO a project (CAR-13) is the `SaveToProjectPanel` below the
+ * spec sheet — it composes the projects create/GET-site/PUT-site contracts to
+ * land the configuration on `/site/:projectId`, ready to price/issue there.
  */
 function formatValue(
   def: { type: string; domain?: { kind: string; values?: string[] } },
@@ -50,15 +54,22 @@ export function Summary({
   priceBlind,
   shareToken,
   drawing,
+  releaseId,
+  productLabel,
 }: {
   steps: ResolvedUiStep[];
   scope: Scope | undefined;
-  input: Record<string, Value | undefined>;
+  input: ConfigInput;
   result: DerivationResult;
   optionSets: OptionSet[];
   priceBlind: boolean;
   shareToken: string;
   drawing: WorkshopDrawing | undefined;
+  /** The active release id (e.g. `sliding-gate@1`) — passed through, opaque,
+   *  to the save-to-project hand-off (CAR-13). */
+  releaseId: string;
+  /** A human label for the default new-project name (the release's model id). */
+  productLabel: string;
 }) {
   const t = useTranslations("configurator");
   const finish = useFinish((s) => finishById(s.finishId));
@@ -128,6 +139,8 @@ export function Summary({
 
       <DeviationPanel result={result} />
       <ResultsPanel result={result} priceBlind={priceBlind} />
+
+      <SaveToProjectPanel releaseId={releaseId} productLabel={productLabel} input={input} />
 
       <Panel className="flex flex-col gap-3 text-sm">
         <h2 className="font-semibold">{t("leadTitle")}</h2>

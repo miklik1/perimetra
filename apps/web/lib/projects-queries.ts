@@ -1,4 +1,4 @@
-import { defineInfiniteQuery, defineMutation, mutationOptions } from "@repo/api";
+import { defineInfiniteQuery, defineMutation, defineQuery, mutationOptions } from "@repo/api";
 import type { ApiClient } from "@repo/api";
 import { appendSearchParams, stableParams, type SearchParamsInput } from "@repo/utils";
 import {
@@ -38,6 +38,7 @@ export const projectKeys = {
   all: ["projects"] as const,
   lists: () => [...projectKeys.all, "list"] as const,
   list: (filters?: SearchParamsInput) => [...projectKeys.lists(), stableParams(filters)] as const,
+  site: (projectId: string) => [...projectKeys.all, "site", projectId] as const,
 } as const;
 
 // A type alias (not an interface) so it picks up the implicit index signature
@@ -112,6 +113,18 @@ export function createProjectsQueries(client: ApiClient) {
         method: "DELETE",
         path: (id) => `/v1/projects/${id}`,
         body: () => undefined,
+      }),
+    // GET /v1/projects/:id/site — the current site document + optimistic-lock
+    // version (ADR 0054). The canvas's OWN load is an RSC fetch (prop-passed
+    // in, no client query); this is for callers that need a one-off client-side
+    // read of another project's site — e.g. the configurator → project
+    // hand-off (CAR-13), via `queryClient.fetchQuery` rather than `useQuery`,
+    // so it never becomes a live subscription outside the canvas it targets.
+    site: (projectId: string) =>
+      defineQuery<ProjectSite>(client, {
+        queryKey: projectKeys.site(projectId),
+        path: `/v1/projects/${projectId}/site`,
+        schema: (data) => projectSiteSchema.parse(data),
       }),
     // PUT /v1/projects/:id/site — full-document replace of the designed site +
     // roster (step 6.3c). PUT is naturally idempotent (same body → same state),

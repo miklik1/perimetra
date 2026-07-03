@@ -28,7 +28,12 @@ export { customerRoutes } from "./handlers/customers";
 export { lookupRoutes } from "./handlers/lookups";
 export { routeGroups, selectRoutes, allRoutes, createMockConfig } from "./config";
 export { listMockUsers } from "./fixtures/users";
-export { listProjectFixtures, resetProjects } from "./fixtures/projects";
+export {
+  getProjectSiteFixture,
+  listProjectFixtures,
+  resetProjects,
+  type ProjectSiteFixture,
+} from "./fixtures/projects";
 export { listQuoteFixtures, resetQuotes } from "./fixtures/quotes";
 export { listCustomerFixtures, resetCustomers } from "./fixtures/customers";
 export { resetSessions } from "./fixtures/session";
