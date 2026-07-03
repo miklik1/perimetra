@@ -14,7 +14,10 @@
  * the current-HEAD fixtures — after which the configurator (DB) and scene-lab
  * (fixtures) render the IDENTICAL body. It is the dev resync any box/staging needs
  * whenever fixtures change; production releases stay immutable (this refuses to run
- * there, and is never wired into boot/migrate).
+ * there, and is never wired into boot/migrate). Since ADR 0100 the drift is also
+ * LOUD: the seed hard-errors on a body mismatch (pointing here), DB triggers
+ * block in-place UPDATEs outright, and once a real quote stamps a release the
+ * only path for a model change is a version bump (publish `model@N+1`).
  *
  * Guard: refuses unless NODE_ENV !== "production". Usage:
  *   pnpm --filter api build && pnpm --filter api exec node dist/seed-reset.js && pnpm --filter api seed

@@ -25,5 +25,10 @@ driver is node-postgres `Pool` (transaction-pooler-safe — ADR 0038).
   phase one-shot (`apps/api` `migrate`) — never at boot (ADR 0038).
 - Soft-deleted PII is still PII for erasure. No session GUCs, LISTEN/NOTIFY,
   or prepared-statement reliance anywhere (transaction-pooler safety).
+- The I3 stores (`release`, `catalog_version`, `price_table`) carry
+  BEFORE-UPDATE **immutability triggers** (ADR 0100): any value change to the
+  frozen identity/body columns raises — even from raw SQL. A migration that
+  must rewrite one (none anticipated) has to drop/recreate the trigger
+  explicitly. Lifecycle metadata (status, effective window, …) stays mutable.
 
-Governing ADRs: `docs/adr/0032-postgres-drizzle-db-package.md`, `0038`.
+Governing ADRs: `docs/adr/0032-postgres-drizzle-db-package.md`, `0038`, `0100`.

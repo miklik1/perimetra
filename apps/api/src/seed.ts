@@ -2,8 +2,13 @@
  * Seed entrypoint — publishes the golden corpus into the DB via the existing
  * publish services (admin-publish slice, WS4). Runs AFTER migrations.
  *
- * Idempotent: each publish call is wrapped in a try/catch that silently skips
- * ConflictException (409) — re-running is always safe.
+ * Idempotent WITH drift detection (ADR 0100, CAR-31): a store row that already
+ * exists is compared against the fixture at git HEAD — byte-identical → skip;
+ * DIFFERENT → hard error. The old silent ConflictException-skip is what let an
+ * in-place fixture edit never reach an already-seeded DB (the 2026-07-02 NO-GO:
+ * stale diagonal/fills/prices). The error names both remediations: bump the
+ * fixture version (the real cutover discipline), or `seed:reset` + `seed` for
+ * the dev-only in-place loop.
  *
  * Catalog versions + releases are global vendor data (no org scope) — published
  * via the services (bypassing the HTTP `PlatformGuard`, ADR 0062). Per-tenant
@@ -22,6 +27,7 @@
 import "reflect-metadata";
 
 import process from "node:process";
+import { isDeepStrictEqual } from "node:util";
 import { ConflictException } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { and, eq } from "drizzle-orm";
@@ -62,45 +68,95 @@ async function bootstrap(): Promise<void> {
   const db = app.get<Db>(DB, { strict: false });
   const cls = app.get(ClsService, { strict: false });
 
-  /** Wraps a publish call in a CLS context so @Transactional() opens properly,
-   *  and catches ConflictException for idempotency. */
-  async function withSkip(label: string, fn: () => Promise<unknown>): Promise<void> {
+  /** Wraps a publish call in a CLS context so @Transactional() opens properly.
+   *  Returns false on ConflictException (someone else published concurrently)
+   *  so the caller can fall through to the drift compare. */
+  async function tryPublish(label: string, fn: () => Promise<unknown>): Promise<boolean> {
     try {
       await cls.run(() => fn());
       console.log(`  ✓ ${label}`);
+      return true;
     } catch (err) {
-      if (err instanceof ConflictException) {
-        console.log(`  – ${label} — already published, skipping`);
-      } else {
-        throw err;
-      }
+      if (err instanceof ConflictException) return false;
+      throw err;
     }
+  }
+
+  /** Drift guard (ADR 0100): an already-published store row must match the
+   *  fixture at git HEAD. Silent skip-on-conflict is what let in-place fixture
+   *  edits never reach a seeded DB — a mismatch is a hard, actionable error. */
+  function assertNoDrift(label: string, dbValue: unknown, fixtureValue: unknown): void {
+    // JSON round-trip both sides: JSONB storage drops `undefined`-valued keys,
+    // so a fixture's explicit `foo: undefined` must not read as drift.
+    const canon = (v: unknown): unknown => JSON.parse(JSON.stringify(v)) as unknown;
+    if (isDeepStrictEqual(canon(dbValue), canon(fixtureValue))) {
+      console.log(`  – ${label} — already published (matches HEAD fixtures), skipping`);
+      return;
+    }
+    throw new Error(
+      `[seed] DRIFT: ${label} exists in the DB with a DIFFERENT body than the ` +
+        `fixture at HEAD. Published rows are immutable (I3) — either bump the ` +
+        `fixture's version and publish it as a NEW release (the cutover ` +
+        `discipline, ADR 0100; the ONLY path once real quotes stamp the row), ` +
+        `or resync a dev DB that holds nothing real: ` +
+        `pnpm --filter api seed:reset && pnpm --filter api seed`,
+    );
+  }
+
+  /** Publish-or-verify, race-safe: pre-check → drift compare; else publish; a
+   *  publish 409 (concurrent seed won the race) re-loads and STILL drift-checks
+   *  — the losing side must never silently skip (that was the ADR 0100 hole). */
+  async function publishOrVerify(
+    label: string,
+    load: () => Promise<unknown | null>,
+    publish: () => Promise<unknown>,
+    fixtureValue: unknown,
+  ): Promise<void> {
+    const existing = await cls.run(() => load());
+    if (existing) {
+      assertNoDrift(label, existing, fixtureValue);
+      return;
+    }
+    if (await tryPublish(label, publish)) return;
+    const raced = await cls.run(() => load());
+    if (!raced) throw new Error(`[seed] ${label}: publish 409'd but the row is absent on re-load`);
+    assertNoDrift(label, raced, fixtureValue);
   }
 
   // --- 1 & 2: Catalog versions -----------------------------------------------
   console.log("\n[seed] Publishing catalog versions...");
 
-  await withSkip("catalog@1", () => catalogVersions.publish(SYSTEM_SCOPE, { body: catalogV1 }));
-  await withSkip("catalog@2", () => catalogVersions.publish(SYSTEM_SCOPE, { body: catalogV2 }));
+  for (const [label, body] of [
+    ["catalog@1", catalogV1],
+    ["catalog@2", catalogV2],
+  ] as const) {
+    await publishOrVerify(
+      label,
+      () => catalogVersions.loadCatalog(body.version),
+      () => catalogVersions.publish(SYSTEM_SCOPE, { body }),
+      body,
+    );
+  }
 
   // --- 3 & 4: Releases (pinned to catalog@2) ----------------------------------
   console.log("\n[seed] Publishing releases...");
 
-  await withSkip("slidingGate@1", () =>
-    releases.publish(SYSTEM_SCOPE, {
-      catalogVersion: 2,
-      body: slidingGateV1,
-      initialInput: siteGateConfig,
-    }),
-  );
-
-  await withSkip("fenceRun@1", () =>
-    releases.publish(SYSTEM_SCOPE, {
-      catalogVersion: 2,
-      body: fenceRunV1,
-      initialInput: siteFenceConfig,
-    }),
-  );
+  for (const [label, body, initialInput] of [
+    ["slidingGate@1", slidingGateV1, siteGateConfig],
+    ["fenceRun@1", fenceRunV1, siteFenceConfig],
+  ] as const) {
+    await publishOrVerify(
+      label,
+      async () => {
+        const detail = await releases.loadByReleaseId(body.id);
+        // Compare every frozen column the ADR 0100 trigger guards, not just
+        // the body — a catalogVersion drift is the same class of bug.
+        return detail ? { body: detail.body, catalogVersion: detail.catalogVersion } : null;
+      },
+      () => releases.publish(SYSTEM_SCOPE, { catalogVersion: 2, body, initialInput }),
+      { body, catalogVersion: 2 },
+    );
+  }
 
   // --- 5: Platform operator (ADR 0062) ---------------------------------------
   // Promote the configured user so they can publish + assign through the /platform
@@ -135,6 +191,9 @@ async function bootstrap(): Promise<void> {
         "Sign up at least one user first, then re-run `pnpm --filter api seed`.",
     );
   } else {
+    // One org's drift must not strand the others: collect per-org drift errors,
+    // finish provisioning EVERY org, then fail the run at the end (still loud).
+    const orgDriftErrors: string[] = [];
     for (const { orgId, ownerId } of orgs) {
       const orgScope = { userId: ownerId, organizationId: orgId };
 
@@ -142,7 +201,7 @@ async function bootstrap(): Promise<void> {
       // so the configurator/site see it. assign() is idempotent (the unique
       // index no-ops a re-assign), so re-running the seed is safe.
       for (const releaseId of [slidingGateV1.id, fenceRunV1.id]) {
-        await withSkip(`assign ${releaseId} → org ${orgId}`, () =>
+        await tryPublish(`assign ${releaseId} → org ${orgId}`, () =>
           releases.assign(SYSTEM_SCOPE.userId, orgId, releaseId),
         );
       }
@@ -169,26 +228,42 @@ async function bootstrap(): Promise<void> {
         })
         .onConflictDoNothing({ target: legalProfile.organizationId });
 
-      // Idempotency check: skip if this org already has a table at this version.
-      const existing = await cls.run(() => priceTables.loadByVersion(orgScope, sitePrices.version));
-      if (existing) {
-        console.log(
-          `  – price-table v${sitePrices.version} for org ${orgId} — already exists, skipping`,
+      // Idempotency check with drift guard: an existing table at this version
+      // must match the HEAD fixture (the 2026-07-02 NO-GO (b) was exactly a
+      // stale seeded price table missing `lamela_113`). Compare every frozen
+      // column the seed authors — roundingPolicy is server-defaulted on the
+      // wire, so it stays out. A drift here is PER-ORG: record it, keep going.
+      try {
+        await publishOrVerify(
+          `price-table v${sitePrices.version} for org ${orgId}`,
+          async () => {
+            const t = await priceTables.loadByVersion(orgScope, sitePrices.version);
+            return t
+              ? { table: t.table, cost: t.cost, dphRate: t.dphRate, currency: t.currency }
+              : null;
+          },
+          () =>
+            priceTables.publish(orgScope, {
+              currency: "CZK",
+              effectiveFrom: "2020-01-01T00:00:00.000Z",
+              effectiveTo: null,
+              // DPH as a PERCENT (ADR 0080) — the old "0.21" was a latent bug,
+              // never applied (the tax field was vestigial); now the tax layer
+              // uses it.
+              dphRate: "21",
+              table: sitePrices,
+              cost: siteCosts,
+            }),
+          { table: sitePrices, cost: siteCosts, dphRate: "21", currency: "CZK" },
         );
-        continue;
+      } catch (err) {
+        orgDriftErrors.push(err instanceof Error ? err.message : String(err));
+        console.error(`  ✗ org ${orgId}: ${err instanceof Error ? err.message : String(err)}`);
       }
-
-      await withSkip(`price-table v${sitePrices.version} for org ${orgId}`, () =>
-        priceTables.publish(orgScope, {
-          currency: "CZK",
-          effectiveFrom: "2020-01-01T00:00:00.000Z",
-          effectiveTo: null,
-          // DPH as a PERCENT (ADR 0080) — the old "0.21" was a latent bug, never
-          // applied (the tax field was vestigial); now the tax layer uses it.
-          dphRate: "21",
-          table: sitePrices,
-          cost: siteCosts,
-        }),
+    }
+    if (orgDriftErrors.length > 0) {
+      throw new Error(
+        `[seed] ${orgDriftErrors.length} org(s) had price-table drift (all other orgs were still provisioned — see ✗ lines above)`,
       );
     }
   }

@@ -10,9 +10,12 @@
  * (unknown catalog → 400; malformed body → 400).
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Db } from "@repo/db";
+import { catalogVersion } from "@repo/db/schema/catalog-versions";
+import { release } from "@repo/db/schema/releases";
 import { deriveInstance, deriveSite, type SiteInstance } from "@repo/engine";
 import {
   catalogV2,
@@ -262,6 +265,58 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
     it("requires authentication (401 without a session)", async () => {
       const res = await inject(app, { method: "GET", url: "/v1/releases" });
       expect(res.statusCode).toBe(401);
+    });
+
+    // ADR 0100 (CAR-31): immutability is STRUCTURAL — a DB trigger, not just
+    // the absence of an app-layer update path. Raw SQL is the attack shape.
+    // Drizzle wraps the pg RAISE in a DrizzleQueryError — match on `.cause`.
+    const immutableRaise = (err: unknown): void => {
+      expect(err).toBeInstanceOf(Error);
+      expect(String((err as { cause?: unknown }).cause ?? err)).toMatch(/immutable \(I3\)/);
+    };
+
+    describe("in-place mutation is blocked at the DB layer (ADR 0100)", () => {
+      it("rejects an UPDATE of a published release body", async () => {
+        const db = app.get<Db>(DB);
+        const err: unknown = await db
+          .update(release)
+          .set({ body: { tampered: true } })
+          .where(eq(release.releaseId, slidingGateV1.id))
+          .then(() => null)
+          .catch((e: unknown) => e);
+        immutableRaise(err);
+      });
+
+      it("rejects an UPDATE of a published catalog body", async () => {
+        const db = app.get<Db>(DB);
+        const err: unknown = await db
+          .update(catalogVersion)
+          .set({ body: { tampered: true } })
+          .where(eq(catalogVersion.version, 2))
+          .then(() => null)
+          .catch((e: unknown) => e);
+        immutableRaise(err);
+      });
+
+      it("still allows the lifecycle metadata UPDATE (status retire path)", async () => {
+        const db = app.get<Db>(DB);
+        // A REAL transition both ways (published→retired→published), not a
+        // value-identical no-op — a no-op passes IS DISTINCT FROM for every
+        // column, so only an actual change proves `status` is excluded from
+        // the frozen set. Restored because the stores are shared across files.
+        await expect(
+          db
+            .update(release)
+            .set({ status: "retired" })
+            .where(eq(release.releaseId, slidingGateV1.id)),
+        ).resolves.toBeDefined();
+        await expect(
+          db
+            .update(release)
+            .set({ status: "published" })
+            .where(eq(release.releaseId, slidingGateV1.id)),
+        ).resolves.toBeDefined();
+      });
     });
   });
 });

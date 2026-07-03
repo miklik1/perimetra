@@ -10,8 +10,11 @@
  * round-trip; the release round-trip is releases.itest.ts).
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { type Db } from "@repo/db";
+import { priceTable } from "@repo/db/schema/price-tables";
 import { deriveSite, type PriceTable, type SiteInstance } from "@repo/engine";
 import {
   catalogV2,
@@ -23,7 +26,8 @@ import {
   steppedSite,
 } from "@repo/fixtures";
 
-import { createApiApp, inject, signUpUser, type TestUser } from "./setup/app.js";
+import { DB } from "../src/common/db/db.module.js";
+import { createApiApp, inject, orgIdOf, signUpUser, type TestUser } from "./setup/app.js";
 
 interface PriceTableDetail {
   id: string;
@@ -140,6 +144,41 @@ describe("price-table store (HTTP, real stack)", () => {
         headers: { cookie: other.cookie },
       });
       expect(res.statusCode).toBe(404);
+    });
+
+    // ADR 0100 (CAR-31): the price body a stamped quote re-derives against is
+    // frozen at the DB layer (trigger), not just by the missing update path.
+    // Drizzle wraps the pg RAISE in a DrizzleQueryError — match on `.cause`.
+    it("rejects a raw UPDATE of a published price body (DB trigger, ADR 0100)", async () => {
+      const db = app.get<Db>(DB);
+      const orgId = await orgIdOf(db, tenant.id);
+      const err: unknown = await db
+        .update(priceTable)
+        .set({ table: { tampered: true } })
+        .where(and(eq(priceTable.organizationId, orgId), eq(priceTable.version, 2)))
+        .then(() => null)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(String((err as { cause?: unknown }).cause ?? err)).toMatch(/immutable \(I3\)/);
+    });
+
+    it("still allows closing the effective window (lifecycle metadata)", async () => {
+      const db = app.get<Db>(DB);
+      const orgId = await orgIdOf(db, tenant.id);
+      // A REAL transition both ways (null→timestamp→null), not a no-op — a
+      // value-identical write passes IS DISTINCT FROM for every column, so
+      // only an actual change proves effectiveTo is excluded from the frozen
+      // set. Scoped to this file's own tenant v3 row (open window) + restored.
+      const scope = and(eq(priceTable.organizationId, orgId), eq(priceTable.version, 3));
+      await expect(
+        db
+          .update(priceTable)
+          .set({ effectiveTo: new Date("2030-01-01T00:00:00.000Z") })
+          .where(scope),
+      ).resolves.toBeDefined();
+      await expect(
+        db.update(priceTable).set({ effectiveTo: null }).where(scope),
+      ).resolves.toBeDefined();
     });
   });
 });
