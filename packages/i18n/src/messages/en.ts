@@ -331,6 +331,15 @@ const en: MessagesInput = {
       reproduced: "Reproduced exactly",
       mismatch: "Mismatch — contact support",
     },
+    buyerLink: {
+      title: "Buyer link",
+      copy: "Copy link",
+      copied: "Copied",
+      validUntil: "Valid until {date}",
+      noExpiry: "No expiry",
+      expiredWarning:
+        "This quote expired {date}. The link still works, but the buyer can no longer accept or decline it.",
+    },
     issue: {
       title: "Issue quote",
       button: "Issue quote",

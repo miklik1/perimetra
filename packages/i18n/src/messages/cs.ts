@@ -330,6 +330,15 @@ const cs = {
       reproduced: "Reprodukováno přesně",
       mismatch: "Nesoulad — kontaktujte podporu",
     },
+    buyerLink: {
+      title: "Odkaz pro zákazníka",
+      copy: "Kopírovat odkaz",
+      copied: "Zkopírováno",
+      validUntil: "Platnost do {date}",
+      noExpiry: "Bez časového omezení",
+      expiredWarning:
+        "Platnost nabídky vypršela {date}. Odkaz stále funguje, ale zákazník už nemůže nabídku přijmout ani odmítnout.",
+    },
     issue: {
       title: "Vydat nabídku",
       button: "Vydat nabídku",

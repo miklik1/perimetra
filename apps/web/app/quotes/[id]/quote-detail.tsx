@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { useApiClient, useMutation } from "@repo/api/react";
 import { useLocale, useTranslations } from "@repo/i18n/web";
 import { type TaxBreakdown } from "@repo/model";
 import { Button, DisplayLabel, Panel } from "@repo/ui";
+import { formatDate } from "@repo/utils";
 import { type QuoteDetail } from "@repo/validators";
 
 import { errorMessageKey } from "../../../lib/error-messages";
@@ -17,6 +19,88 @@ import { QuoteStatusBadge } from "../quote-status";
 interface QuoteSnapshot {
   money: { total: string };
   tax: TaxBreakdown;
+}
+
+/**
+ * The buyer-facing public link (CAR-16, ADR 0089's `/nabidka/:shareToken`
+ * route) surfaced on the rep's own quote detail — so a rep can copy/paste it
+ * to the buyer without hunting for the shareToken. Shown for every
+ * effectively-non-draft status (issued and every state reachable from it —
+ * accepted/declined/expired all keep working links, ADR 0083); a draft has no
+ * shareable offer yet, so it renders nothing. `quote.status` is already the
+ * READ-time effective status (`effectiveStatus`, computed server-side in
+ * `quotes.service.ts`'s `toSummary` — never re-derived here), so an
+ * `issued` quote past its `validUntil` already reads `expired` and gets the
+ * warning below with no client-side clock logic.
+ *
+ * The origin is resolved post-mount (`useEffect`), never read during render:
+ * this view hydrates from an RSC-prefetched query (`quote-detail-client.tsx`),
+ * so the initial render can execute during SSR where `window` does not exist —
+ * reading it inline would crash the server render and reading it behind a
+ * `typeof window` branch would still mismatch the hydration pass. Rendering
+ * nothing until the effect fills `origin` keeps server and first-client-render
+ * markup identical.
+ */
+function BuyerLinkPanel({
+  status,
+  shareToken,
+  validUntil,
+  locale,
+}: {
+  status: QuoteDetail["status"];
+  shareToken: string;
+  validUntil: string | null;
+  locale: string;
+}) {
+  const t = useTranslations("quotes");
+  const [origin, setOrigin] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const buyerUrl = origin !== null ? `${origin}/nabidka/${shareToken}` : null;
+  const expired = status === "expired";
+  const validUntilLabel = validUntil ? formatDate(validUntil, undefined, locale) : "";
+
+  const copy = async () => {
+    if (!buyerUrl) return;
+    try {
+      await navigator.clipboard.writeText(buyerUrl);
+      setCopied(true);
+    } catch {
+      // Clipboard blocked (e.g. insecure context) — the link stays selectable/copyable by hand.
+    }
+  };
+
+  return (
+    <Panel elevation="flat">
+      <div className="flex flex-col gap-3">
+        <h2 className="font-display text-lg">{t("buyerLink.title")}</h2>
+        <p className="text-muted-foreground text-sm">
+          {validUntil
+            ? t("buyerLink.validUntil", { date: validUntilLabel })
+            : t("buyerLink.noExpiry")}
+        </p>
+        {expired && (
+          <p className="text-destructive text-sm" role="alert">
+            {t("buyerLink.expiredWarning", { date: validUntilLabel })}
+          </p>
+        )}
+        {buyerUrl && (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-data bg-field text-foreground truncate rounded-md px-3 py-1.5 text-sm">
+              {buyerUrl}
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void copy()}>
+              {copied ? t("buyerLink.copied") : t("buyerLink.copy")}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
 }
 
 export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
@@ -48,6 +132,16 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
           <QuoteStatusBadge status={quote.status} />
         </div>
       </div>
+
+      {/* The buyer link (CAR-16) — draft has nothing to share yet */}
+      {quote.status !== "draft" && (
+        <BuyerLinkPanel
+          status={quote.status}
+          shareToken={quote.shareToken}
+          validUntil={quote.validUntil}
+          locale={locale}
+        />
+      )}
 
       {/* The tax document */}
       {tax && (
