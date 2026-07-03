@@ -9,6 +9,7 @@
  *   - the active-org default is deterministic: a fresh login lands the now
  *     multi-org invitee back in their OWN org (owner → admin at `/v1/me`)
  */
+import { randomUUID } from "node:crypto";
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -21,6 +22,7 @@ import {
   cookieFrom,
   createApiApp,
   inject,
+  orgIdOf,
   signUpUser,
   webOrigin,
   type TestUser,
@@ -195,5 +197,91 @@ describe("org invite + member sharing (HTTP, real stack)", () => {
     });
     expect(me.statusCode).toBe(200);
     expect((me.json() as { role: string }).role).toBe("sales");
+  });
+});
+
+describe("member unique index (organization_id, user_id) — CAR-20", () => {
+  // A DB-level guarantee, independent of the HTTP-layer suite above: Better
+  // Auth's `acceptInvitation` calls `adapter.createMember` unconditionally (no
+  // existing-membership check), so two racing accepts of the same/two pending
+  // invitations for the same org+user could otherwise land two `member` rows.
+  // `member_organizationId_userId_uidx` (packages/db/src/schema/auth) closes
+  // that at the DB layer — prove it directly via drizzle, no HTTP involved.
+  let app: NestFastifyApplication;
+  let db: Db;
+
+  beforeAll(async () => {
+    app = await createApiApp();
+    db = app.get<Db>(DB);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("rejects a duplicate (organization_id, user_id) row", async () => {
+    const owner = await signUpUser(app, "uniq-dup");
+    const orgId = await orgIdOf(db, owner.id);
+
+    // The signup already inserted an `owner` membership for (orgId, owner.id)
+    // (ADR 0055 auto-provisioning) — a second row for the SAME pair must be
+    // rejected by the unique index, regardless of the row's own id/role.
+    // Drizzle wraps the driver error as `DrizzleQueryError` (message is just
+    // "Failed query: …") — assert on the wrapped pg error via `.cause`, which
+    // carries the real "duplicate key value violates unique constraint" text
+    // and the `23505` (unique_violation) SQLSTATE code.
+    let caught: unknown;
+    try {
+      await db.insert(member).values({
+        id: randomUUID(),
+        organizationId: orgId,
+        userId: owner.id,
+        role: "sales",
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    const cause = (caught as { cause?: { code?: string; message?: string } }).cause;
+    expect(cause?.code).toBe("23505"); // unique_violation
+    expect(cause?.message).toMatch(/duplicate key value violates unique constraint/i);
+  });
+
+  it("still allows the same user in a DIFFERENT organization", async () => {
+    const user = await signUpUser(app, "uniq-multi-org-user");
+    const otherOrgOwner = await signUpUser(app, "uniq-other-org-owner");
+    const otherOrgId = await orgIdOf(db, otherOrgOwner.id);
+
+    // No throw = pass; a distinct (org, user) pair is legitimately insertable.
+    await db.insert(member).values({
+      id: randomUUID(),
+      organizationId: otherOrgId,
+      userId: user.id,
+      role: "sales",
+    });
+    const rows = await db
+      .select()
+      .from(member)
+      .where(and(eq(member.userId, user.id), eq(member.organizationId, otherOrgId)));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("still allows a DIFFERENT user in the same organization", async () => {
+    const orgOwner = await signUpUser(app, "uniq-shared-org-owner");
+    const orgId = await orgIdOf(db, orgOwner.id);
+    const otherUser = await signUpUser(app, "uniq-shared-org-member");
+
+    // No throw = pass; a distinct (org, user) pair is legitimately insertable.
+    await db.insert(member).values({
+      id: randomUUID(),
+      organizationId: orgId,
+      userId: otherUser.id,
+      role: "workshop",
+    });
+    const rows = await db
+      .select()
+      .from(member)
+      .where(and(eq(member.userId, otherUser.id), eq(member.organizationId, orgId)));
+    expect(rows).toHaveLength(1);
   });
 });

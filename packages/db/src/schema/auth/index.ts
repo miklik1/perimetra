@@ -127,6 +127,13 @@ export const member = pgTable(
   (t) => [
     index("member_organizationId_idx").on(t.organizationId),
     index("member_userId_idx").on(t.userId),
+    // CAR-20: one membership per (org, user). Better Auth's `acceptInvitation`
+    // route calls `adapter.createMember` unconditionally (no existing-membership
+    // check, and `updateInvitation` is an unconditional-by-id UPDATE with no
+    // `WHERE status='pending'` guard) — two concurrent accepts of the same or
+    // two distinct pending invitations for the same org+user race straight
+    // through to two `member` rows. This index closes that race at the DB layer.
+    uniqueIndex("member_organizationId_userId_uidx").on(t.organizationId, t.userId),
   ],
 );
 
