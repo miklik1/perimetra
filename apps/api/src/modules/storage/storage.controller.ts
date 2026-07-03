@@ -1,8 +1,8 @@
-import { BadRequestException, Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Post } from "@nestjs/common";
 import { z } from "zod";
 
 import { CurrentSession } from "../auth/current-session.decorator.js";
-import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
+import { type SessionContext } from "../auth/session.guard.js";
 import { StorageService } from "./storage.service.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "./storage.tokens.js";
 
@@ -12,7 +12,6 @@ const presignUploadSchema = z.object({
 });
 
 @Controller("storage")
-@UseGuards(SessionGuard)
 export class StorageController {
   constructor(private readonly storage: StorageService) {}
 

@@ -5,6 +5,9 @@
  * (the org `role` resolved by `RolesGuard` from `member`; `isPlatformAdmin`
  * resolved fresh from `user.role` by `PlatformGuard`), so the FE mirror reading
  * `/me` can never drift from server enforcement.
+ *
+ * Session auth comes from the global default-deny SessionGuard (ADR 0099);
+ * only the org-role resolution needs the class-level RolesGuard.
  */
 import { Controller, Get, UseGuards } from "@nestjs/common";
 
@@ -13,10 +16,10 @@ import { type OrgRole } from "../../common/rbac/org-role.js";
 import { CurrentSession } from "./current-session.decorator.js";
 import { MembershipService } from "./membership.service.js";
 import { RolesGuard } from "./roles.guard.js";
-import { SessionGuard, type SessionContext } from "./session.guard.js";
+import { type SessionContext } from "./session.guard.js";
 
 @Controller("me")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 export class MeController {
   constructor(private readonly membership: MembershipService) {}
 

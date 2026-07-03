@@ -1,9 +1,12 @@
 /**
  * Guard behavior through a real (DB-less) Nest+Fastify app: the AUTH provider
- * is a stub, so this only exercises guard → filter → envelope wiring.
+ * is a stub, so this only exercises guard → filter → envelope wiring. The
+ * guard is registered as a global APP_GUARD exactly like app.module.ts (ADR
+ * 0099) — MeController carries no `@UseGuards`, so the 401 tests prove the
+ * default-deny wiring, and the probe controllers prove the `@Public()` opt-out.
  */
-import { VersioningType } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
+import { Controller, Get, VersioningType } from "@nestjs/common";
+import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,16 +16,37 @@ import { type Auth } from "./auth.instance.js";
 import { AUTH } from "./auth.tokens.js";
 import { MeController } from "./me.controller.js";
 import { MembershipService } from "./membership.service.js";
+import { Public } from "./public.decorator.js";
 import { RolesGuard } from "./roles.guard.js";
 import { SessionGuard } from "./session.guard.js";
 
 const getSession = vi.fn();
 
+/** `@Public()` on the handler — the health-probe shape. */
+@Controller("public-handler")
+class PublicHandlerController {
+  @Public()
+  @Get()
+  probe(): { ok: boolean } {
+    return { ok: true };
+  }
+}
+
+/** `@Public()` on the class — every handler opted out. */
+@Public()
+@Controller("public-class")
+class PublicClassController {
+  @Get()
+  probe(): { ok: boolean } {
+    return { ok: true };
+  }
+}
+
 async function bootApp(): Promise<NestFastifyApplication> {
   const moduleRef = await Test.createTestingModule({
-    controllers: [MeController],
+    controllers: [MeController, PublicHandlerController, PublicClassController],
     providers: [
-      SessionGuard,
+      { provide: APP_GUARD, useClass: SessionGuard },
       // /me now runs RolesGuard too (ADR 0056); stub the membership reads so this
       // DB-less wiring test still only exercises guard → filter → envelope.
       // `isPlatformAdmin` (ADR 0062) is resolved fresh from the DB — stub false.
@@ -51,7 +75,7 @@ describe("SessionGuard", () => {
     getSession.mockReset();
   });
 
-  it("rejects sessionless requests with a 401 ApiError envelope", async () => {
+  it("rejects sessionless requests with a 401 ApiError envelope (default-deny: MeController declares no guard)", async () => {
     getSession.mockResolvedValue(null);
     app = await bootApp();
 
@@ -126,5 +150,33 @@ describe("SessionGuard", () => {
     expect(body).not.toHaveProperty("banExpires");
     expect(body).not.toHaveProperty("twoFactorEnabled");
     expect(body).not.toHaveProperty("image");
+  });
+
+  it("skips auth entirely for a @Public() handler (no session lookup)", async () => {
+    getSession.mockResolvedValue(null);
+    app = await bootApp();
+
+    const response = await app
+      .getHttpAdapter()
+      .getInstance()
+      .inject({ method: "GET", url: "/v1/public-handler" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("skips auth for every handler of a class-level @Public() controller", async () => {
+    getSession.mockResolvedValue(null);
+    app = await bootApp();
+
+    const response = await app
+      .getHttpAdapter()
+      .getInstance()
+      .inject({ method: "GET", url: "/v1/public-class" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(getSession).not.toHaveBeenCalled();
   });
 });

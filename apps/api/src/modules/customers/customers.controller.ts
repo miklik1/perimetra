@@ -1,5 +1,6 @@
 /**
- * Customers controller (ADR 0082). SessionGuard authenticates; RolesGuard +
+ * Customers controller (ADR 0082). The global SessionGuard (ADR 0099)
+ * authenticates; RolesGuard +
  * @RequireRole gate the commercial surface to admin/sales (workshop is 403 — it
  * is price-blind and never touches buyer data). The service applies per-rep
  * ownership on top of the org scope from the role. @ZodSerializerDto strips every
@@ -30,7 +31,6 @@ import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   CreateCustomerDto,
   CustomerDto,
@@ -41,7 +41,7 @@ import {
 import { CustomersService } from "./customers.service.js";
 
 @Controller("customers")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @RequireRole("admin", "sales")
 export class CustomersController {
   constructor(private readonly customers: CustomersService) {}

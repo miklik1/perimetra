@@ -14,6 +14,7 @@
  *   constraint as the Better Auth mount; the prod-secret guard (env.ts) forces a
  *   strong password whenever it is enabled in production.
  */
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { FastifyAdapter as BullBoardFastifyAdapter } from "@bull-board/fastify";
@@ -27,6 +28,18 @@ import { type FastifyInstance } from "fastify";
 
 import { ENV, type Env } from "../../common/config/env.js";
 import { QUEUES } from "./jobs.tokens.js";
+
+/**
+ * Constant-time string compare for basic-auth credentials. Digests both
+ * sides to a fixed-length sha256 hash BEFORE `timingSafeEqual` — that
+ * sidesteps its equal-length requirement (it throws on mismatched buffer
+ * lengths, which itself leaks length via a caught-exception timing gap).
+ */
+export function safeCompare(given: string, expected: string): boolean {
+  const givenHash = createHash("sha256").update(given).digest();
+  const expectedHash = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(givenHash, expectedHash);
+}
 
 function connectionFromUrl(redisUrl: string) {
   const url = new URL(redisUrl);
@@ -99,7 +112,9 @@ export class JobsModule {
     await fastify.register(async (instance) => {
       await instance.register(fastifyBasicAuth, {
         validate: async (username, password) => {
-          if (username !== env.BULL_BOARD_USER || password !== env.BULL_BOARD_PASSWORD) {
+          const validUsername = safeCompare(username, env.BULL_BOARD_USER);
+          const validPassword = safeCompare(password, env.BULL_BOARD_PASSWORD);
+          if (!validUsername || !validPassword) {
             throw new Error("invalid credentials");
           }
         },

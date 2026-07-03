@@ -1,5 +1,6 @@
 /**
- * Price-tables controller (ADR 0053). SessionGuard authenticates; @ZodSerializerDto
+ * Price-tables controller (ADR 0053). The global SessionGuard (ADR 0099)
+ * authenticates; @ZodSerializerDto
  * strips responses (spec §8). Append-only surface: list + get + publish +
  * resolve-active, NO update/delete (a stamped version is immutable, I3). The
  * whole surface IS prices, so it is role-gated to admin + sales (ADR 0056) —
@@ -24,7 +25,6 @@ import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   ActivePriceTableQueryDto,
   ListPriceTablesQueryDto,
@@ -35,7 +35,7 @@ import {
 import { PriceTablesService } from "./price-tables.service.js";
 
 @Controller("price-tables")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @RequireRole("admin", "sales")
 export class PriceTablesController {
   constructor(private readonly priceTables: PriceTablesService) {}

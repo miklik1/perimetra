@@ -34,6 +34,12 @@ export interface WebhookEndpointTarget {
   url: string;
   /** Per-endpoint signing secret — never shared across endpoints. */
   secret: string;
+  /**
+   * Opt this endpoint out of the dispatcher's SSRF egress guard (private/
+   * loopback/metadata targets stay blocked otherwise). ONLY for trusted
+   * first-party targets — never settable from customer input.
+   */
+  allowPrivateNetwork?: boolean;
 }
 
 type RelayedDomainEvent = Parameters<DomainEventHandler["handle"]>[0] & { eventId?: string };
@@ -81,6 +87,7 @@ export function createWebhookRelayHandler(
               payload: event.payload,
             },
             endpoint.secret,
+            { allowPrivateNetwork: endpoint.allowPrivateNetwork ?? false },
           ),
         ),
       );

@@ -9,7 +9,8 @@
  * pointless member lookup). `@CurrentScope()` still supplies the org key (a
  * vendor TEAM shares its org's drafts) and the author/audit `userId`.
  *
- * Conventions: SessionGuard authenticates; `@ZodSerializerDto` strips every
+ * Conventions: the global SessionGuard (ADR 0099) authenticates;
+ * `@ZodSerializerDto` strips every
  * response (spec §8); `@Idempotent()` on create dedupes a retried first-save;
  * ownership 404s (not 403s) come from the service (no existence oracle).
  */
@@ -35,7 +36,6 @@ import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   CreateReleaseDraftDto,
   ListReleaseDraftsQueryDto,
@@ -46,7 +46,7 @@ import {
 import { ReleaseDraftsService } from "./release-drafts.service.js";
 
 @Controller("platform/release-drafts")
-@UseGuards(SessionGuard, PlatformGuard)
+@UseGuards(PlatformGuard)
 export class ReleaseDraftsController {
   constructor(private readonly releaseDrafts: ReleaseDraftsService) {}
 

@@ -13,7 +13,11 @@ overrides:
   # transitive undici (better-auth→vitest→jsdom) onto the patched 7-line. Caret
   # stays WITHIN v7 — `>=7.28.0` would let it jump to undici 8 (a major bump for
   # jsdom). Trips the `--prod` audit gate because vitest is an installed optional
-  # peer of better-auth (ADR 0044 gate). Drop when the chain ships >=7.28 itself.
+  # peer of better-auth (ADR 0044 gate). Drop when the chain ships >=7.28 itself
+  # — apps/api now ALSO depends on undici directly (ssrf-guard Agent); that dep
+  # pins itself and doesn't need this override, but the caret must stay within
+  # v7 either way: the guard passes an npm-undici Agent as fetch's `dispatcher`,
+  # duck-typed against Node's bundled undici, so majors must move in lockstep.
   undici: "^7.28.0"
   # Single @types/node for the whole tree (2026-06-11): without this, three
   # majors coexist (18 via testcontainers→@types/dockerode→@types/ssh2, 25 via

@@ -1,10 +1,11 @@
 /**
  * Releases controller (ADR 0053, ADR 0062) — the immutable vendor release store
- * over HTTP. SessionGuard authenticates every route; @ZodSerializerDto strips
+ * over HTTP. The global SessionGuard (ADR 0099) authenticates every route;
+ * @ZodSerializerDto strips
  * responses (spec §8). Append-only surface: list + get + publish, NO update/
  * delete (a published release is immutable, I3).
  *
- * Two authority tiers (ADR 0062). The class carries ONLY `SessionGuard`; each
+ * Two authority tiers (ADR 0062). Session auth is global (ADR 0099); each
  * route declares its own tier so the VENDOR tier never depends on org scope:
  *  - GET `/` + GET `/:id` are TENANT routes (`@UseGuards(RolesGuard)`) — an org
  *    sees only the releases ASSIGNED to it (`listForOrg` / assigned-scoped get),
@@ -39,7 +40,6 @@ import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   ListReleasesQueryDto,
   PinVersionDto,
@@ -51,7 +51,6 @@ import {
 import { ReleasesService } from "./releases.service.js";
 
 @Controller("releases")
-@UseGuards(SessionGuard)
 export class ReleasesController {
   constructor(private readonly releases: ReleasesService) {}
 

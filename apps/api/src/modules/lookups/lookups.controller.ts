@@ -1,6 +1,7 @@
 /**
  * Registry-lookup controller (ADR 0090) — IČO→ARES prefill + DIČ→VIES validation
- * behind the api. SessionGuard authenticates; RolesGuard + @RequireRole gate it to
+ * behind the api. The global SessionGuard (ADR 0099) authenticates; RolesGuard +
+ * @RequireRole gate it to
  * admin/sales (the same commercial surface as customers; workshop is 403 and never
  * touches buyer/supplier data). `@Throttle` caps the per-user rate so the endpoint
  * can't be turned into an upstream-quota battering ram (ARES is 500/min per IP).
@@ -20,7 +21,6 @@ import { type AresLookup, type ViesLookup } from "@repo/validators/lookups";
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   AresLookupDto,
   AresLookupRequestDto,
@@ -30,7 +30,7 @@ import {
 import { LookupsService } from "./lookups.service.js";
 
 @Controller("lookups")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @RequireRole("admin", "sales")
 // Generous-but-bounded: plenty for manual entry, a hard ceiling on quota abuse.
 @Throttle({ default: { ttl: 60_000, limit: 30 } })

@@ -1,7 +1,8 @@
 /**
  * Legal-profiles controller (ADR 0088) — the org's SINGLETON legal identity at
  * `/v1/org/legal-profile` (no `:id`, no list, no pagination: the org IS the key,
- * from `@CurrentScope()`). SessionGuard authenticates; RolesGuard + @RequireRole
+ * from `@CurrentScope()`). The global SessionGuard (ADR 0099) authenticates;
+ * RolesGuard + @RequireRole
  * gate the whole surface to admin (Better Auth's org `owner` maps to `admin`) —
  * the legal identity is an org-administration concern, not a per-rep one. Sales/
  * workshop are 403'd; they never need the LIVE profile (the issued nabídka reads
@@ -17,7 +18,6 @@ import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   LegalProfileDto,
   LegalProfileResponseDto,
@@ -26,7 +26,7 @@ import {
 import { LegalProfilesService } from "./legal-profiles.service.js";
 
 @Controller("org/legal-profile")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @RequireRole("admin")
 export class LegalProfilesController {
   constructor(private readonly legalProfiles: LegalProfilesService) {}

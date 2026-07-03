@@ -14,6 +14,17 @@ in prod, `SameSite=Lax`); a strict per-IP rate limit guards `/api/auth/*`
 
 - `SessionGuard` + `@CurrentSession()` — how every protected route gets the
   session (verifies the cookie, no DB round-trip thanks to Redis storage).
+  Registered as a global `APP_GUARD` in `app.module.ts` (ADR 0099): every Nest
+  route is authenticated by DEFAULT — no per-controller `@UseGuards` needed.
+  `RolesGuard`/`PlatformGuard` still compose on top as class/handler guards
+  (global → class → handler, so the session is attached before they read it).
+- `@Public()` (`public.decorator.ts`) — the explicit opt-out for deliberately
+  anonymous routes (health probes, signature-verified webhook receivers, and
+  the buyer share-token surface `/v1/quotes/shared/:shareToken` where the
+  unguessable token is the credential); checked on the handler first, then the
+  class. The Better Auth mount (`/api/auth/*`) and dev `/openapi.json` are raw
+  Fastify routes OUTSIDE Nest's router — the APP_GUARD never runs there (they
+  own their auth).
 - `AUTH` / `REDIS` DI tokens (`auth.tokens.ts`); `auth.instance.ts` builds the
   configured Better Auth instance (also consumed by `migrate`/CLI tooling).
 - `me.controller.ts` — `/v1/me`, the canonical "who am I" endpoint.

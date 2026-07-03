@@ -1,6 +1,7 @@
 /**
  * Catalog-versions controller (ADR 0053) — the immutable vendor catalog store
- * over HTTP. SessionGuard authenticates every route; @ZodSerializerDto strips
+ * over HTTP. The global SessionGuard (ADR 0099) authenticates every route;
+ * @ZodSerializerDto strips
  * responses (spec §8). Append-only surface: list + get + publish, NO update/
  * delete (a published catalog version is immutable, I3). `publish` is VENDOR-only
  * (`PlatformGuard`, ADR 0062 — authoring is the platform operator's, §3; was the
@@ -29,7 +30,6 @@ import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   CatalogVersionDto,
   CatalogVersionsPageDto,
@@ -38,11 +38,10 @@ import {
 } from "./catalog-versions.dto.js";
 import { CatalogVersionsService } from "./catalog-versions.service.js";
 
-// The class carries ONLY SessionGuard; each route declares its tier. Publishing
+// Session auth is global (ADR 0099); each route declares its tier. Publishing
 // is VENDOR-only and must NOT depend on org scope (ADR 0062) — see the publish
 // route. Reads stay tenant-gated (RolesGuard).
 @Controller("catalog-versions")
-@UseGuards(SessionGuard)
 export class CatalogVersionsController {
   constructor(private readonly catalogVersions: CatalogVersionsService) {}
 

@@ -17,16 +17,71 @@ again" — this module is the missing 20%.
 
 ## What ships here
 
-| Piece                                                                 | Contract                                                                                                                                                       |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WebhookDispatcher.sign(payload, secret, t?)`                         | `X-Webhook-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(secret, "<t>.<raw body>")` (Stripe-style).                                                    |
-| `WebhookDispatcher.verify(header, payload, secret)`                   | Receiver-side check: constant-time compare + 300s replay tolerance.                                                                                            |
-| `WebhookDispatcher.deliver(url, event, secret)`                       | One POST attempt, 5s timeout, body `{ id, type, timestamp, payload }`, dedup header `X-Webhook-Id`. **Throws on any non-2xx** — the throw IS the retry signal. |
-| `createWebhookRelayHandler(dispatcher, { eventTypes, endpointsFor })` | A `DomainEventHandler` (the `DOMAIN_EVENT_HANDLERS` multi-provider shape) that fans an outbox event out to your endpoints.                                     |
+| Piece                                                                 | Contract                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WebhookDispatcher.sign(payload, secret, t?)`                         | `X-Webhook-Signature: t=<unix>,v1=<hex>` where `v1 = HMAC-SHA256(secret, "<t>.<raw body>")` (Stripe-style).                                                                                                              |
+| `WebhookDispatcher.verify(header, payload, secret)`                   | Receiver-side check: constant-time compare + 300s replay tolerance.                                                                                                                                                      |
+| `WebhookDispatcher.deliver(url, event, secret)`                       | One POST attempt, 5s timeout, body `{ id, type, timestamp, payload }`, dedup header `X-Webhook-Id`. **Throws on any non-2xx** — the throw IS the retry signal. Every request first passes the SSRF egress guard (below). |
+| `createWebhookRelayHandler(dispatcher, { eventTypes, endpointsFor })` | A `DomainEventHandler` (the `DOMAIN_EVENT_HANDLERS` multi-provider shape) that fans an outbox event out to your endpoints.                                                                                               |
 
 Payload rule carries over from the outbox: **IDs only, never PII**
 (ADR 0037/0040). Receivers re-fetch state through the API with their own
 credentials — a webhook is a doorbell, not a data feed.
+
+## SSRF egress guard — REQUIRED control
+
+Webhook URLs are user-suppliable, which makes an unguarded dispatcher
+SSRF-as-a-service: a customer registers `http://169.254.169.254/…` and your
+worker exfiltrates cloud credentials for them. `deliver()` therefore runs
+the shared egress guard (`src/common/http/ssrf-guard.ts`) in **two layers**,
+and any replacement dispatcher (the per-endpoint-queue upgrade below
+included) **MUST keep both** — each layer covers a hole the other cannot:
+
+- **Layer 1 — synchronous pre-flight** (`assertEgressUrlAllowed`), re-run on
+  the first request **and every redirect hop**: `http:`/`https:` only
+  (always, even with the opt-out), and an IP-LITERAL host must classify as
+  ordinary global unicast. This is the only layer that fires for literal-IP
+  targets — undici skips DNS (and therefore layer 2's lookup) entirely for
+  them. WHATWG URL parsing canonicalizes obfuscated hosts (`2130706433`,
+  `0x7f.0.0.1` → `127.0.0.1`) first, and **both** IPv4-mapped
+  (`::ffff:a.b.c.d`) and IPv4-compatible (`::/96`, `::a.b.c.d`) IPv6 are
+  recursed into their embedded v4 before classification.
+- **Layer 2 — rebinding-safe dispatcher** (`createSsrfGuardedDispatcher`):
+  every guarded request is fetched through an undici `Agent` whose connector
+  resolves the hostname, validates **every** returned address (A + AAAA; a
+  mix of public + private is refused as hostile), and connects to that
+  **same validated resolution**. DNS rebinding — the classic
+  check-then-reconnect TOCTOU — is closed by construction: there is no
+  second lookup for a hostile resolver to poison. One dispatcher is built
+  per delivery and reused across its redirect hops.
+- **Allowlist stance**: only globally-routable unicast may egress
+  (`ipaddr.js` `range() === "unicast"`). Everything else is refused **by
+  class, not by enumeration**: loopback, RFC1918, link-local (incl. the
+  metadata endpoints `169.254.169.254` / `fd00:ec2::254`), unique-local,
+  CGNAT, unspecified, broadcast, reserved, multicast, and the v4-embedding
+  v6 transition ranges a blocklist forgets (6to4, Teredo, NAT64).
+- **Redirects**: `fetch` runs with `redirect: "manual"`; the dispatcher
+  follows `Location` itself, max 3 hops, re-running the layer-1 pre-flight
+  on each target while layer 2 gates each hop's connection — and re-POSTs
+  the **identical signed body** (webhooks are not browsers: no GET downgrade
+  on 301/302/303). A blocked target or a fourth redirect fails the delivery
+  like any other failure (→ BullMQ retry/DLQ).
+- **Metadata hostnames** (`metadata.google.internal`, `metadata.goog`) are
+  refused before DNS ever runs — a cheap extra in front of the address gate.
+- **Opt-out**: `deliver(..., { allowPrivateNetwork: true })` /
+  `WebhookEndpointTarget.allowPrivateNetwork` skips the address checks AND
+  the guarded dispatcher (plain fetch — the guarded connector would refuse
+  to dial the very private address you explicitly trusted); the scheme check
+  still applies. For **trusted first-party targets a project controls** —
+  never expose it to customer input (it must not be a column customers can
+  set).
+- **Responses are never read**: the receiver's body is `cancel()`ed, not
+  buffered — a hostile receiver cannot stream an unbounded body into worker
+  memory.
+
+Blocked deliveries throw `WebhookDeliveryError` (status `null`) with a
+`blocked: <reason>` message, so they are recorded/retried/DLQ'd exactly like
+network failures.
 
 ## Minimal binding (single consumer, env-configured)
 

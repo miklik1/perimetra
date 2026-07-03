@@ -60,6 +60,7 @@
     "drizzle-orm": "1.0.0-rc.3",
     "fastify": "catalog:",
     "ioredis": "catalog:",
+    "ipaddr.js": "^2.4.0",
     "jose": "6.2.3",
     "nestjs-cls": "^6.2.1",
     "nestjs-pino": "^4.6.1",
@@ -73,6 +74,7 @@
     "react-dom": "catalog:react19",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "undici": "^7.28.0",
     "use-intl": "catalog:",
     "uuidv7": "catalog:",
     "zod": "catalog:"

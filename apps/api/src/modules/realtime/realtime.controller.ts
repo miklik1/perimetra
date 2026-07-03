@@ -5,12 +5,11 @@ import {
   ForbiddenException,
   Get,
   Post,
-  UseGuards,
 } from "@nestjs/common";
 import { z } from "zod";
 
 import { CurrentSession } from "../auth/current-session.decorator.js";
-import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
+import { type SessionContext } from "../auth/session.guard.js";
 import { RealtimeService } from "./realtime.service.js";
 import { orgChannel, userChannel } from "./realtime.tokens.js";
 
@@ -19,7 +18,6 @@ const subscribeSchema = z.object({
 });
 
 @Controller("realtime")
-@UseGuards(SessionGuard)
 export class RealtimeController {
   constructor(private readonly realtime: RealtimeService) {}
 

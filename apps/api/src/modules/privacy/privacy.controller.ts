@@ -4,14 +4,13 @@
  * needed for self-service; admin-initiated flows can call PrivacyService
  * directly later). 202: the work happens async on the privacy queue.
  */
-import { Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
+import { Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 
 import { CurrentSession } from "../auth/current-session.decorator.js";
-import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
+import { type SessionContext } from "../auth/session.guard.js";
 import { PrivacyService } from "./privacy.service.js";
 
 @Controller("privacy")
-@UseGuards(SessionGuard)
 export class PrivacyController {
   constructor(private readonly privacy: PrivacyService) {}
 

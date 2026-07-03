@@ -20,12 +20,16 @@ import { type Db } from "@repo/db";
 
 import { DB } from "../../common/db/db.module.js";
 import { REDIS } from "../auth/auth.tokens.js";
+import { Public } from "../auth/public.decorator.js";
 
 // Probes are exempt from the global Redis-backed ThrottlerGuard (ADR 0044): an
 // orchestrator hits them constantly, and `/health/live` must answer even when
 // Redis is down (the guard's storage eval would otherwise 500 the liveness
 // probe and get a healthy pod killed — the exact failure CI's infra-less test
 // job surfaced).
+// Public (ADR 0099): orchestrators/load balancers probe without credentials —
+// liveness/readiness must never require a session.
+@Public()
 @SkipThrottle()
 @Controller({ path: "health", version: VERSION_NEUTRAL })
 export class HealthController {

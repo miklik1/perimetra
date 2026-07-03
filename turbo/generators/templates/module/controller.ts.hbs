@@ -1,7 +1,10 @@
 /**
  * {{pascalCase plural}} controller — `pnpm gen module` scaffold of the reference
  * controller (spec §7.8). Conventions on display:
- * - SessionGuard on the class — every route authenticated.
+ * - No session decorator needed: the global SessionGuard (APP_GUARD, ADR 0099)
+ *   authenticates every route; `@Public()` would be the explicit opt-out.
+ * - RolesGuard on the class (ADR 0056): resolves the caller's org role and
+ *   403s a non-member — org-scoped modules enforce membership, not just auth.
  * - nestjs-zod (via `common/api/zod.ts`): the global `APP_PIPE` parses and
  *   coerces inputs against the DTOs (422 envelope on failure);
  *   `@ZodSerializerDto` validates + STRIPS every response (an unvalidated
@@ -32,7 +35,7 @@ import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
-import { SessionGuard } from "../auth/session.guard.js";
+import { RolesGuard } from "../auth/roles.guard.js";
 import {
   Create{{pascalCase singular}}Dto,
   List{{pascalCase plural}}QueryDto,
@@ -43,7 +46,7 @@ import {
 import { {{pascalCase plural}}Service } from "./{{kebabCase plural}}.service.js";
 
 @Controller("{{kebabCase plural}}")
-@UseGuards(SessionGuard)
+@UseGuards(RolesGuard)
 export class {{pascalCase plural}}Controller {
   constructor(private readonly {{camelCase plural}}: {{pascalCase plural}}Service) {}
 

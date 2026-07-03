@@ -1,6 +1,7 @@
 /**
  * Platform/vendor console (CORE_SPEC §3, ADR 0062) — the cross-tenant surface
- * only the platform OPERATOR may reach. `SessionGuard` authenticates;
+ * only the platform OPERATOR may reach. The global SessionGuard (ADR 0099)
+ * authenticates;
  * `PlatformGuard` requires Better Auth `user.role==='admin'` (resolved fresh —
  * see the guard). Every route is cross-tenant by design (the `:orgId` is any
  * tenant, not the operator's own org), so this controller deliberately does NOT
@@ -45,7 +46,7 @@ import { ZodSerializerDto } from "../../common/api/zod.js";
 import { CurrentSession } from "../auth/current-session.decorator.js";
 import { OrganizationsService } from "../auth/organizations.service.js";
 import { PlatformGuard } from "../auth/platform.guard.js";
-import { SessionGuard, type SessionContext } from "../auth/session.guard.js";
+import { type SessionContext } from "../auth/session.guard.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import {
@@ -62,7 +63,7 @@ import {
 } from "./platform.dto.js";
 
 @Controller("platform")
-@UseGuards(SessionGuard, PlatformGuard)
+@UseGuards(PlatformGuard)
 export class PlatformController {
   constructor(
     private readonly releases: ReleasesService,

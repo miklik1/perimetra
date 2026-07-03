@@ -56,11 +56,39 @@ describe("createWebhookRelayHandler", () => {
       "https://a.test/hook",
       { id: EVENT.eventId, type: "project.created", payload: { projectId: "p-1" } },
       "secret-a",
+      { allowPrivateNetwork: false },
     );
     expect(deliver).toHaveBeenCalledWith(
       "https://b.test/hook",
       expect.objectContaining({ id: EVENT.eventId }),
       "secret-b",
+      { allowPrivateNetwork: false },
+    );
+  });
+
+  it("threads a per-endpoint allowPrivateNetwork opt-out to the dispatcher (default false)", async () => {
+    const { dispatcher, deliver } = makeDispatcher();
+    const handler = createWebhookRelayHandler(dispatcher, {
+      eventTypes: ["project.created"],
+      endpointsFor: () => [
+        { url: "http://10.0.0.9/internal", secret: "secret-a", allowPrivateNetwork: true },
+        { url: "https://b.test/hook", secret: "secret-b" },
+      ],
+    });
+
+    await handler.handle(EVENT);
+
+    expect(deliver).toHaveBeenCalledWith(
+      "http://10.0.0.9/internal",
+      expect.objectContaining({ id: EVENT.eventId }),
+      "secret-a",
+      { allowPrivateNetwork: true },
+    );
+    expect(deliver).toHaveBeenCalledWith(
+      "https://b.test/hook",
+      expect.objectContaining({ id: EVENT.eventId }),
+      "secret-b",
+      { allowPrivateNetwork: false },
     );
   });
 

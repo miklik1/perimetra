@@ -1,6 +1,7 @@
 /**
  * Reference controller (spec §7.8). Conventions on display:
- * - SessionGuard on the class — every route authenticated.
+ * - No auth decorator needed: the global SessionGuard (APP_GUARD, ADR 0099)
+ *   authenticates every route; `@Public()` would be the explicit opt-out.
  * - nestjs-zod (via `common/api/zod.ts`): the global `APP_PIPE` parses and
  *   coerces inputs against the DTOs (422 envelope on failure);
  *   `@ZodSerializerDto` validates + STRIPS every response (an unvalidated
@@ -23,7 +24,6 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from "@nestjs/common";
 
 import { type ProjectSite } from "@repo/validators/project-site";
@@ -33,7 +33,6 @@ import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   CreateProjectDto,
   ListProjectsQueryDto,
@@ -46,7 +45,6 @@ import {
 import { ProjectsService } from "./projects.service.js";
 
 @Controller("projects")
-@UseGuards(SessionGuard)
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 

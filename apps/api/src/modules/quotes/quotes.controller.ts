@@ -1,5 +1,6 @@
 /**
- * Quotes controller (ADR 0053). SessionGuard authenticates; @ZodSerializerDto
+ * Quotes controller (ADR 0053). The global SessionGuard (ADR 0099)
+ * authenticates; @ZodSerializerDto
  * strips responses (spec §8). `issue` freezes a quote from a site + roster;
  * `:id/verify` runs the I3 reproducibility check. Append-only surface (no
  * update/delete — an issued snapshot is immutable).
@@ -27,7 +28,6 @@ import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
-import { SessionGuard } from "../auth/session.guard.js";
 import {
   IssueQuoteDto,
   ListQuotesQueryDto,
@@ -38,7 +38,7 @@ import {
 import { QuotesService } from "./quotes.service.js";
 
 @Controller("quotes")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(RolesGuard)
 export class QuotesController {
   constructor(private readonly quotes: QuotesService) {}
 

@@ -1,7 +1,7 @@
 import { ClsPluginTransactional } from "@nestjs-cls/transactional";
 import { TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Module } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { ClsModule } from "nestjs-cls";
 import { LoggerModule } from "nestjs-pino";
 
@@ -16,6 +16,7 @@ import { AppThrottleModule } from "./common/throttle/throttle.module.js";
 import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { SessionGuard } from "./modules/auth/session.guard.js";
 import { CatalogVersionsModule } from "./modules/catalog-versions/catalog-versions.module.js";
 import { CustomersModule } from "./modules/customers/customers.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
@@ -109,6 +110,12 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+    // Default-deny authz (ADR 0099): SessionGuard runs on EVERY Nest route —
+    // a hand-rolled controller that forgets auth ships protected, not public.
+    // `@Public()` (modules/auth/public.decorator.ts) is the explicit opt-out.
+    // Runs after the ThrottlerGuard (imported modules' APP_GUARDs register
+    // first), matching the old throttle-then-auth order.
+    { provide: APP_GUARD, useClass: SessionGuard },
     // Global zod semantics (spec §8): 422-envelope validation pipe +
     // response-stripping serializer interceptor (common/api/zod.ts).
     ...apiSemanticsProviders,

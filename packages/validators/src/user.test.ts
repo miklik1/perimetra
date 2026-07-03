@@ -23,6 +23,18 @@ describe("userSchema", () => {
   it("rejects an empty name", () => {
     expect(userSchema.safeParse({ ...valid, name: "" }).success).toBe(false);
   });
+
+  it("accepts a Better Auth-style (non-uuid) id", () => {
+    // Regression: the real backend's user ids are 32-char nanoid-style, not
+    // uuids — the old z.uuid() contract rejected them and GET /v1/me rendered
+    // an empty account. The mock fixtures' uuids masked it.
+    const r = userSchema.safeParse({ ...valid, id: "8vTaS4kqGR0y1lZ2wXbN9pCfHdEuMoQ7" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects an empty id", () => {
+    expect(userSchema.safeParse({ ...valid, id: "" }).success).toBe(false);
+  });
 });
 
 describe("userListSchema", () => {

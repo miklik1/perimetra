@@ -58,9 +58,46 @@ export class StorageService {
       new GetObjectCommand({
         Bucket: this.env.S3_BUCKET,
         Key: key,
-        ...(filename ? { ResponseContentDisposition: `attachment; filename="${filename}"` } : {}),
+        ...(filename ? { ResponseContentDisposition: contentDispositionHeader(filename) } : {}),
       }),
       { expiresIn: DOWNLOAD_URL_TTL_S },
     );
   }
+}
+
+/**
+ * RFC 6266 `Content-Disposition` value for a download filename supplied by
+ * callers (ultimately end-user input) — building it via string interpolation
+ * let a `"` break out of the quoted-string, a `\r\n` split/inject a header,
+ * and mangled non-ASCII names. Ships BOTH forms so every client gets a safe,
+ * legible filename:
+ * - `filename="..."` — ASCII-only fallback (RFC 2616 quoted-string): control
+ *   chars/CR/LF stripped, non-ASCII replaced, `\` and `"` backslash-escaped.
+ * - `filename*=UTF-8''...` — RFC 5987 percent-encoded UTF-8, the real name
+ *   (diacritics etc.); modern clients prefer this over the fallback.
+ */
+export function contentDispositionHeader(filename: string): string {
+  // Strip control chars (incl. CR/LF) FIRST — no header may carry them
+  // regardless of quoting/encoding. (A char-code filter, not a regex control
+  // class, so this doesn't itself trip `no-control-regex`.)
+  const sanitized = Array.from(filename)
+    .filter((ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join("");
+
+  const asciiFallback = sanitized
+    .replace(/[^\x20-\x7e]/g, "_") // non-ASCII has no representation here
+    .replace(/\\/g, "\\\\") // escape backslash BEFORE quotes (order matters)
+    .replace(/"/g, '\\"');
+
+  // encodeURIComponent leaves `!'()*` unescaped, but RFC 5987 attr-char
+  // excludes them (`* ' %` are the ext-value delimiters) — encode those too.
+  const encoded = encodeURIComponent(sanitized).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }

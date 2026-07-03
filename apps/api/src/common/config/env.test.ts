@@ -9,6 +9,8 @@ const STRONG_PRODUCTION = {
   CENTRIFUGO_TOKEN_SECRET: "y".repeat(32),
   CENTRIFUGO_API_KEY: "a-real-centrifugo-api-key",
   BULL_BOARD_PASSWORD: "a-real-bull-board-password",
+  S3_ACCESS_KEY: "a-real-s3-access-key",
+  S3_SECRET_KEY: "a-real-s3-secret-key",
 } as const;
 
 describe("loadEnv", () => {
@@ -79,5 +81,44 @@ describe("loadEnv", () => {
     // Same placeholder secrets, but development → defaults stand, no throw.
     expect(loadEnv({}).BETTER_AUTH_SECRET).toBe("dev-secret-change-me");
     expect(loadEnv({ NODE_ENV: "test" }).CENTRIFUGO_API_KEY).toBe("dev-centrifugo-api-key");
+  });
+
+  it("rejects dev-placeholder S3 credentials in production against a non-AWS (self-hosted) endpoint", () => {
+    // Default S3_ENDPOINT (http://localhost:9000) is MinIO-style, non-AWS —
+    // the static dev creds are actually in play there, so they must be rejected.
+    expect(() =>
+      loadEnv({
+        ...STRONG_PRODUCTION,
+        S3_ACCESS_KEY: "minio",
+        S3_SECRET_KEY: "minio-dev-password",
+      }),
+    ).toThrow(/S3_ACCESS_KEY/);
+    expect(() =>
+      loadEnv({
+        ...STRONG_PRODUCTION,
+        S3_ACCESS_KEY: "minio",
+        S3_SECRET_KEY: "minio-dev-password",
+      }),
+    ).toThrow(/S3_SECRET_KEY/);
+  });
+
+  it("allows the dev-placeholder S3 credentials in production once S3_ENDPOINT is real AWS", () => {
+    // A real AWS endpoint authenticates via IAM, not these static keys — the
+    // MinIO placeholder values are no longer a meaningful credential trap there.
+    expect(() =>
+      loadEnv({
+        ...STRONG_PRODUCTION,
+        S3_ENDPOINT: "https://s3.amazonaws.com",
+        S3_ACCESS_KEY: "minio",
+        S3_SECRET_KEY: "minio-dev-password",
+      }),
+    ).not.toThrow();
+  });
+
+  it("does not enforce the S3 credential guard outside production", () => {
+    // Same placeholder creds, non-AWS endpoint, but development → defaults stand, no throw.
+    const env = loadEnv({});
+    expect(env.S3_ACCESS_KEY).toBe("minio");
+    expect(env.S3_SECRET_KEY).toBe("minio-dev-password");
   });
 });
