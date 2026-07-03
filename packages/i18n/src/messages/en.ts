@@ -299,6 +299,97 @@ const en: MessagesInput = {
     unsaved: "Unsaved changes",
     allSaved: "All changes saved",
   },
+  issues: {
+    unknown: 'Unknown issue "{key}".',
+    fragment: {
+      params: " ({params})",
+      note: " Note: {note}",
+      reason: " Reason: {reason}",
+      section: ", section {section}",
+      material: ", material {material}",
+    },
+    engine: {
+      override: {
+        scope_mismatch: 'Override "{id}" belongs to scope "{scope}" but was applied elsewhere.',
+        bad_target: 'Override "{id}" targets an invalid address "{target}".',
+        bad_price: 'Override "{id}" sets an invalid price ({value}).',
+        new_price_code:
+          'Override "{id}" introduces a new price code "{code}" the table does not yet carry.',
+        artifact_scope:
+          'Override "{id}" on a part may only be applied at quote scope, not "{scope}".',
+        bad_value: 'Override "{id}" has an invalid value ({value}).',
+        pricing_resolution_required:
+          'Quantity override "{id}" requires stating whether the price should be recomputed.',
+        artifact_missing:
+          'Override "{id}" targets part "{path}", which the current configuration does not produce.',
+        cannot_reprice:
+          'Part "{path}" (override "{id}") cannot be repriced — it has no unit price.',
+      },
+      input: {
+        unknown_param: 'Unknown parameter "{key}".',
+        not_adjustable: 'Parameter "{key}" cannot be changed — it is manufacturer-controlled.',
+        bad_type: 'Parameter "{key}" has an invalid type, expected {expected}.',
+        below_min: 'Parameter "{key}" ({value}) is below the minimum {min}.',
+        above_max: 'Parameter "{key}" ({value}) exceeds the maximum {max}.',
+        off_step: 'Parameter "{key}" ({value}) does not match the step {step}.',
+        not_in_enum: 'Parameter "{key}" has an invalid value "{value}" — allowed: {allowed}.',
+        pattern: 'Parameter "{key}" ({value}) does not match the required format.',
+        reserved_key: 'Key "{key}" contains a dot, which is a reserved format.',
+        missing_param: 'Missing required parameter "{key}".',
+      },
+      option: {
+        unresolved: 'Option "{value}" for "{key}" was not found in set "{optionSet}".',
+      },
+      catalog: {
+        unresolved: 'No catalog component for role "{role}".',
+      },
+      deviation: {
+        out_of_bounds: 'Deviation of "{key}" ({value}) is outside the allowed range {min}–{max}.',
+        reason_required: 'Deviation of "{key}" (override "{id}") requires a reason.',
+        applied: 'Deviation of "{key}" set to {value}. Reason: {reason}',
+        artifact: 'Part "{path}" adjusted ({field}: {value}).',
+      },
+      site: {
+        duplicate_instance: 'Instance "{id}" appears more than once on the plan.',
+        duplicate_terrain_segment: 'Terrain segment "{id}" is defined more than once.',
+        unknown_instance: 'Reference to an unknown instance "{id}".',
+        duplicate_placement: 'Instance "{id}" has more than one placement on the plan.',
+        unknown_terrain_segment: 'Instance "{id}" references unknown terrain segment "{segment}".',
+        terrain_unbound:
+          'Instance "{id}" does not support terrain-following (segment "{segment}").',
+        unplaced_instance: 'Instance "{id}" is not placed on the plan.',
+        unknown_port: 'Instance "{id}" has no port "{port}".',
+        port_reused: 'Port "{port}" of instance "{id}" is used in more than one connection.',
+        port_incompatible:
+          'Connection {connection}: port kinds "{aKind}" and "{bKind}" are not compatible.',
+        sharing_conflict:
+          "Connection {connection}: both ports expect the other side to provide the shared element.",
+        sharing_unprovided: "Connection {connection}: neither side provides the shared element.",
+        elevation_conflict:
+          'Instance "{id}": the value given for parameter "{param}" ({input}) does not match the terrain height ({terrain}).',
+      },
+    },
+    sliding: {
+      opening_width: {
+        wide: "Opening width exceeds the recommended limit — verify feasibility.",
+      },
+      clear_height: {
+        tall: "Clear height exceeds the recommended limit — verify feasibility.",
+      },
+      fill: {
+        overlap_within_max: "Fill overlap exceeds the allowed maximum — check the slat spacing.",
+      },
+    },
+    fence: {
+      run: {
+        long: "Field length exceeds the recommended limit — verify feasibility.",
+      },
+      connection: {
+        top_step:
+          'The top-edge height difference between "{self}" and "{other}" (connection {connection}) exceeds the allowed 200 mm step.',
+      },
+    },
+  },
   quotes: {
     title: "Quotes",
     checkingSession: "Checking session…",

@@ -298,6 +298,108 @@ const cs = {
     unsaved: "Neuložené změny",
     allSaved: "Vše uloženo",
   },
+  /**
+   * Engine `Issue.key` catalog (CAR-14, ADR 0047) — `formatIssue` (apps/web/lib/
+   * format-issue.ts) is the ONLY consumer. Structure mirrors each key's dots as
+   * nested objects (`t(issue.key)` under this namespace resolves next-intl's own
+   * dot-path traversal — no separate lookup layer). `engine.*` are the
+   * engine-structural I5 codes (packages/engine/src); the other branches
+   * (`sliding.*`, `fence.*`) are the CURRENT vendor-authored constraint keys from
+   * the fixtures corpus (ConstraintDef.key doubles as the i18n key by design,
+   * CORE_SPEC §3) — a NEW vendor key with no entry here renders through
+   * `unknown` (never a crash, never a bare key). `fragment.*` are small
+   * translated clauses `formatIssue` appends for OPTIONAL params (note/reason/
+   * section/material) it does not inline into the main sentence.
+   */
+  issues: {
+    unknown: "Neznámý problém „{key}“.",
+    fragment: {
+      params: " ({params})",
+      note: " Poznámka: {note}",
+      reason: " Důvod: {reason}",
+      section: ", provedení {section}",
+      material: ", materiál {material}",
+    },
+    engine: {
+      override: {
+        scope_mismatch: "Přepis „{id}“ patří do rozsahu „{scope}“, ale byl použit jinde.",
+        bad_target: "Přepis „{id}“ míří na neplatný cíl „{target}“.",
+        bad_price: "Přepis „{id}“ nastavuje neplatnou cenu ({value}).",
+        new_price_code:
+          "Přepis „{id}“ zavádí nový cenový kód „{code}“, který ceník zatím neobsahuje.",
+        artifact_scope: "Přepis dílu „{id}“ lze použít jen na úrovni nabídky, ne „{scope}“.",
+        bad_value: "Přepis „{id}“ má neplatnou hodnotu ({value}).",
+        pricing_resolution_required:
+          "Přepis množství „{id}“ vyžaduje určit, zda se má cena přepočítat.",
+        artifact_missing:
+          "Přepis „{id}“ míří na díl „{path}“, který se v aktuální konfiguraci nevyrábí.",
+        cannot_reprice: "Díl „{path}“ (přepis „{id}“) nelze přecenit — nemá jednotkovou cenu.",
+      },
+      input: {
+        unknown_param: "Neznámý parametr „{key}“.",
+        not_adjustable: "Parametr „{key}“ nelze upravit — řídí ho výrobce.",
+        bad_type: "Parametr „{key}“ má neplatný typ, očekává se {expected}.",
+        below_min: "Parametr „{key}“ ({value}) je pod minimem {min}.",
+        above_max: "Parametr „{key}“ ({value}) překračuje maximum {max}.",
+        off_step: "Parametr „{key}“ ({value}) neodpovídá kroku {step}.",
+        not_in_enum: "Parametr „{key}“ má neplatnou hodnotu „{value}“ — povoleno: {allowed}.",
+        pattern: "Parametr „{key}“ ({value}) neodpovídá požadovanému formátu.",
+        reserved_key: "Klíč „{key}“ obsahuje tečku, což je vyhrazený formát.",
+        missing_param: "Chybí povinný parametr „{key}“.",
+      },
+      option: {
+        unresolved: "Volbu „{value}“ pro „{key}“ nelze v sadě „{optionSet}“ najít.",
+      },
+      catalog: {
+        unresolved: "V katalogu chybí komponenta pro roli „{role}“.",
+      },
+      deviation: {
+        out_of_bounds: "Odchylka parametru „{key}“ ({value}) je mimo povolený rozsah {min}–{max}.",
+        reason_required: "Odchylka parametru „{key}“ (přepis „{id}“) vyžaduje zdůvodnění.",
+        applied: "Odchylka parametru „{key}“ nastavena na {value}. Důvod: {reason}",
+        artifact: "Díl „{path}“ upraven ({field}: {value}).",
+      },
+      site: {
+        duplicate_instance: "Prvek „{id}“ je na ploše zadán vícekrát.",
+        duplicate_terrain_segment: "Segment terénu „{id}“ je zadán vícekrát.",
+        unknown_instance: "Odkaz na neznámý prvek „{id}“.",
+        duplicate_placement: "Prvek „{id}“ má na ploše více umístění.",
+        unknown_terrain_segment: "Prvek „{id}“ odkazuje na neznámý segment terénu „{segment}“.",
+        terrain_unbound: "Prvek „{id}“ nepodporuje sledování terénu (segment „{segment}“).",
+        unplaced_instance: "Prvek „{id}“ není na ploše umístěn.",
+        unknown_port: "Prvek „{id}“ nemá port „{port}“.",
+        port_reused: "Port „{port}“ prvku „{id}“ je použit ve více spojeních.",
+        port_incompatible:
+          "Spojení {connection}: porty typu „{aKind}“ a „{bKind}“ nejsou kompatibilní.",
+        sharing_conflict:
+          "Spojení {connection}: oba porty očekávají sdílený prvek od druhé strany.",
+        sharing_unprovided: "Spojení {connection}: žádná strana sdílený prvek neposkytuje.",
+        elevation_conflict:
+          "Prvek „{id}“: zadaná hodnota parametru „{param}“ ({input}) neodpovídá výšce terénu ({terrain}).",
+      },
+    },
+    sliding: {
+      opening_width: {
+        wide: "Šířka otvoru přesahuje doporučenou mez — ověřte proveditelnost.",
+      },
+      clear_height: {
+        tall: "Světlá výška přesahuje doporučenou mez — ověřte proveditelnost.",
+      },
+      fill: {
+        overlap_within_max:
+          "Překrytí výplně přesahuje povolené maximum — zkontrolujte rozteč lamel.",
+      },
+    },
+    fence: {
+      run: {
+        long: "Délka plotového pole přesahuje doporučenou mez — ověřte proveditelnost.",
+      },
+      connection: {
+        top_step:
+          "Rozdíl výšky horní hrany mezi „{self}“ a „{other}“ (spojení {connection}) přesahuje povolený krok 200 mm.",
+      },
+    },
+  },
   quotes: {
     title: "Nabídky",
     checkingSession: "Ověřování relace…",

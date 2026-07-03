@@ -4,14 +4,14 @@ import type { DerivationResult, Issue } from "@repo/engine";
 import { useLocale, useTranslations } from "@repo/i18n/web";
 import { cn, Panel } from "@repo/ui";
 
+import { formatIssue, type IssueTranslator } from "../../lib/format-issue";
 import { formatMoney } from "../../lib/format-money";
 
 /**
  * Live derivation output: category totals (off the I10 decimal-string money
  * boundary), the BOM, and every surfaced Issue (I5 — an invalid config shows
- * its typed problems, never a silent zero). Issue texts render as
- * `key + params` for now; the issue-key i18n catalog is a step-6 follow-up
- * (ConstraintDef.key doubles as the message key by design).
+ * its typed problems, never a silent zero). Issue texts render as a localized
+ * human sentence via {@link formatIssue} (CAR-14, `issues.*` catalog).
  *
  * `priceBlind` (ADR 0056) mirrors the server price-blind rule for the `workshop`
  * role: BOM items + quantities stay, all money (totals card + price column) is
@@ -104,12 +104,7 @@ export function ResultsPanel({
 
 function IssueLine({ issue }: { issue: Issue }) {
   const t = useTranslations("configurator");
-  const params =
-    issue.params === undefined
-      ? ""
-      : Object.entries(issue.params)
-          .map(([k, v]) => `${k}: ${String(v)}`)
-          .join(", ");
+  const tIssues = useTranslations("issues") as unknown as IssueTranslator;
   return (
     <li className="flex items-baseline gap-2">
       <span
@@ -122,10 +117,7 @@ function IssueLine({ issue }: { issue: Issue }) {
       >
         {issue.severity === "error" ? t("issueError") : t("issueWarn")}
       </span>
-      <span>
-        <code className="text-xs">{issue.key}</code>
-        {params && <span className="text-muted-foreground text-xs"> ({params})</span>}
-      </span>
+      <span>{formatIssue(tIssues, issue)}</span>
     </li>
   );
 }
