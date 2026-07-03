@@ -115,6 +115,19 @@ describe("loadEnv", () => {
     ).not.toThrow();
   });
 
+  it("does not mistake an amazonaws.com-suffixed lookalike host for real AWS", () => {
+    // Regression: a bare endsWith("amazonaws.com") let "myamazonaws.com"
+    // bypass the placeholder-credential guard — the suffix needs a dot boundary.
+    expect(() =>
+      loadEnv({
+        ...STRONG_PRODUCTION,
+        S3_ENDPOINT: "https://myamazonaws.com",
+        S3_ACCESS_KEY: "minio",
+        S3_SECRET_KEY: "minio-dev-password",
+      }),
+    ).toThrow(/S3_ACCESS_KEY/);
+  });
+
   it("does not enforce the S3 credential guard outside production", () => {
     // Same placeholder creds, non-AWS endpoint, but development → defaults stand, no throw.
     const env = loadEnv({});
