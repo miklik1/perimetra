@@ -3,11 +3,13 @@ import type { ApiClient } from "@repo/api";
 import { appendSearchParams, stableParams, type SearchParamsInput } from "@repo/utils";
 import {
   issueQuoteSchema,
+  quoteProductionSchema,
   quoteReproductionSchema,
   quoteSchema,
   quotesPageSchema,
   type IssueQuoteInput,
   type QuoteDetail,
+  type QuoteProduction,
   type QuoteReproduction,
   type QuotesPage,
 } from "@repo/validators";
@@ -25,6 +27,8 @@ const quoteKeys = {
   list: (filters?: SearchParamsInput) => [...quoteKeys.lists(), stableParams(filters)] as const,
   details: () => [...quoteKeys.all, "detail"] as const,
   detail: (id: string) => [...quoteKeys.details(), id] as const,
+  productions: () => [...quoteKeys.all, "production"] as const,
+  production: (id: string) => [...quoteKeys.productions(), id] as const,
 } as const;
 
 export type ListQuotesFilters = {
@@ -56,6 +60,17 @@ export function createQuotesQueries(client: ApiClient) {
         queryKey: quoteKeys.detail(id),
         path: `/v1/quotes/${id}`,
         schema: (data) => quoteSchema.parse(data),
+      }),
+
+    // GET /v1/quotes/:id/production (CAR-24) — the workshop build view: cut
+    // list/BOM quantities/drawings off the frozen snapshot, role-independent
+    // (every caller gets the identical price-blind shape, so no priceBlind flag
+    // to thread here unlike `detail`).
+    production: (id: string) =>
+      defineQuery<QuoteProduction>(client, {
+        queryKey: quoteKeys.production(id),
+        path: `/v1/quotes/${id}/production`,
+        schema: (data) => quoteProductionSchema.parse(data),
       }),
 
     // POST /v1/quotes/:id/verify — re-derive from stamps, returns the I3 result.

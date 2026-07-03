@@ -123,6 +123,17 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
           {quote.documentNumber}
         </DisplayLabel>
         <div className="flex items-center gap-3">
+          {/* Production (CAR-24) — only an effectively issued/accepted quote has
+           *  a build; mirrors the api's `isProducible` gate so the link never
+           *  dangles into a 404. */}
+          {(quote.status === "issued" || quote.status === "accepted") && (
+            <Link
+              href={`/quotes/${quote.id}/production`}
+              className="text-copper text-sm font-medium hover:underline"
+            >
+              {t("production.open")}
+            </Link>
+          )}
           <Link
             href={`/quotes/${quote.id}/nabidka`}
             className="text-copper text-sm font-medium hover:underline"

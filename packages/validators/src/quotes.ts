@@ -233,3 +233,187 @@ export const quoteReproductionSchema = z.object({
   mismatches: z.array(z.string()),
 });
 export type QuoteReproduction = z.infer<typeof quoteReproductionSchema>;
+
+// --- Workshop PRODUCTION view (CAR-24) ---------------------------------------
+//
+// The fabricator's build surface: cut list + BOM quantities + 2D drawings, off
+// the quote's FROZEN snapshot (never re-derived — I3: a since-changed price
+// table/release must not alter what gets built). This is a ROLE-INDEPENDENT
+// view — production has no price to hide from admin/sales either, it's a
+// distinct SURFACE (what to build), not a distinct permission level — so it is
+// ALWAYS this shape, never role-conditional like `quoteSchema`'s snapshot.
+//
+// Every field below is hand-mirrored off `@repo/renderers` (`CutList`,
+// `WorkshopDrawing`, `SitePlan`) and `@repo/engine` (`SiteBomLine`) the same
+// way `taxBreakdownSchema`/`nabidkaDocumentSchema` mirror their sources above —
+// `@repo/validators` cannot depend on `renderers`/`engine`/`model` (the
+// boundaries DAG keeps it a zero-dep leaf), so the shapes are copied, not
+// imported. A STRUCTURED, typed response (not `z.unknown()` passthrough) is the
+// point: the strip semantics live in the schema itself (ADR 0039), not just in
+// the server-side projection that builds it.
+
+const productionPointSchema = z.object({ x: z.number(), y: z.number() });
+const productionQuadSchema = z.tuple([
+  productionPointSchema,
+  productionPointSchema,
+  productionPointSchema,
+  productionPointSchema,
+]);
+
+/** Mirrors `SiteBomLine`, allowlisted to the NON-money fields (drops
+ *  `totalPrice`/`totalPriceMoney` — production quantities, never price). */
+export const productionBomLineSchema = z.object({
+  componentCode: z.string(),
+  name: z.string(),
+  unit: z.string(),
+  category: z.string(),
+  quantity: z.number(),
+  /** Every surviving part folded into this line (I9 site addresses). */
+  sources: z.array(z.object({ instanceId: z.string(), path: z.string() })),
+});
+
+/** Mirrors `PieceProfile` (@repo/engine). */
+const productionPieceProfileSchema = z.object({
+  shape: z.enum(["L", "U", "T", "rect_tube", "flat", "pane", "custom"]),
+  wMm: z.number().optional(),
+  dMm: z.number().optional(),
+  wallMm: z.number().optional(),
+});
+
+/** Mirrors `CutLine` (@repo/renderers `cutlist.ts`). */
+const productionCutLineSchema = z.object({
+  componentCode: z.string(),
+  name: z.string(),
+  lengthMm: z.number(),
+  cutArcMin: z.object({ left: z.number().optional(), right: z.number().optional() }).optional(),
+  count: z.number(),
+  sources: z.array(z.string()),
+});
+
+/** Mirrors `StockBar` (@repo/renderers `cutlist.ts`). */
+const productionStockBarSchema = z.object({
+  index: z.number(),
+  stockLengthMm: z.number(),
+  cuts: z.array(z.object({ lengthMm: z.number(), source: z.string() })),
+  usedMm: z.number(),
+  offcutMm: z.number(),
+});
+
+/** Mirrors `ComponentCuts` (@repo/renderers `cutlist.ts`). */
+const productionComponentCutsSchema = z.object({
+  componentCode: z.string(),
+  name: z.string(),
+  profile: productionPieceProfileSchema.optional(),
+  lines: z.array(productionCutLineSchema),
+  totalPieces: z.number(),
+  totalLengthMm: z.number(),
+  nesting: z
+    .object({
+      stockLengthMm: z.number(),
+      kerfMm: z.number(),
+      bars: z.array(productionStockBarSchema),
+      oversize: z.array(z.object({ lengthMm: z.number(), source: z.string() })),
+    })
+    .optional(),
+});
+
+/** Mirrors `CutList` (@repo/renderers `cutlist.ts`). */
+export const productionCutListSchema = z.object({
+  components: z.array(productionComponentCutsSchema),
+});
+
+/**
+ * Mirrors `DrawingFlag` (@repo/renderers `drawing2d.ts`) — NARROWED to the two
+ * PHYSICAL `ArtifactField`s (@repo/model): a part deviation can also target the
+ * commercial `pricePerUnit`/`totalPrice` fields (a cascade-override reaching an
+ * artifact price), and that raw float must never cross this boundary. The
+ * server-side projection drops those flags before this ever parses; the `enum`
+ * here is the schema-level backstop — a smuggled commercial flag fails closed
+ * (a validation error), never silently serializes.
+ */
+const productionDrawingFlagSchema = z.object({
+  partPath: z.string(),
+  field: z.enum(["quantity", "lengthMm"]),
+  original: z.number().optional(),
+  value: z.number(),
+  overrideId: z.string(),
+  reason: z.string().optional(),
+});
+
+/** Mirrors `WorkshopDrawing` (@repo/renderers `drawing2d.ts`). */
+export const productionWorkshopDrawingSchema = z.object({
+  quads: z.array(
+    z.object({
+      id: z.string(),
+      componentCode: z.string(),
+      points: productionQuadSchema,
+      deviated: z.boolean().optional(),
+    }),
+  ),
+  dims: z.array(
+    z.object({
+      id: z.string(),
+      from: productionPointSchema,
+      to: productionPointSchema,
+      valueMm: z.number(),
+    }),
+  ),
+  flags: z.array(productionDrawingFlagSchema),
+  bbox: z.object({ min: productionPointSchema, max: productionPointSchema }),
+});
+
+/** Mirrors `SitePlan` (@repo/renderers `drawing2d.ts`). */
+export const productionSitePlanSchema = z.object({
+  instances: z.array(
+    z.object({
+      instanceId: z.string(),
+      outline: productionQuadSchema,
+      labelAt: productionPointSchema,
+    }),
+  ),
+  connections: z.array(
+    z.object({
+      connection: z.number(),
+      from: productionPointSchema,
+      to: productionPointSchema,
+      shared: z.object({ ownerInstanceId: z.string(), partPath: z.string() }).optional(),
+    }),
+  ),
+  terrain: z.array(
+    z.object({
+      id: z.string(),
+      elevationMm: z.number(),
+      instanceIds: z.array(z.string()),
+    }),
+  ),
+});
+
+/** One roster instance's product identity (release natural key) — enough to
+ *  label a drawing/cut group (e.g. "gate — sliding-gate@1"); NOT the raw
+ *  `ConfigInput` (that's a free-form record the release schema controls, and
+ *  production has no need to re-derive, so it never crosses this boundary). */
+export const productionInstanceSchema = z.object({
+  instanceId: z.string(),
+  releaseId: z.string(),
+});
+
+/** Only an effectively `issued`/`accepted` quote has a production run — a
+ *  declined/expired offer, or an (unreachable today) draft, has nothing to
+ *  build. */
+export const producibleQuoteStatusSchema = z.enum(["issued", "accepted"]);
+
+export const quoteProductionSchema = z.object({
+  id: z.uuid(),
+  documentNumber: z.string(),
+  status: producibleQuoteStatusSchema,
+  createdAt: isoDatetime,
+  instances: z.array(productionInstanceSchema),
+  bom: z.array(productionBomLineSchema),
+  cutList: productionCutListSchema,
+  cutOptions: z.object({ kerfMm: z.number().int().nonnegative() }),
+  drawings: z.object({
+    site: productionSitePlanSchema,
+    instances: z.record(z.string(), productionWorkshopDrawingSchema),
+  }),
+});
+export type QuoteProduction = z.infer<typeof quoteProductionSchema>;

@@ -48,11 +48,12 @@
       ]
     },
     "apps/web": {
-      // Dev-only headless 3D capture harness (ADR 0073) — a standalone
-      // `node`-run verification tool (`node scripts/verify/capture-scene.mjs`),
-      // never imported in source; declared as an entry so knip sees it (and its
-      // @playwright/test import) as used, like apps/mobile's asset tool above.
-      "entry": ["scripts/verify/capture-scene.mjs"]
+      // Dev-only headless capture harnesses — standalone `node`-run verification
+      // tools, never imported in source; declared as entries so knip sees them
+      // (and their @playwright/test import) as used, like apps/mobile's asset
+      // tool below. `capture-scene.mjs` is the 3D harness (ADR 0073);
+      // `capture-production.mjs` is the CAR-24/ADR 0101 workshop-view harness.
+      "entry": ["scripts/verify/capture-scene.mjs", "scripts/verify/capture-production.mjs"]
     },
     "apps/mobile": {
       "metro": false,

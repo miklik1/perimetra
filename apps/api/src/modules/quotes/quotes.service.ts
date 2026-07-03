@@ -60,6 +60,7 @@ import {
   type ListQuotesQuery,
   type QuoteAcceptance,
   type QuoteDetail,
+  type QuoteProduction,
   type QuoteReproduction,
   type QuotesPage,
   type QuoteStamps,
@@ -77,12 +78,20 @@ import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import { formatQuoteNumber } from "./document-number.js";
 import { quoteMarginPct } from "./margin.js";
+import { isProducible, productionSafeDrawing, toProduction } from "./production.js";
 import { canBuyerResolve, effectiveStatus } from "./quote-lifecycle.js";
 import { QuotesRepository, type QuoteScopeOpts } from "./quotes.repository.js";
 
-/** admin sees the whole org; every other rep is narrowed to their own quotes. */
+/**
+ * Ownership narrowing (ADR 0082) is a SALES-pipeline concept — `sales` sees
+ * only their own quotes; `admin` sees the whole org (the tenant owner). Widened
+ * (CAR-24) so `workshop` ALSO sees the whole org: workshop never owns a quote
+ * (issuing is `@RequireRole("admin","sales")`), so the old `role !== "admin"`
+ * narrowing left workshop's list/detail/production permanently empty — a
+ * price-blind read is still an org-wide read, not an ownership one.
+ */
 function scopeOpts(role: OrgRole): QuoteScopeOpts {
-  return { restrictToOwner: role !== "admin" };
+  return { restrictToOwner: role === "sales" };
 }
 
 /**
@@ -253,7 +262,20 @@ function blindSnapshot(snapshot: QuoteSnapshot): Record<string, unknown> {
       sources: line.sources,
     })),
     cutList: snapshot.cutList,
-    drawings: snapshot.drawings,
+    // A part's cascade override can target the COMMERCIAL `pricePerUnit`/
+    // `totalPrice` ArtifactFields, not just quantity/lengthMm — without this,
+    // an overridden part's raw price float would ride the deviation flag
+    // straight through this whitelist (`production.ts`'s narrow I10 leak
+    // vector, CAR-24 — same fix, applied here too for the price-blind detail).
+    drawings: {
+      site: snapshot.drawings.site,
+      instances: Object.fromEntries(
+        Object.entries(snapshot.drawings.instances).map(([id, d]) => [
+          id,
+          productionSafeDrawing(d),
+        ]),
+      ),
+    },
     inputs: snapshot.inputs,
     site: snapshot.site,
     cutOptions: snapshot.cutOptions,
@@ -304,6 +326,29 @@ export class QuotesService {
     const row = await this.quotes.findById(scope, scopeOpts(role), quoteId);
     if (!row) throw new NotFoundException("Quote not found");
     return toDetail(row, role);
+  }
+
+  /**
+   * The workshop PRODUCTION view (CAR-24) — cut list + BOM quantities + 2D
+   * drawings off the FROZEN snapshot (never re-derived, I3). ROLE-INDEPENDENT:
+   * unlike `get`, every caller (admin/sales/workshop) sees the identical
+   * price-blind shape — production is a distinct SURFACE, not a permission
+   * level, so there is no role branch here at all. Ownership scope is the SAME
+   * widened `scopeOpts` as `get`/`list` (workshop sees the whole org, ADR
+   * above). Gated to an effectively issued/accepted quote (`isProducible`) —
+   * a draft/declined/expired quote 404s (absence, not a 403 — consistent with
+   * the org-scope-isolation "no existence oracle" precedent).
+   */
+  async getProduction(
+    scope: RequestScope,
+    role: OrgRole,
+    quoteId: string,
+  ): Promise<QuoteProduction> {
+    const row = await this.quotes.findById(scope, scopeOpts(role), quoteId);
+    if (!row) throw new NotFoundException("Quote not found");
+    const effective = effectiveStatus(row.status, row.validUntil, new Date());
+    if (!isProducible(effective)) throw new NotFoundException("Quote not found");
+    return toProduction(row, effective, row.snapshot as QuoteSnapshot);
   }
 
   @Transactional()
