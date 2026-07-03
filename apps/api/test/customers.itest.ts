@@ -141,6 +141,31 @@ describe("customers + per-rep ownership (HTTP, real stack)", () => {
     expect(mine.id).toBeTruthy();
   });
 
+  it("search filters by name OR IČO (case-insensitive substring, CAR-23)", async () => {
+    const created = (
+      await as(user, "POST", "/v1/customers", { name: "Zeta Vrátka Unique s.r.o." })
+    ).json() as CustomerBody;
+
+    // Case-insensitive substring on name — matches only the freshly created row.
+    const byName = (
+      await as(user, "GET", `/v1/customers?search=${encodeURIComponent("zeta vrátka")}`)
+    ).json() as { items: CustomerBody[] };
+    expect(byName.items.map((c) => c.id)).toEqual([created.id]);
+
+    // Substring on IČO — matches the earlier "Bartek Vrata s.r.o." (ico 27074358).
+    const byIco = (await as(user, "GET", "/v1/customers?search=270743")).json() as {
+      items: CustomerBody[];
+    };
+    expect(byIco.items.map((c) => c.name)).toContain("Bartek Vrata s.r.o.");
+    expect(byIco.items.map((c) => c.id)).not.toContain(created.id);
+
+    // A term matching nothing returns an empty page.
+    const none = (
+      await as(user, "GET", `/v1/customers?search=${encodeURIComponent("no-such-substring-zzz")}`)
+    ).json() as { items: CustomerBody[] };
+    expect(none.items).toEqual([]);
+  });
+
   it("attaches a customer and auto-fills the §92e decision from its VAT status", async () => {
     const cust = (
       await as(user, "POST", "/v1/customers", {

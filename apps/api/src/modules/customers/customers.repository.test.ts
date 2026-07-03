@@ -95,6 +95,44 @@ describe("CustomersRepository org + per-rep scope (ADR 0082)", () => {
   });
 });
 
+describe("CustomersRepository search (CAR-23)", () => {
+  it("adds a name-OR-ico ILIKE clause, wrapped in wildcards", async () => {
+    const { txHost, captured } = makeTxHost([]);
+    await new CustomersRepository(txHost).list(
+      SCOPE,
+      { restrictToOwner: false },
+      { limit: 20, sort: "createdAt:desc", search: "Bartek" },
+    );
+    const { sql, params } = render(captured.where);
+    expect(sql.toLowerCase()).toContain("ilike");
+    expect(sql).toContain('"name"');
+    expect(sql).toContain('"ico"');
+    expect(params).toContain("%Bartek%");
+  });
+
+  it("escapes ILIKE wildcards in the search term (no accidental pattern match)", async () => {
+    const { txHost, captured } = makeTxHost([]);
+    await new CustomersRepository(txHost).list(
+      SCOPE,
+      { restrictToOwner: false },
+      { limit: 20, sort: "createdAt:desc", search: "50%_off" },
+    );
+    const { params } = render(captured.where);
+    expect(params).toContain("%50\\%\\_off%");
+  });
+
+  it("omits the search clause entirely when no search term is given", async () => {
+    const { txHost, captured } = makeTxHost([]);
+    await new CustomersRepository(txHost).list(
+      SCOPE,
+      { restrictToOwner: false },
+      { limit: 20, sort: "createdAt:desc" },
+    );
+    const { sql } = render(captured.where);
+    expect(sql.toLowerCase()).not.toContain("ilike");
+  });
+});
+
 describe("CustomersRepository keyset pagination", () => {
   it("fetches limit+1 and turns the extra row into nextCursor", async () => {
     const { txHost, captured } = makeTxHost([row(ID_3), row(ID_2), row(ID_1)]);

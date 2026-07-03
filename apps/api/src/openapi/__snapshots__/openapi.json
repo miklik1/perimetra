@@ -1287,6 +1287,16 @@
                 "archived"
               ]
             }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "responses": {

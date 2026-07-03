@@ -13,6 +13,10 @@ import type { OrgRole } from "@repo/validators";
  *    price-blindness (`usePriceBlind`) is enforced INSIDE the surface, not by
  *    hiding the nav link — a workshop user can still open a quote to see its
  *    geometry/specs, just not its price.
+ *  - `customers` (ADR 0082/CAR-23) needs `admin` or `sales` — workshop is a
+ *    hard 403 on the whole `CustomersController` (price-blind, no buyer PII),
+ *    so unlike `quotes` the nav link itself is hidden, not just the surface's
+ *    internals.
  *  - `admin` needs the org `admin` role (`/admin` — price tables).
  *  - `platform` needs the platform/vendor operator flag, which is ORTHOGONAL
  *    to org role (ADR 0062) — a platform admin may hold any org role, or none
@@ -29,17 +33,28 @@ export interface NavContext {
 
 export interface NavEntry {
   /** i18n label key under the `nav` namespace (packages/i18n/src/messages/{cs,en}.ts). */
-  key: "configurator" | "projects" | "quotes" | "team" | "admin" | "platform" | "account";
+  key:
+    | "configurator"
+    | "projects"
+    | "quotes"
+    | "customers"
+    | "team"
+    | "admin"
+    | "platform"
+    | "account";
   to: Href;
   show: (ctx: NavContext) => boolean;
 }
 
 const anyOrgMember = (ctx: NavContext): boolean => ctx.role !== null;
+const canManageCustomers = (ctx: NavContext): boolean =>
+  ctx.role === "admin" || ctx.role === "sales";
 
 export const NAV_ENTRIES: readonly NavEntry[] = [
   { key: "configurator", to: { route: "configurator" }, show: anyOrgMember },
   { key: "projects", to: { route: "projects" }, show: anyOrgMember },
   { key: "quotes", to: { route: "quotes" }, show: anyOrgMember },
+  { key: "customers", to: { route: "customers" }, show: canManageCustomers },
   { key: "team", to: { route: "team" }, show: anyOrgMember },
   { key: "admin", to: { route: "admin" }, show: (ctx) => ctx.role === "admin" },
   { key: "platform", to: { route: "platform" }, show: (ctx) => ctx.isPlatformAdmin },

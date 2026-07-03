@@ -57,6 +57,8 @@ export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 /** Keyset pagination (spec §8) — cursor is a customer id (UUIDv7, time-ordered). */
 export const listCustomersQuerySchema = cursorQuerySchema.extend({
   status: customerStatusSchema.optional(),
+  /** Free-text filter over name OR IČO (case-insensitive substring, CAR-23). */
+  search: z.string().trim().min(1).max(200).optional(),
 });
 export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>;
 

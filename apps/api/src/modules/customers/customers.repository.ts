@@ -8,7 +8,7 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, isNull, lt, or } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { customer, type CustomerRow, type CustomerStatus } from "@repo/db/schema/customers";
@@ -20,6 +20,13 @@ export interface ListCustomersParams {
   limit: number;
   sort: "createdAt:asc" | "createdAt:desc";
   status?: CustomerStatus | undefined;
+  /** Free-text filter over name OR IČO (case-insensitive substring, CAR-23). */
+  search?: string | undefined;
+}
+
+/** Escape ILIKE wildcards (`%`/`_`) so a literal search term can't pattern-match. */
+function likePattern(search: string): string {
+  return `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
 export interface CustomersPageRows {
@@ -74,6 +81,12 @@ export class CustomersRepository {
         and(
           this.scoped(scope, opts),
           params.status ? eq(customer.status, params.status) : undefined,
+          params.search
+            ? or(
+                ilike(customer.name, likePattern(params.search)),
+                ilike(customer.ico, likePattern(params.search)),
+              )
+            : undefined,
           params.cursor
             ? ascending
               ? gt(customer.id, params.cursor)

@@ -35,6 +35,10 @@ export const routes = {
   site: { path: "/site/:projectId", params: { projectId: "string" } },
   quotes: { path: "/quotes" },
   quote: { path: "/quotes/:id", params: { id: "string" } },
+  // Odběratel management surface (ADR 0082 backend, CAR-23 UI) — admin/sales
+  // only (workshop is 403'd by the api; the nav entry's show-predicate mirrors it).
+  customers: { path: "/customers" },
+  customer: { path: "/customers/:id", params: { id: "string" } },
   // Buyer-facing PUBLIC nabídka (ADR 0089) — token-credentialed, no session.
   // Deliberately OUTSIDE the `/quotes` protected prefix (proxy.ts auth gate).
   sharedNabidka: { path: "/nabidka/:token", params: { token: "string" } },

@@ -38,6 +38,17 @@ export function useIsAdmin(): boolean {
 }
 
 /**
+ * FE mirror of the customers module's role gate (ADR 0082/CAR-23): admin sees
+ * the whole org, sales sees their own — workshop is 403 (price-blind, no buyer
+ * data). FAIL-CLOSED: `false` while loading/anonymous. UX only — the server's
+ * `@RequireRole('admin', 'sales')` on `CustomersController` is authoritative.
+ */
+export function useCanManageCustomers(): boolean {
+  const role = useRole();
+  return role === "admin" || role === "sales";
+}
+
+/**
  * FE mirror of the platform/vendor operator flag (ADR 0062), read from the SAME
  * `/v1/me` source the BE `PlatformGuard` enforces. Gates the vendor console
  * (publish + release assignment). FAIL-CLOSED: `false` while loading/anonymous.

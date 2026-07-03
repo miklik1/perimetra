@@ -3,22 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import {
-  useApiClient,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@repo/api/react";
+import { useApiClient, useInfiniteQuery, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button, Panel } from "@repo/ui";
-import { lookupDicSchema, lookupIcoSchema, type IssueQuoteInput } from "@repo/validators";
+import { lookupIcoSchema, type IssueQuoteInput } from "@repo/validators";
 
 import { createCustomersQueries, customerKeys } from "../../lib/customers-queries";
 import { errorMessageKey } from "../../lib/error-messages";
-import { createLookupsQueries } from "../../lib/lookups-queries";
 import { createQuotesQueries } from "../../lib/quotes-queries";
-import { aresPrefill, ViesBadge } from "../../lib/registry-lookup";
+import { useAresLookup, useViesLookup, ViesBadge } from "../../lib/registry-lookup";
 import { toast } from "../../lib/toast";
 
 const inputClass =
@@ -45,7 +38,6 @@ export function IssueQuotePanel({
   const queryClient = useQueryClient();
   const customersQueries = createCustomersQueries(apiClient);
   const quotesQueries = createQuotesQueries(apiClient);
-  const lookupsQueries = createLookupsQueries(apiClient);
 
   const [customerId, setCustomerId] = useState("");
   const [construction, setConstruction] = useState(false);
@@ -74,27 +66,14 @@ export function IssueQuotePanel({
 
   // IČO → ARES prefill (name + DIČ). Fail-soft server-side, so a non-found
   // status is a toast, never an error; vatPayer stays the rep's explicit choice.
-  const ares = useMutation({
-    ...lookupsQueries.ares(),
-    onSuccess: (result) => {
-      const prefill = aresPrefill(result);
-      if (!prefill) {
-        toast.error(tLookup(result.status === "not_found" ? "aresNotFound" : "aresUnavailable"));
-        return;
-      }
-      if (prefill.name) setName(prefill.name);
-      if (prefill.dic) setDic(prefill.dic);
-      if (result.dissolved) toast.warning(tLookup("aresDissolved"));
-    },
-    onError: () => toast.error(tLookup("aresUnavailable")),
+  const ares = useAresLookup(apiClient, (prefill) => {
+    if (prefill.name) setName(prefill.name);
+    if (prefill.dic) setDic(prefill.dic);
   });
 
   // DIČ → VIES validity badge — reactive, gated on a well-formed DIČ.
   const dicTrimmed = dic.trim().toUpperCase();
-  const vies = useQuery({
-    ...lookupsQueries.vies(dicTrimmed),
-    enabled: lookupDicSchema.safeParse(dicTrimmed).success,
-  });
+  const vies = useViesLookup(apiClient, dicTrimmed);
 
   const issue = useMutation({
     ...quotesQueries.issue(),

@@ -1,7 +1,12 @@
 "use client";
 
+import { type ApiClient } from "@repo/api";
+import { useMutation, useQuery } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { type AresLookup, type ViesLookup } from "@repo/validators";
+import { lookupDicSchema, type AresLookup, type ViesLookup } from "@repo/validators";
+
+import { createLookupsQueries } from "./lookups-queries";
+import { toast } from "./toast";
 
 /**
  * Shared registry-lookup helpers (ADR 0090) — the pure mapping/tone logic + the
@@ -73,4 +78,45 @@ export function ViesBadge({ result, loading }: { result?: ViesLookup; loading?: 
       {t(TONE_LABEL[tone])}
     </span>
   );
+}
+
+/**
+ * IČO → ARES lookup, wired with the fail-soft toasts (ADR 0090): a `found`
+ * result is handed to `apply` (the caller sets whichever fields it owns — the
+ * issue panel's `useState` pair, an RHF `setValue` fan-out, …); `not_found` /
+ * `unavailable` / a network error toast instead of calling `apply`; a
+ * `dissolved` subject still prefills but ALSO warns. Extracted so the ares
+ * mutation + its toast copy live in exactly one place across the customer
+ * create form, the customer create/edit form, and the supplier legal-profile
+ * form (CAR-23) — never re-wired per call site.
+ */
+export function useAresLookup(client: ApiClient, apply: (prefill: AresPrefill) => void) {
+  const tLookup = useTranslations("lookup");
+  const lookupsQueries = createLookupsQueries(client);
+  return useMutation({
+    ...lookupsQueries.ares(),
+    onSuccess: (result) => {
+      const prefill = aresPrefill(result);
+      if (!prefill) {
+        toast.error(tLookup(result.status === "not_found" ? "aresNotFound" : "aresUnavailable"));
+        return;
+      }
+      apply(prefill);
+      if (result.dissolved) toast.warning(tLookup("aresDissolved"));
+    },
+    onError: () => toast.error(tLookup("aresUnavailable")),
+  });
+}
+
+/**
+ * DIČ → VIES validity, reactive and gated on a well-formed DIČ (a malformed
+ * value never fires the request) — feed `result`/`isFetching` straight into
+ * `<ViesBadge>`. Same extraction rationale as `useAresLookup`.
+ */
+export function useViesLookup(client: ApiClient, dic: string) {
+  const lookupsQueries = createLookupsQueries(client);
+  return useQuery({
+    ...lookupsQueries.vies(dic),
+    enabled: lookupDicSchema.safeParse(dic).success,
+  });
 }

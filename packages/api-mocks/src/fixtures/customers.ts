@@ -64,6 +64,21 @@ export function insertCustomerFixture(input: {
   return customer;
 }
 
+/** Find a customer by id — the mock parity for `GET /v1/customers/:id`. */
+export function findCustomerFixture(id: string): Customer | undefined {
+  return customers.find((c) => c.id === id);
+}
+
+/** Apply a partial patch — the mock parity for `PATCH /v1/customers/:id`
+ *  (covers both field edits and the archive/restore status-only PATCH). */
+export function updateCustomerFixture(id: string, patch: Partial<Customer>): Customer | undefined {
+  const index = customers.findIndex((c) => c.id === id);
+  if (index === -1) return undefined;
+  const updated = { ...customers[index]!, ...patch, updatedAt: new Date().toISOString() };
+  customers[index] = updated;
+  return updated;
+}
+
 export function resetCustomers(): void {
   customers = seed();
   createSeq = 0;

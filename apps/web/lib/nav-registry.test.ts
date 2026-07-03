@@ -14,11 +14,12 @@ function keys(role: OrgRole | null, isPlatformAdmin: boolean): string[] {
 }
 
 describe("visibleNavEntries", () => {
-  it("registers exactly the 7 known surfaces, each with a unique key", () => {
+  it("registers exactly the 8 known surfaces, each with a unique key", () => {
     expect(NAV_ENTRIES.map((e) => e.key)).toStrictEqual([
       "configurator",
       "projects",
       "quotes",
+      "customers",
       "team",
       "admin",
       "platform",
@@ -34,11 +35,12 @@ describe("visibleNavEntries", () => {
     expect(keys(null, true)).toStrictEqual(["platform", "account"]);
   });
 
-  it("admin sees every product surface plus admin, minus platform (not the operator)", () => {
+  it("admin sees every product surface plus customers + admin, minus platform (not the operator)", () => {
     expect(keys("admin", false)).toStrictEqual([
       "configurator",
       "projects",
       "quotes",
+      "customers",
       "team",
       "admin",
       "account",
@@ -50,6 +52,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "customers",
       "team",
       "admin",
       "platform",
@@ -57,11 +60,12 @@ describe("visibleNavEntries", () => {
     ]);
   });
 
-  it("sales sees the product surfaces + team, never admin", () => {
+  it("sales sees the product surfaces + customers + team, never admin", () => {
     expect(keys("sales", false)).toStrictEqual([
       "configurator",
       "projects",
       "quotes",
+      "customers",
       "team",
       "account",
     ]);
@@ -72,13 +76,14 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "customers",
       "team",
       "platform",
       "account",
     ]);
   });
 
-  it("workshop (price-blind) sees the product surfaces + team, never admin or platform", () => {
+  it("workshop (price-blind AND customer-blind) sees the product surfaces + team, never customers/admin/platform", () => {
     expect(keys("workshop", false)).toStrictEqual([
       "configurator",
       "projects",
@@ -88,8 +93,9 @@ describe("visibleNavEntries", () => {
     ]);
   });
 
-  it("workshop must NOT see admin/platform even as the platform operator's own org role", () => {
+  it("workshop must NOT see customers/admin/platform even as the platform operator's own org role", () => {
     const visible = keys("workshop", true);
+    expect(visible).not.toContain("customers");
     expect(visible).not.toContain("admin");
     // `platform` is orthogonal to org role (ADR 0062) — the flag alone gates it.
     expect(visible).toContain("platform");

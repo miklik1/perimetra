@@ -24,7 +24,15 @@ import { env } from "@repo/config/env/web";
  */
 
 /** Routes that require a session cookie to be present. */
-const PROTECTED_PREFIXES = ["/account", "/projects", "/configurator", "/site", "/quotes", "/admin"];
+const PROTECTED_PREFIXES = [
+  "/account",
+  "/projects",
+  "/configurator",
+  "/site",
+  "/quotes",
+  "/customers",
+  "/admin",
+];
 
 // The static security header set re-applied to the middleware auth redirect,
 // which bypasses next.config.js `headers()` (a first-visit HTTP hit on a
