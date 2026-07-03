@@ -59,3 +59,27 @@ the platform operator**, enforced at the existing choke point:
 
 Supersedes nothing. Related: ADR 0040 (audit/GDPR plumbing), ADR 0062 (platform
 operator role), CORE_SPEC §1.
+
+## Amendment (2026-07-03, CAR-19): close the admin()-plugin raw-mount bypass
+
+`PlatformGuard` only runs on Nest's `/v1/platform/*` routes. The Better Auth
+`admin()` plugin's own six mutating endpoints (`impersonate-user`, `ban-user`,
+`unban-user`, `remove-user`, `set-role`, `set-user-password`) mount on the raw
+Fastify handler OUTSIDE Nest (same reason the ADR 0040 audit trail needed a
+Better Auth hook, not a Nest interceptor) — so an operator without enrolled
+TOTP could reach them directly, bypassing the mandatory-MFA gate entirely.
+Closed with a `hooks.before` sibling to the existing `hooks.after` audit hook
+in `auth.instance.ts`: a cheap `ctx.path` lookup against the SAME
+`ADMIN_AUDIT_ACTIONS` map, then the SAME fresh-DB `{ isOperator,
+twoFactorEnabled }` read `PlatformGuard` uses (`MembershipService.
+loadPlatformAccess`, injected as `loadPlatformAccess` in `auth.module.ts` —
+one source of truth). Because the admin() plugin resolves its own session only
+_inside_ the endpoint handler (after `before` hooks run), the gate resolves it
+itself via Better Auth's `getSessionFromCtx` (reads cookies/headers off `ctx`
+directly, and caches the result on `ctx.context.session` so the plugin's own
+subsequent lookup is free). A non-operator session falls through unchanged —
+the plugin's own `hasPermission` check still governs that case; only an
+MFA-less platform operator gets the distinct `mfa_required` 403, matching
+`PlatformGuard`'s shape. Covered by `apps/api/test/auth.itest.ts` (403 without
+TOTP, 200 once `twoFactorEnabled` is set, and an unchanged 403 for a
+non-admin caller).

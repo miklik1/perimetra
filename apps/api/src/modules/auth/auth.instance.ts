@@ -8,7 +8,7 @@
  */
 import { betterAuth, type SecondaryStorage } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { admin, organization, twoFactor } from "better-auth/plugins";
 import type { Redis } from "ioredis";
 
@@ -64,6 +64,19 @@ export interface CreateAuthDeps {
     entityType: string;
     entityId: string;
   }) => Promise<void>;
+  /**
+   * Fresh per-request `{ isOperator, twoFactorEnabled }` read (the SAME query
+   * `PlatformGuard` uses via `MembershipService.loadPlatformAccess` — one
+   * source of truth), for the `before` hook below. Closes the admin()-plugin
+   * MFA bypass (CAR-19 / ADR 0070 amendment): those six mutations mount on the
+   * raw Fastify handler OUTSIDE Nest, so `PlatformGuard` never runs there — an
+   * operator without enrolled TOTP could still ban/impersonate/set-role. Wired
+   * in the HTTP app; undefined elsewhere (worker/seed/CLI) → the hook no-ops
+   * (those contexts never receive inbound admin() calls anyway).
+   */
+  loadPlatformAccess?: (
+    userId: string,
+  ) => Promise<{ isOperator: boolean; twoFactorEnabled: boolean }>;
 }
 
 const REDIS_KEY_PREFIX = "better-auth:";
@@ -141,6 +154,7 @@ export function createAuth({
   logger,
   onOrgProvisioned,
   recordAdminAudit,
+  loadPlatformAccess,
 }: CreateAuthDeps) {
   const isProd = env.NODE_ENV === "production";
 
@@ -356,6 +370,38 @@ export function createAuth({
         : {}),
     },
     hooks: {
+      // The admin() plugin mounts on the raw Fastify handler (outside Nest), so
+      // NONE of the six sensitive mutations in ADMIN_AUDIT_ACTIONS ever pass
+      // `PlatformGuard` — an operator without enrolled TOTP could ban/impersonate/
+      // set-role despite MFA being MANDATORY on every other platform surface
+      // (ADR 0070). Close it here (CAR-19): a cheap path-map lookup, then the
+      // SAME fresh-DB `{ isOperator, twoFactorEnabled }` read `PlatformGuard`
+      // uses. The admin() plugin resolves ITS OWN session only *inside* the
+      // endpoint handler — after this hook runs (`dispatchAuthEndpoint` seeds
+      // `ctx.context.session` to `null` for a fresh request) — so we resolve it
+      // ourselves via Better Auth's own `getSessionFromCtx`, which reads the
+      // request's cookies/headers directly off `ctx`. It also CACHES its result
+      // on `ctx.context.session`, so the admin() plugin's own subsequent lookup
+      // for the same request is free, not a second round-trip.
+      before: createAuthMiddleware(async (ctx) => {
+        if (!(ctx.path in ADMIN_AUDIT_ACTIONS) || !loadPlatformAccess) return;
+        const session = await getSessionFromCtx(ctx);
+        const userId = session?.user?.id;
+        // No session: unauthenticated — the admin() plugin's own middleware
+        // 401s this itself; don't duplicate that check here.
+        if (typeof userId !== "string") return;
+        const access = await loadPlatformAccess(userId);
+        // Not the platform operator: leave the plugin's OWN permission check
+        // (`hasPermission`) to decide — unchanged behavior for every other
+        // caller, this gate only tightens the operator's own surface.
+        if (!access.isOperator) return;
+        if (!access.twoFactorEnabled) {
+          throw new APIError("FORBIDDEN", {
+            message: "Two-factor authentication must be enabled for platform operations",
+            code: "mfa_required",
+          });
+        }
+      }),
       // The admin() plugin mounts on the raw Fastify handler (outside Nest), so
       // its sensitive mutations never pass a Nest guard or AuditService. Capture
       // them here — the Art. 30 trail for the most dangerous credential (ADR 0040).

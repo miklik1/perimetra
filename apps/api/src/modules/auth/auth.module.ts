@@ -67,6 +67,7 @@ import { SessionGuard } from "./session.guard.js";
         email: EmailService,
         provisioning: OrgProvisioningHook,
         audit: AuditService,
+        membership: MembershipService,
       ) =>
         createAuth({
           db,
@@ -79,8 +80,15 @@ import { SessionGuard } from "./session.guard.js";
           // Audit the admin() plugin's sensitive mutations (they bypass Nest's
           // guards/AuditService otherwise) — ADR 0040, the platform-admin trail.
           recordAdminAudit: (entry) => audit.record(entry),
+          // Close the admin() plugin's MFA bypass (CAR-19 / ADR 0070 amendment):
+          // reuses `MembershipService.loadPlatformAccess` — the SAME fresh-DB
+          // read `PlatformGuard` uses — so there is one source of truth for "is
+          // this user the MFA-enrolled platform operator". `MembershipService`
+          // is already a sibling provider in this module (no cycle: it depends
+          // only on `TransactionHost`, never on `AUTH`).
+          loadPlatformAccess: (userId) => membership.loadPlatformAccess(userId),
         }),
-      inject: [DB, REDIS, ENV, EmailService, OrgProvisioningHook, AuditService],
+      inject: [DB, REDIS, ENV, EmailService, OrgProvisioningHook, AuditService, MembershipService],
     },
     SessionGuard,
     MembershipService,
