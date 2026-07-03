@@ -241,13 +241,6 @@ const en: MessagesInput = {
     elevation: "Elevation",
     share: "Share",
     shareCopied: "Link copied",
-    leadTitle: "Request a quote",
-    leadName: "Name",
-    leadEmail: "Email",
-    leadPhone: "Phone",
-    leadNote: "Note",
-    leadSubmit: "Send request",
-    leadThanks: "Thank you — we'll be in touch shortly.",
     noProducts: "No products have been published yet.",
     noPrices: "No active price table for your role or organization.",
     saveToProject: {

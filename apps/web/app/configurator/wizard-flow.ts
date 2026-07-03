@@ -11,8 +11,8 @@
  * body steps carry whatever the release grouped. The split is data-driven, never
  * keyed on specific parameters: the release's FIRST authored step seeds Lokalita
  * (the dimensions/site footprint), the REST seed Konfigurace. Produkt / Barva a
- * povrch / Souhrn are app-shell steps (product pick / finish / lead) with no
- * release params.
+ * povrch / Souhrn are app-shell steps (product pick / finish / save-to-project,
+ * CAR-22) with no release params.
  */
 import type { ResolvedUiGroup, ResolvedUiStep } from "@repo/model";
 

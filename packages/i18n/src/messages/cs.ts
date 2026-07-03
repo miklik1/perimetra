@@ -240,13 +240,6 @@ const cs = {
     elevation: "Nárys",
     share: "Sdílet",
     shareCopied: "Odkaz zkopírován",
-    leadTitle: "Nezávazná poptávka",
-    leadName: "Jméno",
-    leadEmail: "E-mail",
-    leadPhone: "Telefon",
-    leadNote: "Poznámka",
-    leadSubmit: "Odeslat poptávku",
-    leadThanks: "Děkujeme, brzy se vám ozveme.",
     noProducts: "Zatím nejsou publikovány žádné produkty.",
     noPrices: "Pro vaši roli nebo organizaci není k dispozici aktivní ceník.",
     saveToProject: {
