@@ -16,6 +16,7 @@ import type { FlagsBootstrap } from "@repo/flags";
 import { FlagsProvider } from "@repo/flags/web";
 import { getTelemetry } from "@repo/telemetry";
 
+import { NavShell } from "../components/nav-shell";
 import { AnalyticsIdentity } from "./analytics-identity";
 import { RealtimeProvider } from "./realtime-provider";
 import { ThemeEffect } from "./theme-effect";
@@ -85,6 +86,11 @@ export function Providers({
           >
             <AnalyticsIdentity />
             <ThemeEffect />
+            {/* Persistent nav shell (CAR-12) — ABOVE `{children}` so it survives
+                client-side navigation between surfaces. Lives here (not one
+                level up in layout.tsx) because it reads `useAuth`/`/v1/me`,
+                which need this component's Auth + Api context. */}
+            <NavShell />
             {children}
             <Toaster />
           </FlagsProvider>

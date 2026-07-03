@@ -7,9 +7,11 @@ import type { OrgRole } from "@repo/validators";
  * The caller's active-org role (ADR 0056), read from the SAME `/v1/me` source
  * the BE guards enforce on — so FE gating can never drift from server-side
  * enforcement. `null` while the session probe is in flight or the user is
- * anonymous.
+ * anonymous. Exported (not just the derived booleans below) so the nav
+ * registry (CAR-12, `lib/nav-registry.ts`) can build its `{ role,
+ * isPlatformAdmin }` visibility context directly from it.
  */
-function useRole(): OrgRole | null {
+export function useRole(): OrgRole | null {
   const authQueries = useAuthQueries();
   const { data } = useQuery(authQueries.me());
   return data?.role ?? null;

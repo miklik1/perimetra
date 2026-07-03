@@ -18,8 +18,15 @@ const en: MessagesInput = {
     en: "English",
   },
   nav: {
+    main: "Main navigation",
     home: "Home",
     account: "Account",
+    configurator: "Configurator",
+    projects: "Projects",
+    quotes: "Quotes",
+    team: "Team",
+    admin: "Admin",
+    platform: "Platform",
   },
   home: {
     title: "Web",

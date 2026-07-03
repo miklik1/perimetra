@@ -38,6 +38,12 @@ export const routes = {
   // Buyer-facing PUBLIC nabídka (ADR 0089) — token-credentialed, no session.
   // Deliberately OUTSIDE the `/quotes` protected prefix (proxy.ts auth gate).
   sharedNabidka: { path: "/nabidka/:token", params: { token: "string" } },
+  // Org-admin price-table console (ADR 0056/0061) and the platform/vendor
+  // console (ADR 0062) — added for the nav shell (CAR-12) so both surfaces
+  // are typed `Href`s like everything else, instead of the raw string hrefs
+  // `account-client.tsx` used before the registry covered them.
+  admin: { path: "/admin" },
+  platform: { path: "/platform" },
   // @gen:exports — `pnpm gen route` registers the new route entry here.
 } as const;
 

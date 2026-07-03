@@ -16,8 +16,15 @@ const cs = {
     en: "Angličtina",
   },
   nav: {
+    main: "Hlavní navigace",
     home: "Domů",
     account: "Účet",
+    configurator: "Konfigurátor",
+    projects: "Projekty",
+    quotes: "Nabídky",
+    team: "Tým",
+    admin: "Správa",
+    platform: "Platforma",
   },
   home: {
     title: "Web",
