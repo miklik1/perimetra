@@ -1146,6 +1146,29 @@
         ]
       }
     },
+    "/v1/quotes/{id}/production": {
+      "get": {
+        "operationId": "QuotesController_production_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
     "/v1/quotes/{id}/verify": {
       "post": {
         "operationId": "QuotesController_verify_v1",

@@ -26,19 +26,25 @@ import { PriceTableForm } from "./price-table-form";
  * mirrors /team: reads `me?.role === "admin"` from the prefetched query; the
  * server still enforces via `@RequireRole('admin')` on the price-table routes.
  */
-export function AdminClient() {
+export interface AdminClientProps {
+  /** Catalog component codes across the org's pinned releases — see
+   *  `page.tsx` (CAR-15). Empty when the catalog fetch degraded. */
+  componentCodes: string[];
+}
+
+export function AdminClient({ componentCodes }: AdminClientProps) {
   const router = useRouter();
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={<main className="flex min-h-screen items-center justify-center">…</main>}
     >
-      <AdminContent />
+      <AdminContent componentCodes={componentCodes} />
     </AuthGuard>
   );
 }
 
-function AdminContent() {
+function AdminContent({ componentCodes }: AdminClientProps) {
   const t = useTranslations("admin");
   const authQueries = useAuthQueries();
   const { data: me } = useQuery(authQueries.me());
@@ -61,7 +67,7 @@ function AdminContent() {
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{t("priceTables")}</h2>
             <PriceTablesList />
-            <PriceTableForm />
+            <PriceTableForm componentCodes={componentCodes} />
           </section>
         </>
       )}

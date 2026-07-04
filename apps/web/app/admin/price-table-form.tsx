@@ -1,228 +1,410 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useWatch } from "react-hook-form";
 
 import { invalidateKeys } from "@repo/api";
 import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
-import {
-  PRICE_TABLE_CURRENCIES,
-  type CostTableData,
-  type PriceTableCurrency,
-  type PriceTableData,
-} from "@repo/validators";
+import { ArrayField } from "@repo/ui/forms/array-field";
+import { DisclosureSection } from "@repo/ui/forms/disclosure-section";
+import { EnumSelect } from "@repo/ui/forms/enum-select";
+import { fieldInputClass, FieldShell, fieldTextareaClass } from "@repo/ui/forms/field-shell";
+import { useZodForm } from "@repo/ui/forms/use-zod-form";
+import { PRICE_TABLE_CURRENCIES, type PriceTableCurrency } from "@repo/validators";
 
 import { adminKeys, createAdminQueries } from "../../lib/admin-queries";
 import { toast } from "../../lib/toast";
+import {
+  blankComponentRow,
+  buildPublishPayload,
+  DEFAULT_PRICE_TABLE_FORM_VALUES,
+  findDuplicateComponentCodes,
+  hydrateFromIsland,
+  parseIslandJson,
+  serializeIsland,
+  type PriceTableFormValues,
+} from "./price-table-form-model";
+import { makePriceTableFormSchema, type Translate } from "./price-table-form-schema";
 
-const inputClass =
-  "border-border bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 w-full";
-const textareaClass = `${inputClass} font-mono resize-y`;
+const COMPONENT_CODES_DATALIST_ID = "admin-price-component-codes";
 
-export function PriceTableForm() {
+export interface PriceTableFormProps {
+  /** Catalog component codes across the org's pinned releases (ADR 0068 Phase 2
+   *  `codeCandidates` precedent, degraded to a plain `<datalist>`) — powers a
+   *  per-row code suggestion. Empty when no catalog is reachable; the code input
+   *  degrades to a plain text field (never a hard requirement). */
+  componentCodes?: string[];
+}
+
+export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
   const t = useTranslations("admin");
   const client = useApiClient();
   const queryClient = useQueryClient();
   const adminQueries = createAdminQueries(client);
 
-  const [currency, setCurrency] = useState<PriceTableCurrency>("CZK");
-  const [effectiveFrom, setEffectiveFrom] = useState("");
-  const [effectiveTo, setEffectiveTo] = useState("");
-  const [marginFloorPct, setMarginFloorPct] = useState("");
-  const [dphRate, setDphRate] = useState("21");
-  // Commercial rounding policy (ADR 0081) — provisional defaults, accountant-gated.
-  const [roundingMode, setRoundingMode] = useState<"half-up" | "half-even">("half-up");
-  const [roundingGranularity, setRoundingGranularity] = useState<"per-line" | "end-of-invoice">(
-    "end-of-invoice",
-  );
-  const [tableJson, setTableJson] = useState("");
-  const [costJson, setCostJson] = useState("");
-  const [parseError, setParseError] = useState<string | null>(null);
+  // `t` is narrowed to the "admin" catalog's literal keys by next-intl; the
+  // schema factory takes a plain `(key: string) => string` (ADR 0020's
+  // `Translator` shape, same cast precedent as `ZodI18nBoot`). Rebuilt when the
+  // locale changes so a language switch re-translates existing field errors.
+  const schema = useMemo(() => makePriceTableFormSchema(t as unknown as Translate), [t]);
+  const form = useZodForm(schema, { defaultValues: DEFAULT_PRICE_TABLE_FORM_VALUES });
+  const { control, register, handleSubmit, setValue, formState, reset } = form;
+
+  const hasCost = useWatch({ control, name: "hasCost" });
+  const watchedValues = useWatch({ control }) as PriceTableFormValues;
+
+  const [islandText, setIslandText] = useState("");
+  const [islandDirty, setIslandDirty] = useState(false);
+  const [islandError, setIslandError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // The island is a live mirror of the structured fields until the user starts
+  // typing into it — then a paste + Apply is the only way it feeds back in
+  // (never auto-applied, so a bad paste can't silently clobber good rows).
+  useEffect(() => {
+    if (islandDirty) return;
+    setIslandText(serializeIsland(watchedValues));
+  }, [watchedValues, islandDirty]);
 
   const mutation = useMutation({
     ...adminQueries.publishPriceTable(),
     onSuccess: () => {
       void invalidateKeys(queryClient, [adminKeys.priceTablesList()]);
-      setTableJson("");
-      setCostJson("");
+      reset(DEFAULT_PRICE_TABLE_FORM_VALUES);
+      setIslandText("");
+      setIslandDirty(false);
+      setFormError(null);
       toast.success(t("published"));
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setParseError(null);
-
-    if (!effectiveFrom.trim()) {
-      setParseError(t("effectiveFromRequired"));
-      return;
-    }
-    if (!dphRate.trim()) {
-      setParseError(t("dphRateRequired"));
-      return;
-    }
-
-    let table: PriceTableData;
+  function applyIsland() {
     try {
-      table = JSON.parse(tableJson) as PriceTableData;
+      const hydrated = hydrateFromIsland(parseIslandJson(islandText));
+      setValue("version", hydrated.version, { shouldValidate: true, shouldDirty: true });
+      setValue("components", hydrated.components, { shouldValidate: true, shouldDirty: true });
+      setValue("manufacturingRate", hydrated.manufacturingRate, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setValue("manufacturingMultiplier", hydrated.manufacturingMultiplier, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setValue("installation", hydrated.installation, { shouldValidate: true, shouldDirty: true });
+      setValue("hasCost", hydrated.hasCost, { shouldValidate: true, shouldDirty: true });
+      setValue("costManufacturingRate", hydrated.costManufacturingRate, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setValue("costManufacturingMultiplier", hydrated.costManufacturingMultiplier, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setValue("costInstallation", hydrated.costInstallation, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setIslandDirty(false);
+      setIslandError(null);
     } catch {
-      setParseError(t("jsonParseError"));
+      setIslandError(t("jsonParseError"));
+    }
+  }
+
+  function onSubmit(values: PriceTableFormValues) {
+    const dupes = findDuplicateComponentCodes(values.components);
+    if (dupes.length > 0) {
+      setFormError(t("duplicateComponentCode", { codes: dupes.join(", ") }));
       return;
     }
-
-    let cost: CostTableData | undefined;
-    if (costJson.trim()) {
-      try {
-        cost = JSON.parse(costJson) as CostTableData;
-      } catch {
-        setParseError(t("jsonParseError"));
-        return;
-      }
-    }
-
-    const effectiveFromIso = new Date(effectiveFrom).toISOString();
-    const effectiveToIso = effectiveTo.trim() ? new Date(effectiveTo).toISOString() : null;
-
+    setFormError(null);
     mutation.mutate({
-      input: {
-        currency,
-        effectiveFrom: effectiveFromIso,
-        effectiveTo: effectiveToIso,
-        marginFloorPct: marginFloorPct.trim() || undefined,
-        dphRate,
-        roundingPolicy: { scale: 2, mode: roundingMode, granularity: roundingGranularity },
-        table,
-        cost,
-      },
+      input: buildPublishPayload(values),
       idempotencyKey: crypto.randomUUID(),
     });
   }
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(e) => void handleSubmit(onSubmit)(e)}
       className="border-border flex flex-col gap-3 rounded-md border p-4"
     >
       <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("currency")}
-          <select
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value as PriceTableCurrency)}
-            className={inputClass}
-          >
-            {PRICE_TABLE_CURRENCIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FieldShell label={t("currency")}>
+          {({ fieldId }) => (
+            <Controller
+              control={control}
+              name="currency"
+              render={({ field }) => (
+                <EnumSelect
+                  id={fieldId}
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={PRICE_TABLE_CURRENCIES.map((c: PriceTableCurrency) => ({ value: c }))}
+                />
+              )}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("dphRate")}
-          <input
-            type="text"
-            value={dphRate}
-            onChange={(e) => setDphRate(e.target.value)}
-            className={inputClass}
-            placeholder="21"
-          />
-        </label>
+        <FieldShell label={t("dphRate")} error={formState.errors.dphRate?.message}>
+          {({ fieldId }) => (
+            <input
+              id={fieldId}
+              className={fieldInputClass}
+              placeholder="21"
+              {...register("dphRate")}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("effectiveFrom")}
-          <input
-            type="datetime-local"
-            value={effectiveFrom}
-            onChange={(e) => setEffectiveFrom(e.target.value)}
-            className={inputClass}
-          />
-        </label>
+        <FieldShell label={t("effectiveFrom")} error={formState.errors.effectiveFrom?.message}>
+          {({ fieldId }) => (
+            <input
+              id={fieldId}
+              type="datetime-local"
+              className={fieldInputClass}
+              {...register("effectiveFrom")}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("effectiveTo")}
-          <input
-            type="datetime-local"
-            value={effectiveTo}
-            onChange={(e) => setEffectiveTo(e.target.value)}
-            className={inputClass}
-          />
-        </label>
+        <FieldShell label={t("effectiveTo")}>
+          {({ fieldId }) => (
+            <input
+              id={fieldId}
+              type="datetime-local"
+              className={fieldInputClass}
+              {...register("effectiveTo")}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("marginFloorPct")}
-          <input
-            type="text"
-            value={marginFloorPct}
-            onChange={(e) => setMarginFloorPct(e.target.value)}
-            className={inputClass}
-            placeholder={t("optional")}
-          />
-        </label>
+        <FieldShell label={t("marginFloorPct")} error={formState.errors.marginFloorPct?.message}>
+          {({ fieldId }) => (
+            <input
+              id={fieldId}
+              className={fieldInputClass}
+              placeholder={t("optional")}
+              {...register("marginFloorPct")}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("roundingMode")}
-          <select
-            value={roundingMode}
-            onChange={(e) => setRoundingMode(e.target.value as "half-up" | "half-even")}
-            className={inputClass}
-          >
-            <option value="half-up">half-up</option>
-            <option value="half-even">half-even</option>
-          </select>
-        </label>
+        <FieldShell label={t("roundingMode")}>
+          {({ fieldId }) => (
+            <Controller
+              control={control}
+              name="roundingMode"
+              render={({ field }) => (
+                <EnumSelect
+                  id={fieldId}
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={[{ value: "half-up" }, { value: "half-even" }]}
+                />
+              )}
+            />
+          )}
+        </FieldShell>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          {t("roundingGranularity")}
-          <select
-            value={roundingGranularity}
-            onChange={(e) =>
-              setRoundingGranularity(e.target.value as "per-line" | "end-of-invoice")
-            }
-            className={inputClass}
-          >
-            <option value="end-of-invoice">end-of-invoice</option>
-            <option value="per-line">per-line</option>
-          </select>
-        </label>
+        <FieldShell label={t("roundingGranularity")}>
+          {({ fieldId }) => (
+            <Controller
+              control={control}
+              name="roundingGranularity"
+              render={({ field }) => (
+                <EnumSelect
+                  id={fieldId}
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={[{ value: "end-of-invoice" }, { value: "per-line" }]}
+                />
+              )}
+            />
+          )}
+        </FieldShell>
+
+        <FieldShell label={t("priceTableVersion")} error={formState.errors.version?.message}>
+          {({ fieldId }) => (
+            <input id={fieldId} className={fieldInputClass} {...register("version")} />
+          )}
+        </FieldShell>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        {t("priceTableJson")}
-        <textarea
-          value={tableJson}
-          onChange={(e) => setTableJson(e.target.value)}
-          rows={8}
-          className={textareaClass}
-          placeholder={
-            '{\n  "version": 1,\n  "components": {},\n  "manufacturing": { "rate": 1, "multiplier": 1 },\n  "installation": 0\n}'
-          }
-        />
+      <div className="flex flex-col gap-2">
+        <h3 className="text-sm font-semibold">{t("componentsSection")}</h3>
+        <p className="text-muted-foreground text-xs">{t("componentsSectionHint")}</p>
+        <ArrayField
+          control={control}
+          name="components"
+          addLabel={t("addComponent")}
+          emptyLabel={t("componentsEmpty")}
+          reorderable={false}
+          makeDefault={blankComponentRow}
+        >
+          {({ index }) => (
+            <div className="grid grid-cols-3 gap-2">
+              <FieldShell
+                label={t("componentCode")}
+                error={formState.errors.components?.[index]?.code?.message}
+              >
+                {({ fieldId }) => (
+                  <input
+                    id={fieldId}
+                    className={fieldInputClass}
+                    list={COMPONENT_CODES_DATALIST_ID}
+                    {...register(`components.${index}.code`)}
+                  />
+                )}
+              </FieldShell>
+              <FieldShell
+                label={t("sellPrice")}
+                error={formState.errors.components?.[index]?.price?.message}
+              >
+                {({ fieldId }) => (
+                  <input
+                    id={fieldId}
+                    className={fieldInputClass}
+                    inputMode="decimal"
+                    placeholder={t("optional")}
+                    {...register(`components.${index}.price`)}
+                  />
+                )}
+              </FieldShell>
+              <FieldShell
+                label={t("costPrice")}
+                error={formState.errors.components?.[index]?.cost?.message}
+              >
+                {({ fieldId }) => (
+                  <input
+                    id={fieldId}
+                    className={fieldInputClass}
+                    inputMode="decimal"
+                    placeholder={t("optional")}
+                    {...register(`components.${index}.cost`)}
+                  />
+                )}
+              </FieldShell>
+            </div>
+          )}
+        </ArrayField>
+        {componentCodes.length > 0 && (
+          <datalist id={COMPONENT_CODES_DATALIST_ID}>
+            {componentCodes.map((code) => (
+              <option key={code} value={code} />
+            ))}
+          </datalist>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <FieldShell
+          label={t("manufacturingRate")}
+          error={formState.errors.manufacturingRate?.message}
+        >
+          {({ fieldId }) => (
+            <input id={fieldId} className={fieldInputClass} {...register("manufacturingRate")} />
+          )}
+        </FieldShell>
+        <FieldShell
+          label={t("manufacturingMultiplier")}
+          error={formState.errors.manufacturingMultiplier?.message}
+        >
+          {({ fieldId }) => (
+            <input
+              id={fieldId}
+              className={fieldInputClass}
+              {...register("manufacturingMultiplier")}
+            />
+          )}
+        </FieldShell>
+        <FieldShell label={t("installation")} error={formState.errors.installation?.message}>
+          {({ fieldId }) => (
+            <input id={fieldId} className={fieldInputClass} {...register("installation")} />
+          )}
+        </FieldShell>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" {...register("hasCost")} />
+        {t("hasCost")}
       </label>
 
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        {t("costTableJson")}
-        <textarea
-          value={costJson}
-          onChange={(e) => setCostJson(e.target.value)}
-          rows={4}
-          className={textareaClass}
-          placeholder={t("optional")}
-        />
-      </label>
+      {hasCost && (
+        <div className="grid grid-cols-3 gap-2">
+          <FieldShell
+            label={t("costManufacturingRate")}
+            error={formState.errors.costManufacturingRate?.message}
+          >
+            {({ fieldId }) => (
+              <input
+                id={fieldId}
+                className={fieldInputClass}
+                {...register("costManufacturingRate")}
+              />
+            )}
+          </FieldShell>
+          <FieldShell
+            label={t("costManufacturingMultiplier")}
+            error={formState.errors.costManufacturingMultiplier?.message}
+          >
+            {({ fieldId }) => (
+              <input
+                id={fieldId}
+                className={fieldInputClass}
+                {...register("costManufacturingMultiplier")}
+              />
+            )}
+          </FieldShell>
+          <FieldShell
+            label={t("costInstallation")}
+            error={formState.errors.costInstallation?.message}
+          >
+            {({ fieldId }) => (
+              <input id={fieldId} className={fieldInputClass} {...register("costInstallation")} />
+            )}
+          </FieldShell>
+        </div>
+      )}
 
-      {parseError && (
+      <DisclosureSection title={t("bulkJsonSection")}>
+        <div className="flex flex-col gap-2">
+          <p className="text-muted-foreground text-xs">{t("bulkJsonDescription")}</p>
+          <textarea
+            value={islandText}
+            onChange={(e) => {
+              setIslandText(e.target.value);
+              setIslandDirty(true);
+              setIslandError(null);
+            }}
+            rows={10}
+            spellCheck={false}
+            className={fieldTextareaClass}
+          />
+          {islandError && (
+            <p className="text-destructive text-sm" role="alert">
+              {islandError}
+            </p>
+          )}
+          <div>
+            <Button type="button" variant="outline" size="sm" onClick={applyIsland}>
+              {t("applyJson")}
+            </Button>
+          </div>
+        </div>
+      </DisclosureSection>
+
+      {formError && (
         <p className="text-destructive text-sm" role="alert">
-          {parseError}
+          {formError}
         </p>
       )}
 
-      <Button
-        type="submit"
-        disabled={mutation.isPending || !tableJson.trim() || !effectiveFrom.trim()}
-      >
+      <Button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? t("publishing") : t("publish")}
       </Button>
 
