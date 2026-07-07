@@ -373,42 +373,60 @@ export const slidingGateV1: ProductModelRelease = {
           category: "material",
         },
         geometry: [
+          // A — front stile (leading edge), full frame height; the tallest leaf
+          // member (postA = postB + 100). Foot sits on the bottom carrier F.
           {
             key: "postA",
             length: expr("postA"),
             at: [expr("0"), expr("ground_elevation_mm + 40"), expr("0")],
             rotation: [expr("0"), expr("0"), expr("90")],
           },
+          // C — rear stile (trailing edge), 100 mm shorter than A so its crown
+          // tucks under the top rail E. The counterweight tail hangs off behind it.
           {
             key: "postB",
             length: expr("postB"),
             at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40"), expr("0")],
             rotation: [expr("0"), expr("0"), expr("90")],
           },
-          // The cantilever suspension diagonal: a brace from the post crown that
-          // DESCENDS into the leaf to the bottom rail at the suspension angle
-          // (ADR 0095 — was `180 - angle`, which made it ascend up-and-out of the
-          // gate into the sky, attached to nothing). `180 + angle` points local
-          // +X down-and-left, so the far end lands at rail level inside the leaf.
-          // NOTE (flagged): the Excel řez for member D is 55 / 17,5 — the authored
-          // cuts below (angle / 90) do NOT match and are a cut-list fidelity fix
-          // owed in the cut-angle slice; geometry placement is corrected here.
+          // E — top rail (Excel member E `Sloupek L`, len == the BOM's `bottomRail`
+          // term = outerFrameWidth + 500): the leaf's top chord. Placed AT the
+          // rear-stile / divider crown line (ground+40+postB) so every crown meets
+          // it — its ABSENCE from the top is what left the crowns "attached to
+          // nothing" (§3, Martin's NO-GO). Runs the full leaf width + the Excel
+          // 500 mm overhang toward the tail. Was mis-authored at the bottom (key
+          // "bottom"); relocated to the top — BOM length untouched (I4). Řez 17,5/45.
+          {
+            key: "topRail",
+            length: expr("bottomRail"),
+            at: [expr("0"), expr("ground_elevation_mm + 40 + postB"), expr("0")],
+            cuts: { left: expr("17.5"), right: expr("45") },
+          },
+          // F — bottom carrier (Excel member F, len == railLength): the leaf's
+          // bottom chord. Every stile/divider foot sits on it and it runs from the
+          // front stile past the rear stile into the counterweight tail. Was key
+          // "rail" (floated at z=60 with a free far end, role conflated with E);
+          // now the in-plane bottom chord. Řez 90/45.
+          {
+            key: "bottomCarrier",
+            length: expr("railLength"),
+            at: [expr("0"), expr("ground_elevation_mm + 40"), expr("0")],
+            cuts: { left: expr("90"), right: expr("45") },
+          },
+          // D — counterweight suspension diagonal: the tail's hypotenuse. From the
+          // rear-stile crown it descends at the suspension angle OVER THE WALL to
+          // the tail's rear-bottom corner on the ground track (Excel elevation; the
+          // MVP + HEAD never drew the tail, so this 3D topology is DERIVED — CAR-18,
+          // FIL photo deferred to fine-tuning). Was `180 + angle` (descending INTO
+          // the leaf, bracing nothing — ADR 0095 only fixed the sky-ascent); now
+          // `0 - angle` points +X / −Y so the far end lands over the wall at track
+          // level (drop = diagonal·sin(angle) = postA − 50, angle-true). Řez 55/17,5.
           {
             key: "diagonal",
             length: expr("diagonal"),
             at: [expr("outerFrameWidth"), expr("ground_elevation_mm + 40 + postB"), expr("0")],
-            rotation: [expr("0"), expr("0"), expr("180 + suspension_angle")],
-            cuts: { left: expr("suspension_angle"), right: expr("90") },
-          },
-          {
-            key: "bottom",
-            length: expr("bottomRail"),
-            at: [expr("0"), expr("ground_elevation_mm + 40"), expr("0")],
-          },
-          {
-            key: "rail",
-            length: expr("railLength"),
-            at: [expr("0"), expr("ground_elevation_mm"), expr("60")],
+            rotation: [expr("0"), expr("0"), expr("0 - suspension_angle")],
+            cuts: { left: expr("55"), right: expr("17.5") },
           },
         ],
       },
@@ -511,14 +529,15 @@ export const slidingGateV1: ProductModelRelease = {
         name: "Nosník V-horní vedení",
         // Literal 6.5 m (MVP Excel T23, not rounded).
         bom: { unit: "meter", quantity: expr("6.5"), lengthMm: expr("6500"), category: "material" },
-        // ADR 0095: the 6.5 m Nosník V is the LONGEST member (> railLength) — the
-        // ground carrier/track the cantilever leaf rides on, which must extend well
-        // past the opening for the gate to slide fully open. It was authored at
+        // ADR 0095 / CAR-18: the 6.5 m Nosník V is the LONGEST member (> railLength)
+        // — the ground carrier/track the cantilever leaf rides on, extending past
+        // the opening for the gate to slide fully open. It was authored at
         // `clear_height + 60` (overhead), so it floated as a full-width beam above
-        // the gate attached to nothing. Seat it at ground level, extending toward
-        // the open side. NOTE (flagged): the exact role/section/end-positions of
-        // this member are inferred (the proven gates-MVP render omits it entirely);
-        // confirm against FIL / the Excel workshop diagram in the fidelity pass.
+        // the gate attached to nothing. Seated at ground level, it spans under the
+        // leaf AND the counterweight tail: the suspension diagonal D's foot lands on
+        // this track over the wall, closing the tail triangle (leaf bottom carrier
+        // F → track G → diagonal D). Section/exact end-positions stay a fidelity
+        // item (the gates-MVP render omits this member entirely).
         geometry: [
           {
             key: "beam",

@@ -1,13 +1,14 @@
 # Sliding-gate assembly-model derivation (from FIL's 2026 Excel)
 
-**Status: DERIVATION FOR REVIEW — do NOT author the fixture from this until
-Martin picks (CAR-25).** Produced 2026-07-03 (model-truth wave, HQ order
-2026-07-02) by deep-analysing FIL's 2026 `Samonosná brána` workbooks on both
-axes the order named: the **formulas** (dimensional truth) and the **embedded 2D
-previews** (assembly truth). Cross-checked against the proven gates-MVP 3D
-(`~/gates`) and the shipped goldens. Where the Excel under-determines the 3D
-assembly, this says so and lists what a FIL photo/drawing would resolve — nothing
-is invented.
+**Status: AUTHORED (CAR-18, 2026-07-07).** The leaf fixes AND the counterweight
+tail are now in `packages/fixtures/src/releases/sliding-gate.ts`. Martin's 2026-07-07
+"go" also directed: do NOT block the tail on a FIL photo — FIL is post-finished-
+product fine-tuning; derive the under-determined 3D tail topology from the Excel
+elevation and ship a usable model (see §6/§7 for the derivation actually taken).
+Produced 2026-07-03 (model-truth wave, HQ order 2026-07-02) by deep-analysing FIL's
+2026 `Samonosná brána` workbooks on both axes the order named: the **formulas**
+(dimensional truth) and the **embedded 2D previews** (assembly truth). Cross-checked
+against the proven gates-MVP 3D (`~/gates`) and the shipped goldens.
 
 Sources (all agree cell-for-cell on the numbers):
 
@@ -176,16 +177,32 @@ I will not invent it:
 
 ---
 
-## 7. Recommendation (for Martin's pick — no code until then)
+## 7. Recommendation → DECISION TAKEN (CAR-18, 2026-07-07)
 
-- **Author now, high confidence (Excel-determined):** add the **top rail E**;
-  split **F (bottom carrier, opening×1.334)** from **G (track)**; fix the **cut
-  angles**. These close the "gaps not attached to anything" for the _leaf_ and
-  are pure formula transcription.
-- **Decide first (under-determined):** the **counterweight tail + diagonal D
-  home**. Recommend getting **one FIL photo / side drawing** before authoring the
-  tail; until then, either (a) build the leaf correctly and leave D as an explicit
-  in-leaf brace with a `// FIL-blocked: tail topology` flag, or (b) hold the whole
-  diagonal+tail behind that photo. This is the CAR-25 decision.
-- Keep the **ADR-0098 fill spacing** as-is (it is the Excel math) and golden-lock
-  it once the assembly is settled.
+Martin's "go" (2026-07-07) authored ALL of the below and overrode the "get a FIL
+photo first" gate: **FIL is post-finished-product fine-tuning — derive the tail
+from the Excel elevation now, ship a usable model.** What was authored into
+`packages/fixtures/src/releases/sliding-gate.ts`:
+
+- **Leaf (Excel-determined):** the **top rail E** now caps the leaf at the rear-
+  stile/divider crown line (member `topRail`, len `bottomRail` = outerFrameWidth+500)
+  so no crown floats; **F** (`bottomCarrier`, len `railLength`) is the in-plane
+  bottom chord, split from the ground track **G** (the `top_guide_beam`); **cut
+  angles** set to the Excel řez (D 55/17,5 · E 17,5/45 · F 90/45).
+- **Counterweight tail (derived, not FIL-blocked):** the diagonal **D** now
+  descends from the rear-stile crown at the suspension angle (`rotation z = 0 −
+suspension_angle`) **over the wall into the tail**, landing at the tail apex on
+  the ground track — the tail is the right-triangle {rear stile C, bottom carrier/
+  track, hypotenuse D}. Chosen over an in-leaf brace because it matches FIL's 2D
+  elevation and reads as a real cantilever counterweight. **Member cut LENGTHS are
+  unchanged** (geometry length == cut length feeds the cut list), so the tail does
+  not perfectly close as a rigid triangle at every angle; D's foot lands on the
+  track (which spans past the apex). Refining exact tail closure / a tail-end
+  vertical / tail infill stays the FIL fine-tuning item.
+- **Verified:** geometry-position golden extended (top-rail-caps-crowns +
+  diagonal-braces-tail + tail-closes-onto-track); cut-list golden re-baselined for
+  the Excel řez; delta-0 price `81451.5` + all BOM goldens reproduce (geometry is
+  presentation off the same derivation, I4); eyes-on captures READ (hero/front/
+  detail/pullback) — it renders as a cantilever gate. `pnpm check-types lint test
+build knip` green.
+- Keep the **ADR-0098 fill spacing** as-is; golden-lock it in the follow-up (CAR-69).

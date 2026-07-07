@@ -90,13 +90,47 @@ describe("sliding-gate@1 geometry positions (ADR 0095)", () => {
     expect(post!.end[1]).toBeLessThan(groundY + clearHeight + 600); // sane height, not the sky
   });
 
-  it("the cantilever suspension diagonal descends into the leaf to rail level", () => {
+  it("the cantilever suspension diagonal descends over the wall into the tail", () => {
     const diagonal = pieces.find((p) => p.id.endsWith("/diagonal"));
+    const rearStile = pieces.find((p) => p.id.endsWith("/postB"));
     expect(diagonal, "a diagonal piece exists").toBeDefined();
-    // It must go DOWN from its post-crown anchor, not up into the sky…
+    expect(rearStile, "a rear stile exists").toBeDefined();
+    // It must go DOWN from its rear-stile-crown anchor, not up into the sky…
     expect(diagonal!.end[1]).toBeLessThan(diagonal!.start[1]);
-    // …and its far end lands near the bottom rail (≈ ground), not overhead.
+    // …and land near the ground track (≈ ground), not overhead.
     expect(diagonal!.end[1]).toBeLessThan(groundY + 200);
+    // It is anchored at the rear-stile crown and reaches OUT past the rear stile
+    // into the counterweight tail — it used to descend INTO the leaf, bracing
+    // nothing (CAR-18: the tail is now modelled, the diagonal is its hypotenuse).
+    expect(diagonal!.start[0]).toBeCloseTo(rearStile!.start[0], 0);
+    expect(diagonal!.end[0]).toBeGreaterThan(rearStile!.start[0] + 200);
+  });
+
+  it("the top rail caps the leaf so no crown floats (member E)", () => {
+    const topRail = pieces.find((p) => p.id.endsWith("/topRail"));
+    const rearStile = pieces.find((p) => p.id.endsWith("/postB"));
+    expect(topRail, "a top rail E exists").toBeDefined();
+    // A horizontal chord…
+    expect(Math.abs(topRail!.end[1] - topRail!.start[1])).toBeLessThan(1);
+    // …at the rear-stile / divider crown line, so those crowns meet it (the
+    // ABSENCE of this rail is what left crowns "attached to nothing" — §3).
+    expect(Math.abs(rearStile!.end[1] - topRail!.start[1])).toBeLessThan(60);
+    const dividers = pieces.filter((p) => p.id.includes("/frame.tpost/"));
+    expect(dividers.length).toBeGreaterThan(0);
+    for (const divider of dividers) {
+      expect(Math.abs(divider.end[1] - topRail!.start[1])).toBeLessThan(60);
+    }
+  });
+
+  it("the counterweight tail closes onto the ground track (F → G → D)", () => {
+    const diagonal = pieces.find((p) => p.id.endsWith("/diagonal"))!;
+    const carrier = pieces.find((p) => p.id.endsWith("/bottomCarrier"))!;
+    const rearStile = pieces.find((p) => p.id.endsWith("/postB"))!;
+    const track = pieces.find((p) => p.id.includes("top_guide_beam"))!;
+    // The bottom carrier F runs past the rear stile into the tail…
+    expect(carrier.end[0]).toBeGreaterThan(rearStile.start[0]);
+    // …and the ground track G spans far enough to catch the diagonal's foot.
+    expect(track.end[0]).toBeGreaterThan(diagonal.end[0] - 50);
   });
 
   it("every piece sits at or above ground (nothing sinks below the floor)", () => {

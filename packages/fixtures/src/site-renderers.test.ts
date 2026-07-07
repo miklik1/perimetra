@@ -91,13 +91,20 @@ describe("cut list — physical truth off the same graph (I4/I6)", () => {
     expect(posts.nesting!.oversize).toEqual([]);
   });
 
-  it("the suspension diagonal carries its mitre cut (35° = 2100 arc-min, I10)", () => {
+  it("each L-profile member carries its Excel mitre cut (I10, CAR-18 řez fidelity)", () => {
     const lProfile = cutList.components.find((c) => c.componentCode === "sloupek_l_50")!;
     expect(lProfile.lines).toHaveLength(5);
-    const diagonal = lProfile.lines.find((l) => l.cutArcMin !== undefined)!;
-    expect(diagonal.cutArcMin).toEqual({ left: 35 * 60, right: 90 * 60 });
-    expect(diagonal.sources).toEqual(["gate/frame.lprofile/diagonal"]);
-    // 5 pieces nest into 3 six-meter bars (rail | bottom+postB | diagonal+postA).
+    const bySource = (key: string) =>
+      lProfile.lines.find((l) => l.sources.includes(`gate/frame.lprofile/${key}`))!;
+    // Excel řez (Kalkulace): D 55/17,5 · E top rail 17,5/45 · F bottom carrier 90/45.
+    expect(bySource("diagonal").cutArcMin).toEqual({ left: 55 * 60, right: 17.5 * 60 });
+    expect(bySource("topRail").cutArcMin).toEqual({ left: 17.5 * 60, right: 45 * 60 });
+    expect(bySource("bottomCarrier").cutArcMin).toEqual({ left: 90 * 60, right: 45 * 60 });
+    // The two stiles are square-cut (no mitre).
+    expect(bySource("postA").cutArcMin).toBeUndefined();
+    expect(bySource("postB").cutArcMin).toBeUndefined();
+    // 5 pieces still nest into 3 six-meter bars — the cut lengths are unchanged
+    // (bottomCarrier | topRail+postB | diagonal+postA), only the mitre angles moved.
     expect(lProfile.nesting!.bars).toHaveLength(3);
   });
 
