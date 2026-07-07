@@ -68,3 +68,30 @@ re-author can decide whether the real check belongs in the derivation phase.
   spacing math survives the derivation) or superseded by the model-truth ADR.
 - **I1–I11 untouched**; the WIP scene-lab type-narrowing defect it also carried was
   fixed separately (CAR-11, commit `3b91317`).
+
+### Addendum (2026-07-07, CAR-69) — regression lock shipped; Status stays Proposed
+
+The per-fill regression lock and the eyes-on captures — the two deferred CAR-18
+deliverables named above — are now IN the tree (`packages/fixtures/src/sliding-gate.spacing.test.ts`):
+
+- **All 7 fills pin byte-for-byte against the Excel `Kalkulace` values.** The J20
+  (fillPitch) / H20 (fillOffset1) formulas were re-extracted from
+  `2026-PC_Samonosna_brana_FINAL_PC-do 4,5m.xlsx` via openpyxl (FORMULAS, not
+  cached values) and confirmed to transcribe the code exactly. Expected values are
+  **hand-derived from the Excel formula** (not copied from engine output), with the
+  anchor fill `planka_100_2d` reproducing the workbook's own VZOR cells
+  (J20 = 118, H20 = 13) — which validates the derivation for the other six. A
+  cap-binding case (short gate, `hProfileLength = 505`) exercises the
+  `min(rawPitch, max_spacing)` branch that the 1.5 m configs leave dormant, and the
+  slat `at.y` composition is pinned end-to-end through `buildScene`. The count
+  formula, BOM and price remain frozen — delta-0 `81451.5` and all goldens reproduce
+  (presentation off the same derivation, I4).
+- **Captures produced and agent-verified.** A head-on render per fill (`/scene-lab
+?scene=sliding-gate&fill_type_id=<id>&cam=front`) confirms the 3D fills sit tight
+  (profile ≥ pitch → the overlap look) and the spread 2D planks (`planka_100_2d`,
+  `planka_120_2d`) show visible gaps — the `disable_max_spacing` behaviour reads
+  correctly, no member floats. This is the AGENT's geometry-correctness check.
+- **Status stays Proposed — deliberately.** The flip to **Accepted** is gated on
+  **Martin's own eyes-on sign-off of the CAR-18 render** (CAR-25's still-open
+  acceptance criterion per the hub `## Now` dated 2026-07-07), not on the regression
+  lock. The math is now locked and reproducible; the taste gate is Martin's to close.

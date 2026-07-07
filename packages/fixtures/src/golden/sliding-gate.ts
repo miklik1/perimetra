@@ -88,7 +88,12 @@ const base40Dims = {
   panelWidth: 1300,
   hProfileLength: 1205,
 };
-const regressionPrices = { components: { ...aluComponents, ...fillPrices }, ...sharedPrices };
+/** All-fills alu price table (every section_code priced) — shared by the per-fill
+ *  regression golden cases and the ADR-0098 spacing lock (`sliding-gate.spacing.test`). */
+export const regressionPrices = {
+  components: { ...aluComponents, ...fillPrices },
+  ...sharedPrices,
+};
 
 export const planka_100_2d_3panel: SlidingGoldenCase = {
   name: "PLAŇKA 100 2D · 3-panel · 4.0 m (Excel U34 delta-0)",
