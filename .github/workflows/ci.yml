@@ -63,6 +63,12 @@ jobs:
       - name: No orphan react-native dirs
         run: pnpm check:no-orphan-rn
 
+      # Reject raw control bytes in tracked source — a literal NUL makes git
+      # classify the file binary, so diff-based review/blame silently skip it.
+      # See scripts/check-control-chars.mjs.
+      - name: No raw control bytes
+        run: pnpm check:control-chars
+
       - name: Lint
         run: pnpm turbo run lint --cache-dir=.turbo
 

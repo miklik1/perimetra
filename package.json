@@ -18,6 +18,7 @@
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "knip": "knip",
+    "check:control-chars": "node scripts/check-control-chars.mjs",
     "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
     "prepare": "lefthook install || true"
   },
@@ -39,7 +40,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "bff86889bc48b761a2793b82193b1dd02957ce1d",
+    "baseCommit": "9d560caa373dceb86bae61a4ff41bcdedf12029c",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }

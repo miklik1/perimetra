@@ -9,6 +9,15 @@ import { logPasswordResetRequest } from "./auth.instance.js";
  * Redaction is deny-by-omission, so the test feeds the FULL credential-bearing
  * payload and asserts none of it survives in the log line.
  */
+/**
+ * DRAIN NOTE (fleet): this test guards a STUB. The skeleton ships no real email
+ * provider, so `logPasswordResetRequest` is a placeholder delivery path and this
+ * test guards its log line. Once a DERIVED repo replaces the stub with a real
+ * `EmailService` / provider send (a templated send with no interpolated log line —
+ * e.g. anyora-platform `ddfcd90`, which dropped BOTH the helper and this test),
+ * this test has nothing left to guard: drop it, and write a FRESH redaction check
+ * scoped to whatever the real send path actually logs, if anything.
+ */
 describe("logPasswordResetRequest (reset-password log redaction)", () => {
   it("logs only the opaque user id — never the email or the reset url/token", () => {
     const logger = { log: vi.fn() };

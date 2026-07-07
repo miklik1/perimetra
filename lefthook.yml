@@ -12,6 +12,13 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}"
       run: pnpm exec prettier --write {staged_files}
       stage_fixed: true
+    # Reject raw control bytes in staged source — a single literal NUL flips
+    # the file to git-binary and every diff-based review then silently skips
+    # it. Escape sequences ("\x00") are the correct spelling. --staged asks
+    # git for the file list itself (no glob to maintain, no ARG_MAX ceiling);
+    # CI runs the same check tree-wide. See scripts/check-control-chars.mjs.
+    - name: control-chars
+      run: pnpm check:control-chars --staged
     # Secret scan of the STAGED diff (ADR 0044) — catches a leaked key before
     # it ever becomes a commit (rewriting history after the fact is the
     # expensive path). Degrades gracefully: gitleaks is a single Go binary

@@ -159,18 +159,6 @@ export type Env = z.infer<typeof envSchema>;
 
 export const ENV = Symbol("ENV");
 
-/** True when S3_ENDPOINT points at real AWS rather than MinIO / another self-hosted S3-compatible store. */
-function isAwsS3Endpoint(endpoint: string): boolean {
-  try {
-    // Dot boundary required — a bare endsWith("amazonaws.com") would let
-    // "myamazonaws.com" bypass the placeholder-credential guard.
-    const hostname = new URL(endpoint).hostname;
-    return hostname === "amazonaws.com" || hostname.endsWith(".amazonaws.com");
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Secrets that ship with a dev placeholder default so `pnpm dev` runs with no
  * `.env` — but a forgotten env var in production then boots green on a
@@ -179,25 +167,22 @@ function isAwsS3Endpoint(endpoint: string): boolean {
  * override them. (The bull-board password is guarded SEPARATELY below — only
  * when the board is actually enabled, since it never mounts otherwise.)
  *
- * An entry may instead be `{ value, appliesWhen }` when the placeholder is
- * only a trap under some condition — the static MinIO S3 creds are only ever
- * "actually in play" against a self-hosted (non-AWS) endpoint; a real AWS
- * deployment authenticates via IAM and these values are irrelevant there.
+ * The S3 creds are guarded UNCONDITIONALLY (every endpoint): the storage module's
+ * S3Client factory injects S3_ACCESS_KEY/S3_SECRET_KEY as STATIC credentials with
+ * no IAM / default-provider-chain fallback (see storage.module.ts), so a forgotten
+ * override boots green on the publicly-known MinIO placeholder even against real
+ * AWS. An earlier endpoint-based carve-out (skip the guard when S3_ENDPOINT looks
+ * like AWS) assumed real AWS authenticates via IAM — false against this code — and
+ * reopened exactly that hole; hence: no carve-out. If a deployment ever wants IAM,
+ * make the factory OMIT static credentials for that endpoint FIRST — only then does
+ * the placeholder genuinely stop mattering and a conditional guard become correct.
  */
-const PRODUCTION_FORBIDDEN_DEFAULTS: Readonly<
-  Record<string, string | { value: string; appliesWhen: (env: Env) => boolean }>
-> = {
+const PRODUCTION_FORBIDDEN_DEFAULTS: Readonly<Record<string, string>> = {
   BETTER_AUTH_SECRET: "dev-secret-change-me",
   CENTRIFUGO_API_KEY: "dev-centrifugo-api-key",
   CENTRIFUGO_TOKEN_SECRET: "dev-centrifugo-token-secret",
-  S3_ACCESS_KEY: {
-    value: "minio",
-    appliesWhen: (env) => !isAwsS3Endpoint(env.S3_ENDPOINT),
-  },
-  S3_SECRET_KEY: {
-    value: "minio-dev-password",
-    appliesWhen: (env) => !isAwsS3Endpoint(env.S3_ENDPOINT),
-  },
+  S3_ACCESS_KEY: "minio",
+  S3_SECRET_KEY: "minio-dev-password",
 };
 
 /** Signing secrets that must additionally meet a minimum entropy in production. */
@@ -215,9 +200,7 @@ function assertProductionSecrets(env: Env): void {
   if (env.NODE_ENV !== "production") return;
   const read = (key: string): unknown => (env as unknown as Record<string, unknown>)[key];
   const issues: string[] = [];
-  for (const [key, forbidden] of Object.entries(PRODUCTION_FORBIDDEN_DEFAULTS)) {
-    const placeholder = typeof forbidden === "string" ? forbidden : forbidden.value;
-    if (typeof forbidden !== "string" && !forbidden.appliesWhen(env)) continue;
+  for (const [key, placeholder] of Object.entries(PRODUCTION_FORBIDDEN_DEFAULTS)) {
     if (read(key) === placeholder) {
       issues.push(`  ${key}: still the dev placeholder — set a generated value in production`);
     }

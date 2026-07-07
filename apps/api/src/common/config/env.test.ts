@@ -83,9 +83,10 @@ describe("loadEnv", () => {
     expect(loadEnv({ NODE_ENV: "test" }).CENTRIFUGO_API_KEY).toBe("dev-centrifugo-api-key");
   });
 
-  it("rejects dev-placeholder S3 credentials in production against a non-AWS (self-hosted) endpoint", () => {
-    // Default S3_ENDPOINT (http://localhost:9000) is MinIO-style, non-AWS —
-    // the static dev creds are actually in play there, so they must be rejected.
+  it("rejects dev-placeholder S3 credentials in production (unconditional — the S3Client uses them statically)", () => {
+    // The storage module passes S3_ACCESS_KEY/S3_SECRET_KEY to the S3Client as
+    // static credentials on EVERY endpoint (no IAM path), so the placeholder
+    // values are a live credential trap in production regardless of S3_ENDPOINT.
     expect(() =>
       loadEnv({
         ...STRONG_PRODUCTION,
@@ -102,9 +103,12 @@ describe("loadEnv", () => {
     ).toThrow(/S3_SECRET_KEY/);
   });
 
-  it("allows the dev-placeholder S3 credentials in production once S3_ENDPOINT is real AWS", () => {
-    // A real AWS endpoint authenticates via IAM, not these static keys — the
-    // MinIO placeholder values are no longer a meaningful credential trap there.
+  it("rejects dev-placeholder S3 credentials in production even when S3_ENDPOINT is real AWS", () => {
+    // The S3Client factory injects S3_ACCESS_KEY/S3_SECRET_KEY as STATIC
+    // credentials unconditionally — there is no IAM / default-provider-chain
+    // path — so a forgotten override is a live credential trap on real AWS too.
+    // (Regression guard: an earlier endpoint-based carve-out skipped the guard
+    // here and reopened exactly the hole it was written to close.)
     expect(() =>
       loadEnv({
         ...STRONG_PRODUCTION,
@@ -112,24 +116,11 @@ describe("loadEnv", () => {
         S3_ACCESS_KEY: "minio",
         S3_SECRET_KEY: "minio-dev-password",
       }),
-    ).not.toThrow();
-  });
-
-  it("does not mistake an amazonaws.com-suffixed lookalike host for real AWS", () => {
-    // Regression: a bare endsWith("amazonaws.com") let "myamazonaws.com"
-    // bypass the placeholder-credential guard — the suffix needs a dot boundary.
-    expect(() =>
-      loadEnv({
-        ...STRONG_PRODUCTION,
-        S3_ENDPOINT: "https://myamazonaws.com",
-        S3_ACCESS_KEY: "minio",
-        S3_SECRET_KEY: "minio-dev-password",
-      }),
     ).toThrow(/S3_ACCESS_KEY/);
   });
 
   it("does not enforce the S3 credential guard outside production", () => {
-    // Same placeholder creds, non-AWS endpoint, but development → defaults stand, no throw.
+    // Same placeholder creds, but development → defaults stand, no throw.
     const env = loadEnv({});
     expect(env.S3_ACCESS_KEY).toBe("minio");
     expect(env.S3_SECRET_KEY).toBe("minio-dev-password");
