@@ -1,5 +1,5 @@
 /**
- * The drawing-rule DSL (CORE_SPEC §5, spike 2026-07-08 — ADR pending). A per-
+ * The drawing-rule DSL (CORE_SPEC §5, spike 2026-07-08 — ADR 0102). A per-
  * family, declarative spec — carried as IMMUTABLE release data (a sibling of
  * `ui?: UiSpec`), so it freezes into the quote snapshot and a re-derived
  * historical quote reproduces byte-identical drawings (I3). Authored ONCE per
@@ -24,6 +24,16 @@ export type DimensionSide = "top" | "bottom" | "left" | "right";
  *  matched against the projected linework's I9 source ids. */
 export interface FeatureSelector {
   pieces: string;
+}
+
+/** The ONE definition of the feature-glob grammar (the model owns the DSL): `*`
+ *  is a wildcard, every other char (incl. the `.`/`[`/`]` piece ids carry) is a
+ *  literal. Consumed by BOTH the runtime Annotator and the publish-gate
+ *  `drawScopes` check, so a rule that passes validation is a rule that matches at
+ *  runtime — no drift between the two. */
+export function pieceGlobToRegex(glob: string): RegExp {
+  const esc = glob.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+  return new RegExp(`^${esc}$`);
 }
 
 /** A single linear dimension bracketing a feature's projected extent. */
@@ -67,8 +77,28 @@ export interface ViewDef {
   projection: "front" | "top" | "side";
 }
 
-/** The family's drawing spec: views + the rules that annotate them. */
+/** The world axis a section plane's normal runs along (the typed, axis-aligned
+ *  reduction of the ADR-0092 `PlaneSpec` — every real gate cut is orthogonal).
+ *  `x` = a cross-slice through the leaf (frame profiles seen edge-on), `y` = a
+ *  plan cut, `z` = a front-parallel slice. */
+export type SectionAxis = "x" | "y" | "z";
+
+/** A section cut, authored as DATA (a sibling of a `ViewDef`). The plane is
+ *  `axis · p = offsetMm`; the Sectioner emits the outer outline of every piece
+ *  the plane cuts transversely, hatched. HONESTY (I5): a profile the catalog
+ *  gives no real depth (flat plank, h-channel) sections to a DEGRADED outline
+ *  flagged `nominalDepth` — the emitter never invents a wall it wasn't given. */
+export interface SectionDef {
+  id: string;
+  axis: SectionAxis;
+  /** Signed plane offset from the origin along `axis`, mm. */
+  offsetMm: number;
+}
+
+/** The family's drawing spec: views + the rules that annotate them + optional
+ *  section cuts (emitted as hatched cross-sections beside the elevation). */
 export interface DrawingSpec {
   views: ViewDef[];
   rules: DrawingRule[];
+  sections?: SectionDef[];
 }

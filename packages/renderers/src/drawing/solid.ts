@@ -86,6 +86,7 @@ export function buildSolids(result: DerivationResult): PieceSolid[] {
         name: part.name,
         edges,
         axis: { a: place([0, 0, 0]), b: place([piece.lengthMm, 0, 0]) },
+        rotationArcMin: piece.rotationArcMin,
         ...(profile !== undefined && { profile }),
         section: sectionOutline(profile),
         ...(deviated && { deviated: true }),

@@ -52,8 +52,13 @@
       // tools, never imported in source; declared as entries so knip sees them
       // (and their @playwright/test import) as used, like apps/mobile's asset
       // tool below. `capture-scene.mjs` is the 3D harness (ADR 0073);
-      // `capture-production.mjs` is the CAR-24/ADR 0101 workshop-view harness.
-      "entry": ["scripts/verify/capture-scene.mjs", "scripts/verify/capture-production.mjs"]
+      // `capture-production.mjs` is the CAR-24/ADR 0101 workshop-view harness;
+      // `capture-drawing.mjs` is the 2D technical-drawing harness (drawing spike).
+      "entry": [
+        "scripts/verify/capture-scene.mjs",
+        "scripts/verify/capture-production.mjs",
+        "scripts/verify/capture-drawing.mjs"
+      ]
     },
     "apps/mobile": {
       "metro": false,

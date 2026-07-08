@@ -6,7 +6,7 @@
  * AnnotationIntents; the DimensionSolver turns them into placed geometry. Kept
  * separate so rule-selection and layout-packing test independently.
  */
-import type { DimensionSide, DrawingSpec } from "@repo/model";
+import { pieceGlobToRegex, type DimensionSide, type DrawingSpec } from "@repo/model";
 
 import type { Pt } from "../shared.js";
 import type { ViewLinework } from "./types.js";
@@ -23,13 +23,6 @@ export interface AnnotationIntent {
   text?: string;
   /** chain: each repeated piece's centre along the measured axis (tick lines). */
   ticks?: number[];
-}
-
-/** `<partPath>/<pieceKey>` glob (`*` wildcard) → anchored regex. Every non-`*`
- *  metachar is a literal (piece ids contain `.` and `[0]`). */
-function globToRegex(glob: string): RegExp {
-  const esc = glob.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
-  return new RegExp(`^${esc}$`);
 }
 
 const pieceOf = (sourceId: string): string => sourceId.split("#")[0]!;
@@ -56,7 +49,7 @@ export function annotate(
   const intents: AnnotationIntent[] = [];
 
   for (const rule of spec.rules) {
-    const re = globToRegex(rule.feature.pieces);
+    const re = pieceGlobToRegex(rule.feature.pieces);
     const matched = view.edges.filter((e) => re.test(pieceOf(e.sourceId)));
     if (matched.length === 0) continue;
     const pts = matched.flatMap((e) => [e.from, e.to]);

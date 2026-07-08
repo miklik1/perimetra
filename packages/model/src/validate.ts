@@ -31,6 +31,7 @@
  * truth, keyed by the same `where` strings).
  */
 import type { Catalog } from "./catalog.js";
+import { pieceGlobToRegex } from "./drawing.js";
 import { collectCalls, collectRefs, ExprError, isKnownFunction, parse, type Ast } from "./expr.js";
 import type { ProductModelRelease } from "./schema.js";
 
@@ -186,6 +187,42 @@ export function slotScopes(release: ProductModelRelease): Map<string, ExprScope>
   }
 
   return scopes;
+}
+
+/**
+ * The reference universe of a release's `DrawingSpec` — the sibling of
+ * {@link slotScopes} for the drawing DSL. `derivedKeys` are the derived-scope
+ * keys a rule may PRINT (Excel fidelity: a rule can only surface a number the
+ * engine actually derives); `pieceSpecimens` are the piece ids a `feature` glob
+ * may target. Consumed by {@link validateRelease} AND offered as the editor's
+ * drawing autocomplete, so the publish gate and the authoring surface never
+ * disagree about what a rule may reference.
+ *
+ * `pieceSpecimens` is STATIC, like the scopes: a non-repeat geometry contributes
+ * `<path>/<key>`, a repeat contributes its index-0 representative
+ * `<path>/<key>[0]`. The gate matches with the SAME `pieceGlobToRegex` grammar the
+ * runtime Annotator uses (no drift), canonicalising a rule's concrete repeat index
+ * to that representative first — so `piece[0]`/`piece[5]`/`piece[*]` all validate
+ * against a declared repeat geometry while a typo'd path/key still fails. The exact
+ * repeat count is an evaluated value the gate cannot check; the runtime no-ops an
+ * out-of-range index, and the gate mirrors that rather than false-rejecting it.
+ */
+export interface DrawScope {
+  derivedKeys: ReadonlySet<string>;
+  pieceSpecimens: readonly string[];
+}
+
+export function drawScopes(release: ProductModelRelease): DrawScope {
+  const derivedKeys = new Set(release.derivation.derived.map((d) => d.key));
+  const pieceSpecimens: string[] = [];
+  for (const rule of release.derivation.parts) {
+    for (const geo of rule.geometry ?? []) {
+      pieceSpecimens.push(
+        geo.repeat !== undefined ? `${rule.path}/${geo.key}[0]` : `${rule.path}/${geo.key}`,
+      );
+    }
+  }
+  return { derivedKeys, pieceSpecimens };
 }
 
 export function validateRelease(release: ProductModelRelease, catalog?: Catalog): ReleaseDefect[] {
@@ -498,6 +535,62 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
           code: "ui.param.uncovered",
           where: `ui`,
           message: `writable parameter "${p.key}" is missing from the ui spec — it would be silently uneditable`,
+        });
+      }
+    }
+  }
+
+  // --- Drawing spec (CORE_SPEC §5, spike): unique view/section/rule ids; each
+  // rule targets a piece the geometry actually declares (matched with the SAME
+  // glob grammar the runtime Annotator uses) and prints a real derived key —
+  // Excel fidelity by construction. Checked only when `drawing` is authored. ---
+  if (release.drawing !== undefined) {
+    const { derivedKeys, pieceSpecimens } = drawScopes(release);
+    const seenViewIds = new Set<string>();
+    for (const view of release.drawing.views) {
+      if (seenViewIds.has(view.id)) {
+        defects.push(duplicate("drawing view", `drawing.views[${view.id}]`, view.id));
+      }
+      seenViewIds.add(view.id);
+    }
+    const seenSectionIds = new Set<string>();
+    for (const section of release.drawing.sections ?? []) {
+      if (seenSectionIds.has(section.id)) {
+        defects.push(duplicate("drawing section", `drawing.sections[${section.id}]`, section.id));
+      }
+      seenSectionIds.add(section.id);
+    }
+    const seenRuleIds = new Set<string>();
+    for (const rule of release.drawing.rules) {
+      const at = `drawing.rules[${rule.id}]`;
+      if (seenRuleIds.has(rule.id)) defects.push(duplicate("drawing rule", at, rule.id));
+      seenRuleIds.add(rule.id);
+      // A feature glob may pin a specific repeat index (`piece[5]`) or wildcard
+      // (`piece[*]`). The repeat COUNT is an evaluated value the gate cannot know,
+      // and the runtime Annotator simply matches whatever pieces exist — an
+      // out-of-range index is a silent no-op there, never an error. Mirror that:
+      // canonicalise a concrete trailing index to the [0] representative before
+      // matching, so a legitimate `piece[5]` is never false-rejected (a wildcard
+      // already matches the representative; a typo'd path/key still fails). Same
+      // `pieceGlobToRegex` grammar the Annotator uses — no drift.
+      const probe = rule.feature.pieces.replace(/\[\d+\]$/, "[0]");
+      const re = pieceGlobToRegex(probe);
+      if (!pieceSpecimens.some((s) => re.test(s))) {
+        defects.push({
+          code: "drawing.feature.nomatch",
+          where: `${at}.feature`,
+          message: `feature "${rule.feature.pieces}" matches no geometry piece of this release`,
+        });
+      }
+      if (
+        rule.kind !== "label" &&
+        rule.derivedValue !== undefined &&
+        !derivedKeys.has(rule.derivedValue)
+      ) {
+        defects.push({
+          code: "drawing.derived.unknown",
+          where: `${at}.derivedValue`,
+          message: `derivedValue "${rule.derivedValue}" is not a derived key of this release`,
         });
       }
     }

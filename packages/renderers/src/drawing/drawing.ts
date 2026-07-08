@@ -12,6 +12,7 @@ import { assertRenderable, type Pt } from "../shared.js";
 import { annotate, type AnnotationIntent } from "./annotate.js";
 import { place, type PlacedAnnotation } from "./dimsolve.js";
 import { FRONT_VIEW, renderView, SIDE_VIEW, TOP_VIEW } from "./project.js";
+import { buildSection, type SectionView } from "./section.js";
 import { buildSolids } from "./solid.js";
 import type { DrawnEdge2D, ViewLinework, ViewSpec } from "./types.js";
 
@@ -20,6 +21,9 @@ export interface TechnicalDrawing {
   edges: DrawnEdge2D[];
   annotations: PlacedAnnotation[];
   bbox: { min: Pt; max: Pt };
+  /** Hatched cross-sections for each authored `DrawingSpec.section` (omitted when
+   *  none are authored). */
+  sections?: SectionView[];
 }
 
 const VIEW_SPECS: Record<ViewDef["projection"], ViewSpec> = {
@@ -67,5 +71,12 @@ export function buildTechnicalDrawing(
   const annotations = spec
     ? place(annotate(view, spec, result.derived), view.bbox)
     : defaultAnnotations(view);
-  return { viewId: view.viewId, edges: view.edges, annotations, bbox: view.bbox };
+  const sections = spec?.sections?.map((def) => buildSection(solids, def));
+  return {
+    viewId: view.viewId,
+    edges: view.edges,
+    annotations,
+    bbox: view.bbox,
+    ...(sections !== undefined && sections.length > 0 && { sections }),
+  };
 }

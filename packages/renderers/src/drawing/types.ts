@@ -1,5 +1,5 @@
 /**
- * Drawing-emitter type contract (spike, 2026-07-08 — ADR pending). The 2D
+ * Drawing-emitter type contract (spike, 2026-07-08 — ADR 0102). The 2D
  * technical drawing is a DERIVED view of the one geometry SoT, a sibling of the
  * BOM / cut-list / Scene3D emitters (CORE_SPEC §5). The pipeline is a chain of
  * pure stages, each behind a small interface:
@@ -59,6 +59,9 @@ export interface PieceSolid {
   edges: Edge3D[];
   /** The centre axis (start → end), for centrelines + perpendicular-cut detection. */
   axis: { a: Vec3; b: Vec3 };
+  /** The piece's pose rotation (arc-minutes) — orients the local cross-section
+   *  into world when a section plane cuts it. */
+  rotationArcMin: Vec3;
   profile?: PieceProfile;
   /** The section-plane outline (real-depth only carries a genuine hollow). */
   section: Section2D;

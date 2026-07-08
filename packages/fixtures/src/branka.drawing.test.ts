@@ -117,3 +117,45 @@ describe("branka@1 — feature-bound dimensions (the Excel-value oracle)", () =>
     expect(w.textAt).toBeDefined();
   });
 });
+
+describe("branka@1 — section A–A (honest hatched cross-section)", () => {
+  const drawing = buildTechnicalDrawing(result, brankaV1.drawing);
+  const section = drawing.sections?.find((s) => s.sectionId === "A-A");
+
+  it("emits the authored vertical cut down the leaf centre", () => {
+    expect(section).toBeDefined();
+    expect(section!.axis).toBe("x");
+    expect(section!.offsetMm).toBe(455);
+  });
+
+  it("cuts ONLY the members the plane crosses transversely (2 rails + 11 slats)", () => {
+    // Every upright (stiles/h-profils/latch) runs PARALLEL to the cut and is
+    // skipped — a section shows cross-sections, never long faces.
+    const ids = section!.cuts.map((c) => c.sourceId).sort();
+    const slats = ids.filter((id) => id.startsWith("fill.material/piece["));
+    expect(slats).toHaveLength(11);
+    expect(ids.filter((id) => id.startsWith("frame.lprofile/rail"))).toEqual([
+      "frame.lprofile/railBottom",
+      "frame.lprofile/railTop",
+    ]);
+    expect(ids.some((id) => /stile|latch|hprofile/.test(id))).toBe(false);
+    expect(section!.cuts).toHaveLength(13);
+  });
+
+  it("draws real-depth rails but honestly flags the depth-less slats (I5, no invented wall)", () => {
+    const rail = section!.cuts.find((c) => c.sourceId === "frame.lprofile/railBottom")!;
+    const slat = section!.cuts.find((c) => c.sourceId === "fill.material/piece[0]")!;
+    expect(rail.nominalDepth).toBe(false); // L-profile carries real d_mm
+    expect(slat.nominalDepth).toBe(true); // planka_100 has no d_mm → degraded outline
+    expect(section!.dataFillNeeded).toBe(true);
+    // Each cut is a closed quad outline (outer envelope, no invented holes).
+    expect(rail.outline).toHaveLength(4);
+    expect(slat.outline).toHaveLength(4);
+    // The slat's honest depth is the hairline scaffold (≈1mm), NOT a fabricated
+    // section; the rail shows its real catalog depth.
+    const depthOf = (pts: { x: number }[]) =>
+      Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x));
+    expect(depthOf(slat.outline)).toBeLessThan(2);
+    expect(depthOf(rail.outline)).toBeGreaterThan(2);
+  });
+});

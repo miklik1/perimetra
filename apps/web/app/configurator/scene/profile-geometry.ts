@@ -20,16 +20,22 @@
 import { ExtrudeGeometry, Path, Shape, type BufferGeometry } from "three";
 
 import type { PieceProfile } from "@repo/engine";
+import { profileEnvelope } from "@repo/renderers";
 
-/** Width (Y) and depth (Z) of the cross-section, mm — with the same
- *  presentation fallbacks the box used (`?? 40`), but a thinner default depth
- *  for flat/pane planks so a plaňka reads as a board, not a square bar. These
- *  are PRESENTATION approximations for absent catalog dims, never invented data
- *  written anywhere durable. */
+/** Width (Y) and depth (Z) of the cross-section, mm. The REAL catalog envelope is
+ *  read through `profileEnvelope` (ProfileLibrary) — the SAME authority the 2D
+ *  drawing emitter sections from, so the two can never disagree about how big a
+ *  member is (the convergence, ADR 0102). Only the fallback for absent catalog
+ *  dims is app-land PRESENTATION: `?? 40`, and a thinner default depth for
+ *  flat/pane planks so a plaňka reads as a board, not a square bar — never
+ *  invented data written anywhere durable. */
 function resolveDims(profile: PieceProfile): { wMm: number; dMm: number } {
-  const wMm = profile.wMm ?? 40;
+  const env = profileEnvelope(profile);
+  const wMm = env.halfW > 0 ? env.halfW * 2 : 40;
   const thinDefault = profile.shape === "flat" || profile.shape === "pane" ? 20 : wMm;
-  return { wMm, dMm: profile.dMm ?? thinDefault };
+  // `nominalDepth` is ProfileLibrary's verdict that the catalog gave no real
+  // depth — the one place that decision is made, for 2D and 3D alike.
+  return { wMm, dMm: env.nominalDepth ? thinDefault : env.halfD * 2 };
 }
 
 /** Leg/wall thickness for the open sections (L/U/T) when the catalog carries no

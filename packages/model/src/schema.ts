@@ -296,7 +296,7 @@ export interface ProductModelRelease {
   /** Generated-UI structure (CORE_SPEC §8 / step 6). Absent = the consumer
    *  falls back to one synthesized step over all writable parameters. */
   ui?: UiSpec;
-  /** Drawing-rule spec (CORE_SPEC §5, spike — ADR pending): per-family declarative
+  /** Drawing-rule spec (CORE_SPEC §5, spike — ADR 0102): per-family declarative
    *  dimensions/labels for the derived 2D technical drawing. Absent = the drawing
    *  emitter falls back to the default auto-elevation + overall dims. */
   drawing?: DrawingSpec;

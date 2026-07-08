@@ -1,0 +1,1603 @@
+{
+  "viewId": "front",
+  "edges": [
+    {
+      "id": "fill.material/piece[0]#F0@front",
+      "sourceId": "fill.material/piece[0]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 75
+      },
+      "to": {
+        "x": 845,
+        "y": 75
+      }
+    },
+    {
+      "id": "fill.material/piece[0]#F1@front",
+      "sourceId": "fill.material/piece[0]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 75
+      },
+      "to": {
+        "x": 845,
+        "y": 175
+      }
+    },
+    {
+      "id": "fill.material/piece[0]#F2@front",
+      "sourceId": "fill.material/piece[0]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 175
+      },
+      "to": {
+        "x": 65,
+        "y": 175
+      }
+    },
+    {
+      "id": "fill.material/piece[0]#F3@front",
+      "sourceId": "fill.material/piece[0]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 175
+      },
+      "to": {
+        "x": 65,
+        "y": 75
+      }
+    },
+    {
+      "id": "fill.material/piece[1]#F0@front",
+      "sourceId": "fill.material/piece[1]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 202
+      },
+      "to": {
+        "x": 845,
+        "y": 202
+      }
+    },
+    {
+      "id": "fill.material/piece[1]#F1@front",
+      "sourceId": "fill.material/piece[1]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 202
+      },
+      "to": {
+        "x": 845,
+        "y": 302
+      }
+    },
+    {
+      "id": "fill.material/piece[1]#F2@front",
+      "sourceId": "fill.material/piece[1]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 302
+      },
+      "to": {
+        "x": 65,
+        "y": 302
+      }
+    },
+    {
+      "id": "fill.material/piece[1]#F3@front",
+      "sourceId": "fill.material/piece[1]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 302
+      },
+      "to": {
+        "x": 65,
+        "y": 202
+      }
+    },
+    {
+      "id": "fill.material/piece[10]#F0@front",
+      "sourceId": "fill.material/piece[10]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1345
+      },
+      "to": {
+        "x": 845,
+        "y": 1345
+      }
+    },
+    {
+      "id": "fill.material/piece[10]#F1@front",
+      "sourceId": "fill.material/piece[10]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1345
+      },
+      "to": {
+        "x": 845,
+        "y": 1445
+      }
+    },
+    {
+      "id": "fill.material/piece[10]#F2@front",
+      "sourceId": "fill.material/piece[10]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1445
+      },
+      "to": {
+        "x": 65,
+        "y": 1445
+      }
+    },
+    {
+      "id": "fill.material/piece[10]#F3@front",
+      "sourceId": "fill.material/piece[10]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1445
+      },
+      "to": {
+        "x": 65,
+        "y": 1345
+      }
+    },
+    {
+      "id": "fill.material/piece[2]#F0@front",
+      "sourceId": "fill.material/piece[2]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 329
+      },
+      "to": {
+        "x": 845,
+        "y": 329
+      }
+    },
+    {
+      "id": "fill.material/piece[2]#F1@front",
+      "sourceId": "fill.material/piece[2]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 329
+      },
+      "to": {
+        "x": 845,
+        "y": 429
+      }
+    },
+    {
+      "id": "fill.material/piece[2]#F2@front",
+      "sourceId": "fill.material/piece[2]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 429
+      },
+      "to": {
+        "x": 65,
+        "y": 429
+      }
+    },
+    {
+      "id": "fill.material/piece[2]#F3@front",
+      "sourceId": "fill.material/piece[2]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 429
+      },
+      "to": {
+        "x": 65,
+        "y": 329
+      }
+    },
+    {
+      "id": "fill.material/piece[3]#F0@front",
+      "sourceId": "fill.material/piece[3]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 456
+      },
+      "to": {
+        "x": 845,
+        "y": 456
+      }
+    },
+    {
+      "id": "fill.material/piece[3]#F1@front",
+      "sourceId": "fill.material/piece[3]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 456
+      },
+      "to": {
+        "x": 845,
+        "y": 556
+      }
+    },
+    {
+      "id": "fill.material/piece[3]#F2@front",
+      "sourceId": "fill.material/piece[3]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 556
+      },
+      "to": {
+        "x": 65,
+        "y": 556
+      }
+    },
+    {
+      "id": "fill.material/piece[3]#F3@front",
+      "sourceId": "fill.material/piece[3]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 556
+      },
+      "to": {
+        "x": 65,
+        "y": 456
+      }
+    },
+    {
+      "id": "fill.material/piece[4]#F0@front",
+      "sourceId": "fill.material/piece[4]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 583
+      },
+      "to": {
+        "x": 845,
+        "y": 583
+      }
+    },
+    {
+      "id": "fill.material/piece[4]#F1@front",
+      "sourceId": "fill.material/piece[4]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 583
+      },
+      "to": {
+        "x": 845,
+        "y": 683
+      }
+    },
+    {
+      "id": "fill.material/piece[4]#F2@front",
+      "sourceId": "fill.material/piece[4]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 683
+      },
+      "to": {
+        "x": 65,
+        "y": 683
+      }
+    },
+    {
+      "id": "fill.material/piece[4]#F3@front",
+      "sourceId": "fill.material/piece[4]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 683
+      },
+      "to": {
+        "x": 65,
+        "y": 583
+      }
+    },
+    {
+      "id": "fill.material/piece[5]#F0@front",
+      "sourceId": "fill.material/piece[5]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 710
+      },
+      "to": {
+        "x": 845,
+        "y": 710
+      }
+    },
+    {
+      "id": "fill.material/piece[5]#F1@front",
+      "sourceId": "fill.material/piece[5]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 710
+      },
+      "to": {
+        "x": 845,
+        "y": 810
+      }
+    },
+    {
+      "id": "fill.material/piece[5]#F2@front",
+      "sourceId": "fill.material/piece[5]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 810
+      },
+      "to": {
+        "x": 65,
+        "y": 810
+      }
+    },
+    {
+      "id": "fill.material/piece[5]#F3@front",
+      "sourceId": "fill.material/piece[5]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 810
+      },
+      "to": {
+        "x": 65,
+        "y": 710
+      }
+    },
+    {
+      "id": "fill.material/piece[6]#F0@front",
+      "sourceId": "fill.material/piece[6]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 837
+      },
+      "to": {
+        "x": 845,
+        "y": 837
+      }
+    },
+    {
+      "id": "fill.material/piece[6]#F1@front",
+      "sourceId": "fill.material/piece[6]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 837
+      },
+      "to": {
+        "x": 845,
+        "y": 937
+      }
+    },
+    {
+      "id": "fill.material/piece[6]#F2@front",
+      "sourceId": "fill.material/piece[6]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 937
+      },
+      "to": {
+        "x": 65,
+        "y": 937
+      }
+    },
+    {
+      "id": "fill.material/piece[6]#F3@front",
+      "sourceId": "fill.material/piece[6]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 937
+      },
+      "to": {
+        "x": 65,
+        "y": 837
+      }
+    },
+    {
+      "id": "fill.material/piece[7]#F0@front",
+      "sourceId": "fill.material/piece[7]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 964
+      },
+      "to": {
+        "x": 845,
+        "y": 964
+      }
+    },
+    {
+      "id": "fill.material/piece[7]#F1@front",
+      "sourceId": "fill.material/piece[7]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 964
+      },
+      "to": {
+        "x": 845,
+        "y": 1064
+      }
+    },
+    {
+      "id": "fill.material/piece[7]#F2@front",
+      "sourceId": "fill.material/piece[7]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1064
+      },
+      "to": {
+        "x": 65,
+        "y": 1064
+      }
+    },
+    {
+      "id": "fill.material/piece[7]#F3@front",
+      "sourceId": "fill.material/piece[7]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1064
+      },
+      "to": {
+        "x": 65,
+        "y": 964
+      }
+    },
+    {
+      "id": "fill.material/piece[8]#F0@front",
+      "sourceId": "fill.material/piece[8]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1091
+      },
+      "to": {
+        "x": 845,
+        "y": 1091
+      }
+    },
+    {
+      "id": "fill.material/piece[8]#F1@front",
+      "sourceId": "fill.material/piece[8]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1091
+      },
+      "to": {
+        "x": 845,
+        "y": 1191
+      }
+    },
+    {
+      "id": "fill.material/piece[8]#F2@front",
+      "sourceId": "fill.material/piece[8]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1191
+      },
+      "to": {
+        "x": 65,
+        "y": 1191
+      }
+    },
+    {
+      "id": "fill.material/piece[8]#F3@front",
+      "sourceId": "fill.material/piece[8]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1191
+      },
+      "to": {
+        "x": 65,
+        "y": 1091
+      }
+    },
+    {
+      "id": "fill.material/piece[9]#F0@front",
+      "sourceId": "fill.material/piece[9]#F0",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1218
+      },
+      "to": {
+        "x": 845,
+        "y": 1218
+      }
+    },
+    {
+      "id": "fill.material/piece[9]#F1@front",
+      "sourceId": "fill.material/piece[9]#F1",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1218
+      },
+      "to": {
+        "x": 845,
+        "y": 1318
+      }
+    },
+    {
+      "id": "fill.material/piece[9]#F2@front",
+      "sourceId": "fill.material/piece[9]#F2",
+      "role": "visible",
+      "from": {
+        "x": 845,
+        "y": 1318
+      },
+      "to": {
+        "x": 65,
+        "y": 1318
+      }
+    },
+    {
+      "id": "fill.material/piece[9]#F3@front",
+      "sourceId": "fill.material/piece[9]#F3",
+      "role": "visible",
+      "from": {
+        "x": 65,
+        "y": 1318
+      },
+      "to": {
+        "x": 65,
+        "y": 1218
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[0]#F0@front",
+      "sourceId": "frame.hprofile/carrier[0]#F0",
+      "role": "visible",
+      "from": {
+        "x": 90,
+        "y": 113
+      },
+      "to": {
+        "x": 90,
+        "y": 1407
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[0]#F1@front",
+      "sourceId": "frame.hprofile/carrier[0]#F1",
+      "role": "visible",
+      "from": {
+        "x": 90,
+        "y": 1407
+      },
+      "to": {
+        "x": 40,
+        "y": 1407
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[0]#F2@front",
+      "sourceId": "frame.hprofile/carrier[0]#F2",
+      "role": "visible",
+      "from": {
+        "x": 40,
+        "y": 1407
+      },
+      "to": {
+        "x": 40,
+        "y": 113
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[0]#F3@front",
+      "sourceId": "frame.hprofile/carrier[0]#F3",
+      "role": "visible",
+      "from": {
+        "x": 40,
+        "y": 113
+      },
+      "to": {
+        "x": 90,
+        "y": 113
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[1]#F0@front",
+      "sourceId": "frame.hprofile/carrier[1]#F0",
+      "role": "visible",
+      "from": {
+        "x": 870,
+        "y": 113
+      },
+      "to": {
+        "x": 870,
+        "y": 1407
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[1]#F1@front",
+      "sourceId": "frame.hprofile/carrier[1]#F1",
+      "role": "visible",
+      "from": {
+        "x": 870,
+        "y": 1407
+      },
+      "to": {
+        "x": 820,
+        "y": 1407
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[1]#F2@front",
+      "sourceId": "frame.hprofile/carrier[1]#F2",
+      "role": "visible",
+      "from": {
+        "x": 820,
+        "y": 1407
+      },
+      "to": {
+        "x": 820,
+        "y": 113
+      }
+    },
+    {
+      "id": "frame.hprofile/carrier[1]#F3@front",
+      "sourceId": "frame.hprofile/carrier[1]#F3",
+      "role": "visible",
+      "from": {
+        "x": 820,
+        "y": 113
+      },
+      "to": {
+        "x": 870,
+        "y": 113
+      }
+    },
+    {
+      "id": "frame.lprofile/latchPost#F0@front",
+      "sourceId": "frame.lprofile/latchPost#F0",
+      "role": "visible",
+      "from": {
+        "x": 1025,
+        "y": 0
+      },
+      "to": {
+        "x": 1025,
+        "y": 1470
+      }
+    },
+    {
+      "id": "frame.lprofile/latchPost#F1@front",
+      "sourceId": "frame.lprofile/latchPost#F1",
+      "role": "visible",
+      "from": {
+        "x": 1025,
+        "y": 1470
+      },
+      "to": {
+        "x": 975,
+        "y": 1470
+      }
+    },
+    {
+      "id": "frame.lprofile/latchPost#F2@front",
+      "sourceId": "frame.lprofile/latchPost#F2",
+      "role": "visible",
+      "from": {
+        "x": 975,
+        "y": 1470
+      },
+      "to": {
+        "x": 975,
+        "y": 0
+      }
+    },
+    {
+      "id": "frame.lprofile/latchPost#F3@front",
+      "sourceId": "frame.lprofile/latchPost#F3",
+      "role": "visible",
+      "from": {
+        "x": 975,
+        "y": 0
+      },
+      "to": {
+        "x": 1025,
+        "y": 0
+      }
+    },
+    {
+      "id": "frame.lprofile/railBottom#F0@front",
+      "sourceId": "frame.lprofile/railBottom#F0",
+      "role": "visible",
+      "from": {
+        "x": 0,
+        "y": 35
+      },
+      "to": {
+        "x": 910,
+        "y": 35
+      }
+    },
+    {
+      "id": "frame.lprofile/railBottom#F1@front",
+      "sourceId": "frame.lprofile/railBottom#F1",
+      "role": "visible",
+      "from": {
+        "x": 910,
+        "y": 35
+      },
+      "to": {
+        "x": 910,
+        "y": 85
+      }
+    },
+    {
+      "id": "frame.lprofile/railBottom#F2@front",
+      "sourceId": "frame.lprofile/railBottom#F2",
+      "role": "visible",
+      "from": {
+        "x": 910,
+        "y": 85
+      },
+      "to": {
+        "x": 0,
+        "y": 85
+      }
+    },
+    {
+      "id": "frame.lprofile/railBottom#F3@front",
+      "sourceId": "frame.lprofile/railBottom#F3",
+      "role": "visible",
+      "from": {
+        "x": 0,
+        "y": 85
+      },
+      "to": {
+        "x": 0,
+        "y": 35
+      }
+    },
+    {
+      "id": "frame.lprofile/railTop#F0@front",
+      "sourceId": "frame.lprofile/railTop#F0",
+      "role": "visible",
+      "from": {
+        "x": 0,
+        "y": 1435
+      },
+      "to": {
+        "x": 910,
+        "y": 1435
+      }
+    },
+    {
+      "id": "frame.lprofile/railTop#F1@front",
+      "sourceId": "frame.lprofile/railTop#F1",
+      "role": "visible",
+      "from": {
+        "x": 910,
+        "y": 1435
+      },
+      "to": {
+        "x": 910,
+        "y": 1485
+      }
+    },
+    {
+      "id": "frame.lprofile/railTop#F2@front",
+      "sourceId": "frame.lprofile/railTop#F2",
+      "role": "visible",
+      "from": {
+        "x": 910,
+        "y": 1485
+      },
+      "to": {
+        "x": 0,
+        "y": 1485
+      }
+    },
+    {
+      "id": "frame.lprofile/railTop#F3@front",
+      "sourceId": "frame.lprofile/railTop#F3",
+      "role": "visible",
+      "from": {
+        "x": 0,
+        "y": 1485
+      },
+      "to": {
+        "x": 0,
+        "y": 1435
+      }
+    },
+    {
+      "id": "frame.lprofile/stileLeft#F0@front",
+      "sourceId": "frame.lprofile/stileLeft#F0",
+      "role": "visible",
+      "from": {
+        "x": 25,
+        "y": 60
+      },
+      "to": {
+        "x": 25,
+        "y": 1460
+      }
+    },
+    {
+      "id": "frame.lprofile/stileLeft#F1@front",
+      "sourceId": "frame.lprofile/stileLeft#F1",
+      "role": "visible",
+      "from": {
+        "x": 25,
+        "y": 1460
+      },
+      "to": {
+        "x": -25,
+        "y": 1460
+      }
+    },
+    {
+      "id": "frame.lprofile/stileLeft#F2@front",
+      "sourceId": "frame.lprofile/stileLeft#F2",
+      "role": "visible",
+      "from": {
+        "x": -25,
+        "y": 1460
+      },
+      "to": {
+        "x": -25,
+        "y": 60
+      }
+    },
+    {
+      "id": "frame.lprofile/stileLeft#F3@front",
+      "sourceId": "frame.lprofile/stileLeft#F3",
+      "role": "visible",
+      "from": {
+        "x": -25,
+        "y": 60
+      },
+      "to": {
+        "x": 25,
+        "y": 60
+      }
+    },
+    {
+      "id": "frame.lprofile/stileRight#F0@front",
+      "sourceId": "frame.lprofile/stileRight#F0",
+      "role": "visible",
+      "from": {
+        "x": 935,
+        "y": 60
+      },
+      "to": {
+        "x": 935,
+        "y": 1460
+      }
+    },
+    {
+      "id": "frame.lprofile/stileRight#F1@front",
+      "sourceId": "frame.lprofile/stileRight#F1",
+      "role": "visible",
+      "from": {
+        "x": 935,
+        "y": 1460
+      },
+      "to": {
+        "x": 885,
+        "y": 1460
+      }
+    },
+    {
+      "id": "frame.lprofile/stileRight#F2@front",
+      "sourceId": "frame.lprofile/stileRight#F2",
+      "role": "visible",
+      "from": {
+        "x": 885,
+        "y": 1460
+      },
+      "to": {
+        "x": 885,
+        "y": 60
+      }
+    },
+    {
+      "id": "frame.lprofile/stileRight#F3@front",
+      "sourceId": "frame.lprofile/stileRight#F3",
+      "role": "visible",
+      "from": {
+        "x": 885,
+        "y": 60
+      },
+      "to": {
+        "x": 935,
+        "y": 60
+      }
+    }
+  ],
+  "annotations": [
+    {
+      "id": "fill.pitch",
+      "kind": "chain",
+      "valueMm": 127,
+      "line": {
+        "from": {
+          "x": -265,
+          "y": 125
+        },
+        "to": {
+          "x": -265,
+          "y": 1395
+        }
+      },
+      "witness": [
+        {
+          "from": {
+            "x": 65,
+            "y": 125
+          },
+          "to": {
+            "x": -265,
+            "y": 125
+          }
+        },
+        {
+          "from": {
+            "x": 65,
+            "y": 1395
+          },
+          "to": {
+            "x": -265,
+            "y": 1395
+          }
+        }
+      ],
+      "ticks": [
+        {
+          "x": -265,
+          "y": 125
+        },
+        {
+          "x": -265,
+          "y": 252
+        },
+        {
+          "x": -265,
+          "y": 379
+        },
+        {
+          "x": -265,
+          "y": 506
+        },
+        {
+          "x": -265,
+          "y": 633
+        },
+        {
+          "x": -265,
+          "y": 760
+        },
+        {
+          "x": -265,
+          "y": 887
+        },
+        {
+          "x": -265,
+          "y": 1014
+        },
+        {
+          "x": -265,
+          "y": 1141
+        },
+        {
+          "x": -265,
+          "y": 1268
+        },
+        {
+          "x": -265,
+          "y": 1395
+        }
+      ],
+      "textAt": {
+        "x": -295,
+        "y": 760
+      }
+    },
+    {
+      "id": "fill.slat.length",
+      "kind": "dimension",
+      "valueMm": 780,
+      "line": {
+        "from": {
+          "x": 65,
+          "y": 1625
+        },
+        "to": {
+          "x": 845,
+          "y": 1625
+        }
+      },
+      "witness": [
+        {
+          "from": {
+            "x": 65,
+            "y": 75
+          },
+          "to": {
+            "x": 65,
+            "y": 1625
+          }
+        },
+        {
+          "from": {
+            "x": 845,
+            "y": 75
+          },
+          "to": {
+            "x": 845,
+            "y": 1625
+          }
+        }
+      ],
+      "textAt": {
+        "x": 455,
+        "y": 1655
+      }
+    },
+    {
+      "id": "latch.height",
+      "kind": "dimension",
+      "valueMm": 1470,
+      "line": {
+        "from": {
+          "x": 1165,
+          "y": 0
+        },
+        "to": {
+          "x": 1165,
+          "y": 1470
+        }
+      },
+      "witness": [
+        {
+          "from": {
+            "x": 975,
+            "y": 0
+          },
+          "to": {
+            "x": 1165,
+            "y": 0
+          }
+        },
+        {
+          "from": {
+            "x": 975,
+            "y": 1470
+          },
+          "to": {
+            "x": 1165,
+            "y": 1470
+          }
+        }
+      ],
+      "textAt": {
+        "x": 1195,
+        "y": 735
+      }
+    },
+    {
+      "id": "member.A",
+      "kind": "label",
+      "text": "A",
+      "line": {
+        "from": {
+          "x": 0,
+          "y": 760
+        },
+        "to": {
+          "x": 0,
+          "y": 760
+        }
+      },
+      "witness": [],
+      "textAt": {
+        "x": 0,
+        "y": 760
+      }
+    },
+    {
+      "id": "member.B",
+      "kind": "label",
+      "text": "B",
+      "line": {
+        "from": {
+          "x": 455,
+          "y": 60
+        },
+        "to": {
+          "x": 455,
+          "y": 60
+        }
+      },
+      "witness": [],
+      "textAt": {
+        "x": 455,
+        "y": 60
+      }
+    },
+    {
+      "id": "member.C",
+      "kind": "label",
+      "text": "C",
+      "line": {
+        "from": {
+          "x": 1000,
+          "y": 735
+        },
+        "to": {
+          "x": 1000,
+          "y": 735
+        }
+      },
+      "witness": [],
+      "textAt": {
+        "x": 1000,
+        "y": 735
+      }
+    },
+    {
+      "id": "member.D",
+      "kind": "label",
+      "text": "D",
+      "line": {
+        "from": {
+          "x": 455,
+          "y": 125
+        },
+        "to": {
+          "x": 455,
+          "y": 125
+        }
+      },
+      "witness": [],
+      "textAt": {
+        "x": 455,
+        "y": 125
+      }
+    },
+    {
+      "id": "overall.height",
+      "kind": "dimension",
+      "valueMm": 1400,
+      "line": {
+        "from": {
+          "x": -165,
+          "y": 60
+        },
+        "to": {
+          "x": -165,
+          "y": 1460
+        }
+      },
+      "witness": [
+        {
+          "from": {
+            "x": -25,
+            "y": 60
+          },
+          "to": {
+            "x": -165,
+            "y": 60
+          }
+        },
+        {
+          "from": {
+            "x": -25,
+            "y": 1460
+          },
+          "to": {
+            "x": -165,
+            "y": 1460
+          }
+        }
+      ],
+      "textAt": {
+        "x": -195,
+        "y": 760
+      }
+    },
+    {
+      "id": "overall.width",
+      "kind": "dimension",
+      "valueMm": 910,
+      "line": {
+        "from": {
+          "x": 0,
+          "y": -140
+        },
+        "to": {
+          "x": 910,
+          "y": -140
+        }
+      },
+      "witness": [
+        {
+          "from": {
+            "x": 0,
+            "y": 35
+          },
+          "to": {
+            "x": 0,
+            "y": -140
+          }
+        },
+        {
+          "from": {
+            "x": 910,
+            "y": 35
+          },
+          "to": {
+            "x": 910,
+            "y": -140
+          }
+        }
+      ],
+      "textAt": {
+        "x": 455,
+        "y": -170
+      }
+    }
+  ],
+  "bbox": {
+    "min": {
+      "x": -25,
+      "y": 0
+    },
+    "max": {
+      "x": 1025,
+      "y": 1485
+    }
+  },
+  "sections": [
+    {
+      "sectionId": "A-A",
+      "axis": "x",
+      "offsetMm": 455,
+      "cuts": [
+        {
+          "sourceId": "fill.material/piece[0]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 75
+            },
+            {
+              "x": -0.5,
+              "y": 175
+            },
+            {
+              "x": 0.5,
+              "y": 175
+            },
+            {
+              "x": 0.5,
+              "y": 75
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[1]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 202
+            },
+            {
+              "x": -0.5,
+              "y": 302
+            },
+            {
+              "x": 0.5,
+              "y": 302
+            },
+            {
+              "x": 0.5,
+              "y": 202
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[10]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 1345
+            },
+            {
+              "x": -0.5,
+              "y": 1445
+            },
+            {
+              "x": 0.5,
+              "y": 1445
+            },
+            {
+              "x": 0.5,
+              "y": 1345
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[2]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 329
+            },
+            {
+              "x": -0.5,
+              "y": 429
+            },
+            {
+              "x": 0.5,
+              "y": 429
+            },
+            {
+              "x": 0.5,
+              "y": 329
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[3]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 456
+            },
+            {
+              "x": -0.5,
+              "y": 556
+            },
+            {
+              "x": 0.5,
+              "y": 556
+            },
+            {
+              "x": 0.5,
+              "y": 456
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[4]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 583
+            },
+            {
+              "x": -0.5,
+              "y": 683
+            },
+            {
+              "x": 0.5,
+              "y": 683
+            },
+            {
+              "x": 0.5,
+              "y": 583
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[5]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 710
+            },
+            {
+              "x": -0.5,
+              "y": 810
+            },
+            {
+              "x": 0.5,
+              "y": 810
+            },
+            {
+              "x": 0.5,
+              "y": 710
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[6]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 837
+            },
+            {
+              "x": -0.5,
+              "y": 937
+            },
+            {
+              "x": 0.5,
+              "y": 937
+            },
+            {
+              "x": 0.5,
+              "y": 837
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[7]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 964
+            },
+            {
+              "x": -0.5,
+              "y": 1064
+            },
+            {
+              "x": 0.5,
+              "y": 1064
+            },
+            {
+              "x": 0.5,
+              "y": 964
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[8]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 1091
+            },
+            {
+              "x": -0.5,
+              "y": 1191
+            },
+            {
+              "x": 0.5,
+              "y": 1191
+            },
+            {
+              "x": 0.5,
+              "y": 1091
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "fill.material/piece[9]",
+          "componentCode": "planka_100",
+          "outline": [
+            {
+              "x": -0.5,
+              "y": 1218
+            },
+            {
+              "x": -0.5,
+              "y": 1318
+            },
+            {
+              "x": 0.5,
+              "y": 1318
+            },
+            {
+              "x": 0.5,
+              "y": 1218
+            }
+          ],
+          "nominalDepth": true
+        },
+        {
+          "sourceId": "frame.lprofile/railBottom",
+          "componentCode": "sloupek_l_50",
+          "outline": [
+            {
+              "x": -25,
+              "y": 35
+            },
+            {
+              "x": -25,
+              "y": 85
+            },
+            {
+              "x": 25,
+              "y": 85
+            },
+            {
+              "x": 25,
+              "y": 35
+            }
+          ],
+          "nominalDepth": false
+        },
+        {
+          "sourceId": "frame.lprofile/railTop",
+          "componentCode": "sloupek_l_50",
+          "outline": [
+            {
+              "x": -25,
+              "y": 1435
+            },
+            {
+              "x": -25,
+              "y": 1485
+            },
+            {
+              "x": 25,
+              "y": 1485
+            },
+            {
+              "x": 25,
+              "y": 1435
+            }
+          ],
+          "nominalDepth": false
+        }
+      ],
+      "bbox": {
+        "min": {
+          "x": -25,
+          "y": 35
+        },
+        "max": {
+          "x": 25,
+          "y": 1485
+        }
+      },
+      "dataFillNeeded": true
+    }
+  ]
+}

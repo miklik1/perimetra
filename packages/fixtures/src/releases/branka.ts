@@ -497,6 +497,13 @@ export const brankaV1: ProductModelRelease = {
       { kind: "label", id: "member.C", feature: { pieces: "frame.lprofile/latchPost" }, text: "C" },
       { kind: "label", id: "member.D", feature: { pieces: "fill.material/piece[0]" }, text: "D" },
     ],
+    // Section A–A: a vertical cross-slice down the leaf centre (x = railLength/2 =
+    // 455). It misses every upright (stiles @ 0/910, h-profils @ 65/845, latch @
+    // 1000) and cuts the two rails (real-depth L-profile → true cross-sections)
+    // plus all 11 fill slats (flat plank, NO catalog depth → honest degraded
+    // outlines, flagged data-fill). Demonstrates both the real and the
+    // honestly-incomplete section paths in one cut.
+    sections: [{ id: "A-A", axis: "x", offsetMm: 455 }],
   },
 
   ui: {

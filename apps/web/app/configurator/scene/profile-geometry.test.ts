@@ -2,6 +2,7 @@ import { Box3, Vector3 } from "three";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { PieceProfile } from "@repo/engine";
+import { profileEnvelope } from "@repo/renderers";
 
 import {
   _clearGeometryCache,
@@ -102,5 +103,31 @@ describe("buildPieceGeometry", () => {
     expect(buildPieceGeometry(undefined, 2000)).toBeNull();
     expect(buildPieceGeometry(jakl60, 0)).toBeNull();
     expect(buildPieceGeometry({ shape: "custom" }, 2000)).toBeNull();
+  });
+});
+
+describe("ProfileLibrary convergence (ADR 0102)", () => {
+  it("resolves the REAL cross-section envelope through @repo/renderers, so 3D and the 2D drawing agree", () => {
+    // The 3D walker's cross-section width/depth on a real-depth profile IS the
+    // ProfileLibrary envelope the 2D emitter sections from — one authority, no
+    // drift. `buildProfileShape` lays the section in (X=depth, Y=width).
+    const env = profileEnvelope(jakl60);
+    const pts = buildProfileShape(jakl60)!.extractPoints(1).shape;
+    const width = Math.max(...pts.map((p) => p.y)) - Math.min(...pts.map((p) => p.y));
+    const depth = Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x));
+    expect(width).toBeCloseTo(env.halfW * 2, 5);
+    expect(depth).toBeCloseTo(env.halfD * 2, 5);
+  });
+
+  it("only the depth-less fallback is app-land presentation (ProfileLibrary stays honest)", () => {
+    // A flat plank: ProfileLibrary honestly reports no real depth; the 3D walker
+    // is the ONLY layer that substitutes a presentation depth (20mm) — the honest
+    // nominal-vs-presentation seam lives here, not in the shared authority.
+    const flat: PieceProfile = { shape: "flat", wMm: 100 };
+    expect(profileEnvelope(flat).nominalDepth).toBe(true);
+    expect(profileEnvelope(flat).halfD).toBe(0);
+    const pts = buildProfileShape(flat)!.extractPoints(1).shape;
+    const depth = Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x));
+    expect(depth).toBeCloseTo(20, 5);
   });
 });

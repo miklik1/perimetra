@@ -4,7 +4,7 @@
  * the box matches what the walker draws; no three.js dependency, so it's unit
  * testable in plain jsdom/node.
  */
-import { add, rotate, type Scene3D, type Vec3 } from "@repo/renderers";
+import { add, profileEnvelope, rotate, type Scene3D, type Vec3 } from "@repo/renderers";
 
 export interface SceneFrame {
   center: Vec3;
@@ -37,13 +37,19 @@ export function frameScene(scene: Scene3D): SceneFrame {
 
   for (const instance of scene.instances) {
     for (const piece of instance.pieces) {
-      // Half the larger cross-section dimension — the renderer's box fallback is
-      // 40mm, so a profile-less piece reads as ±20. Conservative (axis-aligned
-      // exact, a rotated profile within a hair) — the section box is presentation.
-      const half =
-        piece.profile === undefined
-          ? 20
-          : Math.max(piece.profile.wMm ?? 40, piece.profile.dMm ?? 40) / 2;
+      // Half the larger cross-section dimension. The real w/d come through
+      // `profileEnvelope` (the SAME ProfileLibrary authority the drawing emitter
+      // and the walker use — one envelope truth); only the box fallback (40mm →
+      // ±20 for a profile-less or dimensionless piece) is presentation. The
+      // section box is conservative (axis-aligned exact, a rotated profile within
+      // a hair).
+      let half = 20;
+      if (piece.profile !== undefined) {
+        const env = profileEnvelope(piece.profile);
+        const w = env.halfW > 0 ? env.halfW * 2 : 40;
+        const d = env.nominalDepth ? 40 : env.halfD * 2;
+        half = Math.max(w, d) / 2;
+      }
       const ends: Vec3[] = [
         piece.at,
         add(piece.at, rotate([piece.lengthMm, 0, 0], piece.rotationArcMin)),
