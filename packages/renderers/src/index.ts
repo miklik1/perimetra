@@ -10,3 +10,17 @@ export * from "./drawing2d.js";
 export * from "./nabidka.js";
 export * from "./scene3d.js";
 export { add, consumedParts, cosArcMin, sinArcMin, rotate, type Pt, type Vec3 } from "./shared.js";
+
+// Drawing emitter (spike, ADR pending) — 2D technical drawing as a derived view
+// off the one geometry SoT (SolidModeler → Sectioner → ViewProjector → …).
+export * from "./drawing/types.js";
+export {
+  profileEnvelope,
+  sectionOutline,
+  type ProfileEnvelope,
+} from "./drawing/profile-library.js";
+export { buildSolids } from "./drawing/solid.js";
+export { renderView, FRONT_VIEW, SIDE_VIEW, TOP_VIEW } from "./drawing/project.js";
+export { annotate, type AnnotationIntent } from "./drawing/annotate.js";
+export { place, type PlacedAnnotation } from "./drawing/dimsolve.js";
+export { buildTechnicalDrawing, type TechnicalDrawing } from "./drawing/drawing.js";

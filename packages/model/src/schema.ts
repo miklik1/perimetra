@@ -10,6 +10,7 @@
  * (catalog/role resolution §2, ports/joints §5, ui/fixtures §3) without
  * breaking authored models.
  */
+import type { DrawingSpec } from "./drawing.js";
 import type { ExprString } from "./expr.js";
 
 /** Lengths are integer mm (I10). A branding seam — enforced at the I/O edge,
@@ -295,6 +296,10 @@ export interface ProductModelRelease {
   /** Generated-UI structure (CORE_SPEC §8 / step 6). Absent = the consumer
    *  falls back to one synthesized step over all writable parameters. */
   ui?: UiSpec;
+  /** Drawing-rule spec (CORE_SPEC §5, spike — ADR pending): per-family declarative
+   *  dimensions/labels for the derived 2D technical drawing. Absent = the drawing
+   *  emitter falls back to the default auto-elevation + overall dims. */
+  drawing?: DrawingSpec;
   /** Golden fixtures (CORE_SPEC I2). OPTIONAL in the type (in-flight drafts +
    *  test releases may omit it) but REQUIRED-non-empty at the publish gate:
    *  `validateRelease` flags an empty set and the publish path executes each

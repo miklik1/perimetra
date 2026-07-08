@@ -4,6 +4,7 @@
  * renderers all build on this barrel (ADR 0008).
  */
 export * from "./catalog.js";
+export * from "./drawing.js";
 export * from "./expr.js";
 export * from "./money.js";
 export * from "./override.js";
