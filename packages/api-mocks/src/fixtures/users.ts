@@ -1,12 +1,13 @@
 import { type User } from "@repo/validators";
 
-/** A mock account: the public `user` plus the password the login handler checks. */
+/** A mock account: the public `user` plus the password the sign-in handler checks. */
 export interface MockCredential {
   user: User;
   password: string;
 }
 
-const mockCredentials: MockCredential[] = [
+/** The seed accounts every runtime boots with; `resetMockUsers` restores them. */
+const SEED_CREDENTIALS: MockCredential[] = [
   {
     password: "password123",
     user: {
@@ -27,6 +28,11 @@ const mockCredentials: MockCredential[] = [
   },
 ];
 
+// Live list = the seeds plus any accounts created via `sign-up/email` this
+// runtime. Module-global (mirrors the real DB the mock stands in for), so
+// `resetMockUsers` truncates it back to the seeds for test isolation.
+const mockCredentials: MockCredential[] = [...SEED_CREDENTIALS];
+
 export function listMockUsers(): User[] {
   return mockCredentials.map((c) => c.user);
 }
@@ -40,37 +46,24 @@ export function findUserById(id: string): User | undefined {
 }
 
 /**
- * Mint a mock JWT (`header.payload.sig`, unsigned — the mock doesn't verify). The
- * payload carries `sub` (user id) and `exp` so the client's expiry handling and
- * SessionMonitor exercise real logic. Not cryptographically meaningful.
+ * Register a new mock account (`sign-up/email`), added to the in-memory list so
+ * a subsequent `sign-in`/`get-session` resolves it. Mock-only — no persistence,
+ * no password hashing; the id is a throwaway uuid (the real backend mints
+ * Better Auth nanoids). Callers guard uniqueness (`findUserByEmail`) first.
  */
-export function mockJwt(user: User, ttlMs: number): string {
-  const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64Url(
-    JSON.stringify({ sub: user.id, exp: Math.floor((Date.now() + ttlMs) / 1000) }),
-  );
-  return `${header}.${payload}.mock-signature`;
+export function createMockUser(input: { name: string; email: string; password: string }): User {
+  const user: User = {
+    id: crypto.randomUUID(),
+    email: input.email,
+    name: input.name,
+    createdAt: new Date().toISOString(),
+  };
+  mockCredentials.push({ user, password: input.password });
+  return user;
 }
 
-export function decodeMockJwt(token: string): { sub: string; exp: number } | null {
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
-  try {
-    const payload = JSON.parse(base64UrlDecode(parts[1]!)) as { sub?: unknown; exp?: unknown };
-    if (typeof payload.sub === "string" && typeof payload.exp === "number") {
-      return { sub: payload.sub, exp: payload.exp };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function base64Url(input: string): string {
-  return btoa(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlDecode(input: string): string {
-  const base64 = input.replace(/-/g, "+").replace(/_/g, "/");
-  return atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+/** Test helper — drop sign-up-created accounts, restoring the seed users. */
+export function resetMockUsers(): void {
+  mockCredentials.length = 0;
+  mockCredentials.push(...SEED_CREDENTIALS);
 }

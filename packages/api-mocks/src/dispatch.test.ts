@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { type MeResponse } from "@repo/validators";
+
 import { resetSessions } from "./fixtures/session";
+import { resetMockUsers } from "./fixtures/users";
 import { createMockConfig, resolveMock } from "./index";
 
 const config = createMockConfig({ overrides: { delayRange: undefined } });
+
+const SESSION_COOKIE = "better-auth.session_token";
 
 function request(
   method: string,
@@ -17,92 +22,175 @@ function request(
   });
 }
 
-afterEach(() => resetSessions());
+/** The `name=value` head of a `Set-Cookie` string, ready to send back as `Cookie`. */
+function cookieFrom(res: { headers: Record<string, string> }): string {
+  return res.headers["Set-Cookie"]!.split(";")[0]!;
+}
 
-describe("auth mock flow via resolveMock", () => {
-  it("logs in, sets a refresh cookie, then reads /me with the bearer", async () => {
-    const login = await resolveMock(
-      request("POST", "/api/auth/login", {
+afterEach(() => {
+  resetSessions();
+  resetMockUsers();
+});
+
+describe("Better Auth auth mock flow via resolveMock", () => {
+  it("sign-in/email authenticates and sets the better-auth session cookie", async () => {
+    const res = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", {
         body: { email: "ada@example.com", password: "password123" },
       }),
       config,
     );
-    expect(login.status).toBe(200);
-    const body = login.body as {
-      success: boolean;
-      data: { accessToken: string; user: { email: string } };
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      redirect: boolean;
+      token: string;
+      user: { email: string; createdAt: string };
     };
-    expect(body.success).toBe(true);
-    expect(body.data.user.email).toBe("ada@example.com");
-    expect(login.headers["Set-Cookie"]).toContain("refresh_token=");
+    expect(body.redirect).toBe(false);
+    expect(body.token).toBeTruthy();
+    expect(body.user.email).toBe("ada@example.com");
+    // `useAuth` runs `new Date(createdAt).toISOString()` — a bad date throws.
+    expect(Number.isNaN(new Date(body.user.createdAt).getTime())).toBe(false);
+    // Exact dev cookie NAME the Next proxy gate (`hasSessionCookie`) recognizes.
+    expect(res.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE}=`);
+    expect(res.headers["Set-Cookie"]).toContain("HttpOnly");
+  });
+
+  it("get-session returns { session, user } for a live cookie and null otherwise", async () => {
+    const signIn = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", {
+        body: { email: "ada@example.com", password: "password123" },
+      }),
+      config,
+    );
+    const cookie = cookieFrom(signIn);
+
+    const anon = await resolveMock(request("GET", "/api/auth/get-session"), config);
+    expect(anon.status).toBe(200);
+    expect(anon.body).toBeNull(); // literal null body, not a 401 — Better Auth's shape
+
+    const session = await resolveMock(
+      request("GET", "/api/auth/get-session", { headers: { Cookie: cookie } }),
+      config,
+    );
+    expect(session.status).toBe(200);
+    const sBody = session.body as {
+      user: { id: string; email: string };
+      session: { userId: string; token: string };
+    };
+    expect(sBody.user.email).toBe("ada@example.com");
+    expect(sBody.session.userId).toBe(sBody.user.id);
+  });
+
+  it("/v1/me re-auths off the session cookie (not a bearer) and 401s without it", async () => {
+    const signIn = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", {
+        body: { email: "ada@example.com", password: "password123" },
+      }),
+      config,
+    );
+    const cookie = cookieFrom(signIn);
 
     const me = await resolveMock(
-      request("GET", "/api/v1/me", {
-        headers: { Authorization: `Bearer ${body.data.accessToken}` },
-      }),
+      request("GET", "/api/v1/me", { headers: { Cookie: cookie } }),
       config,
     );
     expect(me.status).toBe(200);
-    expect((me.body as { email: string }).email).toBe("ada@example.com");
+    const meBody = me.body as MeResponse;
+    expect(meBody.email).toBe("ada@example.com");
+    // Exactly `meResponseSchema`'s keys (perimetra widens the upstream four-key
+    // `userSchema` with the org `role` + `isPlatformAdmin`, ADR 0056/0062). The
+    // Better Auth `admin()`/`twoFactor()` plugin fields the real `MeController`
+    // field-picks away (banned/banReason/banExpires/twoFactorEnabled) must not
+    // appear here either — an exact key list is what catches that leak.
+    expect(Object.keys(meBody).sort()).toEqual([
+      "createdAt",
+      "email",
+      "id",
+      "isPlatformAdmin",
+      "name",
+      "role",
+    ]);
+    // Mock mode is single-tenant: the mock user owns their org, and the vendor
+    // console is a real-stack-only surface.
+    expect(meBody.role).toBe("admin");
+    expect(meBody.isPlatformAdmin).toBe(false);
+
+    const noAuth = await resolveMock(request("GET", "/api/v1/me"), config);
+    expect(noAuth.status).toBe(401);
   });
 
-  it("rejects bad credentials with a 401 envelope", async () => {
-    const res = await resolveMock(
-      request("POST", "/api/auth/login", { body: { email: "ada@example.com", password: "wrong" } }),
-      config,
-    );
-    expect(res.status).toBe(401);
-    expect((res.body as { code: string }).code).toBe("INVALID_CREDENTIALS");
-  });
-
-  it("rejects invalid input with a 422", async () => {
-    const res = await resolveMock(
-      request("POST", "/api/auth/login", { body: { email: "x" } }),
-      config,
-    );
-    expect(res.status).toBe(422);
-  });
-
-  it("refreshes using the refresh cookie", async () => {
-    const login = await resolveMock(
-      request("POST", "/api/auth/login", {
-        body: { email: "alan@example.com", password: "hunter2" },
-      }),
-      config,
-    );
-    const cookie = login.headers["Set-Cookie"]!.split(";")[0]!; // refresh_token=...
-
-    const refresh = await resolveMock(
-      request("POST", "/api/auth/refresh", { headers: { Cookie: cookie } }),
-      config,
-    );
-    expect(refresh.status).toBe(200);
-    expect(typeof (refresh.body as { data: { accessToken: string } }).data.accessToken).toBe(
-      "string",
-    );
-  });
-
-  it("logs out (204) and then refresh fails", async () => {
-    const login = await resolveMock(
-      request("POST", "/api/auth/login", {
+  it("sign-out clears the cookie and drops the session", async () => {
+    const signIn = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", {
         body: { email: "ada@example.com", password: "password123" },
       }),
       config,
     );
-    const cookie = login.headers["Set-Cookie"]!.split(";")[0]!;
+    const cookie = cookieFrom(signIn);
 
-    const logout = await resolveMock(
-      request("POST", "/api/auth/logout", { headers: { Cookie: cookie } }),
+    const out = await resolveMock(
+      request("POST", "/api/auth/sign-out", { headers: { Cookie: cookie } }),
       config,
     );
-    expect(logout.status).toBe(204);
-    expect(logout.body).toBeUndefined();
+    expect(out.status).toBe(200);
+    expect((out.body as { success: boolean }).success).toBe(true);
+    expect(out.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE}=`);
+    expect(out.headers["Set-Cookie"]).toContain("Max-Age=0");
 
-    const refresh = await resolveMock(
-      request("POST", "/api/auth/refresh", { headers: { Cookie: cookie } }),
+    const after = await resolveMock(
+      request("GET", "/api/auth/get-session", { headers: { Cookie: cookie } }),
       config,
     );
-    expect(refresh.status).toBe(401);
+    expect(after.body).toBeNull();
+  });
+
+  it("sign-up/email creates an account, auto-signs-in, and rejects a duplicate", async () => {
+    const created = await resolveMock(
+      request("POST", "/api/auth/sign-up/email", {
+        body: { name: "Grace Hopper", email: "grace@example.com", password: "password123" },
+      }),
+      config,
+    );
+    expect(created.status).toBe(200);
+    const body = created.body as { token: string; user: { email: string } };
+    expect(body.user.email).toBe("grace@example.com");
+    expect(created.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE}=`);
+
+    // The freshly-created account authenticates on its issued cookie.
+    const me = await resolveMock(
+      request("GET", "/api/v1/me", { headers: { Cookie: cookieFrom(created) } }),
+      config,
+    );
+    expect((me.body as { email: string }).email).toBe("grace@example.com");
+
+    const dup = await resolveMock(
+      request("POST", "/api/auth/sign-up/email", {
+        body: { name: "Grace II", email: "grace@example.com", password: "password123" },
+      }),
+      config,
+    );
+    expect(dup.status).toBe(422);
+    expect((dup.body as { code: string }).code).toBe("USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL");
+  });
+
+  it("rejects bad credentials with a 401 INVALID_EMAIL_OR_PASSWORD envelope", async () => {
+    const res = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", {
+        body: { email: "ada@example.com", password: "wrong" },
+      }),
+      config,
+    );
+    expect(res.status).toBe(401);
+    expect((res.body as { code: string }).code).toBe("INVALID_EMAIL_OR_PASSWORD");
+  });
+
+  it("rejects malformed sign-in input with a 401", async () => {
+    const res = await resolveMock(
+      request("POST", "/api/auth/sign-in/email", { body: { email: "x" } }),
+      config,
+    );
+    expect(res.status).toBe(401);
   });
 
   it("404s an unknown path", async () => {
@@ -157,29 +245,25 @@ describe("users pagination mock", () => {
 });
 
 describe("cookieLess session isolation", () => {
-  const login = () =>
+  const signIn = (cfg: typeof config) =>
     resolveMock(
-      request("POST", "/api/auth/login", {
+      request("POST", "/api/auth/sign-in/email", {
         body: { email: "ada@example.com", password: "password123" },
       }),
-      config,
+      cfg,
     );
 
-  it("BFF (cookieLess false): a cookieless refresh 401s even after a login", async () => {
-    await login(); // sets lastSession
-    const refresh = await resolveMock(request("POST", "/api/auth/refresh"), config); // no cookie
-    expect(refresh.status).toBe(401); // no fallback — no cross-user bleed
+  it("BFF (cookieLess false): a cookieless get-session returns null even after a sign-in", async () => {
+    await signIn(config); // sets lastSession
+    const session = await resolveMock(request("GET", "/api/auth/get-session"), config); // no cookie
+    expect(session.body).toBeNull(); // no fallback — no cross-user bleed
   });
 
-  it("MSW (cookieLess true): a cookieless refresh falls back to the last login", async () => {
+  it("MSW (cookieLess true): a cookieless get-session falls back to the last sign-in", async () => {
     const cookieLessConfig = { ...config, cookieLess: true };
-    await resolveMock(
-      request("POST", "/api/auth/login", {
-        body: { email: "ada@example.com", password: "password123" },
-      }),
-      cookieLessConfig,
-    );
-    const refresh = await resolveMock(request("POST", "/api/auth/refresh"), cookieLessConfig);
-    expect(refresh.status).toBe(200);
+    await signIn(cookieLessConfig);
+    const session = await resolveMock(request("GET", "/api/auth/get-session"), cookieLessConfig);
+    const body = session.body as { user: { email: string } } | null;
+    expect(body?.user.email).toBe("ada@example.com");
   });
 });

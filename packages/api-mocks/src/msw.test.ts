@@ -2,6 +2,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { resetSessions } from "./fixtures/session";
+import { resetMockUsers } from "./fixtures/users";
 import { allRoutes } from "./index";
 import { createMswHandlers } from "./msw";
 
@@ -11,18 +12,19 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   resetSessions();
+  resetMockUsers();
 });
 afterAll(() => server.close());
 
 describe("createMswHandlers", () => {
-  it("matches origin-agnostically (any base URL) and serves the mock", async () => {
-    const res = await fetch("https://anything.test/api/auth/login", {
+  it("matches origin-agnostically (any base URL) and serves sign-in/email", async () => {
+    const res = await fetch("https://anything.test/api/auth/sign-in/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "ada@example.com", password: "password123" }),
     });
     expect(res.status).toBe(200);
-    expect((await res.json()).data.user.email).toBe("ada@example.com");
+    expect((await res.json()).user.email).toBe("ada@example.com");
   });
 
   it("flattens path params (/users/:id)", async () => {
@@ -31,14 +33,16 @@ describe("createMswHandlers", () => {
     expect((await res.json()).id).toBe("11111111-1111-4111-8111-111111111111");
   });
 
-  it("emits an empty body (not 'null') for a 204", async () => {
-    await fetch("http://x/api/auth/login", {
+  it("get-session falls back to the last sign-in in the cookieless MSW runtime", async () => {
+    // MSW runtimes (Expo/Vitest) can't carry the httpOnly cookie, so the mock
+    // resolves the session from the most-recent sign-in (`cookieLess: true`).
+    await fetch("http://x/api/auth/sign-in/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "ada@example.com", password: "password123" }),
     });
-    const res = await fetch("http://x/api/auth/logout", { method: "POST" });
-    expect(res.status).toBe(204);
-    expect(await res.text()).toBe(""); // HttpResponse(null), not JSON "null"
+    const res = await fetch("http://x/api/auth/get-session");
+    expect(res.status).toBe(200);
+    expect((await res.json()).user.email).toBe("ada@example.com");
   });
 });
