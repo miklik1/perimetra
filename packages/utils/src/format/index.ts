@@ -1,4 +1,4 @@
-export { formatDate, toIsoDate } from "./date";
+export { formatDate, toIsoDate, formatCalendarDate, toLocalIsoDate } from "./date";
 export { formatNumber, formatPercent } from "./number";
 export { formatCurrency } from "./currency";
 export { formatRelativeTime } from "./relative-time";

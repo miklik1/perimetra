@@ -2,8 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * Web E2E (ADR 0025) — Playwright in **mock mode**. `webServer` boots `next dev`
- * with the BFF's server-side mock turned on (`NEXT_PUBLIC_ENABLE_MSW=true`,
- * `NEXT_PUBLIC_MSW_MOCKS=auth,users`), so every spec runs against the same
+ * with the BFF's server-side mock turned on (`NEXT_PUBLIC_ENABLE_MSW=true`, no
+ * group selector → every mock group active), so every spec runs against the same
  * framework-agnostic mock routes the unit suite uses (ADR 0018) — hermetic and
  * deterministic, no real backend. Mocks resolve in-process for RSC prefetch and
  * over HTTP for the browser, so both render paths see the same data.
@@ -36,15 +36,26 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // `next dev` (development) — `mocksEnabled` in handle-api-request.ts also
-    // requires NODE_ENV !== "production", which dev satisfies.
+    // requires the non-prod tier (ADR 0104), which dev satisfies.
     command: "pnpm dev",
     url: baseURL,
     timeout: 120_000,
     // Reuse an already-running dev server locally; always fresh in CI.
     reuseExistingServer: !process.env.CI,
     env: {
+      // No NEXT_PUBLIC_MSW_MOCKS selector: an empty selector activates EVERY
+      // mock group (selectRoutes — @repo/api-mocks config), so this hermetic
+      // suite mocks the whole API and never silently drops a group as `pnpm gen
+      // api-resource` adds one. A pinned list drifted before — `projects` was
+      // added but the selector still read "auth,users", leaving it uncovered.
       NEXT_PUBLIC_ENABLE_MSW: "true",
-      NEXT_PUBLIC_MSW_MOCKS: "auth,users",
+      // Explicitly clear the backend origin. `next dev` loads `apps/web/.env.local`,
+      // where a working machine has a real `API_URL` (this repo runs an api) — and
+      // an E2E run that mocks the whole API while carrying a backend origin is the
+      // ambiguous data source `assertTierInvariants` refuses on preview (ADR 0104).
+      // Empty string ⇒ undefined via the env schema's `emptyStringAsUndefined`, so
+      // the suite is hermetic by construction rather than by a clean checkout.
+      API_URL: "",
     },
   },
 });

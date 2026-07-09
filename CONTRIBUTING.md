@@ -67,9 +67,10 @@ pnpm --filter web test:e2e:ui     # Playwright UI mode
 
 - **pre-commit** — Prettier `--write` on staged files only (cheap; committing is
   not a chore).
-- **pre-push** — `check:no-orphan-rn`, then `pnpm turbo run lint` and
-  `check-types` (catches anything that would fail CI). Override with `LEFTHOOK=0`
-  or `git push --no-verify`.
+- **pre-push** — `check:no-orphan-rn`, then `pnpm turbo run lint`, `check-types`
+  and `test` (the correctness gates; `build` stays CI-only). Catches a red gate
+  locally before it can ride a direct push onto a deploy branch, where CI (PRs +
+  push:main only) never runs. Override with `LEFTHOOK=0` or `git push --no-verify`.
 
 **Deep-import rule (ADR 0011):** import packages only through their public entry
 (`@repo/auth`), never their internals (`@repo/auth/token-manager`). Enforced by

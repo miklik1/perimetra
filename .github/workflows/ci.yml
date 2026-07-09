@@ -222,8 +222,8 @@ jobs:
         run: pnpm --filter web exec playwright install-deps chromium
 
       # The webServer in playwright.config.ts boots `next dev` with mock mode on
-      # (NEXT_PUBLIC_ENABLE_MSW=true, NEXT_PUBLIC_MSW_MOCKS=auth,users) — hermetic,
-      # no real backend (ADR 0018).
+      # (NEXT_PUBLIC_ENABLE_MSW=true, no group selector → all mock groups active)
+      # — hermetic, no real backend (ADR 0018).
       - name: Run web E2E
         run: pnpm --filter web test:e2e
 

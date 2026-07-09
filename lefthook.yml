@@ -2,8 +2,12 @@
 # https://lefthook.dev/configuration/index.html
 #
 # Philosophy: pre-commit stays cheap (format only) so committing isn't a chore;
-# pre-push runs the full lint+typecheck so anything that would fail CI gets
-# caught locally instead. Override per-machine with LEFTHOOK=0 or `--no-verify`.
+# pre-push runs the correctness gates — lint + typecheck + unit tests — so a red
+# gate is caught locally instead of riding a direct (non-PR) push onto a deploy
+# branch, where CI (which fires on PRs + push:main only) never sees it. `build`
+# stays CI-only: it is the slow gate, a broken build fails the platform deploy
+# anyway, and adding it here would nudge people to `--no-verify`. Override
+# per-machine with LEFTHOOK=0 or `--no-verify`.
 
 pre-commit:
   parallel: true
@@ -46,3 +50,9 @@ pre-push:
       run: pnpm turbo run lint
     - name: check-types
       run: pnpm turbo run check-types
+    # Unit + component tests (turbo-cached → a no-op when nothing changed). Here
+    # because a direct push to a deploy branch (e.g. `stage`) runs NO CI — CI
+    # fires on PRs + push:main only — so without this a red test ships unnoticed
+    # (finding 2026-07-02). See ADR 0106 (drained from skeleton ADR 0048).
+    - name: test
+      run: pnpm turbo run test
