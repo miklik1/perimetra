@@ -11,6 +11,7 @@
     ".": "./src/index.ts",
     "./constants": "./src/constants.ts",
     "./env/web": "./src/env/web.ts",
+    "./env/assert-tier-invariants": "./src/env/assert-tier-invariants.ts",
     "./env/mobile": "./src/env/mobile.ts"
   },
   "scripts": {

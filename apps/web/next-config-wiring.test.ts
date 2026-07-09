@@ -14,10 +14,28 @@ const source = readFileSync(fileURLToPath(new URL("./next.config.js", import.met
 
 describe("next.config build-time wiring", () => {
   it("imports the web env module at config time (a bad NEXT_PUBLIC_* fails the build, not the first request)", () => {
-    expect(source).toMatch(/import\s+\{\s*env\s*\}\s+from\s+["']@repo\/config\/env\/web["']/);
+    // `{ env, TIER }` — the mock rewrites gate reads TIER; match env in any
+    // named-import list, not `{ env }` exactly.
+    expect(source).toMatch(
+      /import\s+\{[^}]*\benv\b[^}]*\}\s+from\s+["']@repo\/config\/env\/web["']/,
+    );
   });
 
   it("gates Sentry source-map emission on SENTRY_AUTH_TOKEN (no token → no maps shipped)", () => {
     expect(source).toMatch(/sourcemaps:\s*\{\s*disable:\s*!env\.SENTRY_AUTH_TOKEN\s*\}/);
+  });
+
+  it("gates the mock rewrites on the deployment TIER, not NODE_ENV (Vercel builds preview with NODE_ENV=production)", () => {
+    expect(source).toMatch(/mocksEnabled\s*=\s*TIER\s*!==\s*["']prod["']/);
+    // The pre-fix NODE_ENV gate must be gone from the mock gate, or the
+    // /api/auth/* + /api/v1/* rewrites bypass the mock route on a preview deploy.
+    expect(source).not.toMatch(/env\.NODE_ENV\s*!==\s*["']production["']/);
+  });
+
+  it("runs the build-time tier-invariant guard at config load (gate at build AND runtime)", () => {
+    expect(source).toMatch(
+      /import\s+\{\s*assertTierInvariants\s*\}\s+from\s+["']@repo\/config\/env\/assert-tier-invariants["']/,
+    );
+    expect(source).toMatch(/^assertTierInvariants\(\);/m);
   });
 });

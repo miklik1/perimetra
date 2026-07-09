@@ -12,10 +12,75 @@ import { z } from "zod";
  * needed). MUST NOT be imported into the React Native bundle — use
  * `@repo/config/env/mobile` there.
  */
+
+/**
+ * Deployment tier — the single signal the app reads to decide whether it serves
+ * full mocks (preview), a mixed stage, or the live backend (prod). DERIVED,
+ * never hand-set, so tier and environment stay structurally inseparable (nobody
+ * can scope prod behaviour onto a preview URL).
+ *
+ * Precedence:
+ *  1. `VERCEL_TARGET_ENV` (Vercel system var, present at BOTH build and runtime)
+ *     wins whenever set — on Vercel the tier is never hand-overridable.
+ *     "production" → "prod", "stage" → "stage", everything else ("preview",
+ *     "development", or a custom env name) → "preview" (fail-safe: an unknown
+ *     environment is never live).
+ *  2. else `APP_TIER` — the manual override for the NON-Vercel deploy path (this
+ *     skeleton's platform-agnostic container/standalone image,
+ *     `docs/operations/deploy.md`, never sets VERCEL_TARGET_ENV).
+ *  3. else "preview" — the safe default: mocks stay possible until `API_URL` is
+ *     configured (preserves the tri-state mock fallback below).
+ *
+ * Why not `NODE_ENV`: Vercel builds BOTH preview and prod with
+ * `NODE_ENV=production`, so any mock/data-source gate keyed on
+ * `NODE_ENV !== "production"` breaks across tiers (kills mocks on preview or
+ * leaks them to prod). Why not `VERCEL_ENV`: it collapses a Custom Environment
+ * ("stage") to "preview". See the vault finding "Multi-tier Vercel (Next)
+ * deploy — derive the tier from VERCEL_TARGET_ENV, not NODE_ENV; gate at build
+ * AND runtime" (Primat ADR 0047 is the richer downstream reference — that is
+ * Primat Plus's own numbering, unrelated to perimetra's). The decision lives in
+ * perimetra's ADR 0104 (drained from skeleton ADR 0046 and renumbered).
+ *
+ * This is a two-arg EXTENSION of Primat's single-arg `resolveTier`: the second
+ * `appTierOverride` arg exists ONLY because this skeleton has a non-Vercel
+ * deploy path — Primat is Vercel-only and never needed it.
+ */
+export function resolveTier(
+  vercelTargetEnv: string | undefined,
+  appTierOverride: "preview" | "stage" | "prod" | undefined,
+): "preview" | "stage" | "prod" {
+  // Normalise (trim + lower-case): a non-canonical VERCEL_TARGET_ENV value (odd
+  // casing / stray whitespace from a hand-set or overridden var) must NOT fall
+  // through to the "preview" catch-all on a real Production target — that is the
+  // mock-leak-to-prod direction. Vercel's own env slugs are already lower-case,
+  // so this only hardens against a misconfigured override; APP_TIER is a
+  // validated enum and needs no normalisation.
+  const target = vercelTargetEnv?.trim().toLowerCase();
+  if (target) {
+    if (target === "production") return "prod";
+    if (target === "stage") return "stage";
+    return "preview";
+  }
+  return appTierOverride ?? "preview";
+}
+
 export const env = createEnv({
   /** Server-only vars (no special prefix). */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    // Vercel's deployment-environment system var ("production" / "preview" /
+    // "development" / a Custom Environment name like "stage"), present at BOTH
+    // build and runtime. RAW passthrough — Vercel sets it, NEVER hand it in.
+    // The tier (`TIER` below) DERIVES from it via `resolveTier`; declared here
+    // so it is validated + typed, but the derivation reads it RAW from
+    // process.env so tier resolution matches the build-time guard even under
+    // SKIP_ENV_VALIDATION.
+    VERCEL_TARGET_ENV: z.string().optional(),
+    // Manual tier override for the NON-Vercel deploy path — the platform-agnostic
+    // container/standalone image (`docs/operations/deploy.md`) which never sets
+    // VERCEL_TARGET_ENV. IGNORED whenever VERCEL_TARGET_ENV is present (Vercel
+    // owns the tier there). Unset ⇒ "preview" (safe default).
+    APP_TIER: z.enum(["preview", "stage", "prod"]).optional(),
     // Real backend origin behind the BFF (ADR 0018). Server-only: the BFF proxy
     // (`handle-api-request.ts`) reads it in-process/route-handler; the browser
     // only ever sees the same-origin `/api`, so this MUST NOT be NEXT_PUBLIC_
@@ -84,6 +149,8 @@ export const env = createEnv({
   /** Runtime values destructured from process.env (all server + client vars). */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    VERCEL_TARGET_ENV: process.env.VERCEL_TARGET_ENV,
+    APP_TIER: process.env.APP_TIER,
     API_URL: process.env.API_URL,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     POSTHOG_PERSONAL_API_KEY: process.env.POSTHOG_PERSONAL_API_KEY,
@@ -104,3 +171,17 @@ export const env = createEnv({
   /** Treat empty strings as undefined. */
   emptyStringAsUndefined: true,
 });
+
+/**
+ * The resolved deployment tier (see `resolveTier`). Read this EVERYWHERE a
+ * mock/data-source decision is made — the BFF mock gate
+ * (`apps/web/lib/route-handler/handle-api-request.ts`), the home-page RSC
+ * prefetch gate (`apps/web/app/page.tsx`), the next.config rewrites gate, and
+ * the build-time `assertTierInvariants`. NEVER re-derive a tier from `NODE_ENV`.
+ *
+ * Derived from RAW `process.env.VERCEL_TARGET_ENV` (not `env.VERCEL_TARGET_ENV`)
+ * so it resolves even under `SKIP_ENV_VALIDATION`, matching the raw check in
+ * `assert-tier-invariants.ts`. `env.APP_TIER` is the validated manual override
+ * (empty string ⇒ undefined ⇒ the "preview" default).
+ */
+export const TIER = resolveTier(process.env.VERCEL_TARGET_ENV, env.APP_TIER);

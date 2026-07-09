@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { env } from "@repo/config/env/web";
+import { env, TIER } from "@repo/config/env/web";
 
 import { proxyToBackend } from "./backend-proxy";
 
@@ -19,10 +19,13 @@ import { proxyToBackend } from "./backend-proxy";
 // Tri-state gate: explicit "true"/"false" wins; unset defaults to mocks ON
 // only while no real backend is configured — a fresh clone's `pnpm dev` runs
 // self-contained on the bundled fixtures (the documented out-of-box behavior)
-// instead of proxying the demo host whose shapes fail validation. Never in
-// production.
+// instead of proxying the demo host whose shapes fail validation. Never on the
+// prod tier: gated on `TIER !== "prod"` (from @repo/config/env/web), NOT
+// `NODE_ENV` — Vercel builds preview AND prod with NODE_ENV=production, so a
+// NODE_ENV gate would silently kill mocks on a preview deploy (vault finding
+// "Multi-tier Vercel (Next) deploy …"; tier derives from VERCEL_TARGET_ENV).
 const mocksEnabled =
-  env.NODE_ENV !== "production" &&
+  TIER !== "prod" &&
   (env.NEXT_PUBLIC_ENABLE_MSW === "true" ||
     (env.NEXT_PUBLIC_ENABLE_MSW === undefined && env.API_URL === undefined));
 

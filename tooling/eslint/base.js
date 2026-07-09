@@ -122,6 +122,7 @@ export const baseConfig = [
                 "!@repo/db/schema/projects",
                 "!@repo/config/env",
                 "!@repo/config/env/web",
+                "!@repo/config/env/assert-tier-invariants",
                 "!@repo/config/env/mobile",
                 "!@repo/flags/server",
                 "!@repo/flags/web",

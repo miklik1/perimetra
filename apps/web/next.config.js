@@ -4,7 +4,17 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import createNextIntlPlugin from "next-intl/plugin";
 
-import { env } from "@repo/config/env/web";
+import { assertTierInvariants } from "@repo/config/env/assert-tier-invariants";
+import { env, TIER } from "@repo/config/env/web";
+
+// Build-time tier-invariant guard — the build-time half of "gate at build AND
+// runtime" (vault finding "Multi-tier Vercel (Next) deploy …" lesson 5). Runs
+// at config-load so a tier/env contradiction (e.g. a preview env scope copied
+// onto the Production environment, or a prod deploy missing its backend origin)
+// FAILS `next build` before any chunk is emitted. Imported by package specifier
+// (not a relative `.ts`) so it resolves under next.config's Node ESM loader
+// (finding lesson 2).
+assertTierInvariants();
 
 // next-intl plugin (ADR 0020): wires the per-request config so RSC renders in the
 // cookie-selected locale. "Without i18n routing" — no `[locale]` segment, no
@@ -28,10 +38,13 @@ const apiProxyTarget = env.API_URL ?? "http://localhost:4000";
 
 // Mirror of the BFF mock gate in lib/route-handler/handle-api-request.ts
 // (tri-state: explicit "true"/"false" wins; unset defaults to mocks ON only
-// while no real backend is configured; never in production). Must stay in
-// lockstep so the rewrites and the route handler agree on who serves /api/*.
+// while no real backend is configured; never on the prod tier). Must stay in
+// lockstep so the rewrites and the route handler agree on who serves /api/* —
+// including the `TIER !== "prod"` conjunct (NOT `NODE_ENV`): a NODE_ENV gate
+// here would let the /api/auth/* + /api/v1/* rewrites bypass the (tier-gated)
+// mock route on a Vercel preview and silently defeat the fix (finding lesson 1).
 const mocksEnabled =
-  env.NODE_ENV !== "production" &&
+  TIER !== "prod" &&
   (env.NEXT_PUBLIC_ENABLE_MSW === "true" ||
     (env.NEXT_PUBLIC_ENABLE_MSW === undefined && env.API_URL === undefined));
 

@@ -1,5 +1,5 @@
 import { createUsersQueries, dehydrate, getQueryClient, HydrationBoundary } from "@repo/api";
-import { env } from "@repo/config/env/web";
+import { env, TIER } from "@repo/config/env/web";
 import { getTranslations } from "@repo/i18n/web/server";
 import { Link } from "@repo/navigation";
 
@@ -20,9 +20,13 @@ import { UsersList } from "./users-list";
 // the same — now translated — error state at runtime in the browser. With a
 // data source present, the RSC prefetch runs and the list hydrates with no
 // client refetch, proving the ADR-0007 consumption pattern end-to-end.
+// The mock branch is gated on `TIER !== "prod"` (from @repo/config/env/web), NOT
+// `NODE_ENV` — Vercel builds a preview deploy with NODE_ENV=production, so a
+// NODE_ENV gate here would silently drop the prefetch on preview even while the
+// (tier-gated) BFF is correctly serving mocks (vault finding "Multi-tier Vercel
+// (Next) deploy …"; tier derives from VERCEL_TARGET_ENV).
 const hasDataSource =
-  (env.NEXT_PUBLIC_ENABLE_MSW === "true" && process.env.NODE_ENV !== "production") ||
-  env.API_URL !== undefined;
+  (env.NEXT_PUBLIC_ENABLE_MSW === "true" && TIER !== "prod") || env.API_URL !== undefined;
 
 // RSC home page. Uses the PUBLIC server client (no cookie read) so this public
 // page stays statically renderable — only authed RSCs (/account) pay the
