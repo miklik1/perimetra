@@ -110,10 +110,10 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
 
     const issued = await post(user, "/v1/quotes", issueBody);
     expect(issued.statusCode).toBe(201);
-    expect((issued.json() as QuoteResponse).total).toBe("129891.5");
+    expect((issued.json() as QuoteResponse).total).toBe("134723.5");
 
     const read = await get(user, `/v1/quotes/${quoteId}`);
-    expect((read.json() as QuoteResponse).total).toBe("129891.5");
+    expect((read.json() as QuoteResponse).total).toBe("134723.5");
 
     // Publishing is VENDOR-only now (ADR 0062 — PlatformGuard): an org admin who
     // is NOT the platform operator is 403'd (not 409), proving org role no longer
@@ -129,7 +129,7 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
 
     expect((await post(user, "/v1/quotes", issueBody)).statusCode).toBe(201);
     const read = await get(user, `/v1/quotes/${quoteId}`);
-    expect((read.json() as QuoteResponse).total).toBe("129891.5");
+    expect((read.json() as QuoteResponse).total).toBe("134723.5");
 
     expect(
       (await post(user, "/v1/releases", { catalogVersion: 2, body: slidingGateV1 })).statusCode,

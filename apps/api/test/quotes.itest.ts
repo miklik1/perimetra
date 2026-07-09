@@ -1,7 +1,7 @@
 /**
  * The quote lifecycle at the HTTP layer against the real containers (ADR 0053,
  * spec §14) — the I3 core. The load-bearing gate: a quote ISSUED from a site +
- * roster freezes a snapshot whose total is the site golden 129 891.504, and the
+ * roster freezes a snapshot whose total is the site golden 134 723.5, and the
  * reproducibility check re-derives it BYTE-IDENTICALLY from its stamps (reloads
  * the immutable release/catalog/price-table versions, re-runs the pure engine +
  * renderers, deep-equals every artifact).
@@ -131,17 +131,17 @@ describe("quote lifecycle (HTTP, real stack)", () => {
   });
 
   describe("issue", () => {
-    it("freezes a snapshot at the site golden total 129 891.504 with full stamps", async () => {
+    it("freezes a snapshot at the site golden total 134 723.5 with full stamps", async () => {
       const res = await post(tenant, "/v1/quotes", issueBody);
       expect(res.statusCode, JSON.stringify(res.json())).toBe(201);
       const quote = res.json() as QuoteDetail;
 
       expect(quote.status).toBe("issued");
       expect(quote.currency).toBe("CZK");
-      expect(quote.total).toBe("129891.5");
-      expect(quote.snapshot.money.total).toBe("129891.5");
+      expect(quote.total).toBe("134723.5");
+      expect(quote.snapshot.money.total).toBe("134723.5");
       // Cost-of-goods is frozen in the snapshot (ADR 0059) — verify re-derives it.
-      expect(quote.snapshot.costMoney?.total).toBe("79039.86");
+      expect(quote.snapshot.costMoney?.total).toBe("82889.86");
       expect(quote.stamps.releaseIds).toEqual({
         gate: "sliding-gate@1",
         fenceA: "fence-run@1",
@@ -159,11 +159,11 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // No tax conditions → standard VAT; the net is the re-baselined site total.
       expect(quote.snapshot.tax.mode).toBe("standard_vat");
       expect(quote.snapshot.tax.legend).toBeUndefined();
-      expect(quote.snapshot.tax.netTotal).toBe("129891.5");
-      expect(quote.snapshot.tax.vatTotal).toBe("27277.22"); // 129891.5 × 21% → haléř
-      expect(quote.snapshot.tax.grossTotal).toBe("157168.72");
+      expect(quote.snapshot.tax.netTotal).toBe("134723.5");
+      expect(quote.snapshot.tax.vatTotal).toBe("28291.94"); // 134723.5 × 21% → haléř
+      expect(quote.snapshot.tax.grossTotal).toBe("163015.44");
       expect(quote.snapshot.tax.lines).toEqual([
-        { ratePct: "21", netBase: "129891.5", vatAmount: "27277.22", gross: "157168.72" },
+        { ratePct: "21", netBase: "134723.5", vatAmount: "28291.94", gross: "163015.44" },
       ]);
     });
 
@@ -176,7 +176,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       ).json() as QuoteDetail;
       expect(quote.snapshot.tax.mode).toBe("reverse_charge_92e");
       expect(quote.snapshot.tax.vatTotal).toBe("0");
-      expect(quote.snapshot.tax.grossTotal).toBe("129891.5"); // gross == net
+      expect(quote.snapshot.tax.grossTotal).toBe("134723.5"); // gross == net
       expect(quote.snapshot.tax.lines[0]!.vatAmount).toBe("0");
       expect(quote.snapshot.tax.legend).toMatch(/§ ?92e/);
     });
@@ -324,7 +324,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       await seedGoldenCorpusFor(app, db, author);
       expect((await post(author, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
       const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
-      expect(issued.total).toBe("129891.5");
+      expect(issued.total).toBe("134723.5");
 
       // owner_id is ON DELETE RESTRICT: deleting the author must fail at the FK,
       // proving the I3 commercial record cannot vanish with its creator.
@@ -595,7 +595,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       expect(body.document.documentNumber).toBe(issued.documentNumber);
       expect(body.document.supplier?.name).toBe(TEST_LEGAL_PROFILE.name);
       expect(body.document.customer?.name).toBe("Stavby Vrata s.r.o.");
-      expect(body.document.netTotal).toBe("129891.5");
+      expect(body.document.netTotal).toBe("134723.5");
       expect(body.document.lines.length).toBeGreaterThan(0);
     });
 
@@ -603,9 +603,9 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
       const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
       expect(res.statusCode).toBe(200);
-      // The cost golden (79039.86) + the cost/stamp/seed + workshop-internal keys
+      // The cost golden (82889.86) + the cost/stamp/seed + workshop-internal keys
       // must be ABSENT — the boundary returns ONLY the buyer document (ADR 0089).
-      expect(res.body).not.toContain("79039.86");
+      expect(res.body).not.toContain("82889.86");
       expect(res.body).not.toContain("costMoney");
       expect(res.body).not.toContain("costTotals");
       expect(res.body).not.toContain("stamps");

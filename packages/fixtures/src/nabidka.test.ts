@@ -68,15 +68,15 @@ describe("buildNabidka — the pure-data commercial document", () => {
     expect(doc.instanceCount).toBe(3);
     expect(doc.lines.length).toBe(result.bom.length);
     expect(doc.categories).toEqual([
-      { key: "material", total: "60983" },
-      { key: "accessory", total: "31548.5" },
-      { key: "manufacturing", total: "26860" },
+      { key: "material", total: "69183" },
+      { key: "accessory", total: "38820.5" },
+      { key: "manufacturing", total: "16220" },
       { key: "installation", total: "10500" },
     ]);
-    // Standard VAT: net 129891.5 → VAT 27277.22 → gross 157168.72; no legend.
-    expect(doc.netTotal).toBe("129891.5");
-    expect(doc.vatTotal).toBe("27277.22");
-    expect(doc.grossTotal).toBe("157168.72");
+    // Standard VAT: net 134723.5 → VAT 28291.94 → gross 163015.44; no legend.
+    expect(doc.netTotal).toBe("134723.5");
+    expect(doc.vatTotal).toBe("28291.94");
+    expect(doc.grossTotal).toBe("163015.44");
     expect(doc.legend).toBeUndefined();
   });
 
@@ -93,7 +93,7 @@ describe("buildNabidka — the pure-data commercial document", () => {
       tax: reverseTax,
     });
     expect(doc.vatTotal).toBe("0");
-    expect(doc.grossTotal).toBe("129891.5");
+    expect(doc.grossTotal).toBe("134723.5");
     expect(doc.legend).toMatch(/§ ?92e/);
   });
 

@@ -10,4 +10,5 @@ export { slidingGateV1 } from "./releases/sliding-gate.js";
 export { brankaV1 } from "./releases/branka.js";
 export * from "./golden/sliding-gate.js";
 export * from "./golden/branka.js";
+export * from "./golden/fence-run.js";
 export * from "./golden/site.js";

@@ -69,7 +69,7 @@ describe("fence-run@1 — standalone derivation (the new family's own lock)", ()
   });
 
   it("a standalone run keeps BOTH end posts (sharing is connection-scoped)", () => {
-    const posts = result.parts.filter((p) => p.componentCode === "fence_post_60");
+    const posts = result.parts.filter((p) => p.componentCode === "sloup_100");
     expect(posts.map((p) => p.path)).toEqual(["posts.start", "posts.end", "posts.line"]);
   });
 
@@ -120,8 +120,10 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
   });
 
   it("counts shared elements once in the aggregate BOM (I6)", () => {
-    const posts = result.bom.find((l) => l.componentCode === "fence_post_60");
-    expect(posts?.quantity).toBe(siteGolden.site.fencePostCount);
+    // The Sloup 100 profile is priced per metre; sharing drops the consumer's
+    // posts.start part, so both consumed start posts vanish from the metre roll-up.
+    const posts = result.bom.find((l) => l.componentCode === "sloup_100");
+    expect(posts?.quantity).toBe(siteGolden.site.sloupMeters);
     expect(posts?.sources).toEqual([
       { instanceId: "fenceA", path: "posts.end" },
       { instanceId: "fenceA", path: "posts.line" },
@@ -130,10 +132,16 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
     ]);
   });
 
-  it("merges same-component lines across releases (gate + fence labor)", () => {
-    const labor = result.bom.find((l) => l.componentCode === "manufacturing");
-    expect(labor?.quantity).toBe(siteGolden.site.manufacturingHours);
-    expect(labor?.sources.map((s) => s.instanceId)).toEqual(["gate", "fenceA", "fenceB"]);
+  it("keeps the gate's hours-labour separate from the fence's flat per-field labour", () => {
+    // The gate bills `manufacturing` (hours × rate); the fence bills the FLAT
+    // per-field `fence_manufacturing` component — different codes, distinct lines.
+    const gateLabor = result.bom.find((l) => l.componentCode === "manufacturing");
+    expect(gateLabor?.quantity).toBe(siteGolden.site.gateManufacturingHours);
+    expect(gateLabor?.sources.map((s) => s.instanceId)).toEqual(["gate"]);
+
+    const fenceLabor = result.bom.find((l) => l.componentCode === "fence_manufacturing");
+    expect(fenceLabor?.quantity).toBe(siteGolden.site.fenceManufacturingFields);
+    expect(fenceLabor?.sources.map((s) => s.instanceId)).toEqual(["fenceA", "fenceB"]);
   });
 
   it("aggregate money is string-exact: anchor + 2 fences − 2 shared posts (I10)", () => {
@@ -152,7 +160,7 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
       ((Number(costed.money.total) - Number(costed.costMoney!.total)) /
         Number(costed.money.total)) *
       100;
-    expect(marginPct).toBeCloseTo(39.15, 2);
+    expect(marginPct).toBeCloseTo(siteGolden.site.marginPct, 2);
   });
 
   it("stamps every release pin + each release's catalog version + the site price table (I3)", () => {
@@ -174,8 +182,8 @@ describe("site graph — GATE — fenceA — fenceB on stepped terrain (I6/I11)"
     const unjoined: Site = { ...steppedSite, connections: [steppedSite.connections[0]!] };
     const result = deriveSite(unjoined, instances(), sitePrices, siteCatalogs);
     expect(result.isValid).toBe(true);
-    expect(result.bom.find((l) => l.componentCode === "fence_post_60")?.quantity).toBe(
-      siteGolden.siteWithoutFenceJoint.fencePostCount,
+    expect(result.bom.find((l) => l.componentCode === "sloup_100")?.quantity).toBe(
+      siteGolden.siteWithoutFenceJoint.sloupMeters,
     );
     expect(result.money.total).toBe(siteGolden.siteWithoutFenceJoint.moneyTotal);
   });

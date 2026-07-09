@@ -6,8 +6,8 @@
  * byte-identically (the I3 freeze re-derives the same).
  *
  * Cases (the order's required coverage):
- *   1. standard 21 % — site net 129 891.5 → VAT 27 277.22 → gross 157 168.72
- *   2. §92e reverse charge — site net 129 891.5, NO VAT line, gross == net, legend
+ *   1. standard 21 % — site net 134 723.5 → VAT 28 291.94 → gross 163 015.44
+ *   2. §92e reverse charge — site net 134 723.5, NO VAT line, gross == net, legend
  *   3. mixed rate — 21 % + 12 % bases, per-rate VAT, descending order
  *   4. rounding edges — VAT amounts that need haléř rounding (half-up)
  *
@@ -26,7 +26,7 @@ const STANDARD_VAT_PCT = "21";
 
 /** The re-baselined site net total (golden/site.ts, ADR 0081) — the base every
  *  single-rate tax case uses; the harness re-derives it from the engine. */
-export const SITE_NET = "129891.5";
+export const SITE_NET = "134723.5";
 
 export const taxGolden = {
   /** 1. Standard 21 % on the whole site net. */
@@ -36,10 +36,10 @@ export const taxGolden = {
       mode: "standard_vat",
       currency: "CZK",
       rounding: DEFAULT_ROUNDING_POLICY,
-      lines: [{ ratePct: "21", netBase: "129891.5", vatAmount: "27277.22", gross: "157168.72" }],
-      netTotal: "129891.5",
-      vatTotal: "27277.22",
-      grossTotal: "157168.72",
+      lines: [{ ratePct: "21", netBase: "134723.5", vatAmount: "28291.94", gross: "163015.44" }],
+      netTotal: "134723.5",
+      vatTotal: "28291.94",
+      grossTotal: "163015.44",
     } satisfies TaxBreakdown,
   },
 
@@ -51,10 +51,10 @@ export const taxGolden = {
       legend: REVERSE_CHARGE_92E_LEGEND_CS,
       currency: "CZK",
       rounding: DEFAULT_ROUNDING_POLICY,
-      lines: [{ ratePct: "21", netBase: "129891.5", vatAmount: "0", gross: "129891.5" }],
-      netTotal: "129891.5",
+      lines: [{ ratePct: "21", netBase: "134723.5", vatAmount: "0", gross: "134723.5" }],
+      netTotal: "134723.5",
       vatTotal: "0",
-      grossTotal: "129891.5",
+      grossTotal: "134723.5",
     } satisfies TaxBreakdown,
   },
 

@@ -180,7 +180,7 @@ describe("per-tenant release visibility (HTTP, real stack)", () => {
     const issued = await postAs(userA, "/v1/quotes", issueBody);
     expect(issued.statusCode, JSON.stringify(issued.json())).toBe(201);
     const q = issued.json() as { id: string; total: string };
-    expect(q.total).toBe("129891.5");
+    expect(q.total).toBe("134723.5");
     quoteId = q.id;
   });
 

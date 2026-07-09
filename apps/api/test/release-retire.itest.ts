@@ -158,7 +158,7 @@ describe("release retire (HTTP, real stack)", () => {
     const q = issued.json() as { id: string; total: string };
     // retire-demo@1 is a byte-clone of the gate, so the golden total holds —
     // anchor it, else the I3 reproduce step could vacuously agree on a wrong value.
-    expect(q.total).toBe("129891.5");
+    expect(q.total).toBe("134723.5");
     quoteId = q.id;
   });
 

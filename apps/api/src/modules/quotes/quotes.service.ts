@@ -435,7 +435,7 @@ export class QuotesService {
     // Margin-floor guard (ADR 0056 → ADR 0059): the floor is per-org, read from
     // the active price table; margin is the REAL (price − cost)/price. The guard
     // is a pure read of the derived totals — it never touches derivation, so
-    // reproducibility (golden 129891.5, re-baselined ADR 0081) holds. A floor with no cost data is a
+    // reproducibility (golden 134723.5, re-baselined ADR 0081) holds. A floor with no cost data is a
     // misconfiguration surfaced, never silently passed (I5).
     const floorPct = priceTable.marginFloorPct !== null ? Number(priceTable.marginFloorPct) : null;
     let marginAudit: { marginPct: number; floorPct: number; reason: string } | undefined;

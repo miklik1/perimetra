@@ -170,11 +170,11 @@ describe("immutable release + catalog stores (HTTP, real stack)", () => {
         ["fence-run@1", catalog],
       ]);
 
-    it("the GATE — fenceA — fenceB aggregate is string-exact 129 891.504", () => {
+    it("the GATE — fenceA — fenceB aggregate is string-exact 134 723.5", () => {
       const result = deriveSite(steppedSite, instances(), sitePrices, siteCatalogs());
       expect(result.isValid).toBe(true);
       expect(result.money).toEqual(siteGolden.site.moneyTotals);
-      expect(result.money.total).toBe("129891.5");
+      expect(result.money.total).toBe("134723.5");
       expect(result.stamps.releaseIds).toEqual({
         gate: "sliding-gate@1",
         fenceA: "fence-run@1",

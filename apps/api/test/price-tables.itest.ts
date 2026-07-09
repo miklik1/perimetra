@@ -2,7 +2,7 @@
  * The per-tenant price-table store at the HTTP layer against the real
  * containers (ADR 0053, spec §14). Gates: (1) effective-date resolution picks
  * the right version for a given instant; (2) a price table resolved THROUGH the
- * API, fed to the pure engine, reproduces the site golden 129 891.504 — the
+ * API, fed to the pure engine, reproduces the site golden 134 723.5 — the
  * stamped priceTableVersion resolves to a byte-identical table (I3);
  * (3) re-publishing a version is a 409 (immutable).
  *
@@ -106,7 +106,7 @@ describe("price-table store (HTTP, real stack)", () => {
   });
 
   describe("delta-0 reproduction THROUGH the resolved table (I3)", () => {
-    it("the API-resolved v2 table reproduces the site golden 129 891.504", async () => {
+    it("the API-resolved v2 table reproduces the site golden 134 723.5", async () => {
       const resolved = await resolveActive("2026-03-01T00:00:00.000Z");
       expect(resolved.table.version).toBe(2);
       const result = deriveSite(
@@ -120,7 +120,7 @@ describe("price-table store (HTTP, real stack)", () => {
         ]),
       );
       expect(result.isValid).toBe(true);
-      expect(result.money.total).toBe("129891.5");
+      expect(result.money.total).toBe("134723.5");
       expect(result.stamps.priceTableVersion).toBe(2);
     });
   });

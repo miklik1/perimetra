@@ -44,7 +44,7 @@ const issueBody = {
   ],
 };
 
-/** A price table WITH a cost layer (ADR 0059) — the cost golden (79039.86) is
+/** A price table WITH a cost layer (ADR 0059) — the cost golden (82889.86) is
  *  the sharpest leak probe: if it ever appeared in a production body, the
  *  boundary failed. */
 const priceTableBody = {
@@ -176,8 +176,8 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
     expect(forbidden, `forbidden keys found: ${forbidden.join(", ")}`).toEqual([]);
 
     // The golden money strings themselves must never appear anywhere in the body.
-    expect(res.body).not.toContain("129891.5"); // the site total (I10)
-    expect(res.body).not.toContain("79039.86"); // the cost-of-goods total (ADR 0059)
+    expect(res.body).not.toContain("134723.5"); // the site total (I10)
+    expect(res.body).not.toContain("82889.86"); // the cost-of-goods total (ADR 0059)
     // Every field the priced detail carries but production must not.
     expect(res.body).not.toContain('"totals"');
     expect(res.body).not.toContain('"money"');

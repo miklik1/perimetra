@@ -14,8 +14,9 @@
  * Hand-derived piece counts (gate 4000×1500, planka, 3 panels):
  *   lprofile 5 (postA, postB, diagonal, bottom, rail) + tpost 2 + hprofile 6
  *   + fill 33 (fillCount 11 × 3) + guide beam 1 + tower post 1 = 48
- * Fence (5000×1500, planka): posts 3 + rails 2 + fill 26 = 31 standalone;
- * 30 once its start post is consumed (I6).
+ * Fence (5000×1500, planka_100_2d, CAR-32): posts 3 + h-profil 8 (4/bay × 2)
+ *   + fill 26 (fillCount 13 × 2) = 37 standalone; 36 once its start post is
+ *   consumed (I6).
  */
 import { describe, expect, it } from "vitest";
 
@@ -54,7 +55,7 @@ describe("scene 3D — the site as placed pieces (I4/I6/§5)", () => {
 
   it("emits the hand-derived piece counts, consumed posts dropped (I6)", () => {
     const counts = Object.fromEntries(scene.instances.map((i) => [i.instanceId, i.pieces.length]));
-    expect(counts).toEqual({ gate: 48, fenceA: 30, fenceB: 30 });
+    expect(counts).toEqual({ gate: 48, fenceA: 36, fenceB: 36 });
     const fenceAPieceIds = scene.instances[1]!.pieces.map((p) => p.id);
     expect(fenceAPieceIds).not.toContain("fenceA/posts.start/post");
     expect(fenceAPieceIds).toContain("fenceA/posts.end/post");
@@ -67,15 +68,15 @@ describe("scene 3D — the site as placed pieces (I4/I6/§5)", () => {
     expect(post(2).at).toEqual([5000, 150, 0]);
   });
 
-  it("a standalone fence keeps all 31 pieces (sharing is connection-scoped)", () => {
+  it("a standalone fence keeps all 37 pieces (sharing is connection-scoped)", () => {
     const standalone = deriveInstance(fenceRunV1, siteFenceConfig, sitePrices, catalogV2);
     const pieces = standalone.parts.flatMap((p) => p.geometry?.pieces ?? []);
-    expect(pieces).toHaveLength(31);
+    expect(pieces).toHaveLength(37);
   });
 
   it("carries baked profiles — no renderer opens the catalog (I4)", () => {
     const post = scene.instances[1]!.pieces.find((p) => p.id.endsWith("posts.end/post"))!;
-    expect(post.profile).toEqual({ shape: "rect_tube", wMm: 60, dMm: 60 });
+    expect(post.profile).toEqual({ shape: "rect_tube", wMm: 100, dMm: 100 });
   });
 });
 
@@ -83,11 +84,11 @@ describe("cut list — physical truth off the same graph (I4/I6)", () => {
   const cutList = buildCutList(siteResult);
 
   it("cuts exactly 4 fence posts after sharing — the BOM golden, at the saw", () => {
-    const posts = cutList.components.find((c) => c.componentCode === "fence_post_60")!;
-    expect(posts.lines).toEqual([expect.objectContaining({ lengthMm: 2000, count: 4 })]);
-    // FFD into 6 m bars: 3 posts + 1 post.
-    expect(posts.nesting!.bars.map((b) => b.cuts.length)).toEqual([3, 1]);
-    expect(posts.nesting!.bars.map((b) => b.offcutMm)).toEqual([0, 4000]);
+    const posts = cutList.components.find((c) => c.componentCode === "sloup_100")!;
+    expect(posts.lines).toEqual([expect.objectContaining({ lengthMm: 1500, count: 4 })]);
+    // FFD into 6 m bars: 4 × 1500 = 6000 exactly → one full bar.
+    expect(posts.nesting!.bars.map((b) => b.cuts.length)).toEqual([4]);
+    expect(posts.nesting!.bars.map((b) => b.offcutMm)).toEqual([0]);
     expect(posts.nesting!.oversize).toEqual([]);
   });
 
@@ -124,12 +125,14 @@ describe("workshop drawing — front elevation + the §6 deviation flag", () => 
   it("projects the standalone fence to its exact envelope", () => {
     const standalone = deriveInstance(fenceRunV1, siteFenceConfig, sitePrices, catalogV2);
     const drawing = buildWorkshopDrawing(standalone);
-    expect(drawing.quads).toHaveLength(31);
-    // Posts are 60 wide on centerline 0/5000: x ∈ [−30, 5030]; 2000 tall.
-    expect(drawing.bbox).toEqual({ min: { x: -30, y: 0 }, max: { x: 5030, y: 2000 } });
+    expect(drawing.quads).toHaveLength(37);
+    // Posts 100 wide on centreline 0/5000: x ∈ [−50, 5050]; 1500 tall. The bottom
+    // planka (centred on its slot at y = 29, plank 100 tall) dips 21 mm below the
+    // base — FIL-faithful (planks centre on their drill slots).
+    expect(drawing.bbox).toEqual({ min: { x: -50, y: -21 }, max: { x: 5050, y: 1500 } });
     expect(drawing.dims.map((d) => [d.id, d.valueMm])).toEqual([
-      ["overall.width", 5060],
-      ["overall.height", 2000],
+      ["overall.width", 5100],
+      ["overall.height", 1521], // 1500 posts + the 21 mm bottom-planka dip
     ]);
     expect(drawing.flags).toEqual([]);
   });
@@ -154,7 +157,7 @@ describe("workshop drawing — front elevation + the §6 deviation flag", () => 
       {
         partPath: "posts.end",
         field: "lengthMm",
-        original: 2000,
+        original: 1500,
         value: 1950,
         overrideId: "q-post-1950",
         reason: "skála pod koncovým sloupkem",

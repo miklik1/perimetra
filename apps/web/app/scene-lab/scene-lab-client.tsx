@@ -3,8 +3,12 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
+import type { ConfigInput } from "@repo/engine";
 import {
   catalogV1,
+  catalogV2,
+  fencePrices,
+  fenceRunV1,
   lamela_113_2d_3panel,
   lamela_113_3d_2panel,
   lamela_120_3d_3panel,
@@ -34,6 +38,8 @@ import { syntheticGate } from "./synthetic-scene";
  *                       engine on the Excel-anchored U34 fixture — proves the
  *                       AUTHORED geometry (catches a floating/misplaced piece a
  *                       synthetic scene can never surface)
+ *   ?scene=fence-run    the REAL `fence-run@1` release (CAR-32) at the canonical
+ *                       bay — eyes-on the FIL Ploty fence geometry per fill type
  *
  * Query knobs (capture harness + e2e, ADR 0075/0076/0077):
  *   ?finish=<id>       drive the finish slice (e.g. zinek, drevo)
@@ -70,11 +76,27 @@ function realSlidingGateScene(fillTypeId?: string) {
   return deriveForUi(product, golden.config, golden.prices, catalogs).scene;
 }
 
+/** The REAL `fence-run@1` (CAR-32) at the canonical bay (2000 × 2000, 4 bays),
+ *  any of the 7 Výplet fills — eyes-on the FIL Ploty geometry (posts · h-profil
+ *  carriers · stacked horizontal lamellas) per fill type. */
+function realFenceScene(fillTypeId?: string) {
+  const catalogs: ReadonlyMap<string, Catalog> = new Map([[fenceRunV1.id, catalogV2]]);
+  const config: ConfigInput = {
+    run_length_mm: 8000,
+    clear_height_mm: 2000,
+    fill_type_id: fillTypeId ?? "lamela_113_3d",
+    frame_material: "alu",
+    include_installation: true,
+  };
+  const product = { release: fenceRunV1, initialInput: config };
+  return deriveForUi(product, config, fencePrices, catalogs).scene;
+}
+
 export function SceneLabClient() {
   const setFinish = useFinish((s) => s.setFinish);
   const setHighlight = useDeviation((s) => s.setHighlight);
   const [view, setView] = useState<CameraView>("hero");
-  const [source, setSource] = useState<"synthetic" | "sliding-gate">("synthetic");
+  const [source, setSource] = useState<"synthetic" | "sliding-gate" | "fence-run">("synthetic");
   const [fillTypeId, setFillTypeId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -82,7 +104,9 @@ export function SceneLabClient() {
     const finish = params.get("finish");
     if (finish !== null && finish !== "") setFinish(finish);
     if (params.get("highlight") === "1") setHighlight(true);
-    if (params.get("scene") === "sliding-gate") setSource("sliding-gate");
+    const sceneParam = params.get("scene");
+    if (sceneParam === "sliding-gate") setSource("sliding-gate");
+    else if (sceneParam === "fence-run") setSource("fence-run");
     const fill = params.get("fill_type_id");
     if (fill !== null && fill !== "") setFillTypeId(fill);
     const cam = params.get("cam");
@@ -97,11 +121,12 @@ export function SceneLabClient() {
     }
   }, [setFinish, setHighlight]);
 
-  const realScene = useMemo(
-    () => (source === "sliding-gate" ? realSlidingGateScene(fillTypeId) : undefined),
-    [source, fillTypeId],
-  );
-  const scene = source === "sliding-gate" ? realScene : syntheticGate();
+  const realScene = useMemo(() => {
+    if (source === "sliding-gate") return realSlidingGateScene(fillTypeId);
+    if (source === "fence-run") return realFenceScene(fillTypeId);
+    return undefined;
+  }, [source, fillTypeId]);
+  const scene = source === "synthetic" ? syntheticGate() : realScene;
 
   return (
     <div data-testid="scene-lab" className="bg-field h-screen w-screen">

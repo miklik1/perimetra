@@ -2,7 +2,7 @@
  * Test-only golden catalog bundle (NOT imported by runtime code — the app fetches
  * the equivalent from the api, ADR 0060). The @repo/fixtures corpus shaped as the
  * api-served catalog so the configurator/site compute + render tests keep the
- * delta-0 golden lineage (gate 81 451.504, site 129 891.504) without standing up
+ * delta-0 golden lineage (gate 81 451.504, site 134 723.5) without standing up
  * the api. Fixtures' proper role: the golden source for tests, never runtime.
  */
 import type { PriceTable } from "@repo/engine";

@@ -1,7 +1,7 @@
 /**
  * The site canvas's "Load demo" seed (ADR 0051, ADR 0060): the golden three-
  * instance project — gate + two fence runs on stepped terrain, the layout whose
- * aggregate the delta-0 harness locks at 129 891.504 CZK. Since project
+ * aggregate the delta-0 harness locks at 134 723.5 CZK. Since project
  * persistence landed (step 6.3c) the canvas LOADS from the saved project; this is
  * the one-click populate.
  *
