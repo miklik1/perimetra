@@ -130,6 +130,8 @@ exists, deliberately not wired — by design).
 | [0106](0106-pre-push-test-gate.md) | Pre-push runs the test gate (drained from skeleton ADR 0048, renumbered — perimetra's 0048 is the cascade/overrides ledger): lefthook pre-push runs `pnpm turbo run test`, matching the correctness gates CI runs, because a direct push to a deploy branch triggers no CI and a red test would ship unnoticed. `build` stays CI-only (the slow gate; a broken build fails the deploy anyway, and gating on it invites `--no-verify`). The hook is best-effort by design; branch protection is the unbypassable server-side complement | Accepted | Implemented (channel-A drain 2026-07-09) |
 | [0107](0107-tenancy-app-level-scoping-not-rls.md) | Tenant isolation stays app-level (drained from skeleton ADR 0049, renumbered — perimetra's 0049 is site-graph composition): RLS / FORCE-RLS is rejected because its session-GUC requirement is incompatible with the transaction-pooling doctrine (ADR 0038). The guarantee is org-scoped repositories (ADR 0041/0055) plus every endpoint returning through a zod response schema (strip semantics), so an un-scoped `select()` still cannot ship a foreign row's fields (ADR 0039). Records perimetra's as-built posture too — a repo adopting RLS needs its own superseding ADR | Accepted | Implemented (as-built; no code change) |
 | [0108](0108-workshop-traveler-frozen-technical-drawing.md) | The workshop traveler (CAR-124): the ADR-0102 technical drawing is FROZEN at issue as a top-level `technicalDrawings` snapshot field (a sibling of `drawings`, never nested — `drawings` is deep-equal-compared, so nesting would retroactively break I3 on historical quotes), and its `verifyReproducibility` check is added only when the frozen snapshot carries it (expand/contract N−1 tolerance). Frozen `specRows` are valued from a price-free scope: `buildScope` seeds the price layer, so a parameter defaulting to `price.*` would print a CZK figure on the price-blind sheet — with no price layer in scope it cannot resolve and renders "—" (absence, not masking; a regression test pins it). `toProduction` projects both plus derived `dimensionRows` through structured zod schemas (never `z.unknown()`). Dimension rules gain an optional Czech `label`; `TechnicalDrawingSvg` is the first renderer for `TechnicalDrawing` (annotation-inclusive viewBox, non-scaling strokes, dashed nominal-depth cuts); `/quotes/:id/production/traveler` prints it via `window.print()` off the existing price-blind endpoint. `dimsolve` lane offsets became span-proportional (absolute mm stacked captions on an 8 m fence run) | Accepted | Implemented (full gate green; eyes-on captures of branka + fence-run; golden moved by one number — a label anchor) |
+| [1000](1000-adr-numbering-reserved-band.md) | **Skeleton-authored** (drained verbatim at its upstream number — see the band note below). ADR numbering reserves ≥1000 for skeleton-authored decisions; 0001–0999 stays derived-project territory. Perimetra's own next free number is 0109; skeleton ADRs 0045–0049 remain grandfathered and are the ones renumbered into 0099/0104–0107 | Accepted | Implemented (band adopted; `scripts/create-project` no longer seeds a stamp's numbering from the reserved band) |
+| [1002](1002-turbo-test-keeps-caret-build-no-caret-test.md) | **Skeleton-authored** (drained verbatim). The `test` task keeps `dependsOn: ["^build"]` and does NOT add `^test`: turbo materializes a `<NONEXISTENT>` placeholder `#build` node for every script-less package, hashing its full source, so `^build` already invalidates a consumer's test cache on a source-only package's change. Adding `^test` would serialize cold-cache runs for zero correctness gain | Accepted | Implemented (no `turbo.json` change; re-verified against perimetra's own graph on turbo 2.9.17 — `@repo/api#build` is a `<NONEXISTENT>` node over 33 inputs with `web#test` among its dependents) |
 
 See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for the stack overview and
 the consolidated constraints cheat-sheet.
@@ -147,5 +149,16 @@ perimetra 0099 (authz default-deny), 0046 → 0104 (deployment tier), 0047 → 0
 tenancy). **Never land a drained ADR at its upstream number.** Cherry-pick does
 not protect you: an upstream ADR whose basename differs from the project's ADR
 of the same number adds a SECOND `00xx-*.md` file with no conflict at all.
+
+**Exception — the reserved ≥1000 band ([ADR 1000](1000-adr-numbering-reserved-band.md)):**
+since 2026-07-09 the skeleton numbers its own new ADRs at 1000 and above, and
+will never again author one below 1000. Those ADRs drain into this repo
+**verbatim, at their upstream number** — the renumber rule above governs only
+the grandfathered upstream 0045–0049, whose numbers perimetra had already
+claimed for unrelated decisions. Perimetra's own decisions continue in the
+0001–0999 range (the next free number is 0109), so the two sequences can no
+longer collide. The ≥1000 rows in the table above are the ones drained so far;
+they are skeleton-owned, so supersede rather than edit them here.
+
 Research against primary sources (npm, GitHub, official docs, create-t3-turbo
 `main`) as of those dates.

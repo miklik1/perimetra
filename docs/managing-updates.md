@@ -77,12 +77,12 @@ also the natural place to document anything you chose not to take.
 Conflicts are rare while the ownership boundary is respected, and mechanical
 when they happen:
 
-| Paths                                                                                                                                     | Owner               | On conflict, prefer                |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------- |
-| `packages/*`, `tooling/*`, `.github/*`                                                                                                    | **skeleton**        | theirs (`skeleton/main`)           |
-| `apps/*` (your product code), `docs/adr/0045+`                                                                                            | **derived project** | ours                               |
-| `docs/adr/0001–0044`, `docs/managing-updates.md`, root tooling configs (`turbo.json`, `knip.json`, `renovate.json`, compose, Dockerfiles) | **skeleton**        | theirs, then re-apply local deltas |
-| Root `package.json` `name` + `skeleton` field, `.env.local` files (gitignored anyway)                                                     | **derived project** | ours                               |
+| Paths                                                                                                                                                       | Owner               | On conflict, prefer                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------------------------------- |
+| `packages/*`, `tooling/*`, `.github/*`                                                                                                                      | **skeleton**        | theirs (`skeleton/main`)           |
+| `apps/*` (your product code), `docs/adr/<your marker>–0999` (your marker is in `docs/adr/0000-inherited-from-skeleton.md`)                                  | **derived project** | ours                               |
+| `docs/adr/0001–0044`, `docs/adr/1000+`, `docs/managing-updates.md`, root tooling configs (`turbo.json`, `knip.json`, `renovate.json`, compose, Dockerfiles) | **skeleton**        | theirs, then re-apply local deltas |
+| Root `package.json` `name` + `skeleton` field, `.env.local` files (gitignored anyway)                                                                       | **derived project** | ours                               |
 
 Practical corollaries:
 
@@ -93,11 +93,19 @@ Practical corollaries:
   implementations, so expect (and accept) drift there; take upstream app-shell
   changes selectively (`git checkout skeleton/main -- apps/api/src/otel` style
   path checkouts work well).
-- **ADR numbering is partitioned**: 0001–0044 (plus any future skeleton ADRs
-  below your project's marker) are skeleton-owned and may be updated by
-  merges; your decisions start at 0045 (see
+- **ADR numbering is partitioned, with a reserved band (ADR 1000):**
+  0001–0044 are skeleton-owned and frozen (never renumbered, never added to
+  again); your own decisions start at your project's recorded marker (see
   `docs/adr/0000-inherited-from-skeleton.md`, written at stamp-out) and are
-  never touched by upstream.
+  never touched by upstream. Going forward the skeleton **never** adds a new
+  ADR below 1000 again — new skeleton ADRs live at **1000+** (starting with
+  ADR 1000) — so a channel-A merge can never again hand you a skeleton ADR
+  number that collides with one of your own.
+  **Exception (grandfathered):** skeleton ADRs 0045–0049 predate this rule and
+  may already number-collide with unrelated decisions some derived projects
+  made in that same range before 2026-07-09. Treat any such collision as a
+  historical coincidence, not something to fix — do not renumber either side,
+  it breaks citations on both ends.
 - The `@repo` scope staying put is what keeps this table short: skeleton-owned
   files arrive in merges as clean fast-forward hunks because no project-wide
   rename ever touched them.

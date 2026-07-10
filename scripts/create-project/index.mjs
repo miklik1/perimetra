@@ -378,7 +378,14 @@ const adrDir = join(repoRoot, "docs/adr");
 const inheritedAdrs = readdirSync(adrDir)
   .filter((f) => /^\d{4}-.+\.md$/.test(f) && !f.startsWith("0000-"))
   .sort();
-const highest = inheritedAdrs.at(-1)?.slice(0, 4) ?? "0044";
+// ADR 1000 reserves >=1000 for skeleton-authored ADRs added after stamp-out —
+// they must never seed a derived project's own numbering, or every future
+// stamp would start inside the reserved band instead of after the legacy
+// (<1000) ceiling. Only the legacy subset marks where this project's own
+// decisions begin. (The filename regex matches "1000-..." too, and it sorts
+// lexically ahead of "0049-...", so an unfiltered .at(-1) would return it.)
+const legacyAdrs = inheritedAdrs.filter((f) => Number(f.slice(0, 4)) < 1000);
+const highest = legacyAdrs.at(-1)?.slice(0, 4) ?? "0044";
 const nextAdr = String(Number(highest) + 1).padStart(4, "0");
 writeFileSync(
   join(adrDir, "0000-inherited-from-skeleton.md"),
