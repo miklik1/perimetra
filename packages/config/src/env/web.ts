@@ -53,8 +53,10 @@ export function resolveTier(
   // casing / stray whitespace from a hand-set or overridden var) must NOT fall
   // through to the "preview" catch-all on a real Production target — that is the
   // mock-leak-to-prod direction. Vercel's own env slugs are already lower-case,
-  // so this only hardens against a misconfigured override; APP_TIER is a
-  // validated enum and needs no normalisation.
+  // so this only hardens against a misconfigured override. `appTierOverride` is
+  // normalised by its caller (`readAppTier` below) for the same reason — the
+  // schema enum alone is NOT enough, because SKIP_ENV_VALIDATION disables it on
+  // the one path where APP_TIER is the sole tier signal.
   const target = vercelTargetEnv?.trim().toLowerCase();
   if (target) {
     if (target === "production") return "prod";
@@ -179,9 +181,36 @@ export const env = createEnv({
  * prefetch gate (`apps/web/app/page.tsx`), the next.config rewrites gate, and
  * the build-time `assertTierInvariants`. NEVER re-derive a tier from `NODE_ENV`.
  *
- * Derived from RAW `process.env.VERCEL_TARGET_ENV` (not `env.VERCEL_TARGET_ENV`)
- * so it resolves even under `SKIP_ENV_VALIDATION`, matching the raw check in
- * `assert-tier-invariants.ts`. `env.APP_TIER` is the validated manual override
- * (empty string ⇒ undefined ⇒ the "preview" default).
+ * BOTH inputs are read RAW from `process.env`, never through the `env` proxy:
+ *
+ *  - it resolves even under `SKIP_ENV_VALIDATION`, matching the raw check in
+ *    `assert-tier-invariants.ts`; and
+ *  - `APP_TIER` is a SERVER var, so reading it through the `env` proxy at MODULE
+ *    scope makes `@t3-oss/env` throw "Attempted to access a server-side
+ *    environment variable on the client" for ANY importer evaluated in a client
+ *    context (a jsdom component test, or a genuine client component) — merely
+ *    importing this module is enough; nothing has to read `TIER`. Reading raw is
+ *    inert there: neither var is `NEXT_PUBLIC_`-inlined, so a browser bundle sees
+ *    `undefined` and TIER falls to "preview" — which no client code reads (every
+ *    TIER consumer is server-side).
+ *
+ * `APP_TIER` stays declared in the schema above, so an invalid value still fails
+ * `createEnv` on the server — the same arrangement `VERCEL_TARGET_ENV` already
+ * had. Empty string ⇒ undefined ⇒ the "preview" default.
+ *
+ * NORMALISE (trim + lower-case) exactly as `resolveTier` does for
+ * `VERCEL_TARGET_ENV`. The schema enum is NOT sufficient: on the non-Vercel
+ * container/standalone prod build — the one path where `APP_TIER` is the sole
+ * tier signal — `SKIP_ENV_VALIDATION` is the documented escape hatch, and it
+ * makes `createEnv` skip the enum check entirely. Without lower-casing, a typo'd
+ * `APP_TIER="PROD"` would narrow to `undefined`, resolve `TIER="preview"`, sail
+ * past the SKIP-on-prod refusal in `assertTierInvariants` (which keys on
+ * `TIER === "prod"`), and serve MOCKS on a deploy the operator intended as prod
+ * — the exact mock-leak-to-prod bug the tier mechanism exists to close.
  */
-export const TIER = resolveTier(process.env.VERCEL_TARGET_ENV, env.APP_TIER);
+function readAppTier(): "preview" | "stage" | "prod" | undefined {
+  const raw = process.env.APP_TIER?.trim().toLowerCase();
+  return raw === "preview" || raw === "stage" || raw === "prod" ? raw : undefined;
+}
+
+export const TIER = resolveTier(process.env.VERCEL_TARGET_ENV, readAppTier());
