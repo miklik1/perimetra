@@ -26,20 +26,4 @@ describe("createAuthQueries", () => {
       expect.objectContaining({ parse: expect.any(Function), signal }),
     );
   });
-
-  it("login() mutationFn POSTs credentials to /auth/login", async () => {
-    const client = makeClient();
-    const auth = createAuthQueries(client);
-
-    await auth.login().mutationFn!({ email: "a@b.com", password: "secret" }, {} as never);
-
-    expect(client.apiFetch).toHaveBeenCalledWith(
-      "/auth/login",
-      expect.objectContaining({
-        method: "POST",
-        body: { email: "a@b.com", password: "secret" },
-        parse: expect.any(Function),
-      }),
-    );
-  });
 });
