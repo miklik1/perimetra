@@ -12,7 +12,18 @@ name: CI
 #     (scheduled runs only fire on the default branch);
 #   - on `pull_request` — a latent pre-merge gate for when PRs are reinstated
 #     (once there are real users); dormant + zero-cost while we commit to main.
-# Reinstate `push: { branches: [main] }` here if per-commit CI is ever wanted.
+#
+# This trigger set is how perimetra satisfies skeleton ADR 1003 (fast gates per
+# push; heavy jobs on PR + weekly + dispatch): with no `push:` trigger at all, a
+# bare push to main starts NO job, so the heavy surface is already off the
+# per-commit path. The skeleton needs `if: github.event_name != 'push'` on each
+# heavy job because it DOES run on push; here those guards would be inert.
+#
+# If you reinstate `push: { branches: [main] }` for per-commit CI, add ADR 1003's
+# heavy-job guards in the SAME commit — otherwise every commit silently pays for
+# the docker build, Trivy, Testcontainers, both E2E suites, the Expo build and a
+# ~7-10min `pnpm audit` (~35 billed Actions-minutes per push, which is what
+# exhausted the skeleton account's spending limit).
 on:
   pull_request:
     branches: ["*"]
@@ -21,7 +32,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Event-scoped (ADR 1003): the weekly `schedule` run and a manual
+  # `workflow_dispatch` run share `github.ref` (both resolve to the default
+  # branch), so grouping by ref alone lets a dispatch cancel the weekly safety
+  # net that is this repo's only unattended full-matrix coverage. Same-event
+  # runs still supersede — a newer dispatch cancels an older one.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -159,6 +175,10 @@ jobs:
   audit:
     name: Dependency audit (gate)
     runs-on: ubuntu-latest
+    # `pnpm audit --prod` resolves the full advisory set over the production tree
+    # and takes ~7-10 minutes even when healthy (ADR 1003). Bounded so a stalled
+    # registry query cannot run the job clock out.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
