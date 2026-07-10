@@ -943,6 +943,7 @@
       "id": "fill.pitch",
       "kind": "chain",
       "valueMm": 127,
+      "label": "Rozteč výplně",
       "line": {
         "from": {
           "x": -265,
@@ -1030,6 +1031,7 @@
       "id": "fill.slat.length",
       "kind": "dimension",
       "valueMm": 780,
+      "label": "Délka výplně",
       "line": {
         "from": {
           "x": 65,
@@ -1071,6 +1073,7 @@
       "id": "latch.height",
       "kind": "dimension",
       "valueMm": 1470,
+      "label": "Výška zámkového sloupku",
       "line": {
         "from": {
           "x": 1165,
@@ -1185,13 +1188,14 @@
       "witness": [],
       "textAt": {
         "x": 455,
-        "y": 125
+        "y": 236.375
       }
     },
     {
       "id": "overall.height",
       "kind": "dimension",
       "valueMm": 1400,
+      "label": "Celková výška",
       "line": {
         "from": {
           "x": -165,
@@ -1233,6 +1237,7 @@
       "id": "overall.width",
       "kind": "dimension",
       "valueMm": 910,
+      "label": "Celková šířka",
       "line": {
         "from": {
           "x": 0,

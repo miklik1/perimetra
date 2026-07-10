@@ -593,6 +593,16 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
           message: `derivedValue "${rule.derivedValue}" is not a derived key of this release`,
         });
       }
+      // An absent `label` is legal (consumers fall back to the rule id); an
+      // authored-but-blank one is a defect. `label` lives only on the dimension/
+      // chain kinds — a LabelRule's callout is `text`, checked elsewhere.
+      if (rule.kind !== "label" && rule.label !== undefined && rule.label.trim() === "") {
+        defects.push({
+          code: "drawing.label.blank",
+          where: `${at}.label`,
+          message: `label is authored but blank (omit it to fall back to the rule id)`,
+        });
+      }
     }
   }
 

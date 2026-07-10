@@ -402,6 +402,90 @@ export const productionInstanceSchema = z.object({
  *  build. */
 export const producibleQuoteStatusSchema = z.enum(["issued", "accepted"]);
 
+// --- Frozen technical drawing + spec/dimension rows (ADR 0102/0108) ----------
+//
+// The derived 2D technical drawing (ADR 0102) and the §8 spec sheet, frozen into
+// the quote snapshot and projected onto this price-blind surface. Hand-mirrored
+// off `@repo/renderers` (`TechnicalDrawing`/`PlacedAnnotation`/`DrawnEdge2D`/
+// `SectionView`) the same zero-dep-leaf way the rest of this file mirrors its
+// sources. STRUCTURED, never `z.unknown()`: the strip semantics that keep this
+// surface price-blind live in the schema shape itself — the drawing is geometry,
+// so NO money/cost/margin field appears anywhere below.
+
+/** Mirrors `DrawnEdge2D` (@repo/renderers `drawing/types.ts`) — one projected
+ *  view edge, tagged with its I9 source id + per-view line role. */
+const productionDrawnEdgeSchema = z.object({
+  id: z.string(),
+  sourceId: z.string(),
+  role: z.enum(["visible", "hidden", "section", "center"]),
+  from: productionPointSchema,
+  to: productionPointSchema,
+});
+
+/** Mirrors `PlacedAnnotation` (@repo/renderers `drawing/dimsolve.ts`) — a placed
+ *  dimension/chain/label. `label` is the release-authored Czech display text
+ *  (absent ⇒ the rule id is shown); `valueMm` the measured/printed value. */
+const productionAnnotationSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["dimension", "chain", "label"]),
+  valueMm: z.number().optional(),
+  text: z.string().optional(),
+  label: z.string().optional(),
+  line: z.object({ from: productionPointSchema, to: productionPointSchema }),
+  witness: z.array(z.object({ from: productionPointSchema, to: productionPointSchema })),
+  ticks: z.array(productionPointSchema).optional(),
+  textAt: productionPointSchema,
+});
+
+/** Mirrors `SectionCut` (@repo/renderers `drawing/section.ts`). */
+const productionSectionCutSchema = z.object({
+  sourceId: z.string(),
+  componentCode: z.string(),
+  outline: z.array(productionPointSchema),
+  nominalDepth: z.boolean(),
+});
+
+/** Mirrors `SectionView` (@repo/renderers `drawing/section.ts`). */
+const productionSectionViewSchema = z.object({
+  sectionId: z.string(),
+  axis: z.enum(["x", "y", "z"]),
+  offsetMm: z.number(),
+  cuts: z.array(productionSectionCutSchema),
+  bbox: z.object({ min: productionPointSchema, max: productionPointSchema }),
+  dataFillNeeded: z.boolean(),
+});
+
+/** Mirrors `TechnicalDrawing` (@repo/renderers `drawing/drawing.ts`) — the
+ *  derived 2D elevation (ADR 0102): projected edges + placed dimensions/labels +
+ *  optional hatched sections. Geometry only, no money. */
+export const productionTechnicalDrawingSchema = z.object({
+  viewId: z.string(),
+  edges: z.array(productionDrawnEdgeSchema),
+  annotations: z.array(productionAnnotationSchema),
+  bbox: z.object({ min: productionPointSchema, max: productionPointSchema }),
+  sections: z.array(productionSectionViewSchema).optional(),
+});
+export type ProductionTechnicalDrawing = z.infer<typeof productionTechnicalDrawingSchema>;
+
+/** One frozen §8 spec-sheet row (ADR 0108) — a release-authored label + the
+ *  display value off the frozen ConfigInput. `value` is a display string (option
+ *  label / raw value + unit), never money. */
+export const productionSpecRowSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  value: z.string(),
+});
+export type ProductionSpecRow = z.infer<typeof productionSpecRowSchema>;
+
+/** One dimension row derived from a technical drawing's annotations (ADR 0108):
+ *  the annotation label (or rule id) + its measured value (mm). */
+export const productionDimensionRowSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  valueMm: z.number(),
+});
+export type ProductionDimensionRow = z.infer<typeof productionDimensionRowSchema>;
+
 export const quoteProductionSchema = z.object({
   id: z.uuid(),
   documentNumber: z.string(),
@@ -415,5 +499,14 @@ export const quoteProductionSchema = z.object({
     site: productionSitePlanSchema,
     instances: z.record(z.string(), productionWorkshopDrawingSchema),
   }),
+  /** The derived 2D technical drawings per instance (ADR 0102/0108). Optional: a
+   *  quote issued before the frozen-drawing slice has none, and the projection
+   *  omits it rather than fabricating one (N-1). */
+  technicalDrawings: z.record(z.string(), productionTechnicalDrawingSchema).optional(),
+  /** Frozen §8 spec-sheet rows per instance (ADR 0108). Optional (pre-slice). */
+  specRows: z.record(z.string(), z.array(productionSpecRowSchema)).optional(),
+  /** Dimension rows per instance, off the technical drawing's annotations
+   *  (ADR 0108). Optional (pre-slice). */
+  dimensionRows: z.record(z.string(), z.array(productionDimensionRowSchema)).optional(),
 });
 export type QuoteProduction = z.infer<typeof quoteProductionSchema>;

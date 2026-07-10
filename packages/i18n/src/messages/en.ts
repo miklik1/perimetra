@@ -501,6 +501,17 @@ const en: MessagesInput = {
       bomQuantity: "Quantity",
       elevation: "Elevation",
       sitePlan: "Site plan",
+      traveler: "Production traveler",
+      travelerOpen: "Open production traveler",
+      print: "Print / Save PDF",
+      spec: "Specification",
+      dimensions: "Dimensions",
+      categories: {
+        material: "Material",
+        accessory: "Accessory",
+        manufacturing: "Manufacturing",
+        installation: "Installation",
+      },
     },
   },
   customers: {

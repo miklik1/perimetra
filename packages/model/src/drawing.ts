@@ -40,6 +40,9 @@ export function pieceGlobToRegex(glob: string): RegExp {
 export interface DimensionRule {
   kind: "dimension";
   id: string;
+  /** Human-readable Czech display text for the dimension (e.g. "Celková
+   *  šířka"). Absent ⇒ consumers display the rule `id`. */
+  label?: string;
   feature: FeatureSelector;
   measure: MeasureAxis;
   side: DimensionSide;
@@ -53,6 +56,9 @@ export interface DimensionRule {
 export interface ChainRule {
   kind: "chain";
   id: string;
+  /** Human-readable Czech display text for the dimension (e.g. "Rozteč
+   *  výplně"). Absent ⇒ consumers display the rule `id`. */
+  label?: string;
   feature: FeatureSelector;
   /** The axis the pieces step along (`y-extent` for vertically stacked slats). */
   measure: MeasureAxis;

@@ -71,6 +71,10 @@ interface ProductionResponse {
   cutList: { components: { componentCode: string; lines: unknown[] }[] };
   cutOptions: { kerfMm: number };
   drawings: { site: unknown; instances: Record<string, { quads: unknown[] }> };
+  // ADR 0108 — frozen technical drawing + spec/dimension rows, projected here.
+  technicalDrawings?: Record<string, { viewId: string; annotations: { id: string }[] }>;
+  specRows?: Record<string, { key: string; label: string; value: string }[]>;
+  dimensionRows?: Record<string, { id: string; label: string; valueMm: number }[]>;
 }
 
 /** Recursively collect every object key in a JSON value — the deep leak-scan
@@ -139,6 +143,25 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
     expect(Object.keys(production.drawings.instances)).toEqual(
       expect.arrayContaining(["gate", "fenceA", "fenceB"]),
     );
+
+    // ADR 0108 — the frozen 2D technical drawing per instance (the gate falls
+    // back to the emitter's default overall-dims; the fence carries its authored
+    // DrawingSpec dimensions/labels).
+    expect(Object.keys(production.technicalDrawings ?? {})).toEqual(
+      expect.arrayContaining(["gate", "fenceA", "fenceB"]),
+    );
+    expect(production.technicalDrawings?.gate?.annotations.length ?? 0).toBeGreaterThan(0);
+
+    // The §8 spec-sheet rows per instance, off the release UiSpec + frozen config.
+    expect(production.specRows?.gate?.length ?? 0).toBeGreaterThan(0);
+    expect(production.specRows?.gate?.every((r) => typeof r.value === "string")).toBe(true);
+
+    // Dimension rows derived from the technical drawing's annotations. The fence
+    // carries its release-authored Czech label ("Celková šířka") on the width.
+    const fenceDims = production.dimensionRows?.fenceA ?? [];
+    expect(fenceDims.length).toBeGreaterThan(0);
+    expect(fenceDims.every((d) => typeof d.valueMm === "number")).toBe(true);
+    expect(fenceDims.some((d) => d.label === "Celková šířka")).toBe(true);
   });
 
   it("sales and workshop see the IDENTICAL shape as admin — role-independent", async () => {
@@ -170,6 +193,14 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
   it("NEVER leaks a money/price/cost/margin-shaped key, deeply — the load-bearing test", async () => {
     const res = await get(tenant, `/v1/quotes/${quote.id}/production`);
     expect(res.statusCode).toBe(200);
+
+    // The frozen technical drawing + spec/dimension rows (ADR 0108) are present,
+    // so the recursive scan below runs over the NEW fields' real data, not an
+    // absent branch — the leak guard must cover them too.
+    const production = res.json() as ProductionResponse;
+    expect(production.technicalDrawings).toBeDefined();
+    expect(production.specRows).toBeDefined();
+    expect(production.dimensionRows).toBeDefined();
 
     const keys = collectKeys(res.json());
     const forbidden = [...keys].filter((k) => /price|cost|margin/i.test(k));

@@ -20,11 +20,24 @@
  * relevant deviations survive, which is also the workshop's actual concern
  * (CORE_SPEC §6 — "the workshop always sees what deviated" means dimensionally,
  * never commercially). Pure + zero I/O, tested standalone (production.test.ts).
+ *
+ * ADR 0108 adds three per-instance fields projected from the SAME frozen snapshot:
+ * the derived 2D `technicalDrawings` (allowlist-copied like the workshop drawing,
+ * even though annotations carry no money today — the copy is the guard, not the
+ * current field list), the §8 `specRows` spec sheet (frozen release labels), and
+ * `dimensionRows` (label + measured value, derived from each drawing's dimension/
+ * chain annotations). All THREE degrade cleanly on a pre-slice snapshot that
+ * froze none of them (fields absent ⇒ the projection omits them, never throws).
  */
 import type { QuoteStatus } from "@repo/db/schema/quotes";
 import type { SiteBomLine } from "@repo/engine";
-import type { CutList, SitePlan, WorkshopDrawing } from "@repo/renderers";
-import type { QuoteProduction } from "@repo/validators/quotes";
+import type { CutList, SitePlan, TechnicalDrawing, WorkshopDrawing } from "@repo/renderers";
+import type {
+  ProductionDimensionRow,
+  ProductionSpecRow,
+  ProductionTechnicalDrawing,
+  QuoteProduction,
+} from "@repo/validators/quotes";
 
 /** The frozen-snapshot fields this projection reads — a narrow local view of
  *  `QuoteSnapshot` (quotes.service.ts) so this module stays a standalone leaf
@@ -35,6 +48,11 @@ export interface ProductionSourceSnapshot {
   cutOptions: { kerfMm: number };
   drawings: { site: SitePlan; instances: Record<string, WorkshopDrawing> };
   inputs: Record<string, { releaseId: string }>;
+  /** Frozen 2D technical drawings per instance (ADR 0108). Absent on a snapshot
+   *  issued before the frozen-drawing slice — the projection omits it then. */
+  technicalDrawings?: Record<string, TechnicalDrawing>;
+  /** Frozen §8 spec-sheet rows per instance (ADR 0108). Absent pre-slice. */
+  specRows?: Record<string, ProductionSpecRow[]>;
 }
 
 /** A `WorkshopDrawing` narrowed to the two PHYSICAL `ArtifactField`s
@@ -56,6 +74,35 @@ function isPhysicalFlag(
 /** Strip commercial deviation flags off a workshop drawing (see module doc). */
 export function productionSafeDrawing(drawing: WorkshopDrawing): ProductionDrawing {
   return { ...drawing, flags: drawing.flags.filter(isPhysicalFlag) };
+}
+
+/** An explicit allowlist copy of a `TechnicalDrawing` (ADR 0108) — the same
+ *  discipline as `productionSafeDrawing`. The drawing carries geometry +
+ *  dimensions + labels, no money today; the field-by-field copy is the guard so
+ *  a future money-bearing field can't ride through by being forgotten. The
+ *  `ProductionTechnicalDrawing` return binds it to the price-blind wire schema. */
+export function productionSafeTechnicalDrawing(
+  drawing: TechnicalDrawing,
+): ProductionTechnicalDrawing {
+  return {
+    viewId: drawing.viewId,
+    edges: drawing.edges,
+    annotations: drawing.annotations,
+    bbox: drawing.bbox,
+    ...(drawing.sections !== undefined && { sections: drawing.sections }),
+  };
+}
+
+/** Dimension rows for the traveler (ADR 0108): each dimension/chain annotation's
+ *  display label (falling back to the rule id) + its measured value. A "label"
+ *  annotation is a member callout, not a dimension, so it never becomes a row;
+ *  an annotation with no measured value is skipped. */
+function dimensionRowsOf(drawing: TechnicalDrawing): ProductionDimensionRow[] {
+  return drawing.annotations.flatMap((a) =>
+    a.kind === "label" || a.valueMm === undefined
+      ? []
+      : [{ id: a.id, label: a.label ?? a.id, valueMm: a.valueMm }],
+  );
 }
 
 /** Only an effectively `issued`/`accepted` quote has a production run — a
@@ -101,5 +148,20 @@ export function toProduction(
         ]),
       ),
     },
+    // ADR 0108 — degrade cleanly on a pre-slice snapshot: absent frozen fields
+    // are omitted (never fabricated). technicalDrawings + its derived
+    // dimensionRows co-vary (rows come off the drawings); specRows is independent.
+    ...(snapshot.technicalDrawings !== undefined && {
+      technicalDrawings: Object.fromEntries(
+        Object.entries(snapshot.technicalDrawings).map(([id, d]) => [
+          id,
+          productionSafeTechnicalDrawing(d),
+        ]),
+      ),
+      dimensionRows: Object.fromEntries(
+        Object.entries(snapshot.technicalDrawings).map(([id, d]) => [id, dimensionRowsOf(d)]),
+      ),
+    }),
+    ...(snapshot.specRows !== undefined && { specRows: snapshot.specRows }),
   };
 }

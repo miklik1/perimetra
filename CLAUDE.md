@@ -243,6 +243,23 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
     take `String()`, `safeNextPath` is the canonical open-redirect guard). Earlier Phase-0 slices
     0.1–0.4 (ADR 0054/0055 data-loss, I2, Dockerfile, password/audit ADR 0040) shipped before. ADR 0069
     (identity decouple) stays Proposed — go-gated, NOT implemented.
+    Workshop traveler (2026-07-10, ADR 0108): the shop-floor deliverable. The ADR-0102
+    technical drawing had **zero consumers** — nothing froze it, nothing rendered it (the
+    snapshot and `/production` carried the older ADR-0077 `WorkshopDrawing`, whose only dims
+    are `overall.width/height`). Now `artifactsOf` freezes `technicalDrawings` as a TOP-LEVEL
+    snapshot key (a sibling of `drawings`: `drawings` is deep-equal-compared, so nesting
+    would retroactively break I3 on historical quotes) and `verifyReproducibility` compares
+    it only when the frozen snapshot carries it (expand/contract N−1). Frozen `specRows` are
+    valued from a **price-free scope** — `buildScope` seeds the price layer, so a parameter
+    defaulting to `price.*` printed a CZK rate on the price-blind sheet (proven, now "—":
+    absence, not masking). `toProduction` adds `technicalDrawings`/`specRows`/`dimensionRows`
+    through structured zod (never `z.unknown()`). Dimension rules gained an optional Czech
+    `label`; `TechnicalDrawingSvg` (app-land) is the first `TechnicalDrawing` renderer;
+    `/drawing-lab` is the checked-in eyes-on route; `/quotes/:id/production/traveler` prints
+    via `window.print()` (zero PDF dep, ADR 0087) off the EXISTING price-blind endpoint.
+    Channel-A drain (2026-07-09): skeleton `ba094be`→`1185fe7`; upstream ADRs 0046–0049
+    **renumbered** to perimetra 0104–0107 (they collide by number, and land as a silent
+    SECOND `00xx-*.md` because the basenames differ — cherry-pick never conflicts).
     Next: **Phase A** (legal-document spine + close the loop) per the vault roadmap
     [[Decision — enterprise-readiness gap analysis & phased roadmap]] — BLOCKED on Martin's
     immutable-PII retention ADR posture (Art.17 erasure vs 10-yr accounting retention). The editor

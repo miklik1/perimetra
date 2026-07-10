@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useTranslations } from "@repo/i18n/web";
 import { DisplayLabel, Panel } from "@repo/ui";
 import { type QuoteProduction } from "@repo/validators";
@@ -26,7 +28,15 @@ export function ProductionView({ production }: { production: QuoteProduction }) 
         <DisplayLabel as="h1" className="font-data">
           {production.documentNumber}
         </DisplayLabel>
-        <QuoteStatusBadge status={production.status} />
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/quotes/${production.id}/production/traveler`}
+            className="text-copper text-sm hover:underline"
+          >
+            {t("production.travelerOpen")}
+          </Link>
+          <QuoteStatusBadge status={production.status} />
+        </div>
       </div>
 
       {production.drawings.site.instances.length > 0 && (

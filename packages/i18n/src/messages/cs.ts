@@ -511,6 +511,17 @@ const cs = {
       bomQuantity: "Množství",
       elevation: "Nárys",
       sitePlan: "Půdorys",
+      traveler: "Výrobní list",
+      travelerOpen: "Otevřít výrobní list",
+      print: "Tisk / Uložit PDF",
+      spec: "Specifikace",
+      dimensions: "Rozměry",
+      categories: {
+        material: "Materiál",
+        accessory: "Příslušenství",
+        manufacturing: "Výroba",
+        installation: "Montáž",
+      },
     },
   },
   customers: {

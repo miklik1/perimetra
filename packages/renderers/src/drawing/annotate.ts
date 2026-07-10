@@ -21,6 +21,8 @@ export interface AnnotationIntent {
   to: Pt;
   valueMm?: number;
   text?: string;
+  /** dimension/chain: the rule's human-readable display name (its `label`). */
+  label?: string;
   /** chain: each repeated piece's centre along the measured axis (tick lines). */
   ticks?: number[];
 }
@@ -96,6 +98,7 @@ export function annotate(
           ? { x: ext.minX, y: centres[centres.length - 1]! }
           : { x: centres[centres.length - 1]!, y: ext.minY },
         ...(value !== undefined && { valueMm: value }),
+        ...(rule.label !== undefined && { label: rule.label }),
         ticks: centres,
       });
       continue;
@@ -112,6 +115,7 @@ export function annotate(
       from: horizontal ? { x: ext.minX, y: ext.minY } : { x: ext.minX, y: ext.minY },
       to: horizontal ? { x: ext.maxX, y: ext.minY } : { x: ext.minX, y: ext.maxY },
       valueMm: value ?? span,
+      ...(rule.label !== undefined && { label: rule.label }),
     });
   }
 

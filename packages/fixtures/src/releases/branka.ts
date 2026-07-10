@@ -450,6 +450,7 @@ export const brankaV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "overall.width",
+        label: "Celková šířka",
         feature: { pieces: "frame.lprofile/railBottom" },
         measure: "x-extent",
         side: "bottom",
@@ -458,6 +459,7 @@ export const brankaV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "overall.height",
+        label: "Celková výška",
         feature: { pieces: "frame.lprofile/stileLeft" },
         measure: "y-extent",
         side: "left",
@@ -466,6 +468,7 @@ export const brankaV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "latch.height",
+        label: "Výška zámkového sloupku",
         feature: { pieces: "frame.lprofile/latchPost" },
         measure: "y-extent",
         side: "right",
@@ -474,6 +477,7 @@ export const brankaV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "fill.slat.length",
+        label: "Délka výplně",
         feature: { pieces: "fill.material/piece[0]" },
         measure: "x-extent",
         side: "top",
@@ -482,6 +486,7 @@ export const brankaV1: ProductModelRelease = {
       {
         kind: "chain",
         id: "fill.pitch",
+        label: "Rozteč výplně",
         feature: { pieces: "fill.material/piece[*]" },
         measure: "y-extent",
         side: "left",

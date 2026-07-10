@@ -537,6 +537,7 @@ export const fenceRunV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "overall.width",
+        label: "Celková šířka",
         feature: { pieces: "posts.*" },
         measure: "x-extent",
         side: "bottom",
@@ -545,6 +546,7 @@ export const fenceRunV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "overall.height",
+        label: "Celková výška",
         feature: { pieces: "posts.start/post" },
         measure: "y-extent",
         side: "left",
@@ -553,6 +555,7 @@ export const fenceRunV1: ProductModelRelease = {
       {
         kind: "dimension",
         id: "fill.length",
+        label: "Délka výplně",
         feature: { pieces: "fill.material/piece[0]" },
         measure: "x-extent",
         side: "top",
@@ -561,6 +564,7 @@ export const fenceRunV1: ProductModelRelease = {
       {
         kind: "chain",
         id: "fill.pitch",
+        label: "Rozteč výplně",
         feature: { pieces: "fill.material/piece[*]" },
         measure: "y-extent",
         side: "left",

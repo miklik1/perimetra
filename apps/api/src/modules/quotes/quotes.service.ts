@@ -22,12 +22,14 @@ import {
 
 import { type QuoteRow } from "@repo/db/schema/quotes";
 import {
+  buildScope,
   deriveSite,
   type CascadeLayers,
   type CategoryTotals,
   type ConfigInput,
   type CostTable,
   type MoneyTotals,
+  type PriceLayer,
   type SiteBomLine,
   type SiteInstance,
   type SiteResult,
@@ -35,23 +37,32 @@ import {
 import {
   addMoney,
   deriveTaxBreakdown,
+  evalString,
   resolveTaxMode,
+  resolveUi,
   type Catalog,
+  type DrawingSpec,
+  type OptionSet,
+  type ParameterDef,
   type ProductModelRelease,
   type RoundingPolicy,
+  type Scope,
   type Site,
   type TaxBreakdown,
   type TaxModeKind,
+  type Value,
 } from "@repo/model";
 import {
   buildCutList,
   buildNabidka,
   buildSitePlan,
+  buildTechnicalDrawing,
   buildWorkshopDrawing,
   type CutList,
   type NabidkaCustomer,
   type NabidkaSupplier,
   type SitePlan,
+  type TechnicalDrawing,
   type WorkshopDrawing,
 } from "@repo/renderers";
 import { type PriceTableDetail } from "@repo/validators/price-tables";
@@ -141,6 +152,15 @@ interface FrozenSupplierIdentity {
   registrationNote: string | null;
 }
 
+/** One frozen spec-sheet row (ADR 0108): the §8 UiSpec label + the display
+ *  value off the frozen ConfigInput. The label is release DATA (never app i18n);
+ *  captured at issue so `getProduction` reads it without loading a release. */
+interface FrozenSpecRow {
+  key: string;
+  label: string;
+  value: string;
+}
+
 /** The frozen outputs + the minimal re-derivation seed (raw inputs + site). */
 interface QuoteSnapshot {
   bom: SiteBomLine[];
@@ -152,6 +172,22 @@ interface QuoteSnapshot {
   costMoney?: MoneyTotals;
   cutList: CutList;
   drawings: { site: SitePlan; instances: Record<string, WorkshopDrawing> };
+  /** The derived 2D technical drawing per instance (ADR 0102/0108) — feature-
+   *  bound dimensions/labels off the release's immutable DrawingSpec. Frozen +
+   *  re-derived, so a historical quote reproduces its drawing byte-identically
+   *  (I3). Deliberately a TOP-LEVEL field, NOT nested under `drawings`:
+   *  `drawings` is deep-equal-compared in verifyReproducibility, so nesting it
+   *  there would make EVERY quote issued before this slice mismatch —
+   *  retroactively breaking I3 on historical quotes. Optional for the same
+   *  reason (a pre-slice snapshot carries none); the verify check is N-1-guarded. */
+  technicalDrawings?: Record<string, TechnicalDrawing>;
+  /** Frozen spec-sheet rows per instance (ADR 0108) — the release's §8 UiSpec
+   *  labels + the display value off the frozen ConfigInput, captured at issue so
+   *  `getProduction` stays a PURE snapshot read (ADR 0101: never loads a release,
+   *  never re-derives). Like `customer`/`supplier` it is a captured fact off
+   *  immutable release data, NOT a re-derived engine artifact — so it is absent
+   *  from the verifyReproducibility `checks`. Optional: a pre-slice snapshot has none. */
+  specRows?: Record<string, FrozenSpecRow[]>;
   inputs: Record<string, { releaseId: string; input: ConfigInput; overrides?: CascadeLayers }>;
   site: Site;
   cutOptions: { kerfMm: number };
@@ -196,8 +232,16 @@ function computeQuoteTax(
   );
 }
 
-/** The frozen artifacts (bom/totals/money/cost/cutList/drawings) off a site result. */
-function artifactsOf(result: SiteResult, site: Site, kerfMm: number) {
+/** The frozen artifacts (bom/totals/money/cost/cutList/drawings/technicalDrawings)
+ *  off a site result. `specs` is the per-instance DrawingSpec (release data),
+ *  threaded from `release.drawing` by both callers (issue + verify) so the
+ *  technical drawing re-derives identically (I3). */
+function artifactsOf(
+  result: SiteResult,
+  site: Site,
+  kerfMm: number,
+  specs: Record<string, DrawingSpec | undefined>,
+) {
   return {
     bom: result.bom,
     totals: result.totals,
@@ -214,7 +258,99 @@ function artifactsOf(result: SiteResult, site: Site, kerfMm: number) {
         Object.entries(result.instances).map(([id, r]) => [id, buildWorkshopDrawing(r)]),
       ),
     },
+    // The 2D technical drawing (ADR 0102) off the SAME baked geometry the workshop
+    // drawing uses, driven by each instance's release DrawingSpec (absent ⇒ the
+    // emitter's default overall-dims fallback). Pure + deterministic → re-derives.
+    technicalDrawings: Object.fromEntries(
+      Object.entries(result.instances).map(([id, r]) => [id, buildTechnicalDrawing(r, specs[id])]),
+    ),
   };
+}
+
+/** The per-instance DrawingSpec map `artifactsOf` needs — keyed by instanceId,
+ *  read off each release's immutable `drawing` field (release DATA). */
+function drawingSpecs(instances: SiteInstance[]): Record<string, DrawingSpec | undefined> {
+  return Object.fromEntries(instances.map((i) => [i.instanceId, i.release.drawing]));
+}
+
+/** Format one parameter's frozen value for the spec sheet — mirrors the
+ *  configurator's Souhrn (`apps/web/app/configurator/summary.tsx`): an option-
+ *  carried value shows its release-authored label, a length shows its `mm`, else
+ *  the raw value. No app i18n — the wording is release DATA (§8). */
+function specDisplayValue(
+  def: ParameterDef,
+  value: Value | undefined,
+  optionSets: OptionSet[],
+): string {
+  if (value === undefined || value === "") return "—";
+  const option = optionSets
+    .find((s) => s.options.some((o) => o.id === value))
+    ?.options.find((o) => o.id === value);
+  if (option !== undefined) return option.label ?? option.id;
+  if (def.type === "length_mm") return `${String(value)} mm`;
+  return String(value);
+}
+
+/**
+ * The scope a spec-sheet VALUE may be read from: parameter defaults + the frozen
+ * `ConfigInput`, and **never the price layer**.
+ *
+ * `buildScope` seeds itself with `priceScope(prices)`, so a parameter whose
+ * `defaultExpr` reads a `price.*` key resolves to a price-table number — which
+ * would then be printed verbatim on the price-blind workshop sheet (e.g. a param
+ * defaulting to `price.manufacturing_rate`, a CZK/hr figure). Price-blindness is
+ * structural here, not a matter of remembering: with no price layer in scope, such
+ * a default cannot resolve at all — `evaluate` throws on the unknown reference and
+ * the parameter is simply absent, so `specDisplayValue` renders "—". Absence, never
+ * a masked money value. Parameter visibility is still resolved against the FULL
+ * derivation scope below (a visibility predicate prints nothing).
+ */
+function specValueScope(release: ProductModelRelease, input: ConfigInput): Scope {
+  const scope: Scope = {};
+  // Declaration order, so a later default may reference an earlier one.
+  for (const param of release.parameters) {
+    if (param.defaultExpr !== undefined) {
+      try {
+        scope[param.key] = evalString(param.defaultExpr, scope);
+      } catch {
+        // Price-dependent (or otherwise unresolvable without the price layer):
+        // leave the key absent rather than reach for the real value.
+      }
+    } else if (param.default !== undefined) {
+      scope[param.key] = param.default;
+    }
+  }
+  // The buyer's frozen choices win over defaults, exactly as in `buildScope`.
+  for (const [key, value] of Object.entries(input)) scope[key] = value;
+  return scope;
+}
+
+/** The frozen spec-sheet rows for one instance (ADR 0108): the release's §8
+ *  UiSpec labels + visibility resolved against the full derivation scope, valued
+ *  from the price-free `specValueScope`. Captured at issue (never re-derived).
+ *  Exported for the price-provenance unit test — the price-blindness guarantee
+ *  it encodes is worth pinning directly, not only through the wire contract. */
+export function buildSpecRows(
+  release: ProductModelRelease,
+  input: ConfigInput,
+  prices: PriceLayer,
+): FrozenSpecRow[] {
+  // The config already derived valid at issue, so buildScope (which derivation
+  // ran first) cannot throw here — reuse the engine's canonical scope builder so
+  // defaults/option attrs resolve exactly as the configurator saw them. It drives
+  // UI VISIBILITY only; values come from the price-free scope.
+  const scope: Scope = buildScope(release, input, prices);
+  const values: Scope = specValueScope(release, input);
+  const optionSets = release.optionSets ?? [];
+  return resolveUi(release, scope)
+    .flatMap((step) => step.groups)
+    .flatMap((group) => group.params)
+    .filter((p) => p.visible)
+    .map((p) => ({
+      key: p.def.key,
+      label: p.def.label ?? p.def.key,
+      value: specDisplayValue(p.def, values[p.def.key], optionSets),
+    }));
 }
 
 /** Canonical instance order (by instanceId). `deriveSite` produces several
@@ -495,8 +631,9 @@ export class QuotesService {
     const tax = computeQuoteTax(result, priceTable, taxMode);
 
     const kerfMm = input.kerfMm ?? 0;
+    const priceLayer = priceTable.table as PriceLayer;
     const snapshot: QuoteSnapshot = {
-      ...artifactsOf(result, site, kerfMm),
+      ...artifactsOf(result, site, kerfMm, drawingSpecs(siteInstances)),
       inputs: Object.fromEntries(
         loaded.map(({ i }) => [
           i.instanceId,
@@ -509,6 +646,12 @@ export class QuotesService {
       ),
       site,
       cutOptions: { kerfMm },
+      // Freeze the §8 spec-sheet rows per instance (ADR 0108) off the release's
+      // UiSpec + the frozen ConfigInput, so the production view reads them without
+      // loading a release (ADR 0101). A captured fact — NOT in the I3 `checks`.
+      specRows: Object.fromEntries(
+        siteInstances.map((si) => [si.instanceId, buildSpecRows(si.release, si.input, priceLayer)]),
+      ),
       tax,
       // Freeze the supplier (dodavatel) identity onto the document (ADR 0088) —
       // captured from the org legal profile here, so a later profile edit never
@@ -658,7 +801,12 @@ export class QuotesService {
     });
     if (!result.isValid)
       return { quoteId, reproduced: false, mismatches: ["re-derivation:invalid"] };
-    const fresh = artifactsOf(result, snapshot.site, snapshot.cutOptions.kerfMm);
+    const fresh = artifactsOf(
+      result,
+      snapshot.site,
+      snapshot.cutOptions.kerfMm,
+      drawingSpecs(siteInstances),
+    );
     // Re-derive the structured tax document from the SAME stamped inputs + the
     // frozen mode (a per-transaction decision, not derivable from stamps) — it
     // must reproduce the frozen breakdown byte-identically (I3, ADR 0080).
@@ -669,11 +817,13 @@ export class QuotesService {
     // is compared via `totalPriceMoney` (bomForCompare drops `totalPrice`). Cost
     // is compared the same way — `costMoney` strings, not the raw cost floats
     // (both undefined when no cost layer → deep-equal holds).
-    // NB: snapshot.customer (ADR 0086) and snapshot.supplier (ADR 0088) are
-    // deliberately NOT checks — the frozen buyer and the frozen dodavatel are
-    // captured facts, not re-derived artifacts, so they have no fresh counterpart
-    // to compare and must not gate reproducibility (the buyer survives a
-    // since-anonymized customer; the supplier survives a since-edited org profile).
+    // NB: snapshot.customer (ADR 0086), snapshot.supplier (ADR 0088), and
+    // snapshot.specRows (ADR 0108) are deliberately NOT checks — the frozen
+    // buyer, the frozen dodavatel, and the frozen spec-sheet rows are captured
+    // facts off immutable release data, not re-derived engine artifacts, so they
+    // have no fresh counterpart to compare and must not gate reproducibility (the
+    // buyer survives a since-anonymized customer; the supplier survives a
+    // since-edited org profile; the spec rows are frozen §8 labels, not geometry).
     const checks: Array<readonly [string, unknown, unknown]> = [
       ["bom", bomForCompare(fresh.bom), bomForCompare(snapshot.bom)],
       ["money", fresh.money, snapshot.money],
@@ -682,6 +832,13 @@ export class QuotesService {
       ["drawings", fresh.drawings, snapshot.drawings],
       ["tax", freshTax, snapshot.tax],
     ];
+    // The frozen technical drawing (ADR 0102/0108) — the EXPAND half of
+    // expand/contract: compared ONLY when the frozen snapshot carries it. A quote
+    // issued before this slice has no frozen drawing and must still reproduce
+    // (N-1 tolerance); one issued after MUST reproduce it byte-identically (I3).
+    if (snapshot.technicalDrawings !== undefined) {
+      checks.push(["technicalDrawings", fresh.technicalDrawings, snapshot.technicalDrawings]);
+    }
     for (const [key, a, b] of checks) if (!isDeepStrictEqual(a, b)) mismatches.push(key);
     // Stamps must re-derive identically too (release pins + versions + override set).
     if (!isDeepStrictEqual(result.stamps, stamps)) mismatches.push("stamps");

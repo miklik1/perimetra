@@ -8,6 +8,7 @@ import type { NabidkaDocument } from "@repo/renderers";
 import { Button } from "@repo/ui";
 
 import { formatMoney } from "../../../../lib/format-money";
+import { PrintSheetStyle } from "../../../../lib/print/print-sheet-style";
 
 /**
  * The thin PDF/print SURFACE (M, ADR 0087) — lays out the pure-data
@@ -49,9 +50,7 @@ export function NabidkaDocumentView({
 
   return (
     <main className="bg-field min-h-screen">
-      {/* @page margins + screen/print toggles — inline style is CSP-allowed
-          (style-src 'self' 'unsafe-inline'); @page cannot be a Tailwind utility. */}
-      <style>{`@page { size: A4; margin: 18mm 16mm; } @media print { .no-print { display: none !important; } body { background: #fff; } }`}</style>
+      <PrintSheetStyle margin="18mm 16mm" />
 
       {/* Toolbar — screen only */}
       <div className="no-print mx-auto flex w-full max-w-[210mm] items-center justify-between gap-4 px-6 pt-6">

@@ -32,12 +32,19 @@ const VIEW_SPECS: Record<ViewDef["projection"], ViewSpec> = {
   top: TOP_VIEW,
 };
 
-/** Overall width + height when no DrawingSpec is authored. */
+/** Overall width + height when no DrawingSpec is authored.
+ *
+ *  The labels are Czech because they are printed verbatim on a shop-floor sheet
+ *  (ADR 0108) whose UI language is Czech, and because a consumer falls back to
+ *  the rule `id` when a label is absent — which would put the English identifier
+ *  `overall.width` on that sheet. An authored DrawingSpec supplies its own
+ *  labels as release data; these two exist only for the un-authored fallback. */
 function defaultAnnotations(view: ViewLinework): PlacedAnnotation[] {
   const { min, max } = view.bbox;
   const intents: AnnotationIntent[] = [
     {
       id: "overall.width",
+      label: "Celková šířka",
       kind: "dimension",
       direction: "horizontal",
       side: "bottom",
@@ -47,6 +54,7 @@ function defaultAnnotations(view: ViewLinework): PlacedAnnotation[] {
     },
     {
       id: "overall.height",
+      label: "Celková výška",
       kind: "dimension",
       direction: "vertical",
       side: "right",
