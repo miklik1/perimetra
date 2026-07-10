@@ -129,6 +129,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
 
   return (
     <form
+      method="post"
       onSubmit={(e) => void handleSubmit(onSubmit)(e)}
       className="border-border flex flex-col gap-3 rounded-md border p-4"
     >

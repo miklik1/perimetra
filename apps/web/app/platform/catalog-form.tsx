@@ -46,6 +46,7 @@ export function CatalogForm() {
 
   return (
     <form
+      method="post"
       onSubmit={handleSubmit}
       className="border-border flex flex-col gap-3 rounded-md border p-4"
     >

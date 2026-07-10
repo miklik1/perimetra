@@ -62,6 +62,7 @@ export function CreateProjectForm() {
 
   return (
     <form
+      method="post"
       onSubmit={handleSubmit((values) =>
         mutation.mutate({ input: values, idempotencyKey: crypto.randomUUID() }),
       )}

@@ -78,6 +78,7 @@ export function CreateUserForm() {
 
   return (
     <form
+      method="post"
       onSubmit={handleSubmit((values) => mutation.mutate(values))}
       className="border-border flex w-full max-w-md flex-col gap-3 rounded-md border p-4 text-sm"
       noValidate

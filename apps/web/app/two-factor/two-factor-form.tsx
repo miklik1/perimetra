@@ -36,6 +36,7 @@ export function TwoFactorForm({ next }: { next: string }) {
 
   return (
     <form
+      method="post"
       onSubmit={(e) => {
         e.preventDefault();
         mutation.mutate();

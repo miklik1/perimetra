@@ -170,6 +170,7 @@ export function CustomerForm({
 
   return (
     <form
+      method="post"
       onSubmit={onSubmit}
       className="border-border flex w-full max-w-2xl flex-col gap-4 rounded-md border p-6 text-sm"
       noValidate

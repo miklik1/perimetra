@@ -157,6 +157,7 @@ function InviteForm({ onInvited }: { onInvited: () => void }) {
 
   return (
     <form
+      method="post"
       onSubmit={(e) => {
         e.preventDefault();
         mutation.mutate();

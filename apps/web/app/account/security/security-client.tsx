@@ -96,6 +96,7 @@ function SecurityContent() {
         {enabled ? (
           // Already enrolled — offer disable (re-auth with the password).
           <form
+            method="post"
             onSubmit={(e) => {
               e.preventDefault();
               disableMutation.mutate();
@@ -151,6 +152,7 @@ function SecurityContent() {
               </ul>
             </div>
             <form
+              method="post"
               onSubmit={(e) => {
                 e.preventDefault();
                 confirmMutation.mutate();
@@ -182,6 +184,7 @@ function SecurityContent() {
         ) : (
           // Not enrolled — start setup by re-authing with the password.
           <form
+            method="post"
             onSubmit={(e) => {
               e.preventDefault();
               enableMutation.mutate();

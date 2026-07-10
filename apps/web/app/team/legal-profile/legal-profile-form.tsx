@@ -149,6 +149,7 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
 
   return (
     <form
+      method="post"
       onSubmit={handleSubmit((values) => mutation.mutate(toInput(values)))}
       className="border-border flex w-full max-w-2xl flex-col gap-4 rounded-md border p-6 text-sm"
       noValidate
