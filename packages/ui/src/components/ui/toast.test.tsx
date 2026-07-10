@@ -63,4 +63,20 @@ describe("Toast", () => {
     close.click();
     expect(onDismiss).toHaveBeenCalledOnce();
   });
+
+  it("gives both interactive controls the pointer-coarse touch-target floor (WCAG 2.5.5)", () => {
+    render(
+      <Toast actionLabel="Undo" onAction={vi.fn()} dismissLabel="Dismiss" onDismiss={vi.fn()}>
+        Both controls
+      </Toast>,
+    );
+    // Mirrors `button.test.tsx`: the floor is a class contract, so assert the
+    // classes. jsdom computes no layout, so a measured 44px is unavailable here.
+    expect(screen.getByRole("button", { name: "Undo" }).className).toContain(
+      "pointer-coarse:min-h-11",
+    );
+    expect(screen.getByRole("button", { name: "Dismiss" }).className).toContain(
+      "pointer-coarse:size-11",
+    );
+  });
 });

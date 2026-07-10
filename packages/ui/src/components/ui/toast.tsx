@@ -63,11 +63,14 @@ export function Toast({
         {title ? <p className="font-semibold">{title}</p> : null}
         <div className="text-muted-foreground break-words">{children}</div>
       </div>
+      {/* `pointer-coarse:` lifts the interactive targets to the 44px WCAG 2.5.5
+          floor on touch, matching `Button`'s convention; fine-pointer rendering
+          is left unchanged. */}
       {actionLabel && onAction ? (
         <button
           type="button"
           onClick={onAction}
-          className="text-foreground shrink-0 text-sm font-medium underline-offset-4 hover:underline"
+          className="text-foreground pointer-coarse:min-h-11 pointer-coarse:px-3 inline-flex shrink-0 items-center text-sm font-medium underline-offset-4 hover:underline"
         >
           {actionLabel}
         </button>
@@ -77,7 +80,7 @@ export function Toast({
           type="button"
           aria-label={dismissLabel}
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground shrink-0 leading-none"
+          className="text-muted-foreground hover:text-foreground pointer-coarse:size-11 inline-flex shrink-0 items-center justify-center"
         >
           {"×"}
         </button>
