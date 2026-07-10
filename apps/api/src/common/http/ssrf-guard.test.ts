@@ -45,11 +45,15 @@ describe("blockedReasonForIp", () => {
   });
 
   it("recurses IPv4-COMPATIBLE IPv6 (::a.b.c.d, ::/96) — the deprecated sibling of mapped", () => {
-    // ::127.0.0.1 serialises to ::7f00:1 and ipaddr classifies it `unicast`;
-    // without the compat recursion this fails OPEN through both guard layers.
+    // The dotted form `::127.0.0.1` classifies as `ipv4Mapped` (caught by the
+    // mapped branch); its HEX serialisation `::7f00:1` — the SAME address —
+    // classifies as `unicast`, so only the `::/96` recursion refuses it. Since
+    // the WHATWG URL parser normalises `[::127.0.0.1]` → `[::7f00:1]`, the hex
+    // form is exactly what arrives at the guard, so it is the load-bearing one.
     expect(blockedReasonForIp("::127.0.0.1")).toBe("loopback");
     expect(blockedReasonForIp("::7f00:1")).toBe("loopback");
-    expect(blockedReasonForIp("::169.254.169.254")).toBe("linkLocal"); // metadata
+    expect(blockedReasonForIp("::169.254.169.254")).toBe("linkLocal"); // metadata (dotted)
+    expect(blockedReasonForIp("::a9fe:a9fe")).toBe("linkLocal"); // metadata (hex ::/96 form)
     expect(blockedReasonForIp("::10.0.0.1")).toBe("private");
     expect(blockedReasonForIp("::255")).toBe("unspecified"); // ::0.0.0.255 (0.0.0.0/8)
     // :: and ::1 keep their own (correct) classification, not the embedded-v4 one.

@@ -55,10 +55,19 @@ const IPV4_COMPATIBLE_CIDR = ipaddr.parseCIDR("::/96");
  * The embedded IPv4 of a v6 address that carries one — IPv4-MAPPED
  * (`::ffff:a.b.c.d`) or the deprecated IPv4-COMPATIBLE `::/96` block
  * (`::a.b.c.d`, e.g. `::127.0.0.1` → `::7f00:1`). The OS may route to the
- * embedded v4, and ipaddr.js classifies a bare `::a.b.c.d` as `unicast`, so
- * WITHOUT this the v4 hides behind a v6 spelling (`http://[::127.0.0.1]/`) and
- * fails OPEN through both guard layers. Returns null for a plain global v6 and
- * for `::` / `::1` (their own special-use ranges classify those correctly).
+ * embedded v4, so WITHOUT this the v4 hides behind a v6 spelling and fails OPEN
+ * through both guard layers.
+ *
+ * Precisely (ipaddr.js 2.x, measured): the DOTTED form `::127.0.0.1` classifies
+ * as `ipv4Mapped` and is caught by the first branch below; the HEX form
+ * `::7f00:1` — the SAME address — classifies as `unicast`, and only the `::/96`
+ * branch refuses it. Since the WHATWG URL parser normalises
+ * `http://[::127.0.0.1]/` to `[::7f00:1]`, the hex form is the one that actually
+ * arrives at the guard, which makes the `::/96` branch load-bearing rather than
+ * merely defensive.
+ *
+ * Returns null for a plain global v6 and for `::` / `::1` (their own special-use
+ * ranges classify those correctly).
  */
 function embeddedIPv4(v6: ipaddr.IPv6): string | null {
   if (v6.isIPv4MappedAddress()) return v6.toIPv4Address().toString();
