@@ -80,7 +80,7 @@ export function Toast({
           type="button"
           aria-label={dismissLabel}
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground pointer-coarse:size-11 inline-flex shrink-0 items-center justify-center"
+          className="text-muted-foreground hover:text-foreground pointer-coarse:size-11 inline-flex shrink-0 items-center justify-center leading-none"
         >
           {"×"}
         </button>
