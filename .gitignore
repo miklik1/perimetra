@@ -12,13 +12,18 @@ node_modules
 .env.test.local
 .env.production.local
 
-# Testing
-coverage
+# Testing (turbo `test` output per-package/app, ADR 0025 — anchored to one path
+# segment under apps/*|packages/* so it can never shadow a nested source dir of
+# the same name; Engineering finding 2026-06-12)
+apps/*/coverage/
+packages/*/coverage/
 
-# Playwright (web E2E — ADR 0025)
-test-results/
-playwright-report/
-playwright/.cache/
+# Playwright (web E2E — ADR 0025) — anchored to where apps/web actually writes it
+# (apps/web/playwright.config.ts has no outputDir override, so Playwright's
+# default applies relative to that config file)
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.cache/
 
 # Turbo
 .turbo
@@ -26,11 +31,12 @@ playwright/.cache/
 # Vercel
 .vercel
 
-# Build Outputs
+# Build Outputs (per-package/app dist, anchored — never shadow a `dist`/`build`
+# source dir of the same name; Engineering finding 2026-06-12)
 .next/
 out/
-build
-dist
+apps/*/dist/
+packages/*/dist/
 
 
 # Debug

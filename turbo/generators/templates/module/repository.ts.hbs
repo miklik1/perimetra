@@ -6,8 +6,9 @@
  * it falls back to the pooled client (fine for the read-only paths).
  *
  * EVERY method takes a `RequestScope` and routes its WHERE clause through
- * `scoped()` — the ADR 0041 seam. There is deliberately no scope-less query
- * surface except `findByIdSystem()` (worker handlers, no request to scope).
+ * `scoped()` — the ADR 0041 seam, activated ADR 0055 (org scope). There is
+ * deliberately no scope-less query surface except `findByIdSystem()` (worker
+ * handlers, no request to scope).
  */
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
@@ -41,12 +42,15 @@ export class {{pascalCase plural}}Repository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
   /**
-   * THE ownership filter (ADR 0041): owner scope + live rows. The tenancy
-   * retrofit changes this ONE expression to `organizationId =
-   * scope.organizationId` — every method below inherits it.
+   * THE access filter (ADR 0041 seam, activated ADR 0055): org scope + live
+   * rows. Every method below inherits it; `ownerId` is retained on the row as
+   * the creator/audit ref, never the access boundary.
    */
   private scoped(scope: RequestScope) {
-    return and(eq({{camelCase singular}}.ownerId, scope.userId), isNull({{camelCase singular}}.deletedAt));
+    return and(
+      eq({{camelCase singular}}.organizationId, scope.organizationId),
+      isNull({{camelCase singular}}.deletedAt),
+    );
   }
 
   /**
@@ -107,9 +111,9 @@ export class {{pascalCase plural}}Repository {
     const [row] = await this.txHost.tx
       .insert({{camelCase singular}})
       .values({
+        // Creator/audit ref (ADR 0055) — who made the row, not the access scope.
         ownerId: scope.userId,
-        // Dormant tenancy seam: persisted from day one so the retrofit
-        // backfill (ADR 0041 playbook step 2) starts mostly done.
+        // THE access scope (ADR 0055): every read filters on it via `scoped()`.
         organizationId: scope.organizationId,
         name: data.name,
       })
