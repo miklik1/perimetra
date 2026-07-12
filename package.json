@@ -40,7 +40,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "01ad287d1d17aee556b443698ebea57709b95af9",
+    "baseCommit": "026a111c7a203fb76b4e53715610f936db181fc5",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }

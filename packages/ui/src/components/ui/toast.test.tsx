@@ -64,19 +64,23 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
-  it("gives both interactive controls the pointer-coarse touch-target floor (WCAG 2.5.5)", () => {
+  // jsdom has no layout, so the 44px floor cannot be measured here — assert the
+  // class that carries it, the same way `toastVariants` is asserted above.
+  it("lifts the action and dismiss targets to the 44px coarse-pointer floor (WCAG 2.5.5)", () => {
     render(
       <Toast actionLabel="Undo" onAction={vi.fn()} dismissLabel="Dismiss" onDismiss={vi.fn()}>
-        Both controls
+        Body
       </Toast>,
     );
-    // Mirrors `button.test.tsx`: the floor is a class contract, so assert the
-    // classes. jsdom computes no layout, so a measured 44px is unavailable here.
     expect(screen.getByRole("button", { name: "Undo" }).className).toContain(
       "pointer-coarse:min-h-11",
     );
     expect(screen.getByRole("button", { name: "Dismiss" }).className).toContain(
       "pointer-coarse:size-11",
     );
+    // `leading-none` is what keeps the FINE-pointer dismiss button at its
+    // original 14px; drop it and the button inherits the root `text-sm`
+    // line-height and silently grows to 20px on every desktop toast.
+    expect(screen.getByRole("button", { name: "Dismiss" }).className).toContain("leading-none");
   });
 });

@@ -65,7 +65,10 @@ export function Toast({
       </div>
       {/* `pointer-coarse:` lifts the interactive targets to the 44px WCAG 2.5.5
           floor on touch, matching `Button`'s convention; fine-pointer rendering
-          is left unchanged. */}
+          is left unchanged. The dismiss button keeps `leading-none` for that
+          last part: without it the button inherits the root `text-sm`
+          line-height and grows 14px -> 20px on a FINE pointer, where no
+          `pointer-coarse:` utility applies. */}
       {actionLabel && onAction ? (
         <button
           type="button"
