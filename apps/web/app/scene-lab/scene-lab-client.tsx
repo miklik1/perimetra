@@ -7,6 +7,7 @@ import type { ConfigInput } from "@repo/engine";
 import {
   catalogV1,
   catalogV2,
+  catalogV3,
   fencePrices,
   fenceRunV1,
   lamela_113_2d_3panel,
@@ -16,7 +17,9 @@ import {
   planka_100_3d_3panel,
   planka_120_2d_3panel,
   planka_120_3d_3panel,
+  planka_120_3d_vzor,
   slidingGateV1,
+  swingGateV1,
 } from "@repo/fixtures";
 import type { Catalog } from "@repo/model";
 
@@ -40,6 +43,9 @@ import { syntheticGate } from "./synthetic-scene";
  *                       synthetic scene can never surface)
  *   ?scene=fence-run    the REAL `fence-run@1` release (CAR-32) at the canonical
  *                       bay — eyes-on the FIL Ploty fence geometry per fill type
+ *   ?scene=swing-gate   the REAL `swing-gate@1` release (CAR-33) at the Excel
+ *                       VZOR — eyes-on the double-leaf assembly (leaves · astragal
+ *                       · divider · hinge posts · two plank bands)
  *
  * Query knobs (capture harness + e2e, ADR 0075/0076/0077):
  *   ?finish=<id>       drive the finish slice (e.g. zinek, drevo)
@@ -76,6 +82,16 @@ function realSlidingGateScene(fillTypeId?: string) {
   return deriveForUi(product, golden.config, golden.prices, catalogs).scene;
 }
 
+/** The REAL `swing-gate@1` (CAR-33) at the Excel VZOR (two-leaf / divided /
+ *  on-posts, 3.0 × 1.5 m) — eyes-on the double-leaf assembly derived through the
+ *  same engine path the configurator uses. */
+function realSwingGateScene() {
+  const catalogs: ReadonlyMap<string, Catalog> = new Map([[swingGateV1.id, catalogV3]]);
+  const config = planka_120_3d_vzor.config;
+  const product = { release: swingGateV1, initialInput: config };
+  return deriveForUi(product, config, planka_120_3d_vzor.prices, catalogs).scene;
+}
+
 /** The REAL `fence-run@1` (CAR-32) at the canonical bay (2000 × 2000, 4 bays),
  *  any of the 7 Výplet fills — eyes-on the FIL Ploty geometry (posts · h-profil
  *  carriers · stacked horizontal lamellas) per fill type. */
@@ -96,7 +112,9 @@ export function SceneLabClient() {
   const setFinish = useFinish((s) => s.setFinish);
   const setHighlight = useDeviation((s) => s.setHighlight);
   const [view, setView] = useState<CameraView>("hero");
-  const [source, setSource] = useState<"synthetic" | "sliding-gate" | "fence-run">("synthetic");
+  const [source, setSource] = useState<"synthetic" | "sliding-gate" | "fence-run" | "swing-gate">(
+    "synthetic",
+  );
   const [fillTypeId, setFillTypeId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -107,6 +125,7 @@ export function SceneLabClient() {
     const sceneParam = params.get("scene");
     if (sceneParam === "sliding-gate") setSource("sliding-gate");
     else if (sceneParam === "fence-run") setSource("fence-run");
+    else if (sceneParam === "swing-gate") setSource("swing-gate");
     const fill = params.get("fill_type_id");
     if (fill !== null && fill !== "") setFillTypeId(fill);
     const cam = params.get("cam");
@@ -124,6 +143,7 @@ export function SceneLabClient() {
   const realScene = useMemo(() => {
     if (source === "sliding-gate") return realSlidingGateScene(fillTypeId);
     if (source === "fence-run") return realFenceScene(fillTypeId);
+    if (source === "swing-gate") return realSwingGateScene();
     return undefined;
   }, [source, fillTypeId]);
   const scene = source === "synthetic" ? syntheticGate() : realScene;
