@@ -10,6 +10,24 @@
 # Start from gitleaks' built-in rules; entries below only ADD allowlist scope.
 useDefault = true
 
-[[allowlists]]
-description = "PII/secret-scrubber test fixtures — deliberately secret-shaped fake values (e.g. the static dummy JWT in scrub.test.ts)"
-paths = ['''packages/telemetry/src/scrub\.test\.ts''']
+# Singular `[allowlist]`, NOT `[[allowlists]]`: the pinned gitleaks 8.24.3 CLI
+# (the CI job + the local lefthook `gitleaks protect` hook) SILENTLY IGNORES the
+# array-of-tables form — it fails OPEN, so an exemption written that way exempts
+# nothing (finding 2026-07-10; web-native fix 0aaf306, skeleton 8c53693). The
+# singular table is honoured. Allowlist policy: PATH allowlists only, for files
+# whose JOB is to hold secret-shaped strings that never protect production;
+# never allowlist a real (production) leak — rotate + rewrite instead.
+[allowlist]
+description = "Local-dev secret-shaped fixtures/configs — deliberately fake values that never protect production"
+paths = [
+  # The static dummy JWT + secret-shaped fixtures in the redaction/scrubber tests.
+  '''packages/telemetry/src/scrub\.test\.ts''',
+  # docker-compose LOCAL-dev centrifugo config: `hmac_secret_key` + `http_api.key`
+  # are throwaway dev values, mounted read-only into the local container only —
+  # production centrifugo is configured from env/secrets, never this committed
+  # file. The stamp-out randomised them (the skeleton ships readable `dev-*`
+  # placeholders; de-randomising to match is the eventual hygiene fix, but it
+  # needs a coordinated local `.env.local` update and would not clean the
+  # historical commit regardless). NOT a production leak: private repo, local-only.
+  '''docker/centrifugo/config\.json''',
+]
