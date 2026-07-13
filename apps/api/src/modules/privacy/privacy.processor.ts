@@ -119,6 +119,34 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
       };
     }
 
+    // Built-in core step (Art. 20): the Better Auth `user` row is not a domain
+    // handler's to export — it is emitted here directly, symmetric with the
+    // core anonymization eraseUser() already applies to the same row. Without
+    // it, the subject's own name / email / avatar / locale / timestamps are
+    // absent from the document they download. No domain handler may claim the
+    // reserved `"user"` entityType.
+    //
+    // Explicit FAIL-CLOSED allow-list (HQ-ruled scope, ADR 1004): only the
+    // subject's identity + preference fields. Excludes the admin() moderation
+    // flags (`role`/`banned`/`banReason`/`banExpires` — internal, per
+    // me.controller.ts's client allow-list) and never reads `account`/`session`
+    // (password hash, OAuth tokens, session artifacts). A column added to the
+    // `user` table later does NOT enter the export until listed here on purpose.
+    const [row] = await this.txHost.tx.select().from(user).where(eq(user.id, userId));
+    if (row) {
+      data.user = {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        emailVerified: row.emailVerified,
+        image: row.image,
+        locale: row.locale,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        category: "ordinary",
+      };
+    }
+
     const body = JSON.stringify({ userId, exportedAt: new Date().toISOString(), data }, null, 2);
     const key = `privacy-exports/${userId}/${uuidv7()}.json`;
     const { url } = await this.storage.presignUpload({

@@ -13,8 +13,11 @@ registered handlers — driven by the `pii()` column registry in `@repo/db`.
   (`exportUser` / `eraseUser`) — every domain module owning user data MUST
   register one (see `projects/projects.privacy.ts`; generator-scaffolded).
 - `PURGE_HOOKS` + `purge/` — third-party stores: PostHog person deletion,
-  Sentry PII scrub; S3 objects and Better Auth tables are covered by
-  handlers.
+  Sentry PII scrub. S3 objects are covered by domain handlers; the Better
+  Auth core tables (`user`/`session`/`account`) are NOT a handler's — the
+  processor handles them inline as built-in core steps: erasure anonymizes
+  the `user` row and deletes `session`/`account`, and export emits the ruled
+  `user` identity/preference fields (ADR 1004).
 
 ## Rules that bite
 

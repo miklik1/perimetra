@@ -11,7 +11,7 @@ import { ENV, type Env } from "./common/config/env.js";
 import { DB, DbModule } from "./common/db/db.module.js";
 import { GlobalExceptionFilter } from "./common/filters/global-exception.filter.js";
 import { IdempotencyModule } from "./common/idempotency/idempotency.module.js";
-import { buildRedactPaths } from "./common/logging/redaction.js";
+import { buildRedactPaths, redactedReqSerializer } from "./common/logging/redaction.js";
 import { AppThrottleModule } from "./common/throttle/throttle.module.js";
 import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
@@ -52,6 +52,13 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
           level: env.LOG_LEVEL,
           // Static auth material + every pii() column as body paths (ADR 0040).
           redact: { paths: buildRedactPaths(), censor: "[redacted]" },
+          // pino logs the querystring inside `req.url` (a redact path can't
+          // reach a value inside a string) and emits a parsed `req.query`
+          // object (a `?q=<email>` search's key isn't a pii() column, so no
+          // redact path covers it). redactedReqSerializer closes both
+          // fail-closed: cut the querystring off `url` and drop `query`. It
+          // must NOT re-serialize — pino-http already did (see its docstring).
+          serializers: { req: redactedReqSerializer },
           genReqId: (req) =>
             (req.headers["x-request-id"] as string | undefined) ?? crypto.randomUUID(),
           ...(env.NODE_ENV === "development" ? { transport: { target: "pino-pretty" } } : {}),

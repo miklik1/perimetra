@@ -8,6 +8,8 @@
  * so a multi-word column (`ip_address`) is redacted under the casing the body /
  * Drizzle row actually uses (`ipAddress`) — a snake-only path silently no-ops.
  */
+import { stdSerializers } from "pino";
+
 import { piiBodyKeys } from "@repo/db/pii";
 
 import "@repo/db/schema";
@@ -23,4 +25,43 @@ export function buildRedactPaths(): string[] {
     ...STATIC_PATHS,
     ...piiBodyKeys().flatMap((name) => [`req.body.${name}`, `res.body.${name}`]),
   ];
+}
+
+/**
+ * A redact PATH cannot reach a value spliced into a STRING. pino's stock request
+ * serializer logs `url` including the querystring, AND emits the parsed `query`
+ * object. A redact path can reach `req.query.<key>` but only BY KEY — and a
+ * search param's key (`q`) is not a schema column, so a `?q=<email>` search over
+ * a `pii()` column can't be reached by a pii()-derived path on either surface.
+ * The instant any endpoint grows such a search, the term lands in every
+ * completion log line and any Sentry breadcrumb built from it, in cleartext.
+ *
+ * Both query surfaces are closed fail-closed at this one shared source: the
+ * querystring is cut from the `url` string, and the parsed `query` object is
+ * dropped entirely (dropping is the only GENERIC guarantee — we cannot know
+ * which param key carries PII). A project that needs specific non-PII params
+ * (`cursor`, `limit`, `status`) in logs re-adds them deliberately.
+ */
+export function stripQueryString(url: string): string {
+  const cut = url.indexOf("?");
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
+/**
+ * Reshape pino-http's request log line: cut the querystring from `url` and drop
+ * the parsed `query` object.
+ *
+ * IMPORTANT: pino-http PRE-serializes the request (via pino-std-serializers'
+ * `wrapRequestSerializer`) before handing it to a custom `req` serializer, so
+ * this receives the ALREADY-serialized shape. It must NOT call
+ * `stdSerializers.req` again — re-serializing an object that has no `socket`
+ * recomputes `remoteAddress`/`remotePort` as undefined and silently drops them
+ * from every log line. Only reshape the serialized object here.
+ */
+export function redactedReqSerializer(
+  req: ReturnType<typeof stdSerializers.req>,
+): ReturnType<typeof stdSerializers.req> {
+  const serialized = { ...req, url: stripQueryString(req.url) };
+  delete (serialized as Record<string, unknown>).query;
+  return serialized;
 }

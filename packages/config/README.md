@@ -10,8 +10,6 @@ Root barrel (`@repo/config`) — re-exports `./constants` only (platform-neutral
 - `STALE_TIME_MS`, `DEFAULT_RETRY` — TanStack Query defaults consumed by `@repo/api`.
 - `STALE` — per-resource cache tiers (`STATIC` / `STABLE` / `MODERATE` / `FRESH` / `REALTIME`).
 - `GC` — garbage-collection windows (`LONG` / `MEDIUM` / `SHORT`).
-- `ACCESS_TOKEN_TTL_MS` — assumed access-token lifetime when a JWT carries no `exp` (ADR 0016).
-- `ACCESS_TOKEN_COOKIE`, `REFRESH_TOKEN_COOKIE` — auth cookie names.
 
 Subpaths (side-effectful — validate env on import):
 
@@ -31,10 +29,10 @@ if (env.NEXT_PUBLIC_POSTHOG_KEY) {
 }
 ```
 
-Read a neutral constant (mirrors `apps/web/lib/server-api.ts`):
+Read a neutral constant (mirrors `packages/api/src/client/query-client.ts`):
 
 ```ts
-import { ACCESS_TOKEN_COOKIE } from "@repo/config";
+import { DEFAULT_RETRY, STALE_TIME_MS } from "@repo/config/constants";
 ```
 
 ## Decisions

@@ -68,6 +68,10 @@ export const nextJsConfig = [
       // <FieldError> sink so validation messages localize through z.config.
       "local/no-raw-field-error-message": "warn",
 
+      // Requires `method="post"` on a <form> with a secret/PII-bearing named
+      // input — closes the pre-hydration GET-leak class (ADR 1001/1005).
+      "local/no-form-missing-method-with-sensitive-input": "warn",
+
       // React-Compiler memo-directive rules — OFF until React Compiler is
       // adopted. Enable these when `reactCompiler: true` is added to
       // next.config.js and the compiler Babel plugin is wired in.

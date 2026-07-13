@@ -44,6 +44,10 @@ export const reactInternalConfig = [
       // wipe that breaks edit pre-fill and inline errors in modal forms.
       "local/no-rhf-reset-in-modal-useeffect": "warn",
 
+      // Requires `method="post"` on a <form> with a secret/PII-bearing named
+      // input — closes the pre-hydration GET-leak class (ADR 1001/1005).
+      "local/no-form-missing-method-with-sensitive-input": "warn",
+
       // React-Compiler memo-directive rules — OFF until React Compiler is
       // adopted. Enable these when the compiler is configured in this package.
       // "local/no-tanstack-table-without-no-memo-directive": "warn",

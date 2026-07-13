@@ -39,21 +39,3 @@ export const GC = {
   MEDIUM: 10 * 60_000,
   SHORT: 5 * 60_000,
 } as const;
-
-/**
- * Access-token lifetime (ADR 0016): the assumed lifetime when a JWT carries no
- * `exp`. Platform-neutral so the web MSW mock mints tokens with the same value.
- */
-export const ACCESS_TOKEN_TTL_MS = 15 * 60_000;
-
-/**
- * Auth cookie names (ADR 0016 follow-up). Platform-neutral so the web cookie
- * adapter, the Next middleware gate, and the RSC server client all agree.
- * `ACCESS_TOKEN_COOKIE` holds the short-lived access token (written by client JS
- * so the Next server can read it for middleware/RSC — see apps/web). The
- * long-lived refresh token stays in its httpOnly cookie named below, set by the
- * backend; the client only ever checks its presence, never its value.
- */
-export const ACCESS_TOKEN_COOKIE = "access_token";
-
-export const REFRESH_TOKEN_COOKIE = "refresh_token";

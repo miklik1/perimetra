@@ -55,4 +55,13 @@ evaluation stays allowed.
 
 pino JSON to stdout (collector-agnostic). Redaction by default: auth
 material + PII-registry-derived body paths (`common/logging/redaction.ts`).
+A redact **path** cannot reach a value spliced into a **string**: pino logs the
+querystring inside `req.url`, and emits a parsed `req.query` object whose param
+keys (`q`) aren't schema columns — so a `?q=<email>` search over a `pii()`
+column is reachable by no pii()-derived path on either surface.
+`redactedReqSerializer` closes both fail-closed: it cuts the querystring off
+`req.url` and drops the parsed `query` object entirely (a project that needs
+specific non-PII params logged re-adds them deliberately). It reshapes
+pino-http's already-serialized request — it must not re-serialize, or
+`remoteAddress`/`remotePort` are silently dropped from every log line.
 `x-request-id` is honored/generated per request and stamped on audit rows.

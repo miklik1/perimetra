@@ -18,8 +18,24 @@ function makeDb() {
   const update = vi.fn().mockReturnValue({ set: updateSet });
   const deleteWhere = vi.fn().mockResolvedValue(undefined);
   const del = vi.fn().mockReturnValue({ where: deleteWhere });
-  const txHost = { tx: { update, delete: del } } as unknown as Ctor[2];
-  return { txHost, update, updateSet, updateWhere, del, deleteWhere };
+  // `select().from().where()` for the Art. 20 core-user export step. Defaults
+  // to no row so the handler-fan-out tests stay focused; a test that exercises
+  // the core row overrides `selectWhere` with `[userRow]`.
+  const selectWhere = vi.fn().mockResolvedValue([]);
+  const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
+  const select = vi.fn().mockReturnValue({ from: selectFrom });
+  const txHost = { tx: { update, delete: del, select } } as unknown as Ctor[2];
+  return {
+    txHost,
+    update,
+    updateSet,
+    updateWhere,
+    del,
+    deleteWhere,
+    select,
+    selectFrom,
+    selectWhere,
+  };
 }
 
 function makeProcessor(overrides: {
@@ -149,6 +165,87 @@ describe("PrivacyProcessor export (Art. 20)", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
     const { processor } = makeProcessor({ handlers: [] });
     await expect(processor.process(job(PRIVACY_JOBS.export))).rejects.toThrow(/403/);
+  });
+
+  // CONTRACT (ADR 1004, HQ-ruled scope): the export must include the Better Auth
+  // core user row — EXACTLY the subject's identity + preference fields — and must
+  // never leak the admin() moderation flags or any `account`/`session` secret.
+  // This is the regression guard the pii-contract test cannot provide (its
+  // `coveredBy("user")` already passes vacuously off the erase-side import).
+  it("includes the core user row with exactly the ruled fields, no internal flags", async () => {
+    const db = makeDb();
+    db.selectWhere.mockResolvedValue([
+      {
+        id: "u-1",
+        name: "Jan Novák",
+        email: "jan@example.com",
+        emailVerified: true,
+        image: "https://cdn/avatar.png",
+        locale: "cs",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-02-02T00:00:00.000Z"),
+        // admin() moderation flags + secrets that MUST NOT reach the export:
+        role: "admin",
+        banned: true,
+        banReason: "spam",
+        banExpires: new Date("2026-03-03T00:00:00.000Z"),
+      },
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+
+    const { processor } = makeProcessor({ txHost: db.txHost, handlers: [] });
+    await processor.process(job(PRIVACY_JOBS.export));
+
+    // Queried against the `user` table, keyed by the subject id.
+    expect(db.selectFrom).toHaveBeenCalledWith(user);
+
+    const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
+      body: string;
+    };
+    const exported = (JSON.parse(init.body) as { data: { user: Record<string, unknown> } }).data
+      .user;
+
+    // The EXACT emitted key set: the 8 ruled identity/preference fields + the
+    // ADR-0040 `category` envelope marker. A new `user` column added later
+    // fails this assertion until it is a deliberate export decision.
+    expect(Object.keys(exported).sort()).toEqual(
+      [
+        "category",
+        "createdAt",
+        "email",
+        "emailVerified",
+        "id",
+        "image",
+        "locale",
+        "name",
+        "updatedAt",
+      ].sort(),
+    );
+    expect(exported).toMatchObject({
+      id: "u-1",
+      name: "Jan Novák",
+      email: "jan@example.com",
+      emailVerified: true,
+      image: "https://cdn/avatar.png",
+      locale: "cs",
+      category: "ordinary",
+    });
+    for (const forbidden of ["role", "banned", "banReason", "banExpires", "password"]) {
+      expect(exported).not.toHaveProperty(forbidden);
+    }
+  });
+
+  it("omits the core user entry when the subject row is absent (deleted/unknown id)", async () => {
+    const db = makeDb(); // selectWhere defaults to [] → no row
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+    const { processor } = makeProcessor({ txHost: db.txHost, handlers: [] });
+    await processor.process(job(PRIVACY_JOBS.export));
+
+    const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
+      body: string;
+    };
+    const data = (JSON.parse(init.body) as { data: Record<string, unknown> }).data;
+    expect(data).not.toHaveProperty("user");
   });
 });
 

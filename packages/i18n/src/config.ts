@@ -30,9 +30,8 @@ export function isLocale(value: string | null | undefined): value is Locale {
 
 /**
  * The cookie the web server, client, and switcher all agree on. Owned here (not
- * in `@repo/config` alongside `ACCESS_TOKEN_COOKIE`) because it is single-domain
- * — only `@repo/i18n` and the web app touch it (ADR 0010/0020 identity-constant
- * rule).
+ * in the shared `@repo/config`) because it is single-domain — only `@repo/i18n`
+ * and the web app touch it (ADR 0010/0020 identity-constant rule).
  */
 export const LOCALE_COOKIE = "locale";
 

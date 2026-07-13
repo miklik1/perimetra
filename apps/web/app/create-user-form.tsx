@@ -78,6 +78,11 @@ export function CreateUserForm() {
 
   return (
     <form
+      // `method="post"` is load-bearing even though `onSubmit` handles every
+      // hydrated submit: a submit landing BEFORE hydration falls back to the
+      // native one, and a form's default method is GET — which would serialise
+      // the email into the URL, and from there into history, the Referer
+      // header, and the access logs of every hop (ADR 1001/1005).
       method="post"
       onSubmit={handleSubmit((values) => mutation.mutate(values))}
       className="border-border flex w-full max-w-md flex-col gap-3 rounded-md border p-4 text-sm"
