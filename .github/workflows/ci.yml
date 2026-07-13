@@ -40,6 +40,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+# Least-privilege GITHUB_TOKEN (ADR 1007): every job here only READS the repo —
+# nothing pushes commits, comments on PRs, or writes releases (deploys build from
+# the provider's own GitHub integration, so no deploy secret or write token lives
+# on a CI runner). Scoping the workflow token to `contents: read` means all other
+# scopes default to `none`, so a compromised action/step has no write token to
+# abuse. This ALSO forces the gitleaks job off `gitleaks-action@v3` (it calls the
+# PR API and 403s without a `pull-requests` scope) onto the pinned MIT CLI below.
+permissions:
+  contents: read
+
 env:
   # Scope the write token to push events only — pull_request runs get an empty
   # string so a same-repo PR cannot poison the shared remote cache.
@@ -52,7 +62,11 @@ jobs:
   # run in parallel with `build`, `test`, and `e2e-web` (separate jobs below).
   lint:
     name: Lint & type-check
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +107,11 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +137,11 @@ jobs:
 
   test:
     name: Test (unit + component)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -154,7 +176,11 @@ jobs:
   # Independent of the build graph, so it runs as its own parallel job.
   knip:
     name: Knip
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -174,7 +200,11 @@ jobs:
   # the PR open already). Dev-only advisories stay out of this gate by `--prod`.
   audit:
     name: Dependency audit (gate)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     # `pnpm audit --prod` resolves the full advisory set over the production tree
     # and takes ~7-10 minutes even when healthy (ADR 1003). Bounded so a stalled
     # registry query cannot run the job clock out.
@@ -211,7 +241,11 @@ jobs:
   # Runs in parallel with the jobs above.
   e2e-web:
     name: Web E2E (Playwright)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -255,28 +289,36 @@ jobs:
           path: apps/web/playwright-report
           retention-days: 7
 
-  # Secret scan (ADR 0044). On pull_request the action scans the incoming commit
-  # range (every commit is scanned before a PR can merge to main); a
-  # workflow_dispatch or scheduled run scans the FULL history — `fetch-depth: 0`
-  # provides it either way. Belt-and-braces: the lefthook pre-commit hook already
-  # gitleaks-scans every commit locally before it lands. Config + allowlist live
-  # in `.gitleaks.toml` at the repo root
-  # (auto-detected; the lefthook pre-commit hook uses the same file). Allowlist
-  # policy: test-fixture PATHS only — a real leak gets rotated, never ignored.
+  # Secret scan (ADR 0044/1007) — a PINNED CLI binary (8.24.3), not
+  # gitleaks-action@v3. Under this workflow's `permissions: contents: read` the
+  # action 403s on same-repo PRs (it calls the PR API without a `pull-requests`
+  # scope); the MIT CLI needs no GITHUB_TOKEN and no org license, so it works
+  # read-only and matches the local lefthook hook + web-native-skeleton. It scans
+  # the full commit history (`detect --source .`), so `fetch-depth: 0` is required.
+  # Config + allowlist: `.gitleaks.toml` (repo root, auto-detected; SAME file the
+  # lefthook hook uses — it MUST be the singular `[allowlist]` form or 8.24.3
+  # silently ignores it). Allowlist policy: local-dev secret-shaped PATHS only.
   gitleaks:
     name: Gitleaks (secret scan)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
+          # gitleaks scans the commit history, not just the worktree.
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Required for ORGANIZATION-owned repos only (free key from
-          # gitleaks.io); personal-account repos run without it.
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" gitleaks
+
+      - name: Secret scan (gitleaks, full history)
+        run: '"$RUNNER_TEMP/gitleaks" detect --source . --no-banner --redact'
 
   # Build the backend image (docker/api.Dockerfile — ADR 0031: one image, three
   # commands) to prove the turbo-prune + pnpm-deploy Dockerfile stays green.
@@ -285,7 +327,11 @@ jobs:
   # pnpm-install layer) so the trivy job below and the next CI run rebuild warm.
   docker-build:
     name: Docker build (api image)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -311,7 +357,11 @@ jobs:
   # first justified entry.
   trivy:
     name: Trivy (image scan)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     needs: docker-build
     steps:
       - uses: actions/checkout@v4
@@ -345,7 +395,11 @@ jobs:
   # first (turbo-cached).
   integration:
     name: Integration tests (Testcontainers)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -377,7 +431,11 @@ jobs:
   # and web env defaults expect.
   smoke-e2e:
     name: Smoke E2E (real stack)
-    runs-on: ubuntu-latest
+    # Fork-PR fence (ADR 1007): a fork-head PR never schedules onto a self-hosted
+    # runner. Inert while the repo is private + zero-collaborator (no fork PRs
+    # exist); belt-and-braces for when `CI_RUNNER` points at Martin's hardware.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
