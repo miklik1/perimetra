@@ -19,6 +19,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
+import { type LedgerRebuildResult } from "@repo/validators/ledger";
 import {
   type QuoteDetail,
   type QuoteProduction,
@@ -36,6 +37,7 @@ import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
 import {
   IssueQuoteDto,
+  LedgerRebuildResultDto,
   ListQuotesQueryDto,
   QuoteDto,
   QuoteProductionDto,
@@ -128,5 +130,18 @@ export class QuotesController {
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<QuoteReproduction> {
     return this.quotes.verifyReproducibility(scope, role, id);
+  }
+
+  /**
+   * Rebuild the deviation ledger's snapshot-derivable rows (ADR-O4 maintenance;
+   * admin-only). Re-projects the quote-scope overrides from every frozen
+   * snapshot; the authoritative margin/order-exception rows are untouched.
+   */
+  @Post("rebuild-deviations")
+  @HttpCode(HttpStatus.OK)
+  @RequireRole("admin")
+  @ZodSerializerDto(LedgerRebuildResultDto)
+  rebuildDeviations(@CurrentScope() scope: RequestScope): Promise<LedgerRebuildResult> {
+    return this.quotes.rebuildLedger(scope);
   }
 }

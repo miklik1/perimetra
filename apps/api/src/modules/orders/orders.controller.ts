@@ -38,6 +38,7 @@ import {
   CreateOrderDto,
   ListOrdersQueryDto,
   OrderDto,
+  OrderExceptionDto,
   OrderProductionDto,
   OrdersPageDto,
   RepointOrderDto,
@@ -120,6 +121,20 @@ export class OrdersController {
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<OrderDetail> {
     return this.orders.complete(scope, id);
+  }
+
+  /** Record a production-time exception on the order (ADR-O4) — admin/workshop.
+   *  Writes a deviation-ledger row; the order status is unchanged. */
+  @Post(":id/exceptions")
+  @HttpCode(HttpStatus.OK)
+  @RequireRole("admin", "workshop")
+  @ZodSerializerDto(OrderDto)
+  recordException(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: OrderExceptionDto,
+  ): Promise<OrderDetail> {
+    return this.orders.recordException(scope, id, body.reason, body.target);
   }
 
   /** Cancel — admin only, reason required (audited). */

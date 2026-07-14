@@ -147,6 +147,15 @@ export class QuotesRepository {
     return row ?? null;
   }
 
+  /** All (id, snapshot) pairs for the org — the deviation-ledger rebuild
+   *  re-projects the snapshot-derivable rows (ADR-O4). Org-scoped read. */
+  async findAllWithSnapshot(scope: RequestScope): Promise<{ id: string; snapshot: unknown }[]> {
+    return this.txHost.tx
+      .select({ id: quote.id, snapshot: quote.snapshot })
+      .from(quote)
+      .where(eq(quote.organizationId, scope.organizationId));
+  }
+
   /** Move the status field (the only mutable field on an issued quote — the I3
    *  snapshot is never touched). Scope-less: the caller has already authorized
    *  (buyer via shareToken, or a scoped service read). */

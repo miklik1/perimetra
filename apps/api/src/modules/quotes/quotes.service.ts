@@ -65,6 +65,7 @@ import {
   type TechnicalDrawing,
   type WorkshopDrawing,
 } from "@repo/renderers";
+import { type LedgerRebuildResult } from "@repo/validators/ledger";
 import { type PriceTableDetail } from "@repo/validators/price-tables";
 import {
   type IssueQuoteInput,
@@ -84,6 +85,7 @@ import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CatalogVersionsService } from "../catalog-versions/catalog-versions.service.js";
 import { CustomersService } from "../customers/customers.service.js";
+import { LedgerService } from "../ledger/ledger.service.js";
 import { LegalProfilesService } from "../legal-profiles/legal-profiles.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
@@ -453,6 +455,7 @@ export class QuotesService {
     private readonly customers: CustomersService,
     private readonly legalProfiles: LegalProfilesService,
     private readonly audit: AuditService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async list(scope: RequestScope, role: OrgRole, query: ListQuotesQuery): Promise<QuotesPage> {
@@ -560,6 +563,22 @@ export class QuotesService {
     const effective = effectiveStatus(row.status, row.validUntil, new Date());
     if (!isProducible(effective)) throw new NotFoundException("Quote not found");
     return toProduction(row, effective, row.snapshot as QuoteSnapshot);
+  }
+
+  /**
+   * Rebuild the deviation ledger's snapshot-derivable rows (ADR-O4, CAR-159) —
+   * the drift-repair maintenance op. QuotesService orchestrates it because it
+   * owns the frozen snapshots (keeps the quotes→ledger dependency one-way);
+   * `LedgerService` re-projects atomically, leaving the authoritative
+   * margin/order-exception rows untouched. Admin-only at the controller.
+   */
+  async rebuildLedger(scope: RequestScope): Promise<LedgerRebuildResult> {
+    const rows = await this.quotes.findAllWithSnapshot(scope);
+    const projected = await this.ledger.rebuildQuoteOverrides(
+      scope,
+      rows.map((r) => ({ quoteId: r.id, snapshot: r.snapshot })),
+    );
+    return { projected };
   }
 
   /** Issue a fresh quote — freeze a re-derivable snapshot (ADR 0053, I3). */
@@ -867,6 +886,13 @@ export class QuotesService {
         entityId: row.id,
         diff: { before: null, after: marginAudit },
       });
+    }
+    // Project the deviations onto the queryable ledger (ADR-O4) in THIS tx: the
+    // quote-scope overrides (a no-op for the common override-free quote) and the
+    // margin override alongside its audit row above.
+    await this.ledger.recordQuoteOverrides(scope, row.id, snapshot);
+    if (marginAudit) {
+      await this.ledger.recordMarginOverride(scope, row.id, marginAudit, scope.userId);
     }
     return row;
   }

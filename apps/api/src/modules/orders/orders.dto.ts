@@ -5,6 +5,7 @@
  * price-blind `quoteProductionSchema` verbatim (the projection is identical —
  * an order's production view IS its quote's, resolved through the snapshot).
  */
+import { orderExceptionSchema } from "@repo/validators/ledger";
 import {
   cancelOrderSchema,
   createOrderSchema,
@@ -20,6 +21,7 @@ import { createZodDto } from "../../common/api/zod.js";
 export class CreateOrderDto extends createZodDto(createOrderSchema) {}
 export class CancelOrderDto extends createZodDto(cancelOrderSchema) {}
 export class RepointOrderDto extends createZodDto(repointOrderSchema) {}
+export class OrderExceptionDto extends createZodDto(orderExceptionSchema) {}
 export class ListOrdersQueryDto extends createZodDto(listOrdersQuerySchema) {}
 
 /** Response DTOs — used with `@ZodSerializerDto` (strip semantics, spec §8). */

@@ -20,8 +20,8 @@ quotes — conflating an _offer_ with an _obligation_. The research
 Perimetra's single biggest structural gap: every incumbent turns a quote into an
 order, and the CZ order→cash chain is legally mandatory, not optional.
 
-CORE*SPEC I3 forbids any frozen thing from changing. So the order must be built
-\_around* the frozen quote, never by copying or mutating it.
+`CORE_SPEC` I3 forbids any frozen thing from changing. So the order must be built
+around the frozen quote, never by copying or mutating it.
 
 ## Decision
 

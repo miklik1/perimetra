@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
+import { LedgerModule } from "../ledger/ledger.module.js";
 import { NumberingModule } from "../numbering/numbering.module.js";
 import { OutboxModule } from "../outbox/outbox.module.js";
 import { QuotesModule } from "../quotes/quotes.module.js";
@@ -17,7 +18,7 @@ import { OrdersService } from "./orders.service.js";
  * queues (ADR 0031). `AuditService` arrives via the `@Global()` AuditModule.
  */
 @Module({
-  imports: [AuthModule, OutboxModule, QuotesModule, NumberingModule],
+  imports: [AuthModule, OutboxModule, QuotesModule, NumberingModule, LedgerModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersRepository],
 })

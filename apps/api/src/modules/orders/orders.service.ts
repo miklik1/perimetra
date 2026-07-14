@@ -23,6 +23,7 @@ import { type QuoteProduction } from "@repo/validators/quotes";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
+import { LedgerService } from "../ledger/ledger.service.js";
 import { NumberingService } from "../numbering/numbering.service.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { QuotesService } from "../quotes/quotes.service.js";
@@ -68,6 +69,7 @@ export class OrdersService {
     private readonly audit: AuditService,
     private readonly quotes: QuotesService,
     private readonly numbering: NumberingService,
+    private readonly ledger: LedgerService,
   ) {}
 
   /** Orders are org-visible to every role (the workshop sees orders, not quotes). */
@@ -250,6 +252,49 @@ export class OrdersService {
           ...(opts.cancelReason !== undefined && { cancelReason: opts.cancelReason }),
         },
       },
+    });
+    // Cancelling an in-production order strands real cut material — record it on
+    // the deviation ledger (ADR-O4), in this same tx (no material-return in v1).
+    if (opts.to === "cancelled" && before.status === "in_production") {
+      await this.ledger.recordOrderException(
+        scope,
+        {
+          quoteId: before.quoteId,
+          orderId,
+          reason: opts.cancelReason ?? "cancelled in production",
+        },
+        scope.userId,
+      );
+    }
+    return toOrder(row);
+  }
+
+  /**
+   * Record a production-time exception on an order (ADR-O4, CAR-159) —
+   * substituted material, a site deviation, cut-then-changed reality. Admin or
+   * workshop; the order must exist (any status). Writes a ledger row directly
+   * (the order status is unaffected — reality is recorded, not a transition).
+   */
+  @Transactional()
+  async recordException(
+    scope: RequestScope,
+    orderId: string,
+    reason: string,
+    target?: string,
+  ): Promise<OrderDetail> {
+    const row = await this.orders.findById(scope, orderId);
+    if (!row) throw new NotFoundException("Order not found");
+    await this.ledger.recordOrderException(
+      scope,
+      { quoteId: row.quoteId, orderId, reason, ...(target !== undefined && { target }) },
+      scope.userId,
+    );
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "order.exception",
+      entityType: "order",
+      entityId: orderId,
+      diff: { before: null, after: { reason, ...(target !== undefined && { target }) } },
     });
     return toOrder(row);
   }

@@ -22,6 +22,7 @@ import { CustomersModule } from "./modules/customers/customers.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { JobsModule } from "./modules/jobs/jobs.module.js";
+import { LedgerModule } from "./modules/ledger/ledger.module.js";
 import { LegalProfilesModule } from "./modules/legal-profiles/legal-profiles.module.js";
 import { LookupsModule } from "./modules/lookups/lookups.module.js";
 import { OrdersModule } from "./modules/orders/orders.module.js";
@@ -115,6 +116,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     // Public-register lookups (ADR 0090): ARES (IČO) prefill + VIES (DIČ) validation.
     LookupsModule,
     OrdersModule,
+    LedgerModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

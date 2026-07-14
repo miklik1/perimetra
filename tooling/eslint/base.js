@@ -183,6 +183,8 @@ export const baseConfig = [
                 "!@repo/validators/orders",
                 // Shared numbering allocator (ADR 0109) — schema-only concern, no validators subpath.
                 "!@repo/db/schema/numbering",
+                "!@repo/db/schema/ledger",
+                "!@repo/validators/ledger",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { CatalogVersionsModule } from "../catalog-versions/catalog-versions.module.js";
 import { CustomersModule } from "../customers/customers.module.js";
+import { LedgerModule } from "../ledger/ledger.module.js";
 import { LegalProfilesModule } from "../legal-profiles/legal-profiles.module.js";
 import { PriceTablesModule } from "../price-tables/price-tables.module.js";
 import { ReleasesModule } from "../releases/releases.module.js";
@@ -26,6 +27,7 @@ import { QuotesService } from "./quotes.service.js";
     PriceTablesModule,
     CustomersModule,
     LegalProfilesModule,
+    LedgerModule,
   ],
   controllers: [QuotesController, QuotesPublicController],
   providers: [QuotesService, QuotesRepository],

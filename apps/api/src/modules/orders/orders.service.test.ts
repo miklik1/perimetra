@@ -57,14 +57,16 @@ function makeService() {
     getProductionByQuoteId: vi.fn(),
   };
   const numbering = { allocate: vi.fn().mockResolvedValue(1) };
+  const ledger = { recordOrderException: vi.fn().mockResolvedValue(undefined) };
   const service = new OrdersService(
     repo as never,
     outbox as never,
     audit as never,
     quotes as never,
     numbering as never,
+    ledger as never,
   );
-  return { service, repo, outbox, audit, quotes, numbering };
+  return { service, repo, outbox, audit, quotes, numbering, ledger };
 }
 
 describe("OrdersService.create", () => {
