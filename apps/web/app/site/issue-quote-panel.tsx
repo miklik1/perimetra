@@ -4,15 +4,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useApiClient, useInfiniteQuery, useMutation, useQueryClient } from "@repo/api/react";
+import type { Issue } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
 import { Button, Panel } from "@repo/ui";
 import { lookupIcoSchema, type IssueQuoteInput } from "@repo/validators";
 
 import { createCustomersQueries, customerKeys } from "../../lib/customers-queries";
-import { errorMessageKey } from "../../lib/error-messages";
+import { errorMessageKey, siteInvalidIssues } from "../../lib/error-messages";
 import { createQuotesQueries } from "../../lib/quotes-queries";
 import { useAresLookup, useViesLookup, ViesBadge } from "../../lib/registry-lookup";
 import { toast } from "../../lib/toast";
+import { IssueList } from "./issue-list";
 
 const inputClass =
   "border-border bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 w-full";
@@ -41,6 +43,9 @@ export function IssueQuotePanel({
 
   const [customerId, setCustomerId] = useState("");
   const [construction, setConstruction] = useState(false);
+  // The engine's typed I5 issues from a 422 `site_invalid` at issue (CAR-162) —
+  // surfaced human-readable in the panel so the rep knows exactly what to fix.
+  const [issueErrors, setIssueErrors] = useState<Issue[] | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState("");
   const [ico, setIco] = useState("");
@@ -78,10 +83,22 @@ export function IssueQuotePanel({
   const issue = useMutation({
     ...quotesQueries.issue(),
     onSuccess: (quote) => {
+      setIssueErrors(null);
       toast.success(t("issue.issued"));
       router.push(`/quotes/${quote.id}`);
     },
-    onError: (error) => toast.error(tErrors(errorMessageKey(error))),
+    onError: (error) => {
+      // An engine rejection (422 `site_invalid`) carries typed I5 issues —
+      // render them in-panel (Czech, via IssueList), never a bare toast that
+      // hides what to fix. Any other error keeps the generic mapped toast.
+      const issues = siteInvalidIssues(error);
+      if (issues) {
+        setIssueErrors(issues);
+      } else {
+        setIssueErrors(null);
+        toast.error(tErrors(errorMessageKey(error)));
+      }
+    },
   });
 
   const submitNewCustomer = () => {
@@ -98,6 +115,7 @@ export function IssueQuotePanel({
   };
 
   const submitIssue = () => {
+    setIssueErrors(null);
     issue.mutate({
       input: {
         projectId,
@@ -203,6 +221,13 @@ export function IssueQuotePanel({
           />
           {t("issue.constructionAssembly")}
         </label>
+
+        {issueErrors && (
+          <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
+            <p className="text-destructive text-sm font-medium">{t("issue.invalidTitle")}</p>
+            <IssueList issues={issueErrors} />
+          </div>
+        )}
 
         <Button type="button" variant="copper" onClick={submitIssue} disabled={issue.isPending}>
           {issue.isPending ? t("issue.issuing") : t("issue.button")}

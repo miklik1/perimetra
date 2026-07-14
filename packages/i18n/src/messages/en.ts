@@ -437,6 +437,7 @@ const en: MessagesInput = {
       button: "Issue quote",
       issuing: "Issuing…",
       issued: "Quote issued.",
+      invalidTitle: "The quote can't be issued — fix the configuration:",
       customer: "Customer",
       noCustomer: "No customer",
       newCustomer: "New customer",

@@ -447,6 +447,7 @@ const cs = {
       button: "Vydat nabídku",
       issuing: "Vydávání…",
       issued: "Nabídka vydána.",
+      invalidTitle: "Nabídku nelze vystavit — opravte konfiguraci:",
       customer: "Odběratel",
       noCustomer: "Bez odběratele",
       newCustomer: "Nový odběratel",
