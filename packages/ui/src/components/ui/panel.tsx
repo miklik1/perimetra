@@ -9,7 +9,7 @@ import { cn } from "@repo/ui/lib/utils";
  * glass. Three flat planes, depth from elevation only. Token-driven (bg-chrome
  * + shadow-soft), so the whole brand shifts from `theme.css` alone.
  */
-const panelVariants = cva("rounded-2xl bg-chrome text-chrome-foreground", {
+const panelVariants = cva("rounded-card bg-chrome text-chrome-foreground", {
   variants: {
     elevation: {
       flat: "shadow-soft",

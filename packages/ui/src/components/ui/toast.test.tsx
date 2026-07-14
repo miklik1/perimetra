@@ -4,12 +4,19 @@ import { describe, expect, it, vi } from "vitest";
 import { Toast, toastVariants, ToastViewport } from "./toast";
 
 describe("toastVariants", () => {
-  it("defaults to the info variant", () => {
-    expect(toastVariants()).toContain("border-border");
+  it("defaults to the info variant on a flat-matte chrome surface (ADR 0111)", () => {
+    const classes = toastVariants();
+    expect(classes).toContain("border-l-info");
+    // No-glass depth model: matte chrome lifted by the floating shadow, not a
+    // bordered background (the pre-0079 `border-border bg-background` is gone).
+    expect(classes).toContain("bg-chrome");
+    expect(classes).toContain("shadow-float");
   });
 
-  it("uses the destructive border for the error variant", () => {
-    expect(toastVariants({ variant: "error" })).toContain("border-destructive/50");
+  it("uses a distinct status rail per variant (they were identical pre-0079)", () => {
+    expect(toastVariants({ variant: "success" })).toContain("border-l-success");
+    expect(toastVariants({ variant: "warning" })).toContain("border-l-warning");
+    expect(toastVariants({ variant: "error" })).toContain("border-l-destructive");
   });
 });
 

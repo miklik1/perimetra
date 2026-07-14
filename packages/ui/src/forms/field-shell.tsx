@@ -21,9 +21,12 @@ import { cn } from "@repo/ui/lib/utils";
  */
 
 /** The canonical control class strings — one source so every field looks alike.
- *  `aria-invalid:border-destructive` drives the red border with no extra class. */
+ *  Recessed-chrome grammar (ADR 0111): a `bg-chrome-subtle` fill with a hairline
+ *  inset ring for definition (NOT a hard border, per the no-borders rule), the
+ *  copper focus ring, and soft-geometry radius. `aria-invalid` swaps the ring to
+ *  destructive with no extra class at the call site. */
 export const fieldInputClass =
-  "border-border bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 aria-invalid:border-destructive";
+  "ease-brand w-full rounded-control bg-chrome-subtle px-3 py-2 text-sm text-chrome-foreground outline-none ring-1 ring-inset ring-border/60 transition-[box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-ring aria-invalid:ring-2 aria-invalid:ring-destructive";
 export const fieldTextareaClass = cn(fieldInputClass, "resize-y font-mono");
 
 export interface FieldShellRenderArgs {
@@ -72,10 +75,7 @@ export function FieldShell({
         <p
           id={messageId}
           role={error ? "alert" : "status"}
-          className={cn(
-            "text-xs",
-            error ? "text-destructive" : "text-amber-600 dark:text-amber-500",
-          )}
+          className={cn("text-xs", error ? "text-destructive" : "text-warning")}
         >
           {message}
         </p>

@@ -19,6 +19,11 @@ const badgeVariants = cva(
         copper: "bg-copper text-copper-foreground",
         deviation: "bg-deviation text-deviation-foreground",
         outline: "text-muted-foreground border border-border",
+        // Status tones (ADR 0111) — subtle tint bg + status ink. `deviation` stays
+        // its own CORE_SPEC §6 signal; `warning` is the generic UI-status amber.
+        success: "bg-success-subtle text-success",
+        warning: "bg-warning-subtle text-warning",
+        info: "bg-info-subtle text-info",
       },
     },
     defaultVariants: {

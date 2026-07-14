@@ -57,7 +57,8 @@
       "entry": [
         "scripts/verify/capture-scene.mjs",
         "scripts/verify/capture-production.mjs",
-        "scripts/verify/capture-drawing.mjs"
+        "scripts/verify/capture-drawing.mjs",
+        "scripts/verify/capture-brand.mjs"
       ]
     },
     "apps/mobile": {

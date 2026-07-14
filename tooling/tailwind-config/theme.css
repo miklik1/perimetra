@@ -20,8 +20,11 @@
   --color-popover: oklch(1 0 0);
   --color-popover-foreground: oklch(0.21 0.006 285.885);
 
-  --color-primary: oklch(0.62 0.19 259.815);
-  --color-primary-foreground: oklch(0.98 0 0);
+  /* Brand ink (ADR 0111) — retires the stamped shadcn blue. The default action
+   * is near-black (the Bombardier active-pill grammar); copper is the opt-in
+   * accent CTA (Button `copper` variant), never the default primary. */
+  --color-primary: oklch(0.2178 0 89.88); /* #1A1A1A ink — = --color-nav-active */
+  --color-primary-foreground: oklch(0.99 0 0);
 
   --color-secondary: oklch(0.967 0.001 286.375);
   --color-secondary-foreground: oklch(0.21 0.006 285.885);
@@ -37,7 +40,7 @@
 
   --color-border: oklch(0.92 0.004 286.32);
   --color-input: oklch(0.92 0.004 286.32);
-  --color-ring: oklch(0.62 0.19 259.815);
+  --color-ring: oklch(0.618 0.1171 60.4); /* copper focus ring (ADR 0111) — was shadcn blue */
 
   --radius: 0.625rem;
 
@@ -92,6 +95,62 @@
   --text-display--line-height: 0.95;
   --text-display--letter-spacing: -0.02em;
   --text-display--font-weight: 300;
+
+  /*
+   * Perimetra system scale (ADR 0111) — the token-scale extension that turns the
+   * ADR 0072 foundation into a full, tunable system. Radius / elevation / type /
+   * motion / status / spotlight, all role-named, so the whole brand still shifts
+   * from this one file. Semantic-token-only rule holds — components never inline.
+   */
+
+  /* Radius — the soft-geometry grammar tokenized. Semantic names (never Tailwind's
+   * numeric rounded-* scale) so nothing clobbers rounded-lg etc.: components read
+   * rounded-inset / rounded-control / rounded-card / rounded-card-lg / rounded-full. */
+  --radius-inset: 0.5rem; /* 8px  — chips, insets, nested rows */
+  --radius-control: 0.75rem; /* 12px — buttons, inputs, small controls */
+  --radius-card: 1.25rem; /* 20px — panels, cards (Bombardier 20–24px) */
+  --radius-card-lg: 1.5rem; /* 24px — hero / summary cards */
+
+  /* Editorial type scale — the reference hierarchy below --text-display. */
+  --text-title: 2rem; /* 32px — panel / section title ("Floorplan") */
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-weight: 600;
+  --text-metric: 2.5rem; /* 40px — StatCard numeral ("13") */
+  --text-metric--line-height: 1;
+  --text-metric--letter-spacing: -0.02em;
+  --text-metric--font-weight: 600;
+
+  /* Motion — the "Seamless" calm. One brand ease (a soft ease-out); durations
+   * stay Tailwind literals (duration-200/300) at the call site. */
+  --ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Elevation ladder — extends soft/soft-lg with a lighter pill shadow and a
+   * floating (dialog / popover / floating panel) shadow. */
+  --shadow-soft-sm: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* Status colors — calm, muted to sit inside the restrained palette. Each has
+   * -foreground (text on the solid tone) + -subtle (tint bg). WARNING is a
+   * SEPARATE token from --color-deviation: deviation is the CORE_SPEC §6 DOMAIN
+   * signal (always amber + an extra cue), warning is the generic UI-status tone —
+   * kept apart so the §6 plane can never alias a routine warning. */
+  --color-success: oklch(0.63 0.11 155);
+  --color-success-foreground: oklch(0.99 0 0);
+  --color-success-subtle: oklch(0.95 0.03 155);
+  --color-warning: oklch(0.75 0.15 75);
+  --color-warning-foreground: oklch(0.24 0.03 75);
+  --color-warning-subtle: oklch(0.96 0.04 85);
+  --color-info: oklch(0.62 0.06 235);
+  --color-info-foreground: oklch(0.99 0 0);
+  --color-info-subtle: oklch(0.95 0.02 235);
+
+  /* Spotlight accent — the reference's steel-blue summary-card fill (#96ADC2). A
+   * SECOND calm accent, scoped to hero / metric cards (StatCard) so it never
+   * competes with copper for CTA duty. White text sits on the solid tone. */
+  --color-spotlight: oklch(0.72 0.045 240); /* #96ADC2 steel blue */
+  --color-spotlight-foreground: oklch(0.99 0 0);
+  --color-spotlight-subtle: oklch(0.93 0.02 240);
 }
 
 @variant dark {
@@ -104,8 +163,10 @@
   --color-popover: oklch(0.274 0.006 286.033);
   --color-popover-foreground: oklch(0.98 0 0);
 
-  --color-primary: oklch(0.62 0.19 259.815);
-  --color-primary-foreground: oklch(0.98 0 0);
+  /* Brand ink, dark (ADR 0111) — the default action flips to near-white, mirroring
+   * --color-nav-active in dark; dark ink text sits on it. */
+  --color-primary: oklch(0.98 0 0);
+  --color-primary-foreground: oklch(0.21 0.006 285.885);
 
   --color-secondary: oklch(0.274 0.006 286.033);
   --color-secondary-foreground: oklch(0.98 0 0);
@@ -121,7 +182,7 @@
 
   --color-border: oklch(1 0 0 / 10%);
   --color-input: oklch(1 0 0 / 15%);
-  --color-ring: oklch(0.62 0.19 259.815);
+  --color-ring: oklch(0.66 0.124 60.4); /* copper focus ring, dark (ADR 0111) */
 
   /* Brand layer, dark — the configurator pins light, but the surface tokens stay
    * valid app-wide: field/chrome/nav flip to dark, copper/deviation are hue-stable. */
@@ -140,4 +201,22 @@
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-soft-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.55);
+
+  /* System-scale color + elevation overrides, dark (ADR 0111). Radius / type /
+   * motion are hue-independent — they need no dark variant. */
+  --shadow-soft-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  --color-success: oklch(0.68 0.11 155);
+  --color-success-foreground: oklch(0.16 0 0);
+  --color-success-subtle: oklch(0.3 0.04 155);
+  --color-warning: oklch(0.78 0.15 75);
+  --color-warning-foreground: oklch(0.2 0.03 75);
+  --color-warning-subtle: oklch(0.32 0.05 80);
+  --color-info: oklch(0.66 0.06 235);
+  --color-info-foreground: oklch(0.16 0 0);
+  --color-info-subtle: oklch(0.3 0.03 235);
+  --color-spotlight: oklch(0.66 0.05 240);
+  --color-spotlight-foreground: oklch(0.99 0 0);
+  --color-spotlight-subtle: oklch(0.32 0.03 240);
 }

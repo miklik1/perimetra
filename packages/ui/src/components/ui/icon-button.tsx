@@ -11,7 +11,7 @@ import { cn } from "@repo/ui/lib/utils";
  * flips it to the near-black fill so a toggled state reads at a glance.
  */
 const iconButtonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "ease-brand inline-flex shrink-0 items-center justify-center rounded-full transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       size: {

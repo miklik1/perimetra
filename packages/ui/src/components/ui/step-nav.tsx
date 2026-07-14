@@ -52,7 +52,7 @@ function StepNav({
             disabled={!reachable}
             onClick={() => reachable && onSelect(i)}
             className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium outline-none transition-colors",
+              "ease-brand rounded-full px-4 py-1.5 text-sm font-medium outline-none transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:ring-2",
               active
                 ? "bg-nav-active text-nav-active-foreground shadow-soft"

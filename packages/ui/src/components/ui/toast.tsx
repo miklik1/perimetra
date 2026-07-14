@@ -15,15 +15,21 @@ import { cn } from "@repo/ui/lib/utils";
  * type). The viewport is an `aria-live` region.
  */
 
+// Flat-matte chrome toast (ADR 0111) — the no-glass depth model: a matte card
+// lifted by the floating shadow, NOT a bordered surface. The four statuses were
+// visually identical before (all `border-border bg-background`); each now carries
+// a distinct status-tinted left rail so severity reads at a glance while the
+// surface stays calm chrome. `error` maps to `destructive`; `warning` to the
+// generic UI-status token (kept off the CORE_SPEC §6 deviation plane).
 const toastVariants = cva(
-  "pointer-events-auto flex w-full items-start gap-3 rounded-md border p-4 text-sm shadow-lg",
+  "ease-brand pointer-events-auto flex w-full items-start gap-3 rounded-card border-l-4 bg-chrome text-chrome-foreground p-4 text-sm shadow-float transition-all duration-200",
   {
     variants: {
       variant: {
-        success: "border-border bg-background text-foreground",
-        info: "border-border bg-background text-foreground",
-        warning: "border-border bg-background text-foreground",
-        error: "border-destructive/50 bg-background text-foreground",
+        success: "border-l-success",
+        info: "border-l-info",
+        warning: "border-l-warning",
+        error: "border-l-destructive",
       },
     },
     defaultVariants: { variant: "info" },
