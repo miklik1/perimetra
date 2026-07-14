@@ -487,6 +487,39 @@ export class QuotesService {
     return toProduction(row, effective, row.snapshot as QuoteSnapshot);
   }
 
+  /**
+   * Cross-module seam for the orders module (ADR 0109 / ADR-O1): assert the
+   * quote a new order references is effectively `accepted`. Org-scoped but NOT
+   * owner-narrowed — order creation is gated by org membership + role, not quote
+   * ownership. 404 (absent/other-org) / 409 `quote_not_accepted`.
+   */
+  async assertAcceptedForOrder(scope: RequestScope, quoteId: string): Promise<void> {
+    const row = await this.quotes.findById(scope, { restrictToOwner: false }, quoteId);
+    if (!row) throw new NotFoundException("Quote not found");
+    const effective = effectiveStatus(row.status, row.validUntil, new Date());
+    if (effective !== "accepted") {
+      throw new ConflictException({
+        message: `quote is ${effective}, not accepted`,
+        code: "quote_not_accepted",
+        status: effective,
+      });
+    }
+  }
+
+  /**
+   * Cross-module seam for the orders production re-home (ADR 0109 / ADR-O1):
+   * the price-blind production projection for an order's underlying quote,
+   * resolved off the FROZEN snapshot verbatim (I3). Org-scoped, NOT
+   * owner-narrowed — the caller already gated on order access (same org).
+   */
+  async getProductionByQuoteId(scope: RequestScope, quoteId: string): Promise<QuoteProduction> {
+    const row = await this.quotes.findById(scope, { restrictToOwner: false }, quoteId);
+    if (!row) throw new NotFoundException("Quote not found");
+    const effective = effectiveStatus(row.status, row.validUntil, new Date());
+    if (!isProducible(effective)) throw new NotFoundException("Quote not found");
+    return toProduction(row, effective, row.snapshot as QuoteSnapshot);
+  }
+
   @Transactional()
   async issue(scope: RequestScope, role: OrgRole, input: IssueQuoteInput): Promise<QuoteDetail> {
     const site = input.site as Site;

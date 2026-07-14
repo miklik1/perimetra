@@ -179,6 +179,10 @@ export const baseConfig = [
                 // Registry-lookup contracts (ADR 0090) — no DB schema (the
                 // lookups module owns no persistence); only the validators subpath.
                 "!@repo/validators/lookups",
+                "!@repo/db/schema/orders",
+                "!@repo/validators/orders",
+                // Shared numbering allocator (ADR 0109) — schema-only concern, no validators subpath.
+                "!@repo/db/schema/numbering",
                 // @gen:no-restricted-imports-allow — `pnpm gen package` injects the new package's published subpaths here.
               ],
               message:

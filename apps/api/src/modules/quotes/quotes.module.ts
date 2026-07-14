@@ -29,5 +29,8 @@ import { QuotesService } from "./quotes.service.js";
   ],
   controllers: [QuotesController, QuotesPublicController],
   providers: [QuotesService, QuotesRepository],
+  // Exported for the orders module (ADR 0109): the quote-acceptance guard + the
+  // re-homed production projection are cross-module reads through the service.
+  exports: [QuotesService],
 })
 export class QuotesModule {}
