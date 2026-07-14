@@ -40,6 +40,7 @@ import {
   OrderDto,
   OrderProductionDto,
   OrdersPageDto,
+  RepointOrderDto,
 } from "./orders.dto.js";
 import { OrdersService } from "./orders.service.js";
 
@@ -83,6 +84,19 @@ export class OrdersController {
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<QuoteProduction> {
     return this.orders.getProduction(scope, id);
+  }
+
+  /** Re-point a confirmed order at a newer accepted revision (ADR-O1, CAR-158). */
+  @Post(":id/repoint")
+  @HttpCode(HttpStatus.OK)
+  @RequireRole("admin", "sales")
+  @ZodSerializerDto(OrderDto)
+  repoint(
+    @CurrentScope() scope: RequestScope,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: RepointOrderDto,
+  ): Promise<OrderDetail> {
+    return this.orders.repoint(scope, id, body.quoteId);
   }
 
   /** Start production — workshop drives its own floor; admin may too. */

@@ -1146,6 +1146,39 @@
         ]
       }
     },
+    "/v1/quotes/{id}/revise": {
+      "post": {
+        "operationId": "QuotesController_revise_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueQuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
     "/v1/quotes/{id}/production": {
       "get": {
         "operationId": "QuotesController_production_v1",
@@ -2115,6 +2148,39 @@
         ]
       }
     },
+    "/v1/orders/{id}/repoint": {
+      "post": {
+        "operationId": "OrdersController_repoint_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepointOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
     "/v1/orders/{id}/start": {
       "post": {
         "operationId": "OrdersController_start_v1",
@@ -2838,6 +2904,19 @@
         ]
       },
       "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "quoteId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "quoteId"
+        ]
+      },
+      "RepointOrderDto": {
         "type": "object",
         "properties": {
           "quoteId": {

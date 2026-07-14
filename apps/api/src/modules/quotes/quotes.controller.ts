@@ -83,6 +83,24 @@ export class QuotesController {
   }
 
   /**
+   * Revise a quote (ADR-O1, CAR-158) — issue a new re-derived snapshot and
+   * supersede this one in the same tx. Commercial action (sales + admin); the
+   * body is the same shape as issue.
+   */
+  @Post(":id/revise")
+  @RequireRole("admin", "sales")
+  @Idempotent()
+  @ZodSerializerDto(QuoteDto)
+  revise(
+    @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: IssueQuoteDto,
+  ): Promise<QuoteDetail> {
+    return this.quotes.revise(scope, role, id, body);
+  }
+
+  /**
    * The workshop PRODUCTION view (CAR-24): cut list + BOM quantities + 2D
    * drawings off the frozen snapshot, never re-derived (I3). No `@RequireRole`
    * — admin/sales/workshop all reach it (same as `get`); the response shape

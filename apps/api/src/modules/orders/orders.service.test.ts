@@ -47,11 +47,13 @@ function makeService() {
     findByIdSystem: vi.fn(),
     insert: vi.fn(),
     setStatus: vi.fn(),
+    repoint: vi.fn(),
   };
   const outbox = { emit: vi.fn().mockResolvedValue("event-id") };
   const audit = { record: vi.fn().mockResolvedValue(undefined) };
   const quotes = {
     assertAcceptedForOrder: vi.fn().mockResolvedValue(undefined),
+    assertRepointTarget: vi.fn().mockResolvedValue(undefined),
     getProductionByQuoteId: vi.fn(),
   };
   const numbering = { allocate: vi.fn().mockResolvedValue(1) };
@@ -144,6 +146,33 @@ describe("OrdersService transitions", () => {
     repo.findById.mockResolvedValue(makeRow({ status: "completed" }));
     await expect(service.start(SCOPE, ORDER_ID)).rejects.toBeInstanceOf(ConflictException);
     expect(outbox.emit).not.toHaveBeenCalled();
+  });
+
+  it("repoint (from confirmed) guards the target, moves quoteId and audits before/after", async () => {
+    const { service, repo, quotes, audit } = makeService();
+    const NEW_QUOTE = "01890a5d-ac96-774b-bcce-b302099a0bbb";
+    repo.findById.mockResolvedValue(makeRow({ status: "confirmed", quoteId: QUOTE_ID }));
+    repo.repoint.mockResolvedValue(makeRow({ status: "confirmed", quoteId: NEW_QUOTE }));
+
+    const result = await service.repoint(SCOPE, ORDER_ID, NEW_QUOTE);
+
+    expect(quotes.assertRepointTarget).toHaveBeenCalledWith(SCOPE, QUOTE_ID, NEW_QUOTE);
+    expect(repo.repoint).toHaveBeenCalledWith(SCOPE, ORDER_ID, NEW_QUOTE);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "order.repointed",
+        diff: { before: { quoteId: QUOTE_ID }, after: { quoteId: NEW_QUOTE } },
+      }),
+    );
+    expect(result.quoteId).toBe(NEW_QUOTE);
+  });
+
+  it("repoint 409s from a non-confirmed order (never touches the quote guard)", async () => {
+    const { service, repo, quotes } = makeService();
+    repo.findById.mockResolvedValue(makeRow({ status: "in_production" }));
+    await expect(service.repoint(SCOPE, ORDER_ID, "x")).rejects.toBeInstanceOf(ConflictException);
+    expect(quotes.assertRepointTarget).not.toHaveBeenCalled();
+    expect(repo.repoint).not.toHaveBeenCalled();
   });
 
   it("cancel records the reason and audits before/after status", async () => {

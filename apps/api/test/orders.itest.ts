@@ -203,6 +203,37 @@ describe("order domain (HTTP, real stack) — CAR-156 / ADR 0109", () => {
     await setRole(tenant.id, "admin");
   });
 
+  it("re-points a confirmed order to a newer accepted revision of the same quote", async () => {
+    const v1 = await acceptedQuote();
+    const order = (await post(tenant, "/v1/orders", { quoteId: v1.id })).json() as OrderResponse;
+
+    // Revise v1 → v2, then the buyer accepts v2.
+    const v2 = (await post(tenant, `/v1/quotes/${v1.id}/revise`, issueBody)).json() as {
+      id: string;
+      shareToken: string;
+    };
+    expect(
+      (await inject(app, { method: "POST", url: `/v1/quotes/shared/${v2.shareToken}/accept` }))
+        .statusCode,
+    ).toBe(200);
+
+    const repointed = await post(tenant, `/v1/orders/${order.id}/repoint`, { quoteId: v2.id });
+    expect(repointed.statusCode, repointed.body).toBe(200);
+    expect((repointed.json() as OrderResponse).quoteId).toBe(v2.id);
+
+    // An unrelated accepted quote is NOT in the chain → 409.
+    const other = await acceptedQuote();
+    const bad = await post(tenant, `/v1/orders/${order.id}/repoint`, { quoteId: other.id });
+    expect(bad.statusCode).toBe(409);
+    expect(bad.json().code).toBe("quote_not_in_chain");
+
+    // Once in production, re-point is refused (the ledger records reality instead).
+    expect((await post(tenant, `/v1/orders/${order.id}/start`)).statusCode).toBe(200);
+    const late = await post(tenant, `/v1/orders/${order.id}/repoint`, { quoteId: v2.id });
+    expect(late.statusCode).toBe(409);
+    expect(late.json().code).toBe("order_not_repointable");
+  });
+
   it("a different org cannot read or transition the order (404, no existence oracle)", async () => {
     const quote = await acceptedQuote();
     const order = (await post(tenant, "/v1/orders", { quoteId: quote.id })).json() as OrderResponse;

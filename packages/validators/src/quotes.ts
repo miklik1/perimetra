@@ -94,6 +94,10 @@ export const quoteSummarySchema = z.object({
   total: z.string().nullable(),
   validUntil: isoDatetime.nullable(),
   shareToken: z.string(),
+  /** Revision lineage (ADR-O1, CAR-158): the quote this one revised, and the
+   *  revision that superseded this one (`null` = the live head of the chain). */
+  revisionOfId: z.uuid().nullable(),
+  supersededById: z.uuid().nullable(),
   createdAt: isoDatetime,
   updatedAt: isoDatetime,
 });
@@ -222,6 +226,10 @@ export const sharedNabidkaSchema = z.object({
   document: nabidkaDocumentSchema,
   status: quoteStatusSchema,
   validUntil: isoDatetime.nullable(),
+  /** True when a newer revision supersedes this quote (ADR-O1, CAR-158): the
+   *  buyer view still renders the old document but shows a superseded banner and
+   *  cannot resolve it (the accept/decline calls 409 `quote_superseded`). */
+  superseded: z.boolean(),
 });
 export type SharedNabidka = z.infer<typeof sharedNabidkaSchema>;
 

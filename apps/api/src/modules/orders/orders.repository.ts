@@ -101,6 +101,17 @@ export class OrdersRepository {
     return row!;
   }
 
+  /** Re-point the order at a newer accepted revision (ADR-O1, CAR-158) — only
+   *  the `quoteId` reference moves; the order carries no derived data. */
+  async repoint(scope: RequestScope, orderId: string, quoteId: string): Promise<OrderRow | null> {
+    const [row] = await this.txHost.tx
+      .update(order)
+      .set({ quoteId })
+      .where(and(this.scoped(scope), eq(order.id, orderId)))
+      .returning();
+    return row ?? null;
+  }
+
   /** Move only the status field (+ an optional cancel reason). The snapshot the
    *  order references stays byte-frozen — an order carries no derived data. */
   async setStatus(

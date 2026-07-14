@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canCancel, canComplete, canStart } from "./order-lifecycle.js";
+import { canCancel, canComplete, canRepoint, canStart } from "./order-lifecycle.js";
 
 describe("canStart — production starts only from confirmed (ADR 0109)", () => {
   it("permits start only from confirmed", () => {
@@ -26,5 +26,14 @@ describe("canCancel — cancel from either non-terminal state (ADR 0109)", () =>
     expect(canCancel("in_production")).toBe(true);
     expect(canCancel("completed")).toBe(false);
     expect(canCancel("cancelled")).toBe(false);
+  });
+});
+
+describe("canRepoint — re-point only before production starts (ADR-O1, CAR-158)", () => {
+  it("permits re-point only from confirmed", () => {
+    expect(canRepoint("confirmed")).toBe(true);
+    expect(canRepoint("in_production")).toBe(false);
+    expect(canRepoint("completed")).toBe(false);
+    expect(canRepoint("cancelled")).toBe(false);
   });
 });

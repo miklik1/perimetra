@@ -66,6 +66,8 @@ function seedQuote(index: number, over: Partial<QuoteDetail>): QuoteDetail {
     total: "129891.5",
     validUntil: null,
     shareToken: `share-${seq}`,
+    revisionOfId: null,
+    supersededById: null,
     createdAt: now,
     updatedAt: now,
     stamps,
@@ -101,6 +103,8 @@ export function listQuoteFixtures(): QuoteSummary[] {
     total: q.total,
     validUntil: q.validUntil,
     shareToken: q.shareToken,
+    revisionOfId: q.revisionOfId,
+    supersededById: q.supersededById,
     createdAt: q.createdAt,
     updatedAt: q.updatedAt,
   }));
@@ -183,7 +187,12 @@ export function findSharedNabidkaFixture(token: string): SharedNabidka | undefin
     new Date(quote.validUntil).getTime() <= Date.now()
       ? "expired"
       : quote.status;
-  return { document, status: effective, validUntil: quote.validUntil };
+  return {
+    document,
+    status: effective,
+    validUntil: quote.validUntil,
+    superseded: quote.supersededById !== null,
+  };
 }
 
 /** Issue: freeze a new quote from a site payload. The mock derives nothing — it

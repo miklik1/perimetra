@@ -431,6 +431,8 @@ function toSummary(row: QuoteRow, role: OrgRole): QuoteSummary {
     total: isPriceBlind(role) ? null : row.totalMoney,
     validUntil: row.validUntil ? row.validUntil.toISOString() : null,
     shareToken: row.shareToken,
+    revisionOfId: row.revisionOfId,
+    supersededById: row.supersededById,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -507,6 +509,46 @@ export class QuotesService {
   }
 
   /**
+   * Cross-module seam for order re-point (ADR-O1, CAR-158): the target quote
+   * must be effectively `accepted` AND a FORWARD member of `fromQuoteId`'s
+   * supersession chain (a later revision reachable via `supersededById`) —
+   * re-pointing to an unrelated or older quote 409s. Org-scoped, not
+   * owner-narrowed (order access already gated the caller).
+   */
+  async assertRepointTarget(
+    scope: RequestScope,
+    fromQuoteId: string,
+    toQuoteId: string,
+  ): Promise<void> {
+    const target = await this.quotes.findById(scope, { restrictToOwner: false }, toQuoteId);
+    if (!target) throw new NotFoundException("Quote not found");
+    const effective = effectiveStatus(target.status, target.validUntil, new Date());
+    if (effective !== "accepted") {
+      throw new ConflictException({
+        message: `quote is ${effective}, not accepted`,
+        code: "quote_not_accepted",
+        status: effective,
+      });
+    }
+    // Walk the linear chain forward from the order's current quote; the target
+    // must be reachable (a later revision), else it is not the same deal.
+    let cursor: string | null = fromQuoteId;
+    const seen = new Set<string>();
+    while (cursor && cursor !== toQuoteId) {
+      if (seen.has(cursor)) break; // cycle guard (chains are linear — belt & braces)
+      seen.add(cursor);
+      const row = await this.quotes.findById(scope, { restrictToOwner: false }, cursor);
+      cursor = row?.supersededById ?? null;
+    }
+    if (cursor !== toQuoteId) {
+      throw new ConflictException({
+        message: "target quote is not a revision of this order's quote",
+        code: "quote_not_in_chain",
+      });
+    }
+  }
+
+  /**
    * Cross-module seam for the orders production re-home (ADR 0109 / ADR-O1):
    * the price-blind production projection for an order's underlying quote,
    * resolved off the FROZEN snapshot verbatim (I3). Org-scoped, NOT
@@ -520,8 +562,72 @@ export class QuotesService {
     return toProduction(row, effective, row.snapshot as QuoteSnapshot);
   }
 
+  /** Issue a fresh quote — freeze a re-derivable snapshot (ADR 0053, I3). */
   @Transactional()
   async issue(scope: RequestScope, role: OrgRole, input: IssueQuoteInput): Promise<QuoteDetail> {
+    return toDetail(await this.issueQuoteRow(scope, role, input, null), role);
+  }
+
+  /**
+   * Revise a quote (ADR 0109 / ADR-O1, CAR-158): issue a NEW fully re-derived
+   * snapshot linked to the old via `revisionOfId`, and supersede the old in the
+   * SAME transaction. Chains are linear: the supersede is a conditional update
+   * (`WHERE superseded_by_id IS NULL`), so a revise-vs-revise race resolves to
+   * one winner and one 409 `quote_already_superseded` (the loser's freshly
+   * inserted new quote + its allocated number roll back with the tx — no gap, no
+   * orphan). The new number continues the same gap-free series; the old buyer
+   * link keeps rendering the old document but REFUSES resolution (quotes-public).
+   */
+  @Transactional()
+  async revise(
+    scope: RequestScope,
+    role: OrgRole,
+    quoteId: string,
+    input: IssueQuoteInput,
+  ): Promise<QuoteDetail> {
+    const previous = await this.quotes.findById(scope, scopeOpts(role), quoteId);
+    if (!previous) throw new NotFoundException("Quote not found");
+    if (previous.supersededById) {
+      throw new ConflictException({
+        message: "quote is already superseded",
+        code: "quote_already_superseded",
+      });
+    }
+
+    const revised = await this.issueQuoteRow(scope, role, input, quoteId);
+
+    // The race backstop: only the first revise moves the pointer; a concurrent
+    // one finds it already set and 409s (its `revised` row, inserted just above,
+    // rolls back with this transaction — so no orphan revision, no number gap).
+    const superseded = await this.quotes.setSupersededBy(scope, quoteId, revised.id);
+    if (!superseded) {
+      throw new ConflictException({
+        message: "quote is already superseded",
+        code: "quote_already_superseded",
+      });
+    }
+
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "quote.revise",
+      entityType: "quote",
+      entityId: revised.id,
+      diff: { before: null, after: { revisionOfId: quoteId, supersededQuoteId: quoteId } },
+    });
+    return toDetail(revised, role);
+  }
+
+  /**
+   * The shared issue core (ADR 0053) — derive → freeze → allocate → insert →
+   * audit, returning the raw row. `issue()` wraps it (`revisionOfId` null); a
+   * revision passes the superseded quote's id so the new row records its lineage.
+   */
+  private async issueQuoteRow(
+    scope: RequestScope,
+    role: OrgRole,
+    input: IssueQuoteInput,
+    revisionOfId: string | null,
+  ): Promise<QuoteRow> {
     const site = input.site as Site;
 
     // Resolve every instance's release (+ its pinned catalog version) from the
@@ -731,6 +837,7 @@ export class QuotesService {
       projectId: input.projectId ?? null,
       customerId: attachedCustomer?.id ?? null,
       status: "issued",
+      revisionOfId,
       documentNumber,
       currency: priceTable.currency,
       shareToken: randomUUID(),
@@ -761,9 +868,7 @@ export class QuotesService {
         diff: { before: null, after: marginAudit },
       });
     }
-    // The issuer (admin/sales) is never price-blind, but route the response
-    // through the same role-aware mapper for one consistent projection path.
-    return toDetail(row, role);
+    return row;
   }
 
   /**
@@ -894,6 +999,15 @@ export class QuotesService {
   ): Promise<QuoteAcceptance> {
     const row = await this.quotes.findByShareToken(shareToken);
     if (!row) throw new NotFoundException("Quote not found");
+    // A superseded quote's status is unchanged (supersession is a separate
+    // pointer), so guard it explicitly (ADR-O1, CAR-158): a forwarded stale link
+    // must never resolve — the rep sends the new link deliberately, no auto-forward.
+    if (row.supersededById) {
+      throw new ConflictException({
+        message: "quote has been superseded by a newer revision",
+        code: "quote_superseded",
+      });
+    }
     const effective = effectiveStatus(row.status, row.validUntil, new Date());
     if (!canBuyerResolve(effective)) {
       throw new ConflictException({
@@ -982,6 +1096,7 @@ export class QuotesService {
       document,
       status: effectiveStatus(row.status, row.validUntil, new Date()),
       validUntil: row.validUntil ? row.validUntil.toISOString() : null,
+      superseded: row.supersededById !== null,
     };
   }
 }

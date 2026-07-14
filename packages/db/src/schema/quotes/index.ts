@@ -23,6 +23,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import { id, timestamps } from "../../columns.js";
@@ -76,6 +77,16 @@ export const quote = pgTable(
     stamps: jsonb("stamps").notNull(),
     /** Frozen outputs + raw inputs + site graph (re-derivation seed + display). */
     snapshot: jsonb("snapshot").notNull(),
+    /** Revision chain (ADR 0109 / ADR-O1, CAR-158): the quote this one revises.
+     *  Set at insert, immutable; RESTRICT keeps the predecessor for the trail. */
+    revisionOfId: uuid("revision_of_id").references((): AnyPgColumn => quote.id, {
+      onDelete: "restrict",
+    }),
+    /** The revision that supersedes this quote — the ONE mutable pointer on an
+     *  otherwise-frozen row (ADR 0083 widens: status + this move). UNIQUE keeps
+     *  chains linear (a revision supersedes exactly one predecessor); null = the
+     *  live head. */
+    supersededById: uuid("superseded_by_id").references((): AnyPgColumn => quote.id),
     ...timestamps(),
   },
   (t) => [
@@ -85,6 +96,9 @@ export const quote = pgTable(
     // share a document number even under a race (the atomic allocator serializes;
     // this guarantees it at the storage layer).
     uniqueIndex("quote_org_document_number_uq").on(t.organizationId, t.documentNumber),
+    // Linear chains — no two quotes can be superseded by the same revision.
+    // Nullable ⇒ many live heads coexist (Postgres treats NULLs as distinct).
+    uniqueIndex("quote_superseded_by_id_uq").on(t.supersededById),
   ],
 );
 

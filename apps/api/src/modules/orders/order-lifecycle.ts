@@ -32,3 +32,10 @@ export function canComplete(status: OrderStatus): boolean {
 export function canCancel(status: OrderStatus): boolean {
   return status === "confirmed" || status === "in_production";
 }
+
+/** Re-point to a newer accepted revision is legal ONLY before production starts
+ *  (ADR-O1, CAR-158): once `in_production` the workshop is building the frozen
+ *  basis, so a change goes through the exception ledger, never a silent swap. */
+export function canRepoint(status: OrderStatus): boolean {
+  return status === "confirmed";
+}

@@ -1,9 +1,9 @@
 # ADR 0109 — The order domain: a reference entity over the accepted quote, and the shared document-number allocator
 
 **Status:** Accepted (2026-07-14). Implemented: order entity + state machine +
-production re-home + the shared `document_number_sequence` allocator (CAR-156).
-The rest of ADR-O1 — quote revision / supersession chains and order re-point —
-lands in CAR-158 and will extend this ADR. Realizes ADR-O1 (drafted in the vault
+production re-home + the shared `document_number_sequence` allocator (CAR-156);
+quote revision / supersession chains + order re-point (CAR-158). Realizes the
+whole of ADR-O1 (drafted in the vault
 "2026-07-11 Release plan — Perimetra — deep pass" §2.2/§2.3/§2.6). Builds on the
 quote spine (ADR 0053 issue/freeze, ADR 0079 gap-free numbering, ADR 0083
 lifecycle, ADR 0101/0108 production projection) and the org-scope seam
@@ -20,8 +20,8 @@ quotes — conflating an _offer_ with an _obligation_. The research
 Perimetra's single biggest structural gap: every incumbent turns a quote into an
 order, and the CZ order→cash chain is legally mandatory, not optional.
 
-CORE_SPEC I3 forbids any frozen thing from changing. So the order must be built
-_around_ the frozen quote, never by copying or mutating it.
+CORE*SPEC I3 forbids any frozen thing from changing. So the order must be built
+\_around* the frozen quote, never by copying or mutating it.
 
 ## Decision
 
@@ -75,11 +75,30 @@ contract migration. The order number is **operational**, not statutory (§29
 gapless numbering governs tax documents, i.e. invoices — hence the `Z` prefix,
 not the quote's bare `{year}/{seq}`).
 
+**7. Quote revision = a new re-derived snapshot + a linear supersession chain
+(CAR-158).** `POST /v1/quotes/:id/revise` re-runs the full issue path (a shared
+private `issueQuoteRow` core the golden reproduce tests still cover) to freeze a
+NEW snapshot stamped `revisionOfId`, and supersedes the old in the SAME tx via a
+CONDITIONAL update (`WHERE superseded_by_id IS NULL`) — so a revise-vs-revise
+race resolves to one winner + one 409 `quote_already_superseded` (the loser's new
+quote and its allocated number roll back together — no gap, no orphan). The new
+number continues the same gap-free series. `superseded_by_id` is UNIQUE (a
+revision supersedes exactly one predecessor); nullable, so many live heads
+coexist. The superseded quote's buyer token keeps rendering the old document (with
+a `superseded` banner flag) but REFUSES resolution — a distinct 409
+`quote_superseded`, because supersession is a pointer, not a status, so the
+`canBuyerResolve` status gate alone would leak the accept/decline. Order re-point
+(`POST /v1/orders/:id/repoint {quoteId}`) is legal ONLY from `confirmed` and only
+to an `accepted` FORWARD member of the order's supersession chain (a server-side
+`supersededById` walk); from `in_production` it 409s (`order_not_repointable`) —
+the exception ledger records reality instead of a silent swap.
+
 ## Consequences
 
-- ADR 0083's "only the status field moves on the quote row" widens (at CAR-158,
-  not here) to "status + `supersededById`"; the order half added here changes
-  nothing on the quote row.
+- ADR 0083's "only the status field moves on the quote row" widens to "status +
+  `supersededById` move" (CAR-158); the frozen snapshot stays byte-identical, so
+  a revised or superseded quote still reproduces forever (I3). The order half
+  changes nothing on the quote row.
 - **A cancelled in-production order strands real cut material.** v1 offers no
   material-return workflow (honest gap); the deviation ledger records the
   cancellation as an exception at ADR-O4/CAR-159 (the order-cancel path will

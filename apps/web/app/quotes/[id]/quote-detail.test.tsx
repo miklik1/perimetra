@@ -21,6 +21,8 @@ const STANDARD: QuoteDetail = {
   total: "129891.5",
   validUntil: null,
   shareToken: "share-1",
+  revisionOfId: null,
+  supersededById: null,
   createdAt: "2026-06-01T00:00:00.000Z",
   updatedAt: "2026-06-01T00:00:00.000Z",
   stamps: {

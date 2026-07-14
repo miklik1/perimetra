@@ -62,11 +62,15 @@ const DOC: NabidkaDocument = {
   grossTotal: "157168.72",
 };
 
-function renderView(initial: SharedNabidka, token = "share-000000000001") {
+function renderView(
+  initial: Omit<SharedNabidka, "superseded"> & { superseded?: boolean },
+  token = "share-000000000001",
+) {
+  const withSuperseded: SharedNabidka = { superseded: false, ...initial };
   return render(
     <I18nProvider locale="cs" messages={cs}>
       <ApiProvider baseUrl="https://test.local/api">
-        <SharedNabidkaView initial={initial} token={token} />
+        <SharedNabidkaView initial={withSuperseded} token={token} />
       </ApiProvider>
     </I18nProvider>,
   );

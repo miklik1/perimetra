@@ -27,7 +27,7 @@ import { NumberingService } from "../numbering/numbering.service.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { QuotesService } from "../quotes/quotes.service.js";
 import { formatOrderNumber } from "./document-number.js";
-import { canCancel, canComplete, canStart } from "./order-lifecycle.js";
+import { canCancel, canComplete, canRepoint, canStart } from "./order-lifecycle.js";
 import { OrdersRepository } from "./orders.repository.js";
 import {
   ORDER_CANCELLED,
@@ -134,6 +134,38 @@ export class OrdersService {
       entityType: "order",
       entityId: row.id,
       diff: { before: null, after: { quoteId: row.quoteId, orderNumber } },
+    });
+    return toOrder(row);
+  }
+
+  /**
+   * Re-point a confirmed order at a newer accepted revision of the same quote
+   * (ADR-O1, CAR-158). Legal only from `confirmed`; the target must be an
+   * accepted forward member of the order's supersession chain (guarded by
+   * `QuotesService`). Audited before/after — never a silent swap.
+   */
+  @Transactional()
+  async repoint(scope: RequestScope, orderId: string, toQuoteId: string): Promise<OrderDetail> {
+    const before = await this.orders.findById(scope, orderId);
+    if (!before) throw new NotFoundException("Order not found");
+    if (!canRepoint(before.status)) {
+      throw new ConflictException({
+        message: `order is ${before.status}`,
+        code: "order_not_repointable",
+        status: before.status,
+      });
+    }
+    await this.quotes.assertRepointTarget(scope, before.quoteId, toQuoteId);
+
+    const row = await this.orders.repoint(scope, orderId, toQuoteId);
+    if (!row) throw new NotFoundException("Order not found");
+
+    await this.audit.record({
+      actorId: scope.userId,
+      action: "order.repointed",
+      entityType: "order",
+      entityId: orderId,
+      diff: { before: { quoteId: before.quoteId }, after: { quoteId: toQuoteId } },
     });
     return toOrder(row);
   }

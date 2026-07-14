@@ -38,6 +38,12 @@ export const cancelOrderSchema = z.object({
 });
 export type CancelOrderInput = z.infer<typeof cancelOrderSchema>;
 
+/** Re-point the order at a newer accepted revision of the same quote (ADR-O1). */
+export const repointOrderSchema = z.object({
+  quoteId: z.uuid(),
+});
+export type RepointOrderInput = z.infer<typeof repointOrderSchema>;
+
 /**
  * Keyset pagination (spec §8): the shared `{ cursor, limit, sort }` block plus
  * the status filter. The cursor is an order id — UUIDv7 is time-ordered.

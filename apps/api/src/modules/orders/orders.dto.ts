@@ -11,6 +11,7 @@ import {
   listOrdersQuerySchema,
   orderSchema,
   ordersPageSchema,
+  repointOrderSchema,
 } from "@repo/validators/orders";
 import { quoteProductionSchema } from "@repo/validators/quotes";
 
@@ -18,6 +19,7 @@ import { createZodDto } from "../../common/api/zod.js";
 
 export class CreateOrderDto extends createZodDto(createOrderSchema) {}
 export class CancelOrderDto extends createZodDto(cancelOrderSchema) {}
+export class RepointOrderDto extends createZodDto(repointOrderSchema) {}
 export class ListOrdersQueryDto extends createZodDto(listOrdersQuerySchema) {}
 
 /** Response DTOs — used with `@ZodSerializerDto` (strip semantics, spec §8). */

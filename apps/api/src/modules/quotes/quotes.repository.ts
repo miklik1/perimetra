@@ -6,7 +6,7 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import {
@@ -43,6 +43,7 @@ export type InsertQuoteData = Pick<
   | "priceTableVersion"
   | "stamps"
   | "snapshot"
+  | "revisionOfId"
 >;
 
 /** Per-rep ownership narrowing (ADR 0082) — layered ON TOP of the org scope,
@@ -154,6 +155,30 @@ export class QuotesRepository {
       .update(quote)
       .set({ status, updatedAt: new Date() })
       .where(eq(quote.id, quoteId));
+  }
+
+  /** Supersede a quote (ADR 0109 / ADR-O1, CAR-158) — CONDITIONAL on it not being
+   *  already superseded (`superseded_by_id IS NULL`). The row lock + this predicate
+   *  make revise-vs-revise race-safe: exactly one update takes; the loser gets 0
+   *  rows. Org-scoped defense-in-depth (the caller already loaded it scoped).
+   *  Returns true when this call was the one that superseded the quote. */
+  async setSupersededBy(
+    scope: RequestScope,
+    quoteId: string,
+    supersededById: string,
+  ): Promise<boolean> {
+    const rows = await this.txHost.tx
+      .update(quote)
+      .set({ supersededById, updatedAt: new Date() })
+      .where(
+        and(
+          eq(quote.organizationId, scope.organizationId),
+          eq(quote.id, quoteId),
+          isNull(quote.supersededById),
+        ),
+      )
+      .returning({ id: quote.id });
+    return rows.length > 0;
   }
 
   async insert(scope: RequestScope, data: InsertQuoteData): Promise<QuoteRow> {
