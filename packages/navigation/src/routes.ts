@@ -35,6 +35,10 @@ export const routes = {
   site: { path: "/site/:projectId", params: { projectId: "string" } },
   quotes: { path: "/quotes" },
   quote: { path: "/quotes/:id", params: { id: "string" } },
+  // Orders surface (ADR 0109 / ADR-O1, CAR-156) — the workshop's build queue.
+  // The production/traveler sub-routes use raw string hrefs (like /quotes'), so
+  // only the list needs a typed entry (the nav registry's `to: Href` requires it).
+  orders: { path: "/orders" },
   // Odběratel management surface (ADR 0082 backend, CAR-23 UI) — admin/sales
   // only (workshop is 403'd by the api; the nav entry's show-predicate mirrors it).
   customers: { path: "/customers" },

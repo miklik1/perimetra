@@ -3,6 +3,7 @@ import { type MockRoute } from "./core/types";
 import { authRoutes } from "./handlers/auth";
 import { customerRoutes } from "./handlers/customers";
 import { lookupRoutes } from "./handlers/lookups";
+import { orderRoutes } from "./handlers/orders";
 import { projectRoutes } from "./handlers/projects";
 import { quoteRoutes } from "./handlers/quotes";
 import { userRoutes } from "./handlers/users";
@@ -20,6 +21,7 @@ export const routeGroups = {
   users: userRoutes,
   projects: projectRoutes,
   quotes: quoteRoutes,
+  orders: orderRoutes,
   customers: customerRoutes,
   lookups: lookupRoutes,
   // @gen:exports — `pnpm gen api-resource` registers the resource route group here.

@@ -30,6 +30,7 @@ const PROTECTED_PREFIXES = [
   "/configurator",
   "/site",
   "/quotes",
+  "/orders",
   "/customers",
   "/admin",
 ];

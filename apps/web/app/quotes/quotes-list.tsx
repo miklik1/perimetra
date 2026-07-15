@@ -9,7 +9,6 @@ import { Panel } from "@repo/ui";
 import { errorMessageKey } from "../../lib/error-messages";
 import { formatMoney } from "../../lib/format-money";
 import { createQuotesQueries } from "../../lib/quotes-queries";
-import { useRole } from "../../lib/use-role";
 import { QuoteStatusBadge } from "./quote-status";
 
 /**
@@ -17,26 +16,22 @@ import { QuoteStatusBadge } from "./quote-status";
  * hydrated from the RSC prefetch. Branded: each quote is a matte `bg-chrome`
  * panel; the document number reads in the Amulya data face, the total likewise.
  *
- * The nav entry (`lib/nav-registry.ts`, CAR-12) is ALREADY visible to any org
- * member, workshop included — this list is where CAR-24 makes that surface
- * actually useful for them: a `workshop` role routes every row to its
- * `/production` build view instead of the priced `/quotes/:id` detail (which
- * they CAN still open — the detail is price-blind by server-side stripping,
- * ADR 0056 — but production is their primary surface).
+ * Every row opens the quote detail (`/quotes/:id`) — price-blind by server-side
+ * stripping for workshop (ADR 0056), still openable by them for geometry/specs.
+ * The workshop's production/build surface is no longer reached from here: since
+ * ADR-O1/CAR-156 it lives under `/orders` (the workshop works from orders, not
+ * quotes).
  */
 export function QuotesList() {
   const t = useTranslations("quotes");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const role = useRole();
   const quotesQueries = createQuotesQueries(useApiClient());
 
   const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(
     quotesQueries.list(),
   );
   const quotes = data?.pages.flatMap((page) => page.items) ?? [];
-  const hrefFor = (id: string) =>
-    role === "workshop" ? `/quotes/${id}/production` : `/quotes/${id}`;
 
   return (
     <section className="flex w-full flex-col gap-3">
@@ -53,7 +48,7 @@ export function QuotesList() {
       <ul className="flex flex-col gap-2">
         {quotes.map((quote) => (
           <li key={quote.id}>
-            <Link href={hrefFor(quote.id)} className="block">
+            <Link href={`/quotes/${quote.id}`} className="block">
               <Panel elevation="flat" padded={false}>
                 <div className="flex items-center justify-between gap-4 px-4 py-3">
                   <div className="flex items-center gap-3">

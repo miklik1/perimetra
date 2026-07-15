@@ -17,8 +17,19 @@ import { CutListPanel } from "./cut-list-panel";
  * price/cost/margin field, by construction of the schema itself). Reuses the
  * configurator's own `WorkshopDrawingSvg`/`SitePlanSvg` (no second drawing
  * implementation, ADR 0077) and the shared `QuoteStatusBadge`.
+ *
+ * The canonical shared build view — rendered from two entry points (quotes N-1
+ * and orders, ADR-O1/CAR-156). `travelerHref` is passed by the wrapping route so
+ * the "open traveler" link resolves under the caller's scope (`/quotes/:id/…` or
+ * `/orders/:id/…`); everything else is off the ROLE-INDEPENDENT snapshot.
  */
-export function ProductionView({ production }: { production: QuoteProduction }) {
+export function ProductionView({
+  production,
+  travelerHref,
+}: {
+  production: QuoteProduction;
+  travelerHref: string;
+}) {
   const t = useTranslations("quotes");
   const releaseLabel = new Map(production.instances.map((i) => [i.instanceId, i.releaseId]));
 
@@ -29,10 +40,7 @@ export function ProductionView({ production }: { production: QuoteProduction }) 
           {production.documentNumber}
         </DisplayLabel>
         <div className="flex items-center gap-3">
-          <Link
-            href={`/quotes/${production.id}/production/traveler`}
-            className="text-copper text-sm hover:underline"
-          >
+          <Link href={travelerHref} className="text-copper text-sm hover:underline">
             {t("production.travelerOpen")}
           </Link>
           <QuoteStatusBadge status={production.status} />

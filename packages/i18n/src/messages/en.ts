@@ -24,6 +24,7 @@ const en: MessagesInput = {
     configurator: "Configurator",
     projects: "Projects",
     quotes: "Quotes",
+    orders: "Orders",
     customers: "Customers",
     team: "Team",
     admin: "Admin",
@@ -389,6 +390,20 @@ const en: MessagesInput = {
         top_step:
           'The top-edge height difference between "{self}" and "{other}" (connection {connection}) exceeds the allowed 200 mm step.',
       },
+    },
+  },
+  orders: {
+    title: "Orders",
+    checkingSession: "Checking session…",
+    empty: "No orders yet.",
+    loading: "Loading…",
+    loadMore: "Load more",
+    noMore: "No more",
+    status: {
+      confirmed: "Confirmed",
+      in_production: "In production",
+      completed: "Completed",
+      cancelled: "Cancelled",
     },
   },
   quotes: {

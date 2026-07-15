@@ -78,7 +78,7 @@ const PRODUCTION: QuoteProduction = {
 function renderView(production: QuoteProduction) {
   return render(
     <I18nProvider locale="cs" messages={cs}>
-      <ProductionView production={production} />
+      <ProductionView production={production} travelerHref="/quotes/q1/production/traveler" />
     </I18nProvider>,
   );
 }

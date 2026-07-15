@@ -8,11 +8,13 @@ import type { OrgRole } from "@repo/validators";
  * adding/removing a surface is a one-line registry edit, never a shell change.
  *
  * Visibility mirrors the roles model (ADR 0056/0062):
- *  - `configurator` / `projects` / `quotes` / `team` are visible to ANY org
- *    member (a resolved `role`). `quotes` is price-BEARING, but workshop's
- *    price-blindness (`usePriceBlind`) is enforced INSIDE the surface, not by
- *    hiding the nav link — a workshop user can still open a quote to see its
- *    geometry/specs, just not its price.
+ *  - `configurator` / `projects` / `quotes` / `orders` / `team` are visible to
+ *    ANY org member (a resolved `role`). `quotes` is price-BEARING, but
+ *    workshop's price-blindness (`usePriceBlind`) is enforced INSIDE the
+ *    surface, not by hiding the nav link — a workshop user can still open a
+ *    quote to see its geometry/specs, just not its price. `orders` (ADR-O1) is
+ *    the workshop's primary build queue (its rows route to the price-blind
+ *    `/orders/:id/production`); admin/sales reach it too (they confirm orders).
  *  - `customers` (ADR 0082/CAR-23) needs `admin` or `sales` — workshop is a
  *    hard 403 on the whole `CustomersController` (price-blind, no buyer PII),
  *    so unlike `quotes` the nav link itself is hidden, not just the surface's
@@ -37,6 +39,7 @@ export interface NavEntry {
     | "configurator"
     | "projects"
     | "quotes"
+    | "orders"
     | "customers"
     | "team"
     | "admin"
@@ -54,6 +57,7 @@ export const NAV_ENTRIES: readonly NavEntry[] = [
   { key: "configurator", to: { route: "configurator" }, show: anyOrgMember },
   { key: "projects", to: { route: "projects" }, show: anyOrgMember },
   { key: "quotes", to: { route: "quotes" }, show: anyOrgMember },
+  { key: "orders", to: { route: "orders" }, show: anyOrgMember },
   { key: "customers", to: { route: "customers" }, show: canManageCustomers },
   { key: "team", to: { route: "team" }, show: anyOrgMember },
   { key: "admin", to: { route: "admin" }, show: (ctx) => ctx.role === "admin" },

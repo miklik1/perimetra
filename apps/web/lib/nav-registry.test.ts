@@ -14,11 +14,12 @@ function keys(role: OrgRole | null, isPlatformAdmin: boolean): string[] {
 }
 
 describe("visibleNavEntries", () => {
-  it("registers exactly the 8 known surfaces, each with a unique key", () => {
+  it("registers exactly the 9 known surfaces, each with a unique key", () => {
     expect(NAV_ENTRIES.map((e) => e.key)).toStrictEqual([
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "customers",
       "team",
       "admin",
@@ -40,6 +41,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "customers",
       "team",
       "admin",
@@ -52,6 +54,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "customers",
       "team",
       "admin",
@@ -65,6 +68,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "customers",
       "team",
       "account",
@@ -76,6 +80,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "customers",
       "team",
       "platform",
@@ -88,6 +93,7 @@ describe("visibleNavEntries", () => {
       "configurator",
       "projects",
       "quotes",
+      "orders",
       "team",
       "account",
     ]);

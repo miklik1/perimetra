@@ -22,6 +22,7 @@ const cs = {
     configurator: "Konfigurátor",
     projects: "Projekty",
     quotes: "Nabídky",
+    orders: "Zakázky",
     customers: "Odběratelé",
     team: "Tým",
     admin: "Správa",
@@ -399,6 +400,20 @@ const cs = {
         top_step:
           "Rozdíl výšky horní hrany mezi „{self}“ a „{other}“ (spojení {connection}) přesahuje povolený krok 200 mm.",
       },
+    },
+  },
+  orders: {
+    title: "Zakázky",
+    checkingSession: "Ověřování relace…",
+    empty: "Zatím žádné zakázky.",
+    loading: "Načítání…",
+    loadMore: "Načíst další",
+    noMore: "Žádné další",
+    status: {
+      confirmed: "Potvrzeno",
+      in_production: "Ve výrobě",
+      completed: "Dokončeno",
+      cancelled: "Zrušeno",
     },
   },
   quotes: {
