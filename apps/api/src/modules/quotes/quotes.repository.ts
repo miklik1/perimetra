@@ -6,15 +6,10 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
-import {
-  quote,
-  quoteNumberSequence,
-  type QuoteRow,
-  type QuoteStatus,
-} from "@repo/db/schema/quotes";
+import { quote, type QuoteRow, type QuoteStatus } from "@repo/db/schema/quotes";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 
@@ -108,29 +103,6 @@ export class QuotesRepository {
       .where(and(this.scoped(scope, opts), eq(quote.id, quoteId)))
       .limit(1);
     return row ?? null;
-  }
-
-  /**
-   * Allocate the next gap-free document number for the org's `year` series
-   * (ADR 0079). One atomic upsert: insert the counter at 1 on first use, else
-   * increment and RETURNING the new value. Called INSIDE the issue `@Transactional()`
-   * — so a rolled-back issue rolls back the increment (no gap), and concurrent
-   * issues serialize on the (org, year) row lock (no duplicate). Returns the
-   * raw sequence value; `formatQuoteNumber` renders the human/legal string.
-   */
-  async allocateNumber(scope: RequestScope, year: number): Promise<number> {
-    const [row] = await this.txHost.tx
-      .insert(quoteNumberSequence)
-      .values({ organizationId: scope.organizationId, year, lastNumber: 1 })
-      .onConflictDoUpdate({
-        target: [quoteNumberSequence.organizationId, quoteNumberSequence.year],
-        set: {
-          lastNumber: sql`${quoteNumberSequence.lastNumber} + 1`,
-          updatedAt: sql`now()`,
-        },
-      })
-      .returning({ lastNumber: quoteNumberSequence.lastNumber });
-    return row!.lastNumber;
   }
 
   /**

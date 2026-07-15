@@ -165,11 +165,32 @@ series, year, last_number, …) SELECT organization_id, 'quote', year, last_numb
 - **Schema (contract, deferred):** drop `quote_number_sequence` in a later
   contract migration once nothing reads it.
 
-Safe because ADR 0079 itself classifies the counter as _operational state, not a
-legal artifact_, and the immutable `quote` row keeps its `(organization_id,
-document_number)` UNIQUE backstop — so the worst a counter-home race can produce
-is a retryable 409 or a gap, never a duplicate legal number. The **human/legal
-document number** stays a Perimetra-local per-class formatter: a new
+The **at-rest invariant holds unconditionally:** ADR 0079 classifies the counter
+as _operational state, not a legal artifact_, and the immutable `quote` row keeps
+its `(organization_id, document_number)` UNIQUE backstop, so **no duplicate legal
+number is ever committed** and the byte-identical/gap-free series is protected at
+rest. But the counter-home move is **NOT free-form N−1 rolling-deploy safe**, and
+an earlier draft of this ADR understated it as "a retryable 409 or a gap." The
+sharper failure mode (surfaced by the O2-a refute-review, 2026-07-15): because the
+shared allocator increments on the _ambient_ issue transaction (the gap-free
+design — the counter commits or rolls back **with** the quote insert), a rolling
+overlap in which OLD pods (still writing `quote_number_sequence`) commit numbers
+_above_ the copied counter value leaves the NEW counter unable to advance past a
+now-taken slot: every new-code allocation retries the same conflicting number,
+the insert 409/500s (quote issue does **not** catch the unique violation), and the
+increment rolls back — a **persistent livelock** for that `(org, year)` until the
+counter is manually repaired, NOT the self-healing case implied. The correct N−1
+measure is therefore a **deploy-ordering constraint, not the `ON CONFLICT` guard
+alone:** the O2-a code switch MUST land where no prior-version pod still writing
+`quote_number_sequence` runs concurrently — i.e. bundled into the **greenfield
+first production deploy** (ADR 0113), never as a rolling update over a running
+pre-O2-a production. This is satisfied **by construction today**: no production
+instance exists and `main` already carries O2-a, so the first deploy is greenfield
+and no old-numbering pod can coexist with it. A future counter-home move over a
+LIVE prod would instead need a true expand/contract dual-write (old + new code
+both writing, allocating `MAX+1`) — deliberately out of scope here because the
+greenfield path makes it unnecessary. The **human/legal document number** stays a
+Perimetra-local per-class formatter: a new
 `formatInvoiceNumber` → `FV{year}/{seq:04d}` (**PROVISIONAL, accountant-gated**,
 CAR-27 pass 1) joins the shipped `formatQuoteNumber` (`{year}/{seq:04d}`) and
 `formatOrderNumber` (`Z{year}/{seq:04d}`) — NOT the kernel's `formatDocumentNumber`,
@@ -308,6 +329,11 @@ sliced by blocker:
   new rule, frozen ones stand (the ADR 0081 golden-re-baseline discipline).
 - One allocator and one continuity story for the accountant after O2-a; the legacy
   `quote_number_sequence` lingers (harmless) until its contract-drop.
+- **Deploy constraint (see §3):** O2-a's code switch is safe only in the greenfield
+  first deploy — never a rolling update over a running pre-O2-a production (the
+  coupled-counter livelock). Satisfied by construction now; carry it into the
+  ADR-0113 deploy runbook so a future counter-home move over a live prod is not
+  attempted without an expand/contract dual-write.
 - The kernel dependency is a duplicated-mirror-until-publish cost (the `Exportable*`
   mirror + the conformance gate), accepted deliberately over re-deriving a
   regulated tax path — the worst outcome the kernel exists to prevent.

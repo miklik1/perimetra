@@ -51,14 +51,18 @@ function toOrder(row: OrderRow): OrderDetail {
 }
 
 /** A Postgres unique-violation (23505) on the named constraint — the
- *  `order_quote_active_uq` race backstop surfacing as a clean 409. */
+ *  `order_quote_active_uq` race backstop surfacing as a clean 409. drizzle-orm
+ *  v1 wraps driver errors in `DrizzleQueryError` with the pg error (carrying
+ *  `.code`/`.constraint`) on `.cause`, so walk the chain (mirroring
+ *  `ssrfBlockedCause`) rather than only inspecting the top-level error. */
 function isUniqueViolation(err: unknown, constraint: string): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { code?: unknown }).code === "23505" &&
-    (err as { constraint?: unknown }).constraint === constraint
-  );
+  let current: unknown = err;
+  while (current instanceof Error) {
+    const pg = current as Error & { code?: unknown; constraint?: unknown };
+    if (pg.code === "23505" && pg.constraint === constraint) return true;
+    current = pg.cause;
+  }
+  return false;
 }
 
 @Injectable()

@@ -150,7 +150,7 @@ describe("order domain (HTTP, real stack) — CAR-156 / ADR 0109", () => {
     const quote = await acceptedQuote();
     const order = (await post(tenant, "/v1/orders", { quoteId: quote.id })).json() as OrderResponse;
 
-    expect((await post(tenant, `/v1/orders/${order.id}/cancel`, {})).statusCode).toBe(400); // reason required
+    expect((await post(tenant, `/v1/orders/${order.id}/cancel`, {})).statusCode).toBe(422); // reason required (body zod → 422)
     const cancelled = await post(tenant, `/v1/orders/${order.id}/cancel`, {
       reason: "buyer withdrew",
     });

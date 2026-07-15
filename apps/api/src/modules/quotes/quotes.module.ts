@@ -5,6 +5,7 @@ import { CatalogVersionsModule } from "../catalog-versions/catalog-versions.modu
 import { CustomersModule } from "../customers/customers.module.js";
 import { LedgerModule } from "../ledger/ledger.module.js";
 import { LegalProfilesModule } from "../legal-profiles/legal-profiles.module.js";
+import { NumberingModule } from "../numbering/numbering.module.js";
 import { PriceTablesModule } from "../price-tables/price-tables.module.js";
 import { ReleasesModule } from "../releases/releases.module.js";
 import { QuotesPublicController } from "./quotes-public.controller.js";
@@ -28,6 +29,7 @@ import { QuotesService } from "./quotes.service.js";
     CustomersModule,
     LegalProfilesModule,
     LedgerModule,
+    NumberingModule,
   ],
   controllers: [QuotesController, QuotesPublicController],
   providers: [QuotesService, QuotesRepository],

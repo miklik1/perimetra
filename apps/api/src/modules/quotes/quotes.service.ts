@@ -87,6 +87,7 @@ import { CatalogVersionsService } from "../catalog-versions/catalog-versions.ser
 import { CustomersService } from "../customers/customers.service.js";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { LegalProfilesService } from "../legal-profiles/legal-profiles.service.js";
+import { NumberingService } from "../numbering/numbering.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
 import { formatQuoteNumber } from "./document-number.js";
@@ -456,6 +457,7 @@ export class QuotesService {
     private readonly legalProfiles: LegalProfilesService,
     private readonly audit: AuditService,
     private readonly ledger: LedgerService,
+    private readonly numbering: NumberingService,
   ) {}
 
   async list(scope: RequestScope, role: OrgRole, query: ListQuotesQuery): Promise<QuotesPage> {
@@ -847,10 +849,16 @@ export class QuotesService {
 
     // Allocate the gap-free document number INSIDE this issue transaction (ADR
     // 0079): the increment commits or rolls back with the quote insert below, so
-    // a failed issue leaves no gap in the org's per-year series. The wall clock
-    // lives in the app layer (like shareToken), never the engine.
+    // a failed issue leaves no gap in the org's per-year series. The counter now
+    // lives in the shared `document_number_sequence` under the 'quote' series
+    // (ADR 0112 §3, O2-a) — one allocator for quote/order/invoice; the human
+    // string stays the Perimetra-local `formatQuoteNumber` (byte-identical). The
+    // wall clock lives in the app layer (like shareToken), never the engine.
     const year = new Date().getFullYear();
-    const documentNumber = formatQuoteNumber(year, await this.quotes.allocateNumber(scope, year));
+    const documentNumber = formatQuoteNumber(
+      year,
+      await this.numbering.allocate(scope, "quote", year),
+    );
 
     const row = await this.quotes.insert(scope, {
       projectId: input.projectId ?? null,

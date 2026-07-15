@@ -147,6 +147,7 @@ function serviceFor(row: { snapshot: Record<string, unknown>; stamps: unknown })
     {} as never,
     {} as never,
     {} as never, // LedgerService — unused by verifyReproducibility
+    {} as never, // NumberingService — unused by verifyReproducibility
   );
 }
 

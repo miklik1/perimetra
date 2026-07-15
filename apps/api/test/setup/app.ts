@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { VersioningType } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
+import { getOptionsToken } from "@nestjs/throttler";
 import { eq } from "drizzle-orm";
 import { type FastifyInstance, type InjectOptions, type LightMyRequestResponse } from "fastify";
 
@@ -28,7 +29,22 @@ import { AppModule } from "../../src/app.module.js";
 export async function createApiApp(
   configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
 ): Promise<NestFastifyApplication> {
-  const base = Test.createTestingModule({ imports: [AppModule] });
+  // Neutralize rate limiting for the whole itest suite in ONE place. The suite
+  // fires hundreds of requests from one in-memory "IP" within the 60s window, so
+  // both the global `ThrottlerGuard` tier AND the per-route `@Throttle(limit:10)`
+  // overrides (e.g. `QuotesPublicController`) would 429 legitimate assertions —
+  // and a global `THROTTLE_LIMIT` env raise can NOT touch a per-route decorator.
+  // `overrideGuard(ThrottlerGuard)` does NOT work: the guard is an APP_GUARD
+  // `useClass`, not its own injectable token. Instead override the throttler
+  // OPTIONS provider with `skipIf: () => true`, which the guard honours BEFORE
+  // any per-route limit lookup — so every throttler skips. No itest asserts
+  // throttle behaviour (unit-tested in throttle.module.test.ts).
+  const base = Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(getOptionsToken())
+    .useValue({
+      throttlers: [{ name: "default", ttl: 60_000, limit: 1_000_000 }],
+      skipIf: () => true,
+    });
   const moduleRef = await (configure ? configure(base) : base).compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());

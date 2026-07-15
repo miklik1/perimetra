@@ -66,9 +66,9 @@ export async function setup(): Promise<void> {
   // override from the shell (LOG_LEVEL=debug pnpm test:integration).
   // eslint-disable-next-line turbo/no-undeclared-env-vars -- test-run-local override knob, not a turbo task input (declare in turbo.json if test:integration ever becomes cache-sensitive to it)
   process.env.LOG_LEVEL ??= "warn";
-  // The suite fires hundreds of requests from one in-memory "IP" — the
-  // default 100/min throttle tier would 429 legitimate assertions.
-  process.env.THROTTLE_LIMIT ??= "10000";
+  // Rate limiting is neutralized at the guard (createApiApp overrides
+  // ThrottlerGuard) — a global THROTTLE_LIMIT raise can't touch a per-route
+  // `@Throttle`, so the env knob is deliberately NOT set here.
   process.env.WEB_ORIGIN ??= "http://localhost:3000";
 }
 
