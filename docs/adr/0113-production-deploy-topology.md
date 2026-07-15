@@ -61,16 +61,18 @@ a first-order constraint: FIL is a CZ business handling customer PII under GDPR,
 ### 2. Secrets, TLS, data residency
 
 Secrets live in the platform secret stores (Railway variables, Vercel encrypted
-env), NEVER in the repo — the env contract is `@repo/config/env/*` (the typed
-schema is the source of truth for what each service requires: `DATABASE_URL`,
-`REDIS_URL`, object-storage creds, `BETTER_AUTH_SECRET`, `SENTRY_DSN`,
-`NEXT_PUBLIC_*`, the realtime URL/HMAC). TLS is platform-terminated (Railway domain
-
-- Vercel domain, both auto-TLS); HSTS + the static security header set ship from
-  `next.config.js` + `proxy.ts` (ADR 0026). All stateful tiers are EU-region; Redis
-  and the object store are **non-PII-bearing by construction** (jobs/outbox carry
-  IDs only, processors re-fetch — the CLAUDE.md doctrine), so a Redis/bucket
-  compromise leaks no personal data.
+env), NEVER in the repo — the env contract is a typed fail-fast schema per tier:
+the **API server** vars (`DATABASE_URL`, `REDIS_URL`, `S3_*` object-storage,
+`BETTER_AUTH_SECRET`, `CENTRIFUGO_*`, `SENTRY_DSN`) in
+`apps/api/src/common/config/env.ts`, and the **web / mobile client** vars
+(`NEXT_PUBLIC_*` / `EXPO_PUBLIC_*`, the realtime URL) in
+`@repo/config/env/{web,mobile}` — each the source of truth for what its service
+requires. TLS is platform-terminated (both the Railway and Vercel domains
+auto-TLS); HSTS + the static security header set ship from `next.config.js` and
+`proxy.ts` (ADR 0026). All stateful tiers are EU-region; Redis and the object store
+are **non-PII-bearing by construction** (jobs/outbox carry IDs only, processors
+re-fetch — the CLAUDE.md doctrine), so a Redis/bucket compromise leaks no personal
+data.
 
 ### 3. Migrations as the release phase (ADR 0038, restated for the platform)
 
@@ -89,6 +91,10 @@ deploy. A **deployed smoke test** hits the live https instance post-deploy
 and fails the deploy loudly on regression. **The merge gate does NOT assume hosted
 green CI** until the pipeline itself is proven (deep-pass F3 / G-02): until then the
 gate is local cold-clean + explicit authorization, never a silent "CI is green."
+Railway has no native release-phase primitive that gates other services on a
+run-to-completion job, so **the CD pipeline is the SOLE deploy trigger** (Railway's
+own git auto-deploy disabled) and it — not the platform — enforces the
+migrate → http/worker ordering.
 
 ### 5. Backups + a PROVEN restore drill
 
@@ -147,11 +153,12 @@ committed untested this session**:
   authoring box 2026-07-15); shipping an unbuilt Dockerfile as if it were proven is
   the false-confidence this ADR's own restore-drill principle rejects.
 
-So R0 executes in two moves: (a) **now** — the root-demo retirement (ships with this
-ADR) + this topology design; (b) **once Martin's accounts + Docker are available** —
-the Dockerfile + platform config + CD + smoke + the first deploy + backups restore
-drill + FIL provisioning, each against a real environment to validate rather than
-guess. The design here is the executable spec for move (b).
+So R0 executes in two moves: (a) **now** — this topology design (the decision + the
+executable spec), no code; (b) **once Martin's cloud accounts + Docker are
+available** — the Dockerfile + platform config + CD + smoke + the first deploy +
+backups restore drill + FIL provisioning + the root-demo retirement, each against a
+real environment to validate rather than guess. The design here is the executable
+spec for move (b).
 
 ## Consequences
 
@@ -161,8 +168,9 @@ guess. The design here is the executable spec for move (b).
 - Two platforms (Railway + Vercel) means two secret stores + two deploy triggers in
   CD — accepted for the first-class Next DX + managed EU stateful tiers; the
   container-first API keeps the Railway half swappable.
-- Retiring the demo diverges `page.tsx` from the skeleton — future channel-A drains
-  of that file no longer apply cleanly (a deliberate, documented product divergence).
+- Retiring the demo (in move b) will diverge `page.tsx` from the skeleton — future
+  channel-A drains of that file will no longer apply cleanly (a deliberate,
+  documented product divergence).
 - Not shipping unbuilt cloud config avoids committing artifacts that would be
   validated for the first time in production; the cost is that R0 needs a second,
   account-holding session to finish.
