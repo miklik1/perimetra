@@ -117,9 +117,13 @@ The boundary is drawn exactly where the kernel's `CONTEXT.md` draws it:
 - **Kernel-owned (`@cardo/tax-cz`, do NOT re-derive):** the VAT math
   (`computeLineVat`/`computeDocumentTotals` — top-down §37 split, half-away-from-
   zero rounding, the §92e reverse-charge and 0-rate handling), the §29 primitives
-  (number formatting, variabilní symbol derivation, issuability checks, legends,
-  KH codes, retention), and every serializer (ISDOC 6.0.2, Pohoda, UBL/Peppol,
-  the PDF view-model) behind `DocumentExporter.render(doc, issuer)`.
+  (the NUMERIC evidence-number / variabilní-symbol formatting — `formatDocumentNumber`
+  and `variableSymbolFromNumber` emit digit strings for the VS, NOT the human
+  `FV…/…` series; plus `checkSection29Issuable`, legends, KH codes, `retentionUntil`),
+  the ISDOC 6.0.2 / Pohoda / UBL-Peppol serializers behind `DocumentExporter.render(
+doc, issuer)`, and `buildPdfViewModel` (a standalone PDF _view-model_ — the heavy
+  `@react-pdf` renderer is injected app-side at the composition root, not a kernel
+  `DocumentExporter`).
 - **Perimetra-owned (the consumer side):** a pure **mapper** from the frozen
   quote snapshot + `InvoiceFacts` into the kernel's `ExportableDocument` /
   `ExportableLine` / `ExportableIssuer` POJOs, plus the **money-unit conversion**
@@ -137,7 +141,11 @@ in this repo), swapped for the real import the moment the package publishes. The
 mirror is deliberately NOT built until the kernel's `ExportableDocument` shape is
 frozen and `buildInvoice`/`buildSpayd` land (they are in flight this cycle) — see
 the STOP boundary (Decision 9); mirroring a moving, unpublished type early would
-only buy drift.
+only buy drift. Where exactly `buildInvoice` sits relative to the consumer mapper
+is under-determined until it lands — it may be a thin assembly convenience the
+consumer calls after mapping, or it may assemble the `ExportableDocument` itself
+(overlapping the mapper the kernel's `CONTEXT.md` assigns to the consumer); that
+boundary is pinned at O2-b, not guessed here.
 
 ### 3. Numbering consolidation (O2-a) — one allocator, one continuity story
 
@@ -160,9 +168,12 @@ series, year, last_number, …) SELECT organization_id, 'quote', year, last_numb
 Safe because ADR 0079 itself classifies the counter as _operational state, not a
 legal artifact_, and the immutable `quote` row keeps its `(organization_id,
 document_number)` UNIQUE backstop — so the worst a counter-home race can produce
-is a retryable 409 or a gap, never a duplicate legal number. `formatDocumentNumber`
-gains the invoice series `FV{year}/{seq:04d}` (**PROVISIONAL, accountant-gated**,
-CAR-27 pass 1) and reuses the quote `{year}/{seq:04d}` and order `Z{year}/{seq:04d}`.
+is a retryable 409 or a gap, never a duplicate legal number. The **human/legal
+document number** stays a Perimetra-local per-class formatter: a new
+`formatInvoiceNumber` → `FV{year}/{seq:04d}` (**PROVISIONAL, accountant-gated**,
+CAR-27 pass 1) joins the shipped `formatQuoteNumber` (`{year}/{seq:04d}`) and
+`formatOrderNumber` (`Z{year}/{seq:04d}`) — NOT the kernel's `formatDocumentNumber`,
+which emits a pure digit string for the variabilní symbol, not the `FV…/…` series.
 
 ### 4. `InvoiceFacts` and the mapper boundary
 
@@ -176,7 +187,6 @@ interface InvoiceFacts {
   issuedOn: string;
   duzp: string;
   dueOn: string; // ISO dates
-  variableSymbol: string;
   // Tax inputs FROZEN AT INVOICE ISSUE — §21 ZDPH ties the rate to DUZP, not to
   // quote time, so a VAT-law change between quote and invoice must be expressible
   // without touching frozen history:
@@ -192,14 +202,24 @@ interface InvoiceFacts {
 }
 ```
 
-The mapper reuses the quote's **already-frozen** per-rate `TaxBreakdown` (ADR 0080)
-as the source of the line grosses rather than recomputing from live tables — it
-feeds those frozen grosses (converted to haléře) into the kernel's
-`computeLineVat`/`computeDocumentTotals` to obtain the `VatSummaryRow[]` + totals
-the `ExportableDocument` carries. **VAT-rate-as-data (CAR-192):** the rate is never
-a code constant — it originates on the quote's stamped price-table (`dphRate`),
-flows into `InvoiceFacts.ratePct`, and the kernel's `regimeForRate` classifies it;
-21/12 live as catalog/release data exactly as §92e mode already does. The advance-
+The mapper carries the quote's **already-frozen** per-rate `TaxBreakdown` (ADR 0080)
+GROSS amounts (converted to haléře) as the line inputs rather than recomputing from
+live tables, and feeds those grosses into the kernel's `computeLineVat`/
+`computeDocumentTotals` for the `VatSummaryRow[]` + totals the `ExportableDocument`
+carries. Only the **gross** is carried across: the kernel re-derives base/VAT
+top-down (§37, `base = gross·100/(100+rate)`), whereas the quote's breakdown was
+built bottom-up (`vat = net·rate/100`) — for the same gross the two can disagree by
+a single haléř on the base/VAT split, so the invoice's printed net/VAT is the
+§37-correct top-down figure and need not equal the quote's frozen split (the Σgross
+payable is identical). **VAT-rate-as-data (CAR-192):** the rate is never a code
+constant — it originates on the quote's stamped price-table (`dphRate`) and flows
+into `InvoiceFacts.ratePct`; the kernel's `regimeForRate` classifies a _taxed_ line
+as standard/reduced/zero. **The reverse-charge decision does NOT come from the
+rate:** a §92e line keeps its 21/12 `ratePct` but takes its VAT **regime** from the
+quote's frozen `mode` (`reverse_charge_92e` → the kernel's `"reverse_charge"`
+regime, which zeroes the line VAT and drives the mandatory legend) — using
+`regimeForRate` for this would wrongly classify the line `standard` and put a VAT
+line on a reverse-charge document. The advance-
 payment chain (§28 zálohová → tax document on the advance → final settlement with
 `clearAdvancesByRate` offset → §42/45 correction) is modeled as **additional
 `DocumentType`s the kernel already enumerates**, sequenced in O2-c/CAR-192 — the
