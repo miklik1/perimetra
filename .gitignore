@@ -17,6 +17,7 @@ node_modules
 # the same name; Engineering finding 2026-06-12)
 apps/*/coverage/
 packages/*/coverage/
+tooling/*/coverage/
 
 # Playwright (web E2E — ADR 0025) — anchored to where apps/web actually writes it
 # (apps/web/playwright.config.ts has no outputDir override, so Playwright's

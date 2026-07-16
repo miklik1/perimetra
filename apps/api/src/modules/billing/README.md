@@ -50,6 +50,8 @@ export class BillingWebhookController {
   // NOTE: signature schemes sign the RAW request body — register a Fastify
   // raw-body config for this route; a re-serialized JSON.parse round-trip
   // breaks verification.
+  @Public() // ADR 0099 is default-deny: without this the callback 401s. The
+  //         signature verified below IS the auth.
   @Post()
   @HttpCode(200)
   @Transactional() // outbox.emit() requires the active scope (ADR 0037)
@@ -93,6 +95,9 @@ Rules that make this robust:
 - **Route exemptions:** the ingestion route is unauthenticated
   (signature IS the auth), exempt from CSRF/idempotency interceptors, and
   rate-limited generously.
+- **Callback that must recover its own tenant scope** (no session, only a
+  provider reference id — gateway/marketplace transaction callbacks) — see
+  [`webhook-tenancy-recipe.md`](./webhook-tenancy-recipe.md).
 
 ## EU note: merchant-of-record providers
 

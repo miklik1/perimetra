@@ -54,6 +54,19 @@ export default defineConfig({
     // suite pass against fixtures — the one outcome this config exists to avoid.
     reuseExistingServer: false,
     env: {
+      // Dedicated smoke tier: "stage" is the one tier assertTierInvariants
+      // (ADR 0104) leaves unconstrained — a real API_URL with MSW explicitly off
+      // is legal there, exactly the real-stack shape this suite needs. Pin the
+      // tier explicitly instead of relying on the "preview" default (what happens
+      // when APP_TIER/VERCEL_TARGET_ENV are unset). Perimetra note: unlike the
+      // skeleton — whose preview branch forbids API_URL outright, so this config
+      // threw at the preview default upstream — perimetra's relaxed preview
+      // invariants (ADR 0104's "Perimetra deviation") already PERMIT a real
+      // API_URL with MSW off, so the guard would not throw at the default here.
+      // Pinning "stage" still states the intended smoke tier and stays correct if
+      // a later ADR tightens preview or constrains stage. Do NOT touch prod: that
+      // is the mock-leak-to-prod protection this guard exists for.
+      APP_TIER: "stage",
       // Real backend target: flips the BFF + rewrites out of mock mode (the
       // tri-state gate in next.config.js / handle-api-request.ts)...
       API_URL: apiProxyTarget,

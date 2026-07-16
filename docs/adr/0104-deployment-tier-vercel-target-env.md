@@ -139,6 +139,29 @@ build, not in review.
 - Derived repos inherit this via the baseCommit drain trigger (a separate wave),
   not by this change.
 
+## Amendment (2026-07-14) — the real-stack smoke suite pins `APP_TIER=stage`
+
+`apps/web/playwright.smoke.config.ts` sets a real `API_URL` with
+`NEXT_PUBLIC_ENABLE_MSW=false` and now pins `APP_TIER=stage` in its
+`webServer.env`. `stage` is the one tier this guard leaves unconstrained (a
+real-API + MSW-off mix is the point), which is exactly what a real-stack smoke
+run needs — reusing the tier taxonomy as designed, with **no change to the
+prod/preview branches** (the mock-leak-to-prod protection).
+
+**Perimetra adaptation (drained from skeleton ADR 0046's amendment).** Upstream
+this pin FIXED a hard failure: the skeleton's preview branch forbids `API_URL`
+on preview outright, so the smoke config — pinning no tier, hence defaulting to
+`preview` — threw at `next.config.js` load and `next dev` never booted, silently
+reddening the smoke-e2e job. **That failure does not reproduce in perimetra.**
+The "Perimetra deviation" above relaxes the preview invariants precisely to allow
+a real `API_URL` with MSW off (perimetra is a real-backend product), so this
+smoke config already passes at the `preview` default here — the guard does not
+throw. Pinning `stage` is nonetheless the correct, explicit choice: it names the
+intended smoke tier directly instead of relying on the default, and keeps the
+config robust if a later ADR gives `stage` real constraints (a Primat-style
+slice-mix) or tightens `preview`. If either happens, re-examine this smoke config
+against the new rules.
+
 ## Sources
 
 - Vault finding: "Multi-tier Vercel (Next) deploy — derive the tier from
