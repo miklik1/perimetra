@@ -55,13 +55,13 @@ pre-push:
     # fires on PRs + push:main only — so without this a red test ships unnoticed
     # (finding 2026-07-02). See ADR 0106 (drained from skeleton ADR 0048).
     #
-    # ⌛ HELD (channel-A drain of skeleton 7e9ba3b, 2026-07-16): the skeleton adds
-    # `-- --coverage` here to mirror the CI `test` job exactly (ci.yml, ADR 0025).
-    # NOT adopted yet — perimetra's `test --coverage` is currently RED on
-    # `@repo/api-mocks` (49.36% lines / 32.93% branches vs the 50/40 floors), a
-    # PRE-EXISTING gap masked by turbo cache + billing-blocked CI. Adding
-    # `--coverage` to this pre-push gate would block every push on that unrelated
-    # red. Land the flag once the api-mocks coverage gap is closed (then bump
-    # skeleton.baseCommit → 7e9ba3b). Expiry: /evolve cuts this once that lands.
+    # `-- --coverage` mirrors the CI `test` job EXACTLY (ci.yml, ADR 0025): the
+    # local gate and the CI gate must run the same command, or a coverage-
+    # threshold failure is invisible locally and only reddens CI — the "the gate
+    # you run locally is not the gate CI runs" class (finding 2026-07-10).
+    # Coverage adds little on a turbo-cached run. (Landed 2026-07-16 once the
+    # pre-existing `@repo/api-mocks` threshold gap was closed — its consumer-
+    # exercised MSW fixtures/handlers are excluded from coverage per its
+    # vitest.config.ts, so the gate is real, not manufactured-red.)
     - name: test
-      run: pnpm turbo run test
+      run: pnpm turbo run test -- --coverage
