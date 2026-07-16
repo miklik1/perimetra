@@ -6,6 +6,7 @@
 export { catalogV1 } from "./catalog/catalog-v1.js";
 export { catalogV2 } from "./catalog/catalog-v2.js";
 export { catalogV3 } from "./catalog/catalog-v3.js";
+export { catalogV4 } from "./catalog/catalog-v4.js";
 export { fenceRunV1 } from "./releases/fence-run.js";
 export { slidingGateV1 } from "./releases/sliding-gate.js";
 export { brankaV1 } from "./releases/branka.js";

@@ -16,11 +16,11 @@ import { describe, expect, it } from "vitest";
 import { deriveInstance } from "@repo/engine";
 import { buildSolids, buildTechnicalDrawing, FRONT_VIEW, renderView } from "@repo/renderers";
 
-import { catalogV1 } from "./catalog/catalog-v1.js";
+import { catalogV4 } from "./catalog/catalog-v4.js";
 import { brankaPrices, planka_100_2d_1xsp } from "./golden/branka.js";
 import { brankaV1 } from "./releases/branka.js";
 
-const result = deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV1);
+const result = deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV4);
 
 describe("branka@1 — SolidModeler", () => {
   const solids = buildSolids(result);

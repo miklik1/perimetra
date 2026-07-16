@@ -23,14 +23,14 @@ import { describe, expect, it } from "vitest";
 import { deriveInstance } from "@repo/engine";
 import { buildTechnicalDrawing } from "@repo/renderers";
 
-import { catalogV1 } from "./catalog/catalog-v1.js";
+import { catalogV4 } from "./catalog/catalog-v4.js";
 import { brankaPrices, planka_100_2d_1xsp } from "./golden/branka.js";
 import { brankaV1 } from "./releases/branka.js";
 
 const GOLDEN_PATH = fileURLToPath(new URL("./golden/branka-drawing.golden.json", import.meta.url));
 
 describe("branka@1 — technical-drawing self-golden (structural regression lock)", () => {
-  const result = deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV1);
+  const result = deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV4);
   const drawing = buildTechnicalDrawing(result, brankaV1.drawing);
 
   it("emits byte-identical geometry to the committed golden", () => {
@@ -42,7 +42,7 @@ describe("branka@1 — technical-drawing self-golden (structural regression lock
 
   it("is stable across a re-derivation (the property the lock defends)", () => {
     const again = buildTechnicalDrawing(
-      deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV1),
+      deriveInstance(brankaV1, planka_100_2d_1xsp.config, brankaPrices, catalogV4),
       brankaV1.drawing,
     );
     expect(JSON.stringify(again)).toBe(JSON.stringify(drawing));

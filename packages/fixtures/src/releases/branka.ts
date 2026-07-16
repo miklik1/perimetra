@@ -28,8 +28,15 @@
  * (a 45/45-mitred picture-frame leaf), C = the fixed latch post the leaf closes
  * against, h-profil = two vertical fill carriers, D = the horizontal fill slats.
  * Origin: leaf outer bottom-left at (0, from-ground), X across, Y up, Z depth.
- * Hardware sets (pant/kování/rám-šroub/zámek) + the full priced total are the
- * CAR-34 completion — the spike locks GEOMETRY (what the drawing derives from).
+ *
+ * CAR-34 COMPLETION (2026-07-16): the hardware sets (frame-bolt/lock/hinge +
+ * opt-in electrolock, Excel P24/P26–P28) now resolve against `catalog@4` and the
+ * 1xSP grand total is regression-locked at 18 734.0 (`golden/branka.ts`, every
+ * line price Excel-anchored — the workbook carries no 1xSP total cell, so the
+ * total is a self-consistency lock, not an Excel anchor; the fill connector is 0
+ * for the undivided 1xSP — see the parts note). The sDP/BnS structural variants
+ * (whose VZOR total U32 = 19 078.5 IS an Excel anchor) stay the named breadth
+ * follow-on.
  */
 import { expr, type ProductModelRelease } from "@repo/model";
 
@@ -402,13 +409,48 @@ export const brankaV1: ProductModelRelease = {
         ],
       },
 
-      // --- ACCESSORIES (BOM-only) ---------------------------------------------
+      // NOTE: NO `Spojovák výplně` (fill connector) line for the undivided 1xSP.
+      // Excel `Kalkulace` prices it as S29 = SUM(E23)·4.5, where E23 is member E —
+      // the DIVIDED-panel fill, present only for the sDP/BnS variants
+      // (E23 = IF(T36, IF(T37,1,K19+K21), IF(T37,K19,""))). For the undivided 1xSP
+      // (T36=T37=FALSE) E23 is "" → the connector is 0 (a divider-splice item; a
+      // single panel needs none). The drawing spike wrongly tied it to `fillCount`
+      // (the total slat count = 11) — a cached-sDP-state misread caught in the
+      // CAR-34 review, over-charging 49.5 CZK. It returns, tied to the divided-fill
+      // count, with the sDP breadth variant.
+
+      // --- HARDWARE (Branky Kalkulace accessory lines P24 + P26–P28, FIL 2026) -
+      // Fixed per-gate quantities (the Excel T26/T27/T28 cells are literals, not
+      // size-driven): one frame-bolt set, one lock set, two hinge sets. The
+      // mechanical lock set (`Sada kování`) is a DISTINCT SKU from the swing
+      // gate's handle, so it carries its own `hardware.lockset` role (catalog@4);
+      // the hinge set reuses the shared `sada_pant` (hardware.hinge, from @3).
       {
-        path: "fill.connectors",
-        resolve: { role: "fill.connector" },
-        name: "Spojovák výplně",
-        // Excel P29: one connector run per slat, priced per piece.
-        bom: { unit: "piece", quantity: expr("fillCount"), category: "accessory" },
+        path: "hardware.frame_bolt",
+        resolve: { role: "hardware.frame_bolt" },
+        name: "Sada rám šroub",
+        bom: { unit: "set", quantity: expr("1"), category: "accessory" }, // Excel T26 = 1
+      },
+      {
+        path: "hardware.lockset",
+        resolve: { role: "hardware.lockset" },
+        name: "Sada kování",
+        bom: { unit: "set", quantity: expr("1"), category: "accessory" }, // Excel T27 = 1
+      },
+      {
+        path: "hardware.hinge",
+        resolve: { role: "hardware.hinge" },
+        name: "Sada pant",
+        bom: { unit: "piece", quantity: expr("2"), category: "accessory" }, // Excel T28 = 2
+      },
+      // Elektro-zámek — opt-in (Excel P24 default qty 0; the `include_electrolock`
+      // toggle now drives a real priced line at Excel S24 = 680, not a dead flag).
+      {
+        path: "hardware.electrolock",
+        resolve: { role: "hardware.electrolock" },
+        name: "Elektro-zámek",
+        when: expr("include_electrolock"),
+        bom: { unit: "piece", quantity: expr("1"), category: "accessory" },
       },
 
       // --- MANUFACTURING -------------------------------------------------------
@@ -547,7 +589,9 @@ export const brankaV1: ProductModelRelease = {
 
   // I2 delta-0 fixture: the GEOMETRY anchor (Excel `Branky` Kalkulace, 1xSP,
   // PLAŇKA 100 2D, 1000 × 1500). Member lengths + fill spacing are byte-true to
-  // the Excel formulas. The priced total is deferred to CAR-34 (hardware sets).
+  // the Excel formulas (checkFixtures runs this derived-only, price-free). The
+  // priced grand total is locked separately in `golden/branka.ts` +
+  // `branka.delta0.test.ts` (18 734.0, line prices Excel-anchored).
   fixtures: [
     {
       name: "PLAŇKA 100 2D · 1xSP · 1000×1500 (Excel Branky geometry)",

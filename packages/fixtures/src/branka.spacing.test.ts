@@ -26,7 +26,7 @@ import type { Catalog, Site } from "@repo/model";
 import { validateRelease } from "@repo/model";
 import { buildScene } from "@repo/renderers";
 
-import { catalogV1 } from "./catalog/catalog-v1.js";
+import { catalogV4 } from "./catalog/catalog-v4.js";
 import { brankaPrices, planka_100_2d_1xsp } from "./golden/branka.js";
 import { brankaV1 } from "./releases/branka.js";
 
@@ -34,12 +34,12 @@ const config: ConfigInput = planka_100_2d_1xsp.config;
 
 describe("branka@1 — publishes clean (I2 gate)", () => {
   it("validateRelease returns no defects", () => {
-    expect(validateRelease(brankaV1, catalogV1)).toEqual([]);
+    expect(validateRelease(brankaV1, catalogV4)).toEqual([]);
   });
 });
 
 describe("branka@1 — Excel member chain (Kalkulace 1xSP)", () => {
-  const result = deriveInstance(brankaV1, config, brankaPrices, catalogV1);
+  const result = deriveInstance(brankaV1, config, brankaPrices, catalogV4);
 
   it("derives valid (no error issue)", () => {
     expect(result.isValid).toBe(true);
@@ -77,7 +77,7 @@ const previewSite: Site = {
 };
 
 function scenePieces() {
-  const catalogs: ReadonlyMap<string, Catalog> = new Map([[brankaV1.id, catalogV1]]);
+  const catalogs: ReadonlyMap<string, Catalog> = new Map([[brankaV1.id, catalogV4]]);
   const result = deriveSite(
     previewSite,
     [{ instanceId: PREVIEW, release: brankaV1, input: config }],
