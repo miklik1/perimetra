@@ -7,10 +7,14 @@
  *   `privacy-exports/<userId>/<uuid>.json` (presigned PUT — the api never
  *   proxies bytes, and neither does the worker hold raw S3 writes) and log
  *   the key. Download delivery (signed link to the user) is wired later.
- * - `privacy-erase` (Art. 17): every handler's `eraseUser`, then the
+ * - `privacy-erase` (Art. 17): every handler's `eraseUser`, then a
+ *   `finalizeErasure` second pass (ADR 1010 cross-cutting repairs), then the
  *   BUILT-IN core erasures (anonymize the Better Auth user row, delete
- *   sessions + accounts + two-factor secrets), then the third-party purge
- *   hooks, then an audit row (`privacy.erase`). All steps idempotent — jobs retry.
+ *   sessions + accounts + two-factor secrets), then the third-party purge hooks
+ *   whose `PurgeOutcome`s are collected into a read-model recorded in the
+ *   `privacy.erase` audit diff and returned as `job.returnvalue` (ADR 1010). All
+ *   steps idempotent — jobs retry; a hard purge failure THROWS and DLQs
+ *   (ban-purge escalation).
  * - `audit-cleanup`: scheduled daily here (own scheduler id, own queue — the
  *   maintenance processor stays untouched); deletes audit rows older than
  *   the 2-year retention (spec §11) via a UUIDv7 time-boundary so the sweep
@@ -41,6 +45,7 @@ import {
   PURGE_HOOKS,
   type PrivacyHandler,
   type PurgeHook,
+  type PurgeOutcome,
 } from "./privacy.tokens.js";
 
 /** Audit retention (spec §11): 2 years, then the daily sweep deletes. */
@@ -108,16 +113,20 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     );
   }
 
-  async process(job: Job): Promise<void> {
+  async process(job: Job): Promise<Record<string, PurgeOutcome> | undefined> {
     switch (job.name) {
       case PRIVACY_JOBS.export:
-        return await this.exportUser((job.data as { userId: string }).userId);
+        await this.exportUser((job.data as { userId: string }).userId);
+        return undefined;
       case PRIVACY_JOBS.erase:
+        // Returned so BullMQ stores the purge read-model as `job.returnvalue`.
         return await this.eraseUser((job.data as { userId: string }).userId);
       case PRIVACY_JOBS.auditCleanup:
-        return await this.cleanupAudit();
+        await this.cleanupAudit();
+        return undefined;
       default:
         this.logger.warn(`unknown privacy job "${job.name}"`);
+        return undefined;
     }
   }
 
@@ -205,14 +214,29 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     );
   }
 
-  /** Art. 17: handler fan-out, then core erasures, then purge hooks. */
-  private async eraseUser(userId: string): Promise<void> {
-    // 1. Domain handlers first — they may need the (still intact) user row.
+  /**
+   * Art. 17: handler fan-out, then a finalize second pass, then core erasures,
+   * then purge hooks, then the audit row. Returns the purge read-model so it
+   * lands in `job.returnvalue`; it is also mirrored into the `privacy.erase`
+   * audit diff (ADR 1010).
+   */
+  private async eraseUser(userId: string): Promise<Record<string, PurgeOutcome>> {
+    // 1. Domain handlers first — they may need the (still intact) user row. A
+    //    thrown handler propagates (job → onFailed → DLQ); it is not caught.
     for (const handler of this.handlers) {
       await handler.eraseUser(userId);
     }
 
-    // 2. Built-in core erasures on the Better Auth tables. Anonymize (not
+    // 2. Finalize second pass (ADR 1010, ports anyora ADR 0067): once the WHOLE
+    //    eraseUser fan-out is applied — including cross-module deletes another
+    //    handler owns — each handler may run a cross-cutting repair its own
+    //    per-subject eraseUser could not express, because by loop-end the
+    //    subject linkage is gone. Runs BEFORE the built-in core erasures.
+    for (const h of this.handlers) {
+      await h.finalizeErasure?.(userId);
+    }
+
+    // 3. Built-in core erasures on the Better Auth tables. Anonymize (not
     //    delete) the user row: FKs keep pointing at a valid, PII-free id.
     //    Deterministic value → idempotent on retry, and the unique email
     //    constraint stays satisfied per user. This is also what makes the
@@ -234,23 +258,30 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     // `twoFactorEnabled` flag so a re-created account never inherits it.
     await db.delete(twoFactor).where(eq(twoFactor.userId, userId));
 
-    // 3. Third-party purges — Sentry + PostHog hooks, bound under
-    //    PURGE_HOOKS in privacy-worker.module.ts (ADR 0040).
+    // 4. Third-party purges — Sentry + PostHog hooks, bound under PURGE_HOOKS
+    //    in privacy-worker.module.ts (ADR 0040). Each returns a PurgeOutcome
+    //    collected into the read-model, keyed by hook name; a HARD failure
+    //    THROWS and propagates (ban-purge escalation), never a swallowed
+    //    return. A documented/skipped outcome does NOT downgrade the erasure.
+    const purges: Record<string, PurgeOutcome> = {};
     for (const hook of this.purgeHooks) {
-      await hook.purgeUser(userId);
+      purges[hook.name] = await hook.purgeUser(userId);
     }
 
-    // 4. Erasure is itself an Art. 30 processing activity — audit it
-    //    (system action: no actor, no request context).
+    // 5. Erasure is itself an Art. 30 processing activity — audit it (system
+    //    action: no actor, no request context), recording the purge read-model
+    //    in the diff so the audit trail shows what each third party did.
     await this.auditService.record({
       action: "privacy.erase",
       entityType: "user",
       entityId: userId,
+      diff: { purges },
     });
     this.logger.log(
       `privacy erasure for user ${userId} complete ` +
         `(${this.handlers.length} handlers, ${this.purgeHooks.length} purge hooks)`,
     );
+    return purges;
   }
 
   /** Retention sweep: audit rows older than 2 years (PK-index range). */

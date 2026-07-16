@@ -55,3 +55,79 @@ describe("sentry scrubEvent (ADR 0040)", () => {
     expect(scrubbed.extra.safe).toBe("keep-me");
   });
 });
+
+describe("sentry scrubEvent request-PII surfaces (ADR 1009)", () => {
+  it("drops the five request-derived PII surfaces, no PII term surviving anywhere", () => {
+    const event = {
+      request: {
+        // 2. url with a `?search=<email>` querystring (path must be retained).
+        url: "https://api.test/v1/clients?search=martin@example.test",
+        // 1. raw, unparsed request body blob (key-scrub cannot reach it).
+        data: "email=martin@example.test&password=hunter2",
+        // 3. parsed querystring.
+        query_string: "search=martin@example.test",
+        headers: {
+          // 4. referer/referrer carry the origin page URL incl. querystring.
+          referer: "https://app.test/clients?search=martin@example.test",
+          referrer: "https://app.test/clients?q=martin@example.test",
+          accept: "application/json",
+        },
+      },
+      // 5. outgoing-request breadcrumb (e.g. the PostHog purge fetch).
+      breadcrumbs: [
+        {
+          category: "http",
+          data: {
+            url: "https://eu.posthog.com/api/persons/?distinct_id=u-1",
+            "http.query": "?distinct_id=u-1",
+            "http.fragment": "#martin@example.test",
+            method: "GET",
+          },
+        },
+        { category: "log", message: "noop" }, // no `data` — must be tolerated
+      ],
+    } as unknown as AnyEvent;
+
+    const scrubbed = scrubEvent(event) as unknown as {
+      request: {
+        url: string;
+        data?: unknown;
+        query_string?: unknown;
+        headers: Record<string, string>;
+      };
+      breadcrumbs: { data?: Record<string, unknown> }[];
+    };
+
+    // 1. raw body blob dropped wholesale.
+    expect(scrubbed.request.data).toBeUndefined();
+    // 2. querystring cut off the url; the path survives.
+    expect(scrubbed.request.url).toBe("https://api.test/v1/clients");
+    // 3. parsed querystring dropped.
+    expect(scrubbed.request.query_string).toBeUndefined();
+    // 4. referer + referrer dropped; an unrelated header is kept.
+    expect(scrubbed.request.headers.referer).toBeUndefined();
+    expect(scrubbed.request.headers.referrer).toBeUndefined();
+    expect(scrubbed.request.headers.accept).toBe("application/json");
+    // 5. breadcrumb query surfaces dropped; data.url querystring cut; safe kept.
+    const crumb = scrubbed.breadcrumbs[0]!.data!;
+    expect(crumb["http.query"]).toBeUndefined();
+    expect(crumb["http.fragment"]).toBeUndefined();
+    expect(crumb.url).toBe("https://eu.posthog.com/api/persons/");
+    expect(crumb.method).toBe("GET");
+
+    // The terminal guarantee: no PII term survives ANYWHERE in the event.
+    const serialized = JSON.stringify(scrubbed);
+    expect(serialized).not.toContain("martin@example.test");
+    expect(serialized).not.toContain("hunter2");
+    expect(serialized).not.toContain("distinct_id=u-1");
+  });
+
+  it("tolerates absent breadcrumbs and breadcrumbs without data", () => {
+    expect(() =>
+      scrubEvent({ request: { url: "https://api.test/v1/x" } } as unknown as AnyEvent),
+    ).not.toThrow();
+    expect(() =>
+      scrubEvent({ breadcrumbs: [{ category: "log" }] } as unknown as AnyEvent),
+    ).not.toThrow();
+  });
+});

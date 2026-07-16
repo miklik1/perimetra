@@ -41,19 +41,52 @@ export interface PrivacyHandler {
   exportUser(userId: string): Promise<Record<string, unknown>>;
   /** Delete or anonymize it (Art. 17). MUST be idempotent — jobs retry. */
   eraseUser(userId: string): Promise<void>;
+  /**
+   * Optional SECOND pass, run once AFTER every handler's `eraseUser` has
+   * completed — so the whole fan-out, including cross-module deletes another
+   * handler owns, is already applied. A handler uses it to repair a
+   * cross-cutting invariant that its own per-subject `eraseUser` cannot express,
+   * because by loop-end the subject linkage is gone (ADR 1010, ports anyora ADR
+   * 0067's defunct-grant closure). MUST be idempotent — jobs retry. Absent ⇒ no
+   * finalize step for that handler. The reference `ProjectsPrivacyHandler` needs
+   * no such repair; the seam is merely available.
+   */
+  finalizeErasure?(userId: string): Promise<void>;
 }
 
 /**
  * Multi-provider token for third-party purge hooks (Sentry user scrubbing,
  * PostHog person-profile deletion, Centrifugo history…). The bound hooks
- * (purge/) each no-op with a log when their env keys are absent.
+ * (purge/) each skip (with a log) when their env keys are absent.
  */
 export const PURGE_HOOKS = Symbol("PURGE_HOOKS");
 
+/**
+ * The result of a {@link PurgeHook.purgeUser} (ADR 1010, ports anyora ADR 0068).
+ * A third party either PURGED the user (deleted, or the PII-free end-state
+ * already held), has no per-user deletion API so the obligation is DOCUMENTED
+ * (its data is minimized at source instead), or was unconfigured and SKIPPED.
+ * There is deliberately NO "failed" variant — a HARD failure THROWS rather than
+ * returning, so the job fails → retries → DLQs (the ban-purge escalation shape,
+ * anyora ADR 0056); a purge failure is never a swallowed return. `detail` is a
+ * non-PII string. The processor records these in the erasure read-model (the
+ * `privacy.erase` audit diff + the BullMQ `job.returnvalue`), so a purge is an
+ * accounted-for step, not a hope in a log — and a `documented`/`skipped` outcome
+ * NEVER downgrades erasure success.
+ */
+export type PurgeOutcome = {
+  readonly status: "purged" | "documented" | "skipped";
+  readonly detail?: string;
+};
+
 export interface PurgeHook {
   readonly name: string;
-  /** Purge the user from the third-party system. Idempotent — jobs retry. */
-  purgeUser(userId: string): Promise<void>;
+  /**
+   * Purge the user from the third-party system. Idempotent — jobs retry.
+   * Returns a {@link PurgeOutcome} recorded in the erasure read-model; a HARD
+   * failure THROWS (escalates) instead of returning.
+   */
+  purgeUser(userId: string): Promise<PurgeOutcome>;
 }
 
 /** Job names on the `privacy` queue — shared by producer and processor. */

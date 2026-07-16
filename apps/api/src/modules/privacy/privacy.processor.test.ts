@@ -278,7 +278,10 @@ describe("PrivacyProcessor erasure (Art. 17)", () => {
     });
     const hook: PurgeHook = {
       name: "sentry",
-      purgeUser: vi.fn().mockImplementation(async () => void order.push("hook")),
+      purgeUser: vi.fn().mockImplementation(async () => {
+        order.push("hook");
+        return { status: "documented", detail: "src" };
+      }),
     };
     const { processor, auditService } = makeProcessor({
       txHost: db.txHost,
@@ -296,7 +299,86 @@ describe("PrivacyProcessor erasure (Art. 17)", () => {
       action: "privacy.erase",
       entityType: "user",
       entityId: "u-1",
+      diff: { purges: { sentry: { status: "documented", detail: "src" } } },
     });
+  });
+
+  it("collects purge outcomes into the audit diff AND returns them (job.returnvalue) — ADR 1010", async () => {
+    const hooks: PurgeHook[] = [
+      {
+        name: "sentry",
+        purgeUser: vi.fn().mockResolvedValue({ status: "documented", detail: "d" }),
+      },
+      { name: "posthog", purgeUser: vi.fn().mockResolvedValue({ status: "purged" }) },
+    ];
+    const { processor, auditService } = makeProcessor({ purgeHooks: hooks });
+
+    const result = await processor.process(job(PRIVACY_JOBS.erase));
+
+    const expectedPurges = {
+      sentry: { status: "documented", detail: "d" },
+      posthog: { status: "purged" },
+    };
+    // Returned so BullMQ stores it as job.returnvalue (the itest-visible read-model).
+    expect(result).toEqual(expectedPurges);
+    // AND mirrored into the privacy.erase audit diff (no erasure_request table in
+    // perimetra, ADR 1010 adaptation — the diff + returnvalue ARE the read-model).
+    expect(auditService.record).toHaveBeenCalledWith({
+      action: "privacy.erase",
+      entityType: "user",
+      entityId: "u-1",
+      diff: { purges: expectedPurges },
+    });
+    expect(hooks[0]!.purgeUser).toHaveBeenCalledWith("u-1");
+    expect(hooks[1]!.purgeUser).toHaveBeenCalledWith("u-1");
+  });
+
+  it("propagates a thrown purge hook (ban-purge escalation → onFailed → DLQ), no audit swallow", async () => {
+    const hook: PurgeHook = {
+      name: "posthog",
+      purgeUser: vi.fn().mockRejectedValue(new Error("posthog person deletion failed: 500")),
+    };
+    const { processor, auditService } = makeProcessor({ purgeHooks: [hook] });
+
+    await expect(processor.process(job(PRIVACY_JOBS.erase))).rejects.toThrow(/500/);
+    // The throw aborts before the audit step — the failure is a thrown job, never
+    // a stored outcome (no "failed" PurgeOutcome variant).
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it("runs finalizeErasure in a SECOND pass, after every handler's eraseUser and before core (ADR 1010)", async () => {
+    const order: string[] = [];
+    const db = makeDb();
+    db.update.mockImplementation(() => {
+      order.push("core");
+      return { set: db.updateSet };
+    });
+    const mk = (name: string): PrivacyHandler => ({
+      entityType: name,
+      exportUser: vi.fn(),
+      eraseUser: vi.fn().mockImplementation(async () => void order.push(`erase:${name}`)),
+      finalizeErasure: vi.fn().mockImplementation(async () => void order.push(`finalize:${name}`)),
+    });
+    const h1 = mk("h1");
+    const h2 = mk("h2");
+    const { processor } = makeProcessor({ txHost: db.txHost, handlers: [h1, h2] });
+
+    await processor.process(job(PRIVACY_JOBS.erase));
+
+    // BOTH erase passes complete before ANY finalize; all finalizes before core.
+    expect(order).toEqual(["erase:h1", "erase:h2", "finalize:h1", "finalize:h2", "core"]);
+    expect(h1.finalizeErasure).toHaveBeenCalledWith("u-1");
+    expect(h2.finalizeErasure).toHaveBeenCalledWith("u-1");
+  });
+
+  it("tolerates handlers without a finalizeErasure (optional seam)", async () => {
+    const handler: PrivacyHandler = {
+      entityType: "project",
+      exportUser: vi.fn(),
+      eraseUser: vi.fn().mockResolvedValue(undefined),
+    };
+    const { processor } = makeProcessor({ handlers: [handler] });
+    await expect(processor.process(job(PRIVACY_JOBS.erase))).resolves.toBeDefined();
   });
 
   it("anonymizes the user row and deletes sessions + accounts + two-factor (SQL shape)", async () => {
