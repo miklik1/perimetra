@@ -10,6 +10,17 @@ storage for session lookups. Sessions are httpOnly cookies (`__Host-` prefix
 in prod, `SameSite=Lax`); a strict per-IP rate limit guards `/api/auth/*`
 (registered in `main.ts`, see `common/throttle`).
 
+Public self-serve sign-up (`/api/auth/sign-up/email`) is gated by
+`emailAndPassword.disableSignUp: !allowSelfSignUp(env)` (ADR 1008): OPEN outside
+production (dev/test/e2e depend on it), CLOSED in production by default —
+operator-provisioned (`admin.createUser`) + invite-accept are the account paths
+there — unless `AUTH_SELF_SIGN_UP=true` re-opens a provisioning window. Keyed on
+`NODE_ENV=production` (the signal `assertProductionSecrets` and the `__Host-`
+cookie switch already trust). Sign-in / reset / verification / invite-accept are
+separate routes, unaffected. Closing sign-up does not strand tenancy — the org
+auto-provision (ADR 0055/0063) runs on session-create, so an operator-created
+user still gets its org on first login.
+
 ## Public surface
 
 - `SessionGuard` + `@CurrentSession()` — how every protected route gets the

@@ -17,6 +17,13 @@ import "@repo/db/schema";
 const STATIC_PATHS = [
   "req.headers.authorization",
   "req.headers.cookie",
+  // A browser that opened a token-bearing URL (a password-reset / magic /
+  // signed-export link — `sendResetPassword` already mints one) replays that URL
+  // as the `Referer` of the next same-origin request, so a single-use credential
+  // can land in the access log in cleartext. Whole-header censor via pino
+  // `redact.paths` — the SAME mechanism as cookie/authorization, NOT a serializer
+  // edit (ADR 0040 amendment, channel-A drain of skeleton 7e9ba3b).
+  "req.headers.referer",
   'res.headers["set-cookie"]',
 ];
 

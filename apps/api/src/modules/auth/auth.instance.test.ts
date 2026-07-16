@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { createAuth, type CreateAuthDeps } from "./auth.instance.js";
+import { allowSelfSignUp, createAuth, type CreateAuthDeps } from "./auth.instance.js";
 
 const fakeDb = {} as CreateAuthDeps["db"];
 const fakeRedis = {
@@ -50,6 +50,18 @@ function sessionOptions(env: CreateAuthDeps["env"]): ResolvedSession {
   return (auth as unknown as { options: { session: ResolvedSession } }).options.session;
 }
 
+function emailAndPasswordOptions(env: CreateAuthDeps["env"]): { disableSignUp?: boolean } {
+  const auth = createAuth({
+    db: fakeDb,
+    redis: fakeRedis,
+    env,
+    email: fakeEmail,
+    logger: fakeLogger,
+  });
+  return (auth as unknown as { options: { emailAndPassword: { disableSignUp?: boolean } } }).options
+    .emailAndPassword;
+}
+
 describe("createAuth — session policy", () => {
   it("drives the signed cookieCache window from SESSION_COOKIE_CACHE_MAX_AGE_S (default 60s, not the old hardcoded 300)", () => {
     const { cookieCache } = sessionOptions(makeEnv());
@@ -68,5 +80,37 @@ describe("createAuth — session policy", () => {
     const session = sessionOptions(makeEnv());
     expect(session.expiresIn).toBe(60 * 60 * 24 * 7);
     expect(session.updateAge).toBe(60 * 60 * 24);
+  });
+});
+
+describe("allowSelfSignUp — public sign-up lockdown (ADR 1008)", () => {
+  it("stays open outside production regardless of the flag (dev/test/e2e depend on it)", () => {
+    expect(allowSelfSignUp({ NODE_ENV: "development", AUTH_SELF_SIGN_UP: false })).toBe(true);
+    expect(allowSelfSignUp({ NODE_ENV: "test", AUTH_SELF_SIGN_UP: false })).toBe(true);
+  });
+
+  it("is CLOSED in production by default — the fail-closed default must never regress", () => {
+    expect(allowSelfSignUp({ NODE_ENV: "production", AUTH_SELF_SIGN_UP: false })).toBe(false);
+  });
+
+  it("re-opens in production only when AUTH_SELF_SIGN_UP is explicitly set", () => {
+    expect(allowSelfSignUp({ NODE_ENV: "production", AUTH_SELF_SIGN_UP: true })).toBe(true);
+  });
+});
+
+describe("createAuth — public sign-up refused in production (disableSignUp, ADR 1008)", () => {
+  it("resolves emailAndPassword.disableSignUp true in prod-default (sign-up closed)", () => {
+    expect(emailAndPasswordOptions(makeEnv({ NODE_ENV: "production" })).disableSignUp).toBe(true);
+  });
+
+  it("leaves sign-up open (disableSignUp false) outside production", () => {
+    expect(emailAndPasswordOptions(makeEnv()).disableSignUp).toBe(false);
+  });
+
+  it("re-opens sign-up in production when AUTH_SELF_SIGN_UP is set", () => {
+    expect(
+      emailAndPasswordOptions(makeEnv({ NODE_ENV: "production", AUTH_SELF_SIGN_UP: true }))
+        .disableSignUp,
+    ).toBe(false);
   });
 });

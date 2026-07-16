@@ -31,6 +31,19 @@ const envSchema = z.object({
   /** Web app origin — Better Auth trusted origin (its origin/CSRF check on /api/auth/*). */
   WEB_ORIGIN: z.url().default("http://localhost:3000"),
   /**
+   * Public self-serve sign-up escape hatch (ADR 1008): whether the PUBLIC may
+   * create an account via `/api/auth/sign-up/email`. Outside production it is
+   * open (dev/test/e2e depend on it); in production it is CLOSED by default —
+   * operator-provisioned accounts only — unless explicitly re-opened for a
+   * provisioning window. Resolved by `allowSelfSignUp` in `auth.instance.ts`
+   * (`disableSignUp: !allowSelfSignUp(env)`). A string enum, NOT `z.coerce.boolean`
+   * (which would read "false" as truthy), transformed to a real boolean.
+   */
+  AUTH_SELF_SIGN_UP: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /**
    * Session signed-cookie-cache window in seconds. `getSession()` serves the
    * signed payload with NO DB/Redis read for this long, so a ban / revoke /
    * erasure only takes effect within it — treat it as the revocation SLA, not a

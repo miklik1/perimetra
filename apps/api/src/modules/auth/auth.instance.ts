@@ -97,6 +97,22 @@ export function logPasswordResetRequest(
 }
 
 /**
+ * Public self-serve sign-up policy (ADR 1008): open outside production (dev/test/
+ * e2e depend on it), CLOSED in production unless `AUTH_SELF_SIGN_UP` explicitly
+ * re-opens it for a provisioning window. When closed, Better Auth's
+ * `/api/auth/sign-up/email` route 400s (via `emailAndPassword.disableSignUp`).
+ * Sign-in, password reset, email verification and invite-accept are separate
+ * routes and stay open — this closes ONLY the anonymous account-minting surface
+ * (operator-provisioned + invite-accept remain the account paths). Keyed on
+ * `NODE_ENV=production`, the same production signal `assertProductionSecrets` and
+ * the `__Host-` cookie switch already trust. Pure — unit-tested in
+ * `auth.instance.test.ts`.
+ */
+export function allowSelfSignUp(env: Pick<Env, "NODE_ENV" | "AUTH_SELF_SIGN_UP">): boolean {
+  return env.NODE_ENV !== "production" || env.AUTH_SELF_SIGN_UP;
+}
+
+/**
  * admin() plugin endpoints whose mutations must leave an audit trail (ADR 0040),
  * keyed by Better Auth's request-hook `ctx.path` (relative to `basePath`). Each
  * carries the target user in `body.userId`. Read-only admin endpoints (list/get)
@@ -296,6 +312,13 @@ export function createAuth({
     },
     emailAndPassword: {
       enabled: true,
+      // Public self-serve sign-up: CLOSED in production (operator-provisioned
+      // only) unless AUTH_SELF_SIGN_UP opens a provisioning window; open outside
+      // production. Better Auth 400s /api/auth/sign-up/email when true (ADR 1008).
+      // Closing it doesn't strand tenancy: org auto-provisioning runs on
+      // session-create (databaseHooks above), so an operator-created user still
+      // gets its org on first login.
+      disableSignUp: !allowSelfSignUp(env),
       // Policy floor (enterprise hardening): a 12-char minimum, above Better
       // Auth's default 8. Max stays the default (128).
       minPasswordLength: MIN_PASSWORD_LENGTH,

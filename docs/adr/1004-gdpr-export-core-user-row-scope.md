@@ -1,6 +1,6 @@
 # ADR 1004 — GDPR/DSAR export includes the Better Auth core user row (portable-field scope)
 
-**Status:** Accepted (2026-07-12) — **HQ-ruled default, Martin ratify queued** (do-first doctrine 2026-07-12, ruling #1). Amends [ADR 0040](0040-gdpr-privacy-audit.md) (its export half only; the erase half is unchanged).
+**Status:** Accepted (2026-07-12) — **HQ-ruled default, Martin ratify queued** (do-first doctrine 2026-07-12, ruling #1). Amends [ADR 0040](0040-gdpr-privacy-audit.md) (its export half only; the erase half is unchanged). **Amended 2026-07-16** (channel-A drain of skeleton `7e9ba3b`): structural reserved-key boot guard + column-projected core SELECT — see the Amendment section.
 
 ## Context
 
@@ -24,6 +24,14 @@ An explicit allow-list (not a strip-list) is deliberate: a column added to the `
 - The step is handled inline in the processor, NOT via `PRIVACY_HANDLERS`/`@gen:*` anchors — Better Auth's own tables are not a domain module, and the anchors are pinned byte-for-byte to the generator template by `privacy-generator.conformance.test.ts`. Growing a second registration pathway for one table would fight that guard for no benefit.
 - **HQ-ruled default (ratify queued):** the field set is HQ's engineering call under the do-first doctrine; Martin's (or legal's) ratification/veto is queued in the Brain hub. The contract test makes any future change to the set a deliberate, reviewed edit.
 - Out of scope (flagged, not silently assumed covered): the export path has no Art. 30 audit row today (only erase does); and `account`/`session` are erased but never exported — if scope later grows to "export everything Better Auth erases", those need their own heavily-redacted handling (password/tokens excluded).
+
+## Amendment (2026-07-16) — structural reserved-key guard + column-projected SELECT
+
+Two defense-in-depth hardenings, drained from the skeleton (channel-A, `7e9ba3b`) into the perimetra `PrivacyProcessor`. Neither changes the exported field set; both close a gap between the intended contract and its enforcement.
+
+1. **Reserved-`user` boot guard (was comment-only).** The Decision reserves the `"user"` entityType for the built-in core step, but `PrivacyHandler.entityType` is a plain `string`, so the reservation lived only in a comment — a domain handler that also declared `entityType: "user"` would have had its export silently clobbered (the core step writes `data.user` _after_ the handler fan-out), a soundless completeness regression. `onApplicationBootstrap` now enforces it structurally: it filters the registered handlers for `entityType === "user"` and throws if any exist, so a colliding handler fails at BOOT (caught in CI/dev), never loses data at run time. A `privacy.processor.test.ts` case pins the throw.
+
+2. **Column-projected core SELECT.** The core step read the `user` row with `select().from(user)` (`SELECT *`) and then picked the eight fields in an object literal. The object literal already fail-closed the OUTPUT document, but a later-added column (a moderation flag, a future secret) still entered process memory. The `SELECT` is now column-projected to exactly the same eight-field allow-list, so an unlisted column never leaves the database. The projection and the object literal are kept in lockstep by an added `toHaveBeenCalledWith` assertion on the projected columns — the exact-key-set output test alone cannot catch a widened SELECT (a same-typed extra column is tsc-invisible and static-fixture-blind).
 
 ## Sources
 

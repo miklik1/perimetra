@@ -82,6 +82,22 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
   }
 
   async onApplicationBootstrap(): Promise<void> {
+    // Reserved-key invariant (ADR 1004 amendment): the Art. 20 export emits the
+    // Better Auth `user` row under `data.user` as a built-in core step that runs
+    // AFTER the handler fan-out — so a domain handler that also claimed
+    // entityType "user" would be silently overwritten, a soundless GDPR-export
+    // completeness regression. `PrivacyHandler.entityType` is a plain `string`,
+    // so enforce the reservation structurally here: a colliding handler fails
+    // BOOT (caught in CI/dev), never loses data at run time.
+    const reserved = this.handlers.filter((h) => h.entityType === "user");
+    if (reserved.length > 0) {
+      throw new Error(
+        `PrivacyHandler entityType "user" is reserved for the built-in Art. 20 core step ` +
+          `(ADR 1004); ${reserved.length} handler(s) claim it and would be silently clobbered — ` +
+          `rename the handler's entityType.`,
+      );
+    }
+
     // Own scheduler on the PRIVACY queue (ADR 0043's repeatables-only cron) —
     // deliberately NOT the maintenance queue/processor, which stays untouched.
     await upsertScheduler(
@@ -132,7 +148,23 @@ export class PrivacyProcessor extends WorkerHost implements OnApplicationBootstr
     // me.controller.ts's client allow-list) and never reads `account`/`session`
     // (password hash, OAuth tokens, session artifacts). A column added to the
     // `user` table later does NOT enter the export until listed here on purpose.
-    const [row] = await this.txHost.tx.select().from(user).where(eq(user.id, userId));
+    // The SELECT is column-projected to the SAME allow-list (defense-in-depth,
+    // ADR 1004 amendment): a later `user` column never even enters process
+    // memory, not just the output document. The two lists (projection + object
+    // literal below) are kept in lockstep by the exact-key-set contract test.
+    const [row] = await this.txHost.tx
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        image: user.image,
+        locale: user.locale,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      })
+      .from(user)
+      .where(eq(user.id, userId));
     if (row) {
       data.user = {
         id: row.id,

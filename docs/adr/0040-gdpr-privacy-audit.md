@@ -43,3 +43,17 @@ per project is weeks; the skeleton standardizes it once.
 - Known gaps (tracked): no domain handler registered yet (export `data` is
   empty until the projects handler lands), export download delivery, and the
   Sentry/PostHog purge adapters (Phase 6).
+
+## Amendment (2026-07-16) — `Referer` added to the static log-redact paths
+
+Channel-A drain of skeleton `7e9ba3b`. `req.headers.referer` joins the static
+redact-path set (alongside `authorization` / `cookie` / `set-cookie`). A browser
+that opened a token-bearing URL — a password-reset / magic / signed-export link,
+and `sendResetPassword` already mints one — replays that URL as the `Referer` of
+the next same-origin request, so a single-use credential can land in the access
+log in cleartext (orthogonal to TLS, which protects the wire, not the URL's
+persistence). The censor is a whole-header `redact.paths` entry — the SAME
+mechanism as cookie/authorization, NOT a `req` serializer edit. Because a
+redact-path is invisible to a serializer-only unit test, a real pino-http
+round-trip test asserts the header renders `[redacted]` and mutation-reddens if
+the path is removed.

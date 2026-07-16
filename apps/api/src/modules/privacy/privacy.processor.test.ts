@@ -196,7 +196,21 @@ describe("PrivacyProcessor export (Art. 20)", () => {
     const { processor } = makeProcessor({ txHost: db.txHost, handlers: [] });
     await processor.process(job(PRIVACY_JOBS.export));
 
-    // Queried against the `user` table, keyed by the subject id.
+    // Queried against the `user` table, keyed by the subject id — and
+    // COLUMN-PROJECTED to exactly the ruled allow-list (ADR 1004 amendment): a
+    // later `user` column never enters process memory. Pins the projection in
+    // lockstep with the object literal (a same-typed column swap is tsc-invisible,
+    // and the exact-key-set assertion below alone cannot catch a widened SELECT).
+    expect(db.select).toHaveBeenCalledWith({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      image: user.image,
+      locale: user.locale,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
     expect(db.selectFrom).toHaveBeenCalledWith(user);
 
     const init = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1] as {
@@ -344,6 +358,17 @@ describe("scheduling + unknown jobs", () => {
       { pattern: "30 3 * * *", tz: "Europe/Prague" },
       { name: PRIVACY_JOBS.auditCleanup },
     );
+  });
+
+  it("refuses to boot when a handler claims the reserved 'user' entityType (ADR 1004)", async () => {
+    // The Art. 20 core step emits `data.user` AFTER the handler fan-out, so a
+    // handler also claiming "user" would be silently clobbered — enforce the
+    // reservation structurally: a colliding handler fails BOOT, not at run time.
+    const handlers = [
+      { entityType: "user", exportUser: vi.fn(), eraseUser: vi.fn() },
+    ] as unknown as PrivacyHandler[];
+    const { processor } = makeProcessor({ handlers });
+    await expect(processor.onApplicationBootstrap()).rejects.toThrow(/reserved/);
   });
 
   it("logs and ignores unknown job names", async () => {

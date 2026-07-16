@@ -13,6 +13,8 @@ describe("buildRedactPaths", () => {
     const paths = buildRedactPaths();
     expect(paths).toContain("req.headers.authorization");
     expect(paths).toContain("req.headers.cookie");
+    // Referer can replay a token-bearing URL back into the access log (ADR 0040).
+    expect(paths).toContain("req.headers.referer");
     expect(paths).toContain('res.headers["set-cookie"]');
   });
 
@@ -117,5 +119,44 @@ describe("redactedReqSerializer", () => {
     expect(line.req.url).toBe("/v1/projects");
     expect(line.req).not.toHaveProperty("query");
     expect(JSON.stringify(line.req)).not.toContain("secret@example.com");
+  });
+});
+
+describe("referer redaction (redact.paths, real pino-http pipeline)", () => {
+  it("censors req.headers.referer end-to-end so a token-bearing URL never lands in the log", async () => {
+    // The referer leak is a redact-PATHS concern, invisible to a serializer-only
+    // unit test — only the REAL pipeline with `redact.paths` configured catches
+    // it. Removing "req.headers.referer" from STATIC_PATHS reddens this test
+    // (the mutation guard the ADR 0040 amendment demands).
+    const pinoHttp = (await import("pino-http")).default as unknown as (
+      opts: unknown,
+      stream: unknown,
+    ) => { logger: { info: (obj: unknown, msg: string) => void } };
+    const chunks: string[] = [];
+    const dest = { write: (c: string) => void chunks.push(c) };
+    const mw = pinoHttp(
+      {
+        redact: { paths: buildRedactPaths(), censor: "[redacted]" },
+        serializers: { req: redactedReqSerializer },
+      },
+      dest,
+    );
+    mw.logger.info(
+      {
+        req: {
+          method: "GET",
+          url: "/dashboard",
+          headers: {
+            host: "x",
+            referer: "https://app.example.com/reset-password?token=abc123secret",
+          },
+          socket: { remoteAddress: "203.0.113.7", remotePort: 54321 },
+        },
+      },
+      "t",
+    );
+    const line = JSON.parse(chunks.join("")) as { req: { headers: { referer: string } } };
+    expect(line.req.headers.referer).toBe("[redacted]");
+    expect(JSON.stringify(line.req)).not.toContain("abc123secret");
   });
 });
