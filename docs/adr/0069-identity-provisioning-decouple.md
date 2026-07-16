@@ -1,11 +1,24 @@
 # ADR 0069 — Decouple org provisioning from the email+password credential
 
-**Status:** **Proposed** (2026-06-22) — awaiting sign-off. This ADR records the
+**Status:** **Accepted** (2026-07-16) — proposed 2026-06-22, ruled Accepted under
+the HQ 2026-07-16 unblock delegation (vault `Decision — 2026-07-16 unblock rulings
+(Martin's trust delegation)`, ruling 7; realizes CAR-37). This ADR records the
 decision to cut a seam BEFORE it becomes expensive; **no code changes ship with
-it**. It is the "decide the provisioning model now" item from the enterprise-
+it** — acceptance ratifies the direction, the implementation stays demand-pulled
+(Phase D). It is the "decide the provisioning model now" item from the enterprise-
 readiness gap analysis (vault `Decision — enterprise-readiness gap analysis &
-phased roadmap`), Phase 0. The full SSO/SCIM implementation stays demand-pulled
-(Phase D); this is only about not painting ourselves into a corner first.
+phased roadmap`), Phase 0.
+
+**Federation alignment (why now, 2026-07-16):** the credential-agnostic
+`provisionWorkspace` seam this ADR defines is exactly the shape the fleet's Wave-0
+identity direction now requires — "pure Sign-in-with-Cardo" (G2a) and the landed
+`@cardo/federation-kit` both assume provisioning is triggered by "a principal
+exists", not "a principal authenticated with a Perimetra password". Leaving the
+seam Proposed past the D2 federation window would invite exactly the coupling
+(provisioning welded to the password flow) that a later Sign-in-with-Cardo / SSO
+integration would then have to unwind as a tenant migration. Accepting now fixes
+the direction while the SSO/SCIM build itself stays demand-pulled. Reversible: the
+veto is to flip back — no build rides on it today.
 
 ## Context
 
