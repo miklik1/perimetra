@@ -118,6 +118,46 @@ export class CustomersService {
     return toCustomer(row);
   }
 
+  /**
+   * Cross-module seam for invoice issue (ADR 0112 §7): the buyer's supply-time
+   * identity, read LIVE and org-scoped (not rep-narrowed — a document is issued
+   * at org level), INCLUDING an anonymized row so the caller can fail closed on
+   * an erased buyer (`anonymized: true`) rather than mis-read a 404 and skip the
+   * §29 guard. Returns null only when the id names no row in this org.
+   */
+  async getIdentityForInvoice(
+    scope: RequestScope,
+    customerId: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    ico: string | null;
+    dic: string | null;
+    vatPayer: boolean;
+    email: string | null;
+    addressLine: string | null;
+    city: string | null;
+    postalCode: string | null;
+    country: string;
+    anonymized: boolean;
+  } | null> {
+    const row = await this.customers.findByIdIncludingErased(scope, customerId);
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      ico: row.ico,
+      dic: row.dic,
+      vatPayer: row.vatPayer,
+      email: row.email,
+      addressLine: row.addressLine,
+      city: row.city,
+      postalCode: row.postalCode,
+      country: row.country,
+      anonymized: row.deletedAt !== null,
+    };
+  }
+
   @Transactional()
   async create(scope: RequestScope, input: CreateCustomerInput): Promise<Customer> {
     const row = await this.customers.insert(scope, insertData(input));

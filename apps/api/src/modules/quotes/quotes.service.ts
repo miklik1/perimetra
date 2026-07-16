@@ -568,6 +568,36 @@ export class QuotesService {
   }
 
   /**
+   * Cross-module seam for invoice issue (ADR 0112): the commercial basis an
+   * invoice is built from — the frozen per-rate `TaxBreakdown` (ADR 0080), the
+   * currency, the quote's evidenční číslo (for the invoice line description), and
+   * the attached customer id (the invoice re-reads that customer LIVE at issue,
+   * §29 supply-time parties). Read off the FROZEN snapshot verbatim (I3), never a
+   * schema join (ADR 0032). Org-scoped, not owner-narrowed — the caller already
+   * gated on order access (same org). 404 on an absent/incomplete quote.
+   */
+  async getInvoiceBasis(
+    scope: RequestScope,
+    quoteId: string,
+  ): Promise<{
+    quoteNumber: string;
+    currency: string;
+    tax: TaxBreakdown;
+    customerId: string | null;
+  }> {
+    const row = await this.quotes.findById(scope, { restrictToOwner: false }, quoteId);
+    if (!row) throw new NotFoundException("Quote not found");
+    const snapshot = row.snapshot as QuoteSnapshot;
+    if (!snapshot.tax) throw new NotFoundException("Quote not found");
+    return {
+      quoteNumber: row.documentNumber,
+      currency: row.currency,
+      tax: snapshot.tax,
+      customerId: row.customerId,
+    };
+  }
+
+  /**
    * Rebuild the deviation ledger's snapshot-derivable rows (ADR-O4, CAR-159) —
    * the drift-repair maintenance op. QuotesService orchestrates it because it
    * owns the frozen snapshots (keeps the quotes→ledger dependency one-way);

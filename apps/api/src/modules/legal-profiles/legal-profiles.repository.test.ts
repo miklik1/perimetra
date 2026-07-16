@@ -79,6 +79,7 @@ describe("LegalProfilesRepository (singleton, org-scoped)", () => {
       postalCode: null,
       country: "CZ",
       bankAccount: null,
+      iban: null,
       registrationNote: null,
     });
 

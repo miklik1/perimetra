@@ -53,3 +53,10 @@ export const money = z.number().nonnegative().multipleOf(0.01);
  * the bare callsite so this is the single way to validate a wire timestamp.
  */
 export const isoDatetime = z.iso.datetime({ offset: true });
+
+/**
+ * ISO 8601 calendar date (`YYYY-MM-DD`, no time component) — the §29 daňový
+ * doklad dates (issue date, DUZP, due date; ADR 0112). A statutory tax date is a
+ * Prague calendar day, never a timestamp, so this is the wire form for them.
+ */
+export const isoDate = z.iso.date();

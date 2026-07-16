@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "3.1065.0",
     "@bull-board/api": "^7.2.1",
     "@bull-board/fastify": "^7.2.1",
+    "@cardo/tax-cz": "npm:@miklik1/cardo-tax-cz@^0.1.0",
     "@fastify/basic-auth": "6.2.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/otel": "catalog:",

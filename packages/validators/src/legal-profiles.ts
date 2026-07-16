@@ -12,7 +12,7 @@
 import { z } from "zod";
 
 import { isoDatetime } from "./primitives";
-import { bankAccount, dic, ico } from "./primitives/cz";
+import { bankAccount, dic, iban, ico } from "./primitives/cz";
 
 /** Response shape — what the legal-profile endpoint serializes through (strip semantics). */
 export const legalProfileSchema = z.object({
@@ -26,6 +26,8 @@ export const legalProfileSchema = z.object({
   postalCode: z.string().nullable(),
   country: z.string(),
   bankAccount: z.string().nullable(),
+  /** IBAN — the validated §29 payment target (ADR 0112 §5). */
+  iban: z.string().nullable(),
   registrationNote: z.string().nullable(),
   createdAt: isoDatetime,
   updatedAt: isoDatetime,
@@ -51,6 +53,9 @@ export const upsertLegalProfileSchema = z.object({
   postalCode: z.string().max(20).nullable().optional(),
   country: z.string().length(2).optional(),
   bankAccount: bankAccount.nullable().optional(),
+  /** IBAN (ISO 13616, CZ mod-97-checked) — required before an invoice can issue
+   *  (ADR 0112 §5), but optional on the profile so it fills in over time. */
+  iban: iban.nullable().optional(),
   registrationNote: z.string().max(500).nullable().optional(),
 });
 export type UpsertLegalProfileInput = z.infer<typeof upsertLegalProfileSchema>;

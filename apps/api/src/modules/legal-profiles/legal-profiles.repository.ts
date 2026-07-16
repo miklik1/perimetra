@@ -25,6 +25,7 @@ export interface UpsertLegalProfileData {
   postalCode: string | null;
   country: string;
   bankAccount: string | null;
+  iban: string | null;
   registrationNote: string | null;
 }
 

@@ -21,6 +21,7 @@ import { CatalogVersionsModule } from "./modules/catalog-versions/catalog-versio
 import { CustomersModule } from "./modules/customers/customers.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
+import { InvoicesModule } from "./modules/invoices/invoices.module.js";
 import { JobsModule } from "./modules/jobs/jobs.module.js";
 import { LedgerModule } from "./modules/ledger/ledger.module.js";
 import { LegalProfilesModule } from "./modules/legal-profiles/legal-profiles.module.js";
@@ -117,6 +118,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     LookupsModule,
     OrdersModule,
     LedgerModule,
+    InvoicesModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

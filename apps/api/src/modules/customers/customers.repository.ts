@@ -115,6 +115,25 @@ export class CustomersRepository {
     return row ?? null;
   }
 
+  /**
+   * Org-scoped read that INCLUDES an anonymized (soft-deleted) row — for a
+   * downstream document that must fail CLOSED on an erased buyer rather than
+   * mis-read a 404 (invoice issue, ADR 0112 §7). Not rep-narrowed: the document
+   * is issued at org level, and an anonymized row has no owner to match on
+   * anyway. The caller inspects `deletedAt` to distinguish erased from live.
+   */
+  async findByIdIncludingErased(
+    scope: RequestScope,
+    customerId: string,
+  ): Promise<CustomerRow | null> {
+    const [row] = await this.txHost.tx
+      .select()
+      .from(customer)
+      .where(and(eq(customer.organizationId, scope.organizationId), eq(customer.id, customerId)))
+      .limit(1);
+    return row ?? null;
+  }
+
   async insert(scope: RequestScope, data: InsertCustomerData): Promise<CustomerRow> {
     const [row] = await this.txHost.tx
       .insert(customer)

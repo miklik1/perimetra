@@ -195,9 +195,18 @@ allowBuilds:
   cpu-features: false
   esbuild: false
   lefthook: true
+  # @cardo/tax-cz transitive (native XML for its ISDOC/UBL exporters). `true`
+  # runs its prebuild-install postinstall, which fetches the prebuilt binary for
+  # this platform (no from-source compile). REQUIRED even though O2-b never
+  # serializes XML: the kernel's only `buildInvoice` path is `@cardo/tax-cz/export`,
+  # whose index eagerly loads the exporters (and thus libxmljs2) at module init.
+  libxmljs2: true
   msgpackr-extract: false
   msw: false
   protobufjs: false
   sharp: false
   ssh2: false
   unrs-resolver: false
+
+minimumReleaseAgeExclude:
+  - "@miklik1/cardo-tax-cz@0.1.0"

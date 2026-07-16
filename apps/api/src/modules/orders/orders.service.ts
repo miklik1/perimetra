@@ -102,6 +102,27 @@ export class OrdersService {
   }
 
   /**
+   * Cross-module seam for invoice issue (ADR 0112): resolve an order to its
+   * frozen commercial basis, guarding it exists (org-scoped) and is NOT
+   * cancelled — a cancelled deal has no invoice. Returns the ids the invoices
+   * module needs without exposing the order row or a schema join (ADR 0032).
+   */
+  async assertIssuableForInvoice(
+    scope: RequestScope,
+    orderId: string,
+  ): Promise<{ quoteId: string; orderNumber: string }> {
+    const row = await this.orders.findById(scope, orderId);
+    if (!row) throw new NotFoundException("Order not found");
+    if (row.status === "cancelled") {
+      throw new ConflictException({
+        message: "order is cancelled, cannot be invoiced",
+        code: "order_cancelled",
+      });
+    }
+    return { quoteId: row.quoteId, orderNumber: row.orderNumber };
+  }
+
+  /**
    * Create an order from an accepted quote. Guards the quote is effectively
    * `accepted` and org-visible, allocates the gap-free order number INSIDE the
    * tx, and lets `order_quote_active_uq` decide a concurrent-create race.

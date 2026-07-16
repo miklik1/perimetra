@@ -21,5 +21,8 @@ import { OrdersService } from "./orders.service.js";
   imports: [AuthModule, OutboxModule, QuotesModule, NumberingModule, LedgerModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersRepository],
+  // Exported for the invoices module's issue seam (`assertIssuableForInvoice`,
+  // ADR 0112) — a cross-module service read, never a schema join (ADR 0032).
+  exports: [OrdersService],
 })
 export class OrdersModule {}

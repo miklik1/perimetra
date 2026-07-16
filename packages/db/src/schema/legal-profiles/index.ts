@@ -53,8 +53,14 @@ export const legalProfile = pgTable(
     postalCode: text("postal_code"),
     /** ISO country (default CZ). */
     country: text("country").notNull().default("CZ"),
-    /** Bank account for payment (CZ domestic or IBAN). */
+    /** Bank account for payment (CZ domestic format, e.g. `19-2000145399/0800`). */
     bankAccount: text("bank_account"),
+    /** IBAN — the validated payment target for an issued §29 daňový doklad
+     *  (ADR 0112 §5). Invoice issue fails closed `422 iban_required` without it
+     *  (no silent conversion from the free-text `bankAccount` — a mis-derived
+     *  payment instruction is the worst failure available here). The SPAYD/QR
+     *  payload (`buildSpayd`) is built from this. */
+    iban: text("iban"),
     /** Court-registration note ("zapsáno v OR vedeném…", §435 NOZ) — free text. */
     registrationNote: text("registration_note"),
     ...timestamps(),

@@ -34,6 +34,7 @@ function makeRow(overrides: Partial<LegalProfileRow> = {}): LegalProfileRow {
     postalCode: null,
     country: "CZ",
     bankAccount: null,
+    iban: null,
     registrationNote: null,
     createdAt: NOW,
     updatedAt: NOW,

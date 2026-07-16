@@ -22,6 +22,7 @@ export * from "./legal-profiles";
 export * from "./lookups";
 export * from "./orders";
 export * from "./ledger";
+export * from "./invoices";
 // @gen:exports — `pnpm gen api-resource` / `pnpm gen module` add the resource schema export here.
 export * from "./projects";
 // Project site persistence (ADR 0054) — kept OUT of the skeleton-owned projects.ts

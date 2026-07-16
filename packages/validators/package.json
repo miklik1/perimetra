@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts",
+    "./invoices": {
+      "types": "./dist/invoices.d.ts",
+      "default": "./dist/invoices.js"
+    },
     "./ledger": {
       "types": "./dist/ledger.d.ts",
       "default": "./dist/ledger.js"

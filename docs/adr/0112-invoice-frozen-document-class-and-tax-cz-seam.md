@@ -357,6 +357,43 @@ sliced by blocker:
 - **Store payment status inside the frozen snapshot** — mutation of a frozen
   document, forbidden by construction; payment is row state.
 
-```
+## Addendum — O2-b landed (2026-07-16)
 
-```
+O2-b shipped, and it resolved three points this ADR deliberately left open. Recorded
+here to close the loop (the ADR's own §2/§9 defer them "to O2-b, not guessed"):
+
+- **The seam boundary is pinned: `buildInvoice` assembles the whole document.**
+  The kernel published `@cardo/tax-cz/export` with a `buildInvoice(BuildInvoiceInput)
+→ ExportableDocument` assembly convenience (the kernel's ADR 0018). So the
+  consumer mapper shrinks exactly as §2 hoped — "own rows → `BuildInvoiceInput`" plus
+  the koruna→haléře reconciliation — and never touches VAT derivation. Concretely:
+  `invoice.facts` is the **`BuildInvoiceInput`** (not the smaller `InvoiceFacts`
+  sketch of §4), and `invoice.snapshot` is `buildInvoice(facts)`. This makes
+  reproduction self-contained: `verifyInvoiceReproducibility` re-runs
+  **only `buildInvoice(facts)`** and deep-equals `snapshot` — zero dependence on any
+  live table or on the mapper staying stable, a stronger I3 guarantee than
+  re-running the mapper against the quote (§6 still asserts BOTH: the quote
+  reproduces its golden AND the invoice reproduces itself).
+- **No `Exportable*` mirror.** §2/§9 planned a local mirror of the kernel POJOs
+  because the package was unpublished. It published first (as the
+  `@miklik1/cardo-tax-cz` GitHub-Packages mirror, consumed via an `npm:` alias — the
+  `@cardo` scope is not ours on GH Packages; the alias dies at the M5/M6 monorepo
+  fold-in), so the module imports the REAL `@cardo/tax-cz/export` types directly and
+  the mirror alternative is moot.
+- **Reproduction normalizes through JSON before comparing.** `buildInvoice`'s output
+  can carry `undefined`-valued optionals (e.g. `buyerPeppol`) that a JSONB round-trip
+  drops at rest; the harness re-serializes the freshly-built document through JSON
+  before the deep-equal so a dropped-`undefined` can neither spuriously diverge nor
+  mask a real one (the honest test is "does re-serializing the rebuilt document equal
+  the stored document").
+- **Operational note:** `@cardo/tax-cz/export`'s index eagerly loads its ISDOC/UBL
+  exporters (and thus the native `libxmljs2`) at module init, so even though O2-b
+  serializes no XML, the api now has a hard install-time dependency on libxmljs2's
+  prebuilt binary (`allowBuilds: libxmljs2: true`, fetched by prebuild-install — no
+  from-source compile). Carry this into the ADR-0113 deploy image.
+
+The build is complete: `invoice` table + `legal_profile.iban` (expand-only migration),
+the pure mapper + the `runTaxCzConformance` seating gate (ADR §8), issue/mark-paid/
+verify over the module, and an itest proving issue + reproduce + gap-free numbering +
+§92e + the fail-closed guards over real Postgres. O2-c (print surface + §28 advance
+chain + §92e legend UI) remains the next slice.

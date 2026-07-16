@@ -32,6 +32,7 @@ const AUDITED_FIELDS = [
   "postalCode",
   "country",
   "bankAccount",
+  "iban",
   "registrationNote",
 ] as const;
 
@@ -47,6 +48,7 @@ function toLegalProfile(row: LegalProfileRow): LegalProfile {
     postalCode: row.postalCode,
     country: row.country,
     bankAccount: row.bankAccount,
+    iban: row.iban,
     registrationNote: row.registrationNote,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -65,6 +67,7 @@ function upsertData(input: UpsertLegalProfileInput): UpsertLegalProfileData {
     postalCode: input.postalCode ?? null,
     country: input.country ?? "CZ",
     bankAccount: input.bankAccount ?? null,
+    iban: input.iban ?? null,
     registrationNote: input.registrationNote ?? null,
   };
 }
