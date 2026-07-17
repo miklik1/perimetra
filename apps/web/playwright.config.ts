@@ -11,7 +11,16 @@ import { defineConfig, devices } from "@playwright/test";
  * Kept off the cached `turbo test` task (browsers + a dev server make it
  * non-deterministic to cache); CI runs it in a dedicated `e2e-web` job.
  */
-const PORT = 3000;
+// Default 3000. On a shared multi-seat box the first process to bind :3000 owns
+// it, and `reuseExistingServer` (below) will then silently drive THAT app —
+// identical routes + UI, so specs go green against the wrong repo (see
+// e2e/README.md — the port-ownership trap). A second seat sets `WEB_PORT` to
+// claim its own port. This is the SAME env knob `apps/web`'s dev script reads
+// (`next dev --port ${WEB_PORT:-3000}`) and it is threaded into `webServer.env`
+// below, so the URL Playwright waits on and the port the dev server binds can
+// never drift apart. (The real-stack smoke config uses its own `SMOKE_WEB_PORT`
+// knob for the same reason — it must also match the API's `WEB_ORIGIN`.)
+const PORT = Number(process.env.WEB_PORT ?? 3000);
 const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -49,6 +58,9 @@ export default defineConfig({
       // api-resource` adds one. A pinned list drifted before — `projects` was
       // added but the selector still read "auth,users", leaving it uncovered.
       NEXT_PUBLIC_ENABLE_MSW: "true",
+      // Bind the dev server to the SAME port the URL above waits on (the dev
+      // script reads WEB_PORT), so a `WEB_PORT` override moves both in lockstep.
+      WEB_PORT: String(PORT),
       // Explicitly clear the backend origin. `next dev` loads `apps/web/.env.local`,
       // where a working machine has a real `API_URL` (this repo runs an api) — and
       // an E2E run that mocks the whole API while carrying a backend origin is the

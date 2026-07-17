@@ -17,18 +17,22 @@ describe("buildSentryOptions — tracing scrub hooks", () => {
     expect(typeof opts.beforeSendSpan).toBe("function");
   });
 
-  it("beforeSendTransaction scrubs a token in the request URL and the auth header", () => {
+  it("beforeSendTransaction strips the request-URL query (keeps path) and redacts the auth header", () => {
+    // ADR 1011: the URL query is dropped wholesale (deny-by-default) rather than
+    // pattern-redacted — an arbitrary ?search=<surname> has no value shape, so a
+    // marker-based scrub would leak it. The path survives for trace debugging.
     const result = opts.beforeSendTransaction!({
       type: "transaction",
       transaction: "GET /api/users",
       request: {
-        url: `https://app.example.com/api/users?token=${JWT}`,
+        url: `https://app.example.com/api/users?token=${JWT}&search=Novak`,
         headers: { Authorization: "Bearer secret-token-xyz" },
       },
     } as never) as { request: { url: string; headers: { Authorization: string } } };
 
+    expect(result.request.url).toBe("https://app.example.com/api/users");
     expect(result.request.url).not.toContain(JWT);
-    expect(result.request.url).toContain(FILTERED);
+    expect(result.request.url).not.toContain("Novak");
     expect(result.request.headers.Authorization).toBe(FILTERED);
   });
 
@@ -74,10 +78,11 @@ describe("buildSentryOptions — tracing scrub hooks", () => {
       start_timestamp: 0,
     } as never) as { data: Record<string, unknown> };
 
+    // url.full: query dropped, path kept (ADR 1011) — no token, no marker in URL.
+    expect(result.data["url.full"]).toBe("https://api.example.com/users");
     expect(result.data["url.full"]).not.toContain(JWT);
-    expect(result.data["url.full"]).toContain(FILTERED);
-    expect(result.data["url.query"]).not.toContain("user@example.com");
-    expect(result.data["url.query"]).toContain(FILTERED);
+    // url.query: a bare query string has no path to keep → dropped wholesale.
+    expect(result.data["url.query"]).toBe(FILTERED);
     expect(result.data["http.method"]).toBe("GET");
     expect(result.data["http.status_code"]).toBe(200);
   });
