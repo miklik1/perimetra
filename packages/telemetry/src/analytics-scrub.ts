@@ -149,9 +149,44 @@ const CHAIN_HAS_HREF = /href="/i;
 // so admitted these same names identically.
 const CHAIN_HREF_NAME_TAIL = /(?:^|[^a-z0-9_-])(?:attr__)?href=$/i;
 
+// The grammar check that makes quote-parity SOUND rather than merely assumed
+// (ADR 1020). The no-`\"` precondition proves nothing on its own: it only rules
+// out quotes the ESCAPER produced, and posthog-js does not escape every field it
+// concatenates. `escapeQuotes` is applied to attribute keys and values
+// (autocapture-utils.js:603) and quotes are stripped from class names (:582), but
+// `element.tag_name` is concatenated RAW (:574-575) from
+// `elem.tagName.toLowerCase()`. Per the HTML tokenizer's tag-name state a `"` is
+// an "anything else" code point and is APPENDED to the tag name, so `<span"x>`
+// parses to localName `span"x` — injecting a bare quote with NO backslash. That
+// shifts the split parity by one: every href value lands at an EVEN index, is
+// read as a structure segment, and is never scrubbed. The chain then passes
+// through BYTE-IDENTICAL — total redaction failure, not partial.
+//
+// An odd-quote-COUNT test does not fix it (verified): two injected tag-name
+// quotes restore an even count while still shifting parity for the first href.
+// So check the grammar the parity argument actually assumes instead. In a
+// well-formed chain every even-index segment except the last is a run of
+// `…name=` text ending at the quote that opens the next value, so it MUST end in
+// `=`. A segment that does not is proof the parity has slipped, and the chain is
+// handed to the same ambiguous-case policy as a `\"` chain: dropped if it carries
+// an href, kept otherwise.
+//
+// This preserves every deliberate behaviour above — the planted-`href=` label
+// (its even segments all still end in `=`), the truncated odd-quote chain, the
+// href-less and structure-only chains — while closing the injection. It is the
+// SAME defect class as skeleton ADR 1015 and ADR 1018 above, arriving a third
+// time: an argument about local structure defeated by planting that structure.
+// The lesson is now explicit — a precondition about who ESCAPED a byte is only
+// as strong as the weakest field the producer concatenates unescaped.
+const CHAIN_STRUCTURE_SEGMENT_TAIL = /=$/;
+
 function scrubElementsChain(chain: string): string {
   if (CHAIN_HAS_AMBIGUOUS_ESCAPE.test(chain)) return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
   const parts = chain.split('"');
+  // Parity must be VERIFIED, not assumed — see CHAIN_STRUCTURE_SEGMENT_TAIL.
+  for (let i = 0; i < parts.length - 1; i += 2)
+    if (!CHAIN_STRUCTURE_SEGMENT_TAIL.test(parts[i] as string))
+      return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
   for (let i = 1; i < parts.length; i += 2) {
     if (CHAIN_HREF_NAME_TAIL.test(parts[i - 1] as string))
       parts[i] = dropUrlQuery(parts[i] as string);

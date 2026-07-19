@@ -266,6 +266,62 @@ describe("sanitizeAnalyticsProperties", () => {
     ).toBe('a:attr__data-xhref="/p?keep=1"nth-child="1"');
   });
 
+  it("does not trust quote parity when an unescaped tag_name quote shifts it", () => {
+    // ADR 1020 — a real leak, reproduced by driving posthog-js's own serializer
+    // over jsdom. posthog-js escapes attribute keys/values but concatenates
+    // `element.tag_name` RAW, and the HTML tokenizer appends a `"` to a tag name
+    // (`<span"x>` parses to localName `span"x`). The injected quote carries NO
+    // backslash, so CHAIN_HAS_AMBIGUOUS_ESCAPE never fires; parity shifts by one,
+    // every href value lands on an EVEN index, and the chain passed through
+    // BYTE-IDENTICAL — zero redaction, not partial.
+    const chain =
+      'span"x:attr__href="/clients?search=Novakova&rc=7001011234"nth-child="1"text="Klienti";a:attr__href="/clients?search=Novakova&rc=7001011234"nth-child="1"';
+    expect(chain).not.toContain(String.raw`\"`); // the old guard's only tell is absent
+    const out = sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain;
+    expect(out).not.toContain("Novakova");
+    expect(out).toBe("[Filtered]"); // parity unverifiable + href present ⇒ drop
+    // CONTROL: the byte-identical chain with a well-formed tag name scrubs
+    // normally, so the injected quote is the whole difference.
+    expect(
+      sanitizeAnalyticsProperties({ $elements_chain: chain.replace('span"x', "span") })
+        .$elements_chain,
+    ).toBe(
+      'span:attr__href="/clients"nth-child="1"text="Klienti";a:attr__href="/clients"nth-child="1"',
+    );
+  });
+
+  it("is not fooled by an EVEN number of injected tag_name quotes", () => {
+    // An odd-quote-COUNT check would be an insufficient fix: two injections
+    // restore an even count while still shifting parity for the first href.
+    const chain = 'a"b:attr__href="/c?q=PII1"nth-child="1";d"e:attr__href="/c?q=PII2"nth-child="1"';
+    expect((chain.match(/"/g) ?? []).length % 2).toBe(0);
+    const out = sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain;
+    expect(out).not.toContain("PII1");
+    expect(out).not.toContain("PII2");
+  });
+
+  it("keeps the grammar check from disturbing the deliberate behaviours above", () => {
+    // The even-index-ends-in-`=` invariant holds for every chain the rules above
+    // deliberately preserve, so closing the injection costs none of them.
+    // Truncated odd-quote chain — still the intended over-redaction, not a drop.
+    expect(
+      sanitizeAnalyticsProperties({ $elements_chain: 'a:attr__href="/p?q=1' }).$elements_chain,
+    ).toBe('a:attr__href="/p');
+    // href-less / structure-only chains — byte-preserved.
+    for (const chain of ['div:nth-child="1', 'div:nth-child="1"text="no href here', '"']) {
+      expect(sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain).toBe(chain);
+    }
+    // The ADR 1018 planted-`href=` label still scrubs (its even segments all end in `=`).
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain:
+          'span:nth-child="1"text="Paste the value after href=";a:attr__href="/invite/accept?token=SUPERSECRET"nth-child="2"',
+      }).$elements_chain,
+    ).toBe(
+      'span:nth-child="1"text="Paste the value after href=";a:attr__href="/invite/accept"nth-child="2"',
+    );
+  });
+
   it("gates the ambiguity drop case-insensitively (HREF= is reachable)", () => {
     // The /i is NOT justified by "SVG in foreign content preserves case" — HTML
     // tokenization lowercases attribute names unconditionally. It IS reachable via
