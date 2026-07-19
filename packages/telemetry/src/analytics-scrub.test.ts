@@ -104,7 +104,10 @@ describe("sanitizeAnalyticsProperties", () => {
     // literal backslash before the real delimiter. Three parsing strategies were
     // tried and all leaked; whoever controls an href controls the bytes any
     // heuristic reads. So the presence of `\"` — the one reliable tell — drops
-    // the property instead of half-scrubbing it.
+    // the property instead of half-scrubbing it. Every case below carries an
+    // href, which is what the ADR 1018 gate requires before dropping — an
+    // ambiguous chain with NO href is a provable no-op and is kept (tested
+    // separately below).
     for (const chain of [
       String.raw`a:href="/search?q=\"jane doe\""nth-child="2";div:nth-child="1"`,
       String.raw`a:href="/path\";b:attr__href="/checkout?token=SUPERSECRET"`,
@@ -115,7 +118,7 @@ describe("sanitizeAnalyticsProperties", () => {
     }
   });
 
-  it('keeps element detail on an ordinary chain, where [^"]* is exact', () => {
+  it("keeps element detail on an ordinary chain, where the quotes alternate exactly", () => {
     // With no `\"` anywhere, every quote IS a real delimiter — the common case,
     // so autocapture detail survives.
     expect(
@@ -143,5 +146,136 @@ describe("sanitizeAnalyticsProperties", () => {
     expect(
       sanitizeAnalyticsProperties({ attr__href: "?search=Novakova", href: "products?q=shoes" }),
     ).toEqual({ attr__href: "", href: "products" });
+  });
+
+  it("scrubs the real href when an element's text ends in a planted `href=`", () => {
+    // ADR 1018 defect 1. posthog-js folds the clicked element's `text` into the
+    // chain and sorts attributes with localeCompare, which puts `text` last —
+    // immediately before the ancestor's attr__href. The old rule inferred the
+    // match START from the literal bytes `href="`, so this label opened a bogus
+    // match whose closing group was the REAL href's opening quote; lastIndex
+    // landed past it and the token shipped. Repro page:
+    //   <a href="/invite/accept?token=SUPERSECRET"><span>Paste the value after href=</span></a>
+    const scrubbed = sanitizeAnalyticsProperties({
+      $elements_chain:
+        'span:nth-child="1"text="Paste the value after href=";a:attr__href="/invite/accept?token=SUPERSECRET"nth-child="2"',
+    }).$elements_chain;
+    expect(scrubbed).not.toContain("SUPERSECRET");
+    expect(scrubbed).toBe(
+      'span:nth-child="1"text="Paste the value after href=";a:attr__href="/invite/accept"nth-child="2"',
+    );
+  });
+
+  it("keeps an ambiguous chain intact when it contains no href at all", () => {
+    // ADR 1018 defect 2 (over-redaction). The drop is gated on the chain actually
+    // containing an href: with no `href="` bytes anywhere, this scrub's only
+    // mutation is provably a no-op, so `[Filtered]` destroyed the whole element
+    // tree while removing nothing. Most autocapture events are clicks on buttons
+    // and divs with no href, and one straight double quote in a Czech UI label is
+    // enough to make the chain ambiguous.
+    const chain = String.raw`button:attr__aria-label="Smazat \"Faktura 42\""nth-child="3";div:nth-child="1"`;
+    expect(sanitizeAnalyticsProperties({ $elements_chain: chain })).toEqual({
+      $elements_chain: chain,
+    });
+  });
+
+  it("carries the property key into an ARRAY of URL strings", () => {
+    // The array branch used to pass "" as the key, which disarmed every key-gated
+    // branch for an array of strings. A relative href has no `://` and no dotted
+    // `//host`, so the generic embedded-URL pass cannot see it — it kept its query
+    // while the identical scalar was stripped. Nothing else catches it: this sink
+    // runs no value-shape pass, and the Sentry walk's URL key list deliberately
+    // excludes these names.
+    expect(
+      sanitizeAnalyticsProperties({
+        href: ["/clients?search=Novakova", "/orders#token=abc"],
+        $current_url: ["https://app.cz/c?search=Novakova"],
+      }),
+    ).toEqual({
+      href: ["/clients", "/orders"],
+      $current_url: ["https://app.cz/c"],
+    });
+    // An array of OBJECTS still works: the object branch restores real keys.
+    expect(sanitizeAnalyticsProperties({ $elements: [{ href: "/c?search=X" }] })).toEqual({
+      $elements: [{ href: "/c" }],
+    });
+    // Nested arrays inherit the key at every level.
+    expect(sanitizeAnalyticsProperties({ attr__href: [["/deep?token=T"]] })).toEqual({
+      attr__href: [["/deep"]],
+    });
+  });
+
+  it("applies the chain rules to a chain nested inside an array", () => {
+    // Carrying the key through means an array element under $elements_chain
+    // reaches the chain branch — including its drop-on-ambiguity path, which
+    // returns a sentinel for the whole element rather than a scrubbed string.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: [
+          'a:attr__href="/checkout?token=SUPERSECRET"nth-child="1"',
+          String.raw`a:href="/x?a=1\";customer=Novakova";div:nth-child="1"`,
+        ],
+      }),
+    ).toEqual({
+      $elements_chain: ['a:attr__href="/checkout"nth-child="1"', "[Filtered]"],
+    });
+  });
+
+  it("scrubs an odd-quote-count chain rather than round-tripping it unchanged", () => {
+    // Pins the CORRECTED claim (ADR 1018). It is NOT true that a malformed or
+    // odd-quote-count chain "round-trips unchanged": with one quote, split yields
+    // two segments, the loop still visits index 1, and the unterminated tail goes
+    // through dropUrlQuery. That behaviour is right — the no-`\"` precondition
+    // means a REAL delimiter opened the segment, so it is a truncated href value
+    // and scrubbing it is the intended over-redaction (posthog-js truncating a
+    // long chain mid-value is the realistic producer).
+    expect(
+      sanitizeAnalyticsProperties({ $elements_chain: 'a:attr__href="/p?q=1' }).$elements_chain,
+    ).toBe('a:attr__href="/p');
+    // What the narrow claim DOES promise: nothing outside an identified href
+    // value is altered. Structure-only and href-less chains are byte-preserved.
+    for (const chain of ['div:nth-child="1', 'div:nth-child="1"text="no href here', '"']) {
+      expect(sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain).toBe(chain);
+    }
+  });
+
+  it("admits namespaced and dotted href attribute names by design, at a stated cost", () => {
+    // The boundary class excludes only `a-z0-9_-`, so `:` and `.` satisfy it.
+    // WANTED: xlink:href is a real link attribute (React renders xlinkHref to
+    // exactly that name) and must be scrubbed.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'svg:attr__xlink:href="/p?token=SECRET"nth-child="1"',
+      }).$elements_chain,
+    ).toBe('svg:attr__xlink:href="/p"nth-child="1"');
+    // ACCEPTED COST: a framework binding expression that survives into the DOM is
+    // truncated at its TERNARY `?`. Over-redaction of autocapture detail, never a
+    // leak. Narrowing the class to exclude `:` would drop xlink:href coverage —
+    // the wrong trade for this module.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'a:attr__x-bind:href="isAdmin ? adminUrl : userUrl"nth-child="1"',
+      }).$elements_chain,
+    ).toBe('a:attr__x-bind:href="isAdmin "nth-child="1"');
+    // Still excluded: a non-name character must PRECEDE the (optional) attr__
+    // prefix, so a name merely ENDING in the letters `href` is not an href.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'a:attr__data-xhref="/p?keep=1"nth-child="1"',
+      }).$elements_chain,
+    ).toBe('a:attr__data-xhref="/p?keep=1"nth-child="1"');
+  });
+
+  it("gates the ambiguity drop case-insensitively (HREF= is reachable)", () => {
+    // The /i is NOT justified by "SVG in foreign content preserves case" — HTML
+    // tokenization lowercases attribute names unconditionally. It IS reachable via
+    // setAttribute on an SVG-namespace element and via XHTML, and posthog-js keys
+    // the chain off the raw attribute name. An ambiguous chain carrying an
+    // uppercase HREF must still be dropped, not passed through.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: String.raw`a:attr__HREF="/x?a=1\";customer=Novakova"`,
+      }).$elements_chain,
+    ).toBe("[Filtered]");
   });
 });

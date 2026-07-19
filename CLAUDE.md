@@ -261,9 +261,9 @@ status-agnostic, so a quote on a since-retired release reproduces forever. Idemp
     **renumbered** to perimetra 0104–0107 (they collide by number, and land as a silent
     SECOND `00xx-*.md` because the basenames differ — cherry-pick never conflicts).
     Next: **Phase A** (legal-document spine + close the loop) per the vault roadmap
-    [[Decision — enterprise-readiness gap analysis & phased roadmap]] — BLOCKED on Martin's
-    immutable-PII retention ADR posture (Art.17 erasure vs 10-yr accounting retention). The editor
-    (ADR 0068) is DONE.
+    [[Decision — enterprise-readiness gap analysis & phased roadmap]]. The immutable-PII
+    retention posture that used to block it is SETTLED (ADR 0071: Art.17 erasure anonymizes,
+    never deletes, so the 10-yr accounting retention holds). The editor (ADR 0068) is DONE.
     Invariants I1–I11 (CORE_SPEC §1)
     are the bar every PR is judged against; the Expr numeric-domain choice is
     ADR 0045, catalog/resolution ADR 0046, error taxonomy ADR 0047,

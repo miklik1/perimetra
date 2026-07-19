@@ -523,3 +523,318 @@ describe("scrubSpan", () => {
     });
   });
 });
+
+// `http.target` is path+query, NOT an absolute URL — it has no `://` and no
+// dotted `//host`, so both embedded-URL passes are a no-op on it, and every
+// other rule (SENSITIVE / QUERY_ONLY / STRUCTURAL / description / transaction)
+// misses the key name. It is set unconditionally by Next.js on the
+// `BaseServer.handleRequest` root span and by Sentry's
+// `httpServerSpansIntegration`, and Sentry's OTel bridge maps span attributes
+// straight onto `contexts.trace.data` / `spans[].data`, so before this rule the
+// raw querystring rode the entire server tracing path in the clear (ADR 1016).
+describe("scrubEvent / scrubSpan — the http.target path+query attribute", () => {
+  it("keeps the path and drops the query on a bare path+query value", () => {
+    const result = scrubEvent({
+      contexts: { trace: { data: { "http.target": "/clients?search=Novakova" } } },
+      spans: [{ data: { "http.target": "/projects?email=a@b.cz" } }],
+    }) as {
+      contexts: { trace: { data: Record<string, string> } };
+      spans: { data: Record<string, string> }[];
+    };
+    expect(result.contexts.trace.data["http.target"]).toBe("/clients");
+    expect(result.spans[0]!.data["http.target"]).toBe("/projects");
+  });
+
+  it("covers the raw-span envelope too (beforeSendSpan)", () => {
+    const result = scrubSpan({ data: { "http.target": "/clients?search=Novakova" } });
+    expect(result.data!["http.target"]).toBe("/clients");
+  });
+
+  it("still redacts a value-shape token left in the surviving path", () => {
+    // Query gone AND the path's JWT still caught by the shape patterns — the URL
+    // rule composes with `redactString`, it does not replace it.
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123";
+    expect(scrubSpan({ data: { "http.target": `/reset/${jwt}?x=1` } }).data!["http.target"]).toBe(
+      `/reset/${FILTERED}`,
+    );
+  });
+});
+
+// The FRAGMENT twins of the bare-query keys. A bare fragment value has no
+// scheme, so the embedded-URL passes never fire and `dropUrlQuery` is never
+// reached — covering `http.query` but not `http.fragment` contradicted the
+// module's own deny-by-default policy (`dropUrlQuery` cuts at `[?#]`).
+describe("scrubEvent / scrubSpan — the url.fragment / http.fragment twins", () => {
+  it("drops the fragment twins wholesale, like the query keys", () => {
+    expect(
+      scrubSpan({ data: { "http.fragment": "section=medical-notes", "url.fragment": "x=1" } }).data,
+    ).toEqual({ "http.fragment": FILTERED, "url.fragment": FILTERED });
+    expect(scrubEvent({ data: { "http.fragment": "a=b" } })).toEqual({
+      data: { "http.fragment": FILTERED },
+    });
+  });
+
+  it("drops a fragment that arrives with NO query beside it", () => {
+    // Pins the INDEPENDENCE of the two SDK writes: they are separately guarded on
+    // `parsedUrl.search` / `parsedUrl.hash`, so a fragment-only URL emits
+    // `http.fragment` alone. A rule that relied on a covered sibling being present
+    // would leak exactly here.
+    expect(scrubSpan({ data: { "http.fragment": "email=jan@example.cz" } }).data).toEqual({
+      "http.fragment": FILTERED,
+    });
+  });
+});
+
+// ── The container-key class: a key whose CHILD names are not enumerable ──────
+// `SENSITIVE_KEYS` is anchored (so `cookie` cannot eat `cookiePreferences`), and
+// that same anchoring makes it blind to the PLURAL container `cookies`. The walk
+// descended into the jar and tested each COOKIE NAME against the same anchored
+// list — which no real session-cookie name matches — so the container has to be
+// dropped wholesale instead (ADR 1017).
+describe("scrubEvent — request.cookies (the parsed cookie jar)", () => {
+  it("drops the whole jar, not per-cookie-name", () => {
+    // The exact PoC: `requestDataIntegration` (a DEFAULT integration) parses
+    // `headers.cookie` into `request.cookies` on the ERROR path. Before this rule
+    // the SAME session token was `[Filtered]` under `headers.cookie` and verbatim
+    // under `request.cookies` in one event.
+    const result = scrubEvent({
+      request: {
+        headers: { cookie: "__Host-auth_session_token=hR9m2Kd7.sIgNaTuRe; theme=dark" },
+        cookies: {
+          "__Host-auth_session_token": "hR9m2Kd7.sIgNaTuRe",
+          "sb-access-token": "eyJhbGciOiJI",
+          theme: "dark",
+        },
+      },
+    }) as { request: Record<string, unknown> };
+    expect(result.request.headers).toEqual({ cookie: FILTERED });
+    expect(result.request.cookies).toBe(FILTERED);
+  });
+
+  it("pins WHY the jar must go wholesale: this repo's own cookie survives every other rule", () => {
+    // `__Host-auth_session_token` (packages/auth) matches no anchored key rule,
+    // and its two-segment value matches no value SHAPE (the JWT pattern needs
+    // three). A per-cookie-name rule would have to enumerate a vocabulary it does
+    // not own; this asserts the shortfall so nobody "simplifies" the container
+    // rule back into a name list.
+    expect(redactString("hR9m2Kd7.sIgNaTuRe")).toBe("hR9m2Kd7.sIgNaTuRe");
+    expect(scrubEvent({ "__Host-auth_session_token": "hR9m2Kd7.sIgNaTuRe" })).toEqual({
+      "__Host-auth_session_token": "hR9m2Kd7.sIgNaTuRe",
+    });
+  });
+
+  it("keeps the anchoring that made the plural necessary in the first place", () => {
+    expect(scrubEvent({ cookiePreferences: "analytics=off" })).toEqual({
+      cookiePreferences: "analytics=off",
+    });
+  });
+});
+
+// ── The raw request BODY: a blob no key rule reaches into, no shape matches ──
+describe("scrubEvent — request.data (the raw unparsed body)", () => {
+  it("drops a form-post body carrying shapeless PII", () => {
+    // `include.data` is hardcoded true in requestDataIntegration and
+    // httpServerIntegration captures 10KB by default. A surname has no
+    // Bearer/JWT/email/RČ shape, so `redactString` alone was a no-op.
+    expect(
+      scrubEvent({ request: { data: "surname=Nov%C3%A1kov%C3%A1&rc_note=narozena" } }),
+    ).toEqual({ request: { data: FILTERED } });
+  });
+
+  it("drops an OBJECT body too, not just a string one", () => {
+    expect(scrubEvent({ request: { data: { surname: "Nováková" } } })).toEqual({
+      request: { data: FILTERED },
+    });
+  });
+
+  it("is scoped to `request` — the `data` ATTRIBUTE BAGS stay walkable", () => {
+    // The regression this scoping exists to prevent. A global `data` rule would
+    // redact the bag before the walk could reach `http.target` / `http.query` /
+    // the fragment twins inside it, trading a leak for a bigger blind spot.
+    expect(
+      scrubEvent({
+        contexts: { trace: { data: { "http.target": "/clients?search=Novakova" } } },
+        spans: [{ data: { "http.query": "a=1", "http.route": "/x" } }],
+        data: { url: "https://h/p?q=1", foo: "bar" },
+      }),
+    ).toEqual({
+      contexts: { trace: { data: { "http.target": "/clients" } } },
+      spans: [{ data: { "http.query": FILTERED, "http.route": "/x" } }],
+      data: { url: "https://h/p", foo: "bar" },
+    });
+  });
+
+  it("applies to a DIRECT child of `request` only, not to any deeper `data`", () => {
+    expect(scrubEvent({ request: { other: { data: "not the body" } } })).toEqual({
+      request: { other: { data: "not the body" } },
+    });
+  });
+});
+
+// ── The attribute-namespaced forms of names SENSITIVE_KEYS already owns ──────
+// `ip[-_]?address` and `user[-_]?agent` are anchored, so they cannot see
+// `http.client_ip` or `user_agent.original`. These ship as plain literals in the
+// SAME `startSpan` attributes bag as `http.target` (server-subscription.js), so
+// the ADR 1016 fix was read out of a literal whose neighbours still leaked.
+describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
+  const attributes = {
+    "http.client_ip": "203.0.113.42",
+    "net.peer.ip": "203.0.113.42",
+    "client.address": "203.0.113.42",
+    "http.user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)",
+    "user_agent.original": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)",
+    "http.request.header.user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)",
+    "http.response.header.user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)",
+    "http.request.body.data": "surname=Novakova",
+    "http.request.header.cookie": "__Host-auth_session_token=hR9m2Kd7.sIgNaTuRe",
+    "http.request.header.cookie.__host_auth_session_token": "hR9m2Kd7.sIgNaTuRe",
+    // All four (request|response) x (set_)? arms of the cookie-attribute family.
+    // ADR 1017 claims the whole family; pinning only the request-side arms would
+    // let a narrowing of the regex leave the suite green while the ADR kept
+    // promising response coverage.
+    "http.request.header.set_cookie": "sid=abc; HttpOnly",
+    "http.response.header.cookie": "sid=abc",
+    "http.response.header.set_cookie": "sid=abc; HttpOnly",
+    "http.response.header.set_cookie.connect.sid": "s%3AabcdefghijklmnopQRST",
+  };
+  const allFiltered = Object.fromEntries(Object.keys(attributes).map((k) => [k, FILTERED]));
+
+  it("redacts them on contexts.trace.data (the beforeSendTransaction carrier)", () => {
+    expect(scrubEvent({ contexts: { trace: { data: attributes } } })).toEqual({
+      contexts: { trace: { data: allFiltered } },
+    });
+  });
+
+  it("redacts them on the raw span envelope (beforeSendSpan)", () => {
+    expect(scrubSpan({ data: attributes }).data).toEqual(allFiltered);
+  });
+
+  it("leaves the non-PII attributes of the same literal intact", () => {
+    // `http.target` keeps its path (ADR 1016) and the structural/routing
+    // attributes are untouched — this rule must not blunt trace debuggability.
+    expect(
+      scrubSpan({
+        span_id: "1a2b3c4d",
+        data: {
+          "http.target": "/clients?search=Novakova",
+          "http.route": "/clients",
+          "http.method": "GET",
+          "net.host.name": "api.example.com",
+          "http.status_code": 500,
+        },
+      }),
+    ).toEqual({
+      span_id: "1a2b3c4d",
+      data: {
+        "http.target": "/clients",
+        "http.route": "/clients",
+        "http.method": "GET",
+        "net.host.name": "api.example.com",
+        "http.status_code": 500,
+      },
+    });
+  });
+
+  it("keeps net.host.* — the server's OWN local address, not the caller's", () => {
+    // `net.host.ip` has exactly two writers in the installed tree and both are
+    // SERVER spans assigning `localAddress` (`@sentry/core` server-subscription.js
+    // and `@sentry/node-core` httpServerSpansIntegration.js, the latter via the
+    // SEMATTRS_NET_HOST_IP constant); the client-span emitter writes only
+    // `net.peer.*`. So the name DOES carry the direction. `net.peer.ip` —
+    // genuinely the caller's IP on a server span — stays redacted above (ADR 1019).
+    expect(
+      scrubSpan({
+        data: {
+          "net.host.ip": "10.0.0.5",
+          "net.host.port": 443,
+          "net.host.name": "api-prod-3.internal",
+          "net.peer.ip": "203.0.113.9",
+        },
+      }).data,
+    ).toEqual({
+      "net.host.ip": "10.0.0.5",
+      "net.host.port": 443,
+      "net.host.name": "api-prod-3.internal",
+      "net.peer.ip": FILTERED,
+    });
+  });
+
+  it("redacts the credential/PII vocabulary the pii() column mirror does not cover", () => {
+    // ADR 1019. Not every entry here is a `pii()` column, but neither is
+    // `password`, `token` or `rodne_cislo` — this list has always been a column
+    // mirror PLUS a generic vocabulary. `@repo/validators/primitives/cz.ts` MINTS
+    // iban and bankAccount a few lines from the rodné-číslo validator that this
+    // scrubber's own header cites as its reason to exist. No STRING_PATTERN
+    // matches any of these values, so the key list is the only defence.
+    expect(
+      scrubEvent({
+        extra: {
+          phone: "+420123456789",
+          phone_number: "+420123456789",
+          tel: "+420123456789",
+          iban: "CZ6508000000192000145399",
+          bank_account: "19-2000145399/0800",
+          ssn: "123-45-6789",
+          national_id: "AB123456",
+          // The Czech abbreviation a hand-written form field actually uses.
+          rc: "900720/0004",
+          session_id: "abcdefghijklmnopQRST",
+        },
+      }),
+    ).toEqual({
+      extra: {
+        phone: FILTERED,
+        phone_number: FILTERED,
+        tel: FILTERED,
+        iban: FILTERED,
+        bank_account: FILTERED,
+        ssn: FILTERED,
+        national_id: FILTERED,
+        rc: FILTERED,
+        session_id: FILTERED,
+      },
+    });
+  });
+
+  it("does NOT redact the bare `session` container — it is a pii()-column table here", () => {
+    // The one deliberate divergence from web-native's registry (ADR 1019).
+    // `session` is a Better Auth DB table whose `ip_address` / `user_agent` are
+    // individually registered pii() columns. Redacting the container would hide
+    // them behind one [Filtered] and blind the column mirror that
+    // scrub.pii-contract.test.ts guards. web-native has no packages/db, so no such
+    // container, which is why the bare name is safe there and not here.
+    expect(
+      scrubEvent({ session: { ip_address: "1.2.3.4", user_agent: "curl/8", expiresAt: "soon" } }),
+    ).toEqual({
+      session: { ip_address: FILTERED, user_agent: FILTERED, expiresAt: "soon" },
+    });
+  });
+
+  it("keeps the new vocabulary entries anchored — no substring collateral", () => {
+    // Every entry is anchored, so an app field that merely CONTAINS one of these
+    // names survives. Without this, `session` would eat `session_replay_url` and
+    // `tel` would eat `telemetry_enabled` — the failure mode that made `cookie`
+    // vs `cookiePreferences` worth anchoring in the first place.
+    expect(
+      scrubEvent({
+        extra: {
+          telemetry_enabled: true,
+          session_replay_url: "https://app/replay/7",
+          ibanValidated: true,
+          phone_country: "CZ",
+          national_id_issuer: "MVCR",
+          rcVersion: "1.2.0",
+        },
+      }),
+    ).toEqual({
+      extra: {
+        telemetry_enabled: true,
+        session_replay_url: "https://app/replay/7",
+        ibanValidated: true,
+        phone_country: "CZ",
+        national_id_issuer: "MVCR",
+        rcVersion: "1.2.0",
+      },
+    });
+  });
+});

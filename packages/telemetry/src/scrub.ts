@@ -129,8 +129,167 @@ const EMBEDDED_PROTOCOL_RELATIVE_URL_QUERY = new RegExp(
 // drift: telemetry can't import @repo/db (extension-less for Metro + the DAG
 // forbids the edge), so the test reads the schema SOURCE and asserts the
 // scrubber redacts every pii() column name rather than importing the registry.
+//
+// `cookies` (PLURAL) is a CONTAINER, not a scalar, and it is here for a reason
+// the singular entry does not cover (ADR 1017). Sentry's
+// `requestDataIntegration` — a DEFAULT integration — sets `event.request.cookies`
+// to the PARSED cookie jar (`parseCookie(headers.cookie)`) whenever
+// `include.cookies` is truthy, and the default with `sendDefaultPii: false` is an
+// OBJECT (`{deny: […]}`), i.e. `!== false`, so it is truthy. Unlike the SPAN
+// path, the EVENT path applies no filtering of its own; and it runs in
+// `processEvent`, so this is the ERROR path — `tracesSampleRate: 0` is no
+// protection.
+//
+// The container must be dropped WHOLESALE rather than left to the walk, because
+// a cookie NAME is not drawn from any vocabulary this list can enumerate. This
+// repo's own production session cookie is `__Host-auth_session_token`
+// (packages/auth), which matches neither `token` nor `access[-_]?token` nor
+// `refresh[-_]?token` — all anchored — and whose value (two dot-separated
+// segments) matches no value SHAPE either, since the JWT pattern needs three. So
+// the walk descended into the jar, found nothing it recognised, and shipped an
+// httpOnly session token in the clear next to the `headers.cookie` copy of the
+// SAME secret that this list redacts one key away. Anchoring is what keeps
+// `cookie` from eating `cookiePreferences`; the cost is that it cannot see a
+// plural, and every plural container has to be named.
+//
+// This list is a `pii()` column mirror PLUS a generic credential/PII vocabulary,
+// and the second half is not optional (ADR 1019). `phone`/`tel`, `iban`,
+// `bank_account`, `ssn`/`national_id` and `session_id` are not all columns in
+// this schema, but neither are `authorization`, `cookie`, `password`, `secret`,
+// `token`, `api_key` or `rodne_cislo` — "it isn't a pii() column" was never this
+// list's membership test, so it cannot explain their absence. (`phone`, `ico`,
+// `dic`, `address_line`, `city` and `postal_code` ARE columns here — the customer
+// odběratel fields of ADR 0071/0082 — so they carry both obligations at once.)
+//
+// The obligation is this module's own, stated in its header: the scrubber exists
+// because `@repo/validators/primitives/cz.ts` ships a rodné-číslo validator, so a
+// validated-but-REJECTED candidate rides along in form state. That same file
+// ships `bankAccount` and `iban` a few lines away, and `phoneE164` sits in
+// primitives/index.ts — identical minting, identical obligation, discharged for
+// one and not the others. None of these values has a shape any STRING_PATTERN
+// catches (the four are Bearer, JWT, email and the rodné-číslo digit shape), so
+// the KEY list is the only defence that exists for them. `bank_account` looked
+// half-covered only by accident: the rodné-číslo pattern happens to eat a
+// 10-digit account number and leave the bank code ("19-[Filtered]/0800"), which
+// is a value-shape coincidence, not coverage.
+//
+// `session_id` is the weak one and is listed with open eyes: real session-cookie
+// names (`__Host-auth_session_token`, `connect.sid`, `next-auth.session-token`)
+// match no anchor here, which is exactly why the `cookies` CONTAINER above is the
+// rule that actually protects the session. `session_id` only catches a
+// hand-rolled `{ session_id: … }` context field.
+//
+// DELIBERATE ASYMMETRY with `web-native-skeleton`, which carries a bare
+// `^session([-_]?id)?$`: here `session` is a real DB TABLE (Better Auth), and its
+// members `ip_address` / `user_agent` are individually registered `pii()`
+// columns. An anchored `^session$` would redact the whole row container and hide
+// those columns behind one `[Filtered]`, blinding the very column mirror
+// `scrub.pii-contract.test.ts` exists to guard — a worse outcome than the
+// per-column redaction already in force. web-native has no `packages/db` and so
+// no `session` container to collide with, which is why the bare name is safe
+// there and not here. Do NOT "restore parity" by adding `^session$` to this list
+// — the pii-contract test will fail, and that failure is the point (ADR 1019).
+//
+// `rc` is the ordinary Czech abbreviation for rodné číslo and is the form a
+// hand-written form field or context bag actually uses. Anchored, so it cannot
+// touch `rcVersion` or any `rc` substring — a release-candidate field would have
+// to be named exactly `rc`, and over-redacting that is the cheap side of the
+// trade.
 const SENSITIVE_KEYS =
-  /^(authorization|cookie|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|rodne[-_]?cislo|birth[-_]?number|name|image|ip[-_]?address|user[-_]?agent|identifier|ico|dic|phone|address[-_]?line|city|postal[-_]?code)$/i;
+  /^(authorization|cookie|cookies|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|rodne[-_]?cislo|birth[-_]?number|rc|phone([-_]?number)?|tel|iban|bank[-_]?account|ssn|national[-_]?id|session[-_]?id|name|image|ip[-_]?address|user[-_]?agent|identifier|ico|dic|address[-_]?line|city|postal[-_]?code)$/i;
+
+// The SDK-ATTRIBUTE forms of concepts `SENSITIVE_KEYS` already owns (ADR 1017).
+// Kept SEPARATE from that list deliberately: `SENSITIVE_KEYS` is the hand-mirror
+// of the `pii()` column registry and `scrub.pii-contract.test.ts` guards it
+// against registry drift, so it must stay a list of bare COLUMN names. These are
+// telemetry-vendor attribute names, a different source of truth (the installed
+// SDK bundles), and mixing them would make the mirror unreadable.
+//
+// Why a bare-name list cannot reach them: `SENSITIVE_KEYS` is anchored, so
+// `ip[-_]?address` cannot match `http.client_ip` or `net.peer.ip`, and
+// `user[-_]?agent` cannot match `http.user_agent` or `user_agent.original`. Yet
+// these are written as PLAIN LITERALS in the same `startSpan` attributes bag as
+// `http.target` (`@sentry/core` integrations/http/server-subscription.js, and
+// verbatim again in `@sentry/node-core` httpServerSpansIntegration.js) — the very
+// literal the `http.target` fix of ADR 1016 was read out of. None is gated on
+// `sendDefaultPii`; `http.client_ip` is `headers["x-forwarded-for"]` and
+// `net.peer.ip` is the socket's remote address. `spanToTransactionTraceContext`
+// spreads the whole attribute bag onto `contexts.trace.data`, so they reach
+// `beforeSendTransaction` by exactly the route ADR 1016 documents.
+//
+// `net.peer.ip` is redacted; `net.host.ip` / `net.host.port` are NOT, and that
+// asymmetry is settled by the emitters rather than by preference (ADR 1019).
+// Across the whole dependency tree `net.host.ip` has exactly two writers and both
+// are SERVER spans assigning `localAddress`: `@sentry/core`
+// integrations/http/server-subscription.js (`"net.host.ip": localAddress`, in an
+// object literal that also hardcodes `"otel.kind": "SERVER"`) and
+// `@sentry/node-core` httpServerSpansIntegration.js
+// (`newAttributes[SEMATTRS_NET_HOST_IP] = localAddress` — the CONSTANT form, so a
+// literal-string grep alone does not find it; the claim must be checked over both
+// spellings). The client-span emitter, integrations/http/get-outgoing-span-data.js,
+// writes `net.peer.name` / `net.peer.ip` / `net.peer.port` and never `net.host.*`
+// at all. So `net.host.*` IS the local side at every emission site, and per OTel
+// semconv generally. Span direction changes whether the PEER is an end user or an
+// upstream service — which is exactly why `net.peer.ip` stays on this list —
+// never which side is local. `net.host.ip` is the server's own address, the same
+// category as `server_name`, which `STRUCTURAL_KEYS` already exempts.
+//
+// `http.request.body.data` is the SPAN twin of `event.request.data` and is here
+// for the same reason the latter is in `REQUEST_SCOPED_SENSITIVE_KEYS` below:
+// `@sentry/core` integrations/requestdata.js serialises the raw request body
+// straight onto the span. `http.request.header.cookie…` covers the cookie-jar
+// attribute family — Sentry filters those per-cookie-name against its own deny
+// snippets, but that is ITS list, not ours, so the whole family is dropped here
+// rather than trusted. It is a PREFIX rule, matching both the bare header
+// attribute and its `.<cookie_name>` children. All four arms of that family —
+// (request|response) x (set_)? — are pinned by tests, so narrowing the regex
+// cannot leave the suite green while ADR 1017 still promises the whole family.
+//
+// The `user_agent` member takes the same `(request|response)` shape.
+// `httpHeadersToSpanAttributes` generates `http.<request|response>.header.<name>`
+// from whichever header bag it is given and does not special-case direction, so
+// scoping our rule to `request` alone would be drift rather than a decision — and
+// the response side costs nothing to cover.
+//
+// Sentry's own `PII_HEADER_SNIPPETS` (`forwarded`, `-ip`, `remote-`, `via`,
+// `-user`) already treats the `x-forwarded-for` HEADER as PII — but applies that
+// deny-list only to header/cookie/query attributes, never to the plain literals
+// above. The SDK therefore filters `http.request.header.x-forwarded-for` while
+// letting the identical value through as `http.client_ip`.
+const SENSITIVE_ATTRIBUTE_KEYS =
+  /^(http\.client_ip|net\.peer\.ip|client\.address|http\.user_agent|user_agent\.original|http\.(request|response)\.header\.user_agent|http\.request\.body\.data|http\.(request|response)\.header\.(set_)?cookie(\..*)?)$/i;
+
+/** A key is sensitive if it is a `pii()` column name OR an SDK attribute form of one. */
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEYS.test(key) || SENSITIVE_ATTRIBUTE_KEYS.test(key);
+}
+
+// Keys that are sensitive ONLY as a direct child of `request` — i.e. only when
+// the walk can see that the parent container is Sentry's request interface.
+//
+// `data` there is the raw, UNPARSED request BODY (ADR 1017): `include.data` is
+// hardcoded `true` in `requestDataIntegration` ("Always attach body data that's
+// already on the scope"), and `httpServerIntegration` captures up to
+// `maxRequestBodySize: "medium"` (10KB) by DEFAULT — neither is gated on
+// `sendDefaultPii`, and `@sentry/nextjs`'s `disableIncomingRequestSpans` gates
+// only the span side, so the Next.js server runtime captures bodies too. The
+// value is a STRING, so the key walk cannot reach inside it and only
+// `redactString` runs; an ordinary form post (`surname=Nováková&note=…`) carries
+// no Bearer/JWT/email/rodné-číslo SHAPE, so nothing fires and the body ships
+// verbatim. `apps/api` already independently decided this field must go, and
+// deletes it wholesale in its own `beforeSend`; the shared scrubber that
+// `apps/web` depends on did not, which is precisely the one-binding-hardened
+// asymmetry `sentry-options.ts` warns about a level up.
+//
+// It is scoped to `request` rather than added to `SENSITIVE_KEYS` because `data`
+// is one of the most load-bearing key names in a Sentry envelope: `spans[].data`
+// and `contexts.trace.data` are the attribute bags every URL rule in this module
+// operates on, and breadcrumbs carry `data` too. A global `data` rule would blind
+// the scrubber's own `http.target` / `url.query` / fragment coverage by redacting
+// the bag before the walk could reach the keys inside it — trading a leak for a
+// bigger blind spot.
+const REQUEST_SCOPED_SENSITIVE_KEYS = /^data$/i;
+const REQUEST_KEY = /^request$/i;
 
 // SDK/build metadata that is never user input: stack-frame locations, module
 // and symbol names, release/build identifiers. Exempt from string redaction so
@@ -147,7 +306,32 @@ const STRUCTURAL_KEYS =
 // `referer`/`referrer` (event request.headers, set by the default browser
 // httpContextIntegration = the full referring URL with query) and its span
 // attribute form `http.request.header.referer`.
-const URL_KEYS = /^(url|url\.full|http\.url|referer|referrer|http\.request\.header\.referer)$/i;
+//
+// `http.target` is the one that bites hardest, and it is NOT optional (ADR 1016).
+// Unlike every other key here its value is path+query
+// (`/clients?search=Nováková`), NOT an absolute URL — so it slips past every
+// other defence in this module. SENSITIVE_KEYS is anchored and has no `target`;
+// QUERY_ONLY_KEYS and STRUCTURAL_KEYS do not match it; so it fell to the default
+// `scrubValue` branch, whose `stripEmbeddedUrlQueries` requires either a `://` or
+// a dotted `//host` — a bare path has neither, so BOTH embedded-URL passes are a
+// no-op and the querystring survived verbatim.
+//
+// The attribute is not exotic: this repo's `apps/web` is a Next.js app, and
+// Next.js sets `http.target` unconditionally on the `BaseServer.handleRequest`
+// root span, which is on `NextVanillaSpanAllowlist` and therefore ships without
+// `NEXT_OTEL_VERBOSE`. Sentry's own `httpServerSpansIntegration` sets it too.
+// Neither is gated on `sendDefaultPii`. Sentry reads the value only to NAME the
+// span (against a stripped copy) and never deletes the attribute, so the raw
+// value reaches `beforeSendTransaction` via the OTel bridge, which maps span
+// attributes straight onto `contexts.trace.data` and `spans[].data`. Exposure
+// therefore required `tracesSampleRate > 0`; error events were never affected,
+// because `spanToTraceContext` carries only trace/span/parent ids and no `data`.
+// Routing the key through `scrubUrlValue` keeps the path (route debuggability)
+// and drops the query, exactly like the absolute forms above. The mobile binding
+// shares this scrubber but does not set `http.target`, so this rule is a
+// server-tracing fix, not a universal one.
+const URL_KEYS =
+  /^(url|url\.full|http\.url|http\.target|referer|referrer|http\.request\.header\.referer)$/i;
 
 // Ambiguous PATH fields: a navigation breadcrumb's `to`/`from` ARE same-origin
 // paths that can carry ?search=, but `to`/`from` are also generic key names for
@@ -160,7 +344,26 @@ const URL_SHAPED = /^(?:https?:)?\/\/|^\//; // http(s)://, protocol-relative //,
 // whole value. `url.query`/`http.query` (span data), `query_string` (event
 // request.query_string), `search` (a raw search-param bag — the typed search
 // term, precisely the ?search=<surname> leak class).
-const QUERY_ONLY_KEYS = /^(url\.query|http\.query|query_string|search)$/i;
+//
+// `url.fragment`/`http.fragment` are the FRAGMENT twins (ADR 1016), written by
+// the SDK on the source line adjacent to `http.query`: browser xhr/fetch spans
+// (`@sentry/browser` tracing/request.js and `@sentry/core` fetch.js),
+// outgoing-request breadcrumbs (`add-outgoing-request-breadcrumb.js`), and the
+// OTel bridge (`@sentry/opentelemetry` resource-*.js). Do NOT reason that the
+// twins ride together and so a covered key always shields its sibling — the two
+// writes are INDEPENDENTLY guarded on `parsedUrl.search` and `parsedUrl.hash`, so
+// a URL with a fragment and no querystring (`/path#email=jan@example.cz`) emits
+// `http.fragment` with no `http.query` beside it at all.
+//
+// A bare fragment value has no scheme, so `stripEmbeddedUrlQueries` never fires
+// and `dropUrlQuery` is never reached; and an arbitrary `#…` param has no value
+// shape for the pattern pass to catch, which is the whole rationale for
+// deny-by-default. Covering the query key but not its fragment sibling also
+// contradicted this module's own policy — `dropUrlQuery` cuts at `[?#]`, not just
+// `?`, i.e. the module already treats a fragment as unsafe everywhere it can see
+// one.
+const QUERY_ONLY_KEYS =
+  /^(url\.query|http\.query|url\.fragment|http\.fragment|query_string|search)$/i;
 
 // A span `description` that is an HTTP request line ("GET https://…?q=…",
 // "POST /path?x=1"). Three guards make this fire ONLY on a genuine request line:
@@ -263,7 +466,13 @@ function scrubUrlValue(value: unknown, path: WeakSet<object>): unknown {
 // delete after), so true cycles are cut while diamond-shaped sharing — the
 // same object referenced from two sibling branches, common in Sentry events —
 // is cloned normally instead of being dropped on its second visit.
-function scrubValue(value: unknown, path: WeakSet<object>): unknown {
+//
+// `underRequest` is one level of parent context, set only when the immediate
+// parent key was `request`, and consumed only by `REQUEST_SCOPED_SENSITIVE_KEYS`.
+// It is deliberately NOT a full path stack: the single rule that needs it cares
+// about a direct child of Sentry's request interface and nothing deeper, so it
+// resets on every further descent.
+function scrubValue(value: unknown, path: WeakSet<object>, underRequest = false): unknown {
   if (typeof value === "string") return redactString(value);
   if (value === null || typeof value !== "object") return value;
   if (path.has(value)) return undefined; // genuine cycle — drop rather than recurse
@@ -274,7 +483,12 @@ function scrubValue(value: unknown, path: WeakSet<object>): unknown {
   } else {
     const record: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
-      if (SENSITIVE_KEYS.test(key) && entry != null) record[key] = REDACTED;
+      // The raw request BODY (`request.data`) — a blob no key rule can reach
+      // into and no value shape matches. Checked first, and only under
+      // `request`, so the `data` attribute bags stay walkable everywhere else.
+      if (underRequest && REQUEST_SCOPED_SENSITIVE_KEYS.test(key) && entry != null)
+        record[key] = REDACTED;
+      else if (isSensitiveKey(key) && entry != null) record[key] = REDACTED;
       // A bare query string has no path worth keeping — drop it wholesale.
       else if (QUERY_ONLY_KEYS.test(key) && entry != null) record[key] = REDACTED;
       // A URL value keeps origin+path; the query (deny-by-default) is cut, then
@@ -295,7 +509,7 @@ function scrubValue(value: unknown, path: WeakSet<object>): unknown {
       else if (/^transaction$/i.test(key) && typeof entry === "string")
         record[key] = scrubTransaction(entry);
       else if (STRUCTURAL_KEYS.test(key) && typeof entry === "string") record[key] = entry;
-      else record[key] = scrubValue(entry, path);
+      else record[key] = scrubValue(entry, path, REQUEST_KEY.test(key));
     }
     out = record;
   }
@@ -341,7 +555,7 @@ export function scrubSpan<S extends { description?: string; data?: Record<string
   span: S,
 ): S {
   const scrubDataEntry = (key: string, value: unknown): unknown => {
-    if (SENSITIVE_KEYS.test(key) && value != null) return REDACTED;
+    if (isSensitiveKey(key) && value != null) return REDACTED;
     if (QUERY_ONLY_KEYS.test(key) && value != null) return REDACTED;
     if (URL_KEYS.test(key)) return scrubUrlValue(value, new WeakSet());
     if (PATH_KEYS.test(key) && typeof value === "string" && URL_SHAPED.test(value))

@@ -57,10 +57,13 @@ export function scrubEvent<T extends Sentry.ErrorEvent>(event: T): T {
     delete event.request.cookies;
     // Sentry's default httpIntegration buffers the raw request BODY into
     // `event.request.data` as an UNPARSED string — the key-scrub below cannot
-    // reach a raw blob, so drop it wholesale. (Disabling capture at the source
-    // via `maxRequestBodySize` is not done: @sentry/node does not expose that
-    // option on the default "Http" integration's type, so the terminal scrub is
-    // the single, robust guarantee — see ADR 1009.)
+    // reach a raw blob, so drop it wholesale. (@sentry/node-core DOES now expose
+    // `maxRequestBodySize: "none"` on `httpServerIntegration`, but capture is on
+    // by default at `"medium"`, and the option has to be set on whichever
+    // integration instance the SDK actually constructs — a terminal scrub in
+    // `beforeSend` is the guarantee that does not depend on getting that wiring
+    // right, so it stays as the single robust one. See ADR 1009; the shared
+    // `@repo/telemetry` scrubber now drops the same field, ADR 1017.)
     delete event.request.data;
     // The URL + querystring are attached by requestDataIntegration independent
     // of the pino serializer — a `?q=<email>` search would otherwise reach

@@ -43,6 +43,43 @@ describe("privacy erasure (real worker + queue)", () => {
     await app.close();
   });
 
+  /**
+   * Wait for the erasure job's LAST DATABASE artifact and return the audit row.
+   *
+   * The anonymized-email flip this test waits on is only the FIRST statement of
+   * the processor's step 3, and `PrivacyProcessor.eraseUser()` is not wrapped in
+   * `@Transactional()` (privacy.processor.ts) — it holds a TransactionHost purely
+   * to join an ambient tx where one exists, and the BullMQ worker path has none.
+   * Every statement autocommits on its own, so that flip publishes nothing about
+   * what follows it: the `session`, `account` and `twoFactor` deletes later in
+   * step 3, and — across the unbounded third-party purge hooks of step 4 (Sentry
+   * + PostHog, real network) — the `privacy.erase` audit row of step 5. Reading
+   * any of those straight off the step-3 signal is a race that only reddens on a
+   * SLOW run, which is exactly what a loaded CI box is; it then passes on re-run,
+   * which is how a real ordering defect gets waved through as a flake.
+   *
+   * Step 5 is the processor's last database write, so waiting on it orders every
+   * earlier artifact too: the handler fan-out and finalize pass (steps 1-2), the
+   * core erasures (step 3), and the purge hooks (step 4). Only `job.returnvalue`
+   * lands after it, and that goes to Redis, not Postgres — a future step that
+   * WROTE to the database past this point would need its own wait.
+   */
+  async function waitForEraseAudit(userId: string): Promise<typeof audit.$inferSelect> {
+    let rows: (typeof audit.$inferSelect)[] = [];
+    await waitFor(
+      async () => {
+        rows = await db
+          .select()
+          .from(audit)
+          .where(and(eq(audit.action, "privacy.erase"), eq(audit.entityId, userId)));
+        return rows.length > 0;
+      },
+      { label: `privacy.erase audit row for ${userId} (processor step 5)` },
+    );
+    expect(rows).toHaveLength(1);
+    return rows[0]!;
+  }
+
   it("erases the user: org projects retained, user anonymized, audit row written", async () => {
     const user: TestUser = await signUpUser(app, "privacy-erase");
 
@@ -110,6 +147,10 @@ describe("privacy erasure (real worker + queue)", () => {
       twoFactorEnabled: false,
     });
 
+    // Everything below reads artifacts the step-3 email flip does NOT order —
+    // wait on the processor's last database write first (see the helper).
+    const auditRow = await waitForEraseAudit(user.id);
+
     // Session and credential account ROWS are gone. (No 401 assertion on
     // the old cookie here: Better Auth's signed cookie cache — the env-driven
     // `cookieCache.maxAge` window (SESSION_COOKIE_CACHE_MAX_AGE_S, default 60s)
@@ -128,12 +169,8 @@ describe("privacy erasure (real worker + queue)", () => {
     expect(survivors).toHaveLength(2);
 
     // Erasure is itself an Art. 30 processing activity — audit row, system
-    // actor (the worker has no acting user).
-    const auditRows = await db
-      .select()
-      .from(audit)
-      .where(and(eq(audit.action, "privacy.erase"), eq(audit.entityId, user.id)));
-    expect(auditRows).toHaveLength(1);
-    expect(auditRows[0]).toMatchObject({ entityType: "user", actorId: null });
+    // actor (the worker has no acting user). The row itself was already awaited
+    // above; the shape check is all that is left here.
+    expect(auditRow).toMatchObject({ entityType: "user", actorId: null });
   });
 });
