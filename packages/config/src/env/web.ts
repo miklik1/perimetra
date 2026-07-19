@@ -66,6 +66,42 @@ export function resolveTier(
   return appTierOverride ?? "preview";
 }
 
+/**
+ * Whether a URL's host is a LOOPBACK address — the one case where a plaintext
+ * `http://` backend origin is safe, because the traffic never reaches a wire to
+ * be intercepted (ADR 1021). This is the security boundary the `API_URL` rule
+ * below actually cares about; `NODE_ENV` was a proxy for it that described the
+ * build rather than the network path.
+ *
+ * Conservative by construction — it GRANTS an exemption, so anything it cannot
+ * positively prove is loopback must fall through to the https requirement:
+ *   - `localhost` and, per RFC 6761, any `*.localhost` subdomain (resolvers are
+ *     required to map these to loopback).
+ *   - The whole `127.0.0.0/8` block, not just `127.0.0.1` — every octet is
+ *     range-checked, so `127.0.0.999` or `127.1.2.3.4` is NOT accepted (a
+ *     sloppy `^127\\.` prefix test would also admit a HOSTNAME like
+ *     `127.0.0.1.evil.com`, which resolves wherever its owner points it).
+ *   - IPv6 loopback `::1`. `URL.hostname` returns it bracketed (`[::1]`) and
+ *     already in its canonical compressed form, so the long-hand spellings
+ *     normalise into this comparison rather than needing their own arm.
+ * An unparseable URL returns false rather than throwing: `.url()` above already
+ * rejects it, and a guard that grants exemptions must never fail open.
+ */
+function isLoopbackOrigin(url: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+  if (hostname === "[::1]") return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
+  if (!ipv4) return false;
+  const octets = ipv4.slice(1).map(Number);
+  return octets[0] === 127 && octets.every((o) => o <= 255);
+}
+
 export const env = createEnv({
   /** Server-only vars (no special prefix). */
   server: {
@@ -88,23 +124,39 @@ export const env = createEnv({
     // only ever sees the same-origin `/api`, so this MUST NOT be NEXT_PUBLIC_
     // (that would inline the backend origin into the client bundle, defeating
     // the origin-hiding the BFF exists for). Absent ⇒ jsonplaceholder demo host.
-    // https-only egress outside development: a plaintext http backend origin
-    // would relay bearer tokens / session cookies over the wire (see
-    // `handle-api-request.ts` credential forwarding). http is allowed only when
-    // NODE_ENV === "development" (local stacks); test/production require https.
-    // NODE_ENV is read from `process.env` with the SAME default as the schema's
-    // own NODE_ENV field (undefined ⇒ "development").
+    //
+    // https-only egress: a plaintext http backend origin would relay bearer
+    // tokens / session cookies over the wire (see `handle-api-request.ts`
+    // credential forwarding). The ONE exemption is a LOOPBACK host, whose
+    // traffic never reaches a wire to be intercepted.
+    //
+    // The gate is the loopback-ness of the HOST, deliberately NOT `NODE_ENV`
+    // (ADR 1021 — the previous rule keyed on `NODE_ENV !== "development"`).
+    // That was wrong in BOTH directions:
+    //   - TOO TIGHT, and it broke the gate: `next typegen` and `next build` set
+    //     `NODE_ENV=production` themselves, so the refinement rejected the
+    //     documented local `API_URL=http://localhost:4000` (.env.example) on
+    //     every non-cached `check-types`/`build`. `web:check-types` therefore
+    //     could not pass bare on ANY box configured the documented way — it only
+    //     ever passed via a turbo CACHE HIT, and the pre-push hook (which does
+    //     not set SKIP_ENV_VALIDATION) inherited that. CI sets the same
+    //     `API_URL: http://localhost:4000` (ci.yml) and rode the same condition.
+    //   - TOO LOOSE, which is the security half: it allowed http to ANY host
+    //     whenever NODE_ENV was development, so a dev box pointed at a shared
+    //     staging backend (`http://staging.internal:4000`, `http://192.168.1.5`)
+    //     forwarded real credentials in plaintext across a real network — the
+    //     exact exposure this rule exists to stop. `NODE_ENV` describes the BUILD,
+    //     never the network path, so it could not express the actual boundary.
+    // Keying on the host is both unbreakable by the toolchain and strictly
+    // safer: a non-loopback http origin is now refused in every NODE_ENV.
     API_URL: z
       .string()
       .url()
       .optional()
-      .refine(
-        (url) =>
-          url === undefined ||
-          (process.env.NODE_ENV ?? "development") === "development" ||
-          url.startsWith("https://"),
-        { message: "API_URL must use https outside development" },
-      ),
+      .refine((url) => url === undefined || url.startsWith("https://") || isLoopbackOrigin(url), {
+        message:
+          "API_URL must use https unless it targets a loopback host (localhost, *.localhost, 127.0.0.0/8, ::1)",
+      }),
     // Sentry source-map upload (ADR 0021) — build/CI only, consumed by
     // `withSentryConfig`. Absent ⇒ upload silently skipped; `next build` never
     // depends on it.

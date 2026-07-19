@@ -51,19 +51,66 @@ describe("env/web", () => {
     expect(env.API_URL).toBe("https://api.example.com");
   });
 
-  it("rejects an http API_URL in production (https-only egress)", async () => {
+  it("rejects an http API_URL to a remote host (https-only egress)", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("API_URL", "http://api.example.com");
     vi.resetModules();
     await expect(import("./web")).rejects.toThrow();
   });
 
-  it("allows an http API_URL in development", async () => {
-    vi.stubEnv("NODE_ENV", "development");
+  // ── ADR 1021: the gate is the HOST's loopback-ness, never NODE_ENV ─────────
+  it("accepts an http LOOPBACK API_URL even under NODE_ENV=production", async () => {
+    // The regression that broke the gate. `next typegen` / `next build` set
+    // NODE_ENV=production themselves, so the old `NODE_ENV !== "development"`
+    // rule rejected the documented local API_URL (.env.example) on every
+    // non-cached check-types/build — it only ever passed via a turbo cache hit,
+    // and CI sets the same http://localhost:4000. Loopback traffic never
+    // reaches a wire, so there is nothing to intercept.
+    vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("API_URL", "http://localhost:4000");
     vi.resetModules();
     const { env } = await import("./web");
     expect(env.API_URL).toBe("http://localhost:4000");
+  });
+
+  it("rejects an http REMOTE host even under NODE_ENV=development", async () => {
+    // The security half, and a real tightening: the old rule allowed http to
+    // ANY host once NODE_ENV was development, so a dev box pointed at a shared
+    // staging backend forwarded real credentials in plaintext over a real
+    // network — the exposure the rule exists to stop.
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("API_URL", "http://staging.internal:4000");
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  it.each([
+    ["localhost", "http://localhost:4000"],
+    ["a *.localhost subdomain (RFC 6761)", "http://api.localhost:4000"],
+    ["127.0.0.1", "http://127.0.0.1:4000"],
+    ["the wider 127.0.0.0/8 block", "http://127.1.2.3:4000"],
+    ["IPv6 ::1", "http://[::1]:4000"],
+  ])("accepts http to %s", async (_label, url) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("API_URL", url);
+    vi.resetModules();
+    const { env } = await import("./web");
+    expect(env.API_URL).toBe(url);
+  });
+
+  it.each([
+    // The exemption GRANTS access, so it must not be fooled by a hostname that
+    // merely starts with the loopback text and resolves wherever its owner points.
+    ["a hostname prefixed with 127.0.0.1", "http://127.0.0.1.evil.com:4000"],
+    ["a hostname suffixed onto localhost", "http://localhost.evil.com:4000"],
+    ["an out-of-range octet", "http://127.0.0.999:4000"],
+    ["a non-loopback private address", "http://192.168.1.5:4000"],
+    ["a non-127 loopback-looking address", "http://128.0.0.1:4000"],
+  ])("rejects http to %s", async (_label, url) => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("API_URL", url);
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
   });
 });
 
