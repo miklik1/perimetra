@@ -123,6 +123,48 @@ describe("FlagsProvider", () => {
     expect(noKey.client.init).not.toHaveBeenCalled();
   });
 
+  it("wires the injected sanitizeProperties into before_send (scrubs autocaptured $pageview URLs)", () => {
+    const withKey = fakePosthog();
+    // A stand-in scrubber: drop everything after "?" in every string value. The
+    // real one is @repo/telemetry's sanitizeAnalyticsProperties (its own tests);
+    // here we only prove the wiring reaches properties AND $set.
+    const sanitizeProperties = vi.fn((props: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries(props).map(([k, v]) => [k, typeof v === "string" ? v.split("?")[0] : v]),
+      ),
+    );
+    render(
+      <FlagsProvider
+        client={withKey.client}
+        bootstrap={bootstrap}
+        apiKey="phc_test"
+        sanitizeProperties={sanitizeProperties}
+      >
+        <Probe />
+      </FlagsProvider>,
+    );
+    const initCall = (withKey.client.init as ReturnType<typeof vi.fn>).mock.calls[0];
+    if (!initCall) throw new Error("expected posthog.init to have been called");
+    const config = initCall[1] as { before_send: (cr: unknown) => unknown };
+    const scrubbed = config.before_send({
+      event: "$pageview",
+      properties: { $current_url: "https://app/x?search=Novak" },
+      $set: { $initial_current_url: "https://app/x?search=Novak" },
+    }) as { properties: Record<string, unknown>; $set: Record<string, unknown> };
+    expect(scrubbed.properties.$current_url).toBe("https://app/x");
+    expect(scrubbed.$set.$initial_current_url).toBe("https://app/x");
+    // A dropped event (before_send may return null) passes through safely.
+    expect(config.before_send(null)).toBeNull();
+    // Session-replay batches are NOT walked: rewriting rrweb's serialized DOM
+    // would break replay and desync $snapshot_bytes. rrweb masks its own data.
+    const snapshot = {
+      event: "$snapshot",
+      properties: { $snapshot_data: [{ href: "/a.css?dpl=1" }], $snapshot_bytes: 42 },
+    };
+    expect(config.before_send(snapshot)).toBe(snapshot);
+    expect(snapshot.properties.$snapshot_data[0]?.href).toBe("/a.css?dpl=1");
+  });
+
   it("live-updates the context when the SDK reports new flags", () => {
     const { client, fireFlags } = fakePosthog();
     render(

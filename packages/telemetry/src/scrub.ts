@@ -28,7 +28,8 @@
  *      client/mobile mirror, keeping the path for trace debuggability.
  */
 
-const REDACTED = "[Filtered]";
+/** The single redaction marker, shared with the analytics sink (`./analytics-scrub`). */
+export const REDACTED = "[Filtered]";
 
 // Order matters: Bearer/JWT first so an email-less token line doesn't get
 // partially rewritten by a later pattern.
@@ -52,11 +53,70 @@ const STRING_PATTERNS: RegExp[] = [
 // the equivalence).
 const ANY_PATTERN = new RegExp(STRING_PATTERNS.map((p) => `(?:${p.source})`).join("|"), "i");
 
-// An absolute URL embedded anywhere in a string: keep everything up to the
+// A SCHEME-BEARING URL embedded anywhere in a string: keep everything up to the
 // path, drop the `?query`/`#fragment`. Requires `://` so a bare "1/2?x" in free
 // text is never mistaken for a URL (the ambiguous relative case is left to the
-// field-name rules, which know the value IS a URL). Replacement keeps group 1.
-const EMBEDDED_URL_QUERY = /(\bhttps?:\/\/[^\s?#]*)[?#]\S*/gi;
+// field-name rules, which know the value IS a URL). Covers http(s) AND ws(s) —
+// a `wss://…?token=` handshake URL rides in realtime breadcrumbs/errors and
+// leaks its query exactly like an http one. Replacement keeps group 1.
+//
+// WHERE THE QUERY ENDS is the whole difficulty, and it has two failure modes
+// pulling in opposite directions:
+//
+//   - A bare `\S*` tail never leaks, but a URL embedded in a STRUCTURED carrier
+//     — a JSON-ish breadcrumb (`{"url":"https://a/b?c=1","user":"x"}`) — has no
+//     whitespace to stop at, so the match runs past the carrier's closing quote
+//     and destroys every following field.
+//   - Excluding the delimiters outright (`[^\s"'<>]*`) spares the carrier but
+//     UNDER-REDACTS: it stops at the first quote *anywhere*, including one
+//     inside a query value, so `?token="abc"&surname=Novakova` keeps the
+//     surname. Nothing downstream catches that — a bare surname matches no
+//     value-shape pattern, which is exactly why this deny-by-default cut exists.
+//
+// perimetra keeps `\S*` and REJECTS upstream's carrier-sparing bound, because
+// that goal is not safely achievable here. Two successive attempts to spare the
+// carrier were both broken by an adversarial pass, and they failed the same way:
+// any rule that infers the boundary from LOCAL CONTEXT ("a quote followed by
+// structure closes the carrier") can be defeated by planting that exact shape
+// inside the value. `?a=x":Novakova` ends the match at the planted quote and
+// strands the surname. Narrowing the rule to the first quote does not help — the
+// planted quote IS the first one. And the carrier's own closing quote is
+// indistinguishable from a planted one by construction, so there is no local
+// test that separates them.
+//
+// The cost of `\S*` is real and accepted: a URL inside a structured carrier
+// (`{"url":"https://a/b?c=1","user":"x"}`) loses the rest of the carrier, not
+// just its query. That is an OBSERVABILITY bug. The alternative is a GDPR bug.
+// A scrubber must fail toward over-redaction, so the whitespace-bounded tail
+// stands and the carrier is sacrificed.
+const QUERY_TAIL = String.raw`\S*`;
+
+const EMBEDDED_URL_QUERY = new RegExp(
+  // NO `\b` before the scheme. A word character glued to the scheme
+  // (`requesthttp://svc/x?token=…`, easily produced by string concatenation in a
+  // log line) defeats a word-boundary anchor, and the protocol-relative pass
+  // cannot cover for it when the host is single-label (`internal-svc`, the
+  // ordinary k8s service-name shape) because that pass requires a dotted host.
+  // With both guards missed the string was passed through with ZERO redaction.
+  // Dropping the anchor only ever makes this match MORE text, which is the safe
+  // direction for a scrubber; the `://` requirement still prevents a bare
+  // "1/2?x" from being mistaken for a URL.
+  String.raw`((?:https?|wss?):\/\/[^\s?#]*)[?#]${QUERY_TAIL}`,
+  "gi",
+);
+
+// A PROTOCOL-RELATIVE URL ("//cdn.host/path?q=…") embedded in free text: no
+// scheme to anchor on, so it is guarded by a DOTTED host (a real domain) — this
+// keeps a bare "// a comment?" or a "src/a//b?c" path fragment from being
+// truncated at a stray "?". An optional `:port` is part of the authority
+// ("//api.stg.example.com:8443/x?q=…"): without it the host group ends at the
+// ":" and the whole match fails, leaving the query intact. Keeps `//host/path`,
+// drops the query/fragment; shares the carrier-aware tail above so the two
+// passes cannot drift apart.
+const EMBEDDED_PROTOCOL_RELATIVE_URL_QUERY = new RegExp(
+  String.raw`(\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:\/[^\s?#]*)?)[?#]${QUERY_TAIL}`,
+  "gi",
+);
 
 // Keys whose VALUES are redacted wholesale, wherever they appear in an event.
 // The PII registry (packages/db/src/pii.ts, ADR 0040) "drives the Sentry
@@ -117,13 +177,27 @@ const QUERY_ONLY_KEYS = /^(url\.query|http\.query|query_string|search)$/i;
 const HTTP_DESCRIPTION = /^\s*(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(?:https?:\/\/|\/)\S*$/i;
 
 /**
+ * Drop the query/fragment of every URL embedded in a free-text string, keeping
+ * scheme/host/path — deny-by-default (an arbitrary query param carries PII no
+ * value-shape pattern can recognise). Covers scheme-bearing URLs (http/https/
+ * ws/wss) and dotted-host protocol-relative URLs; leaves the rest of the string
+ * untouched. Split out of `redactString` so the analytics sink can strip a URL's
+ * query from a property WITHOUT redacting value shapes (which would clobber the
+ * deliberate identify person payload — see `./analytics-scrub`).
+ */
+export function stripEmbeddedUrlQueries(value: string): string {
+  let out = value;
+  if (out.includes("://")) out = out.replace(EMBEDDED_URL_QUERY, "$1");
+  if (out.includes("//")) out = out.replace(EMBEDDED_PROTOCOL_RELATIVE_URL_QUERY, "$1");
+  return out;
+}
+
+/**
  * Redact every PII occurrence inside one string: first drop the query of any
- * embedded absolute URL (deny-by-default), then apply the value-shape patterns.
+ * embedded URL (deny-by-default), then apply the value-shape patterns.
  */
 export function redactString(value: string): string {
-  let out = value;
-  // Cut the query/fragment of any absolute URL sitting in free text.
-  if (out.includes("://")) out = out.replace(EMBEDDED_URL_QUERY, "$1");
+  let out = stripEmbeddedUrlQueries(value);
   if (ANY_PATTERN.test(out)) {
     for (const pattern of STRING_PATTERNS) out = out.replace(pattern, REDACTED);
   }
@@ -149,6 +223,22 @@ export function dropUrlQuery(url: string): string {
 export function scrubDescription(description: string): string {
   const base = HTTP_DESCRIPTION.test(description) ? dropUrlQuery(description) : description;
   return redactString(base);
+}
+
+/**
+ * Scrub a Sentry event's `transaction` NAME — a route/operation identifier.
+ * Default pageload/navigation names are pathname-only, but a custom or
+ * auto-instrumented name can be a request line ("GET /api/clients?search=…") OR
+ * a bare URL/path route ("/api/clients?search=…", "//host/x?…",
+ * "https://host/x?…"). Deny-by-default: drop the query of any route-shaped name
+ * (keep the verb + path), then pattern-redact. A non-route free-text label (no
+ * leading verb-and-path, no URL/path shape) is only pattern-redacted, so a
+ * legitimate "?" is never truncated. Unlike `scrubDescription`, a bare path (no
+ * verb) is ALSO query-stripped — a transaction name is a route id, never prose.
+ */
+export function scrubTransaction(name: string): string {
+  const isRoute = HTTP_DESCRIPTION.test(name) || URL_SHAPED.test(name);
+  return redactString(isRoute ? dropUrlQuery(name) : name);
 }
 
 // A URL-keyed value keeps origin+path, drops query. Handles the scalar, an
@@ -199,6 +289,11 @@ function scrubValue(value: unknown, path: WeakSet<object>): unknown {
       // query without truncating a SQL statement.
       else if (/^description$/i.test(key) && typeof entry === "string")
         record[key] = scrubDescription(entry);
+      // The event's `transaction` NAME — a route/op id. A custom or instrumented
+      // name can carry a ?query ("GET /api/clients?search=…"); drop it (keep the
+      // route) without truncating a free-text op label at a stray "?".
+      else if (/^transaction$/i.test(key) && typeof entry === "string")
+        record[key] = scrubTransaction(entry);
       else if (STRUCTURAL_KEYS.test(key) && typeof entry === "string") record[key] = entry;
       else record[key] = scrubValue(entry, path);
     }

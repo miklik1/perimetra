@@ -124,7 +124,7 @@ catalogs:
   # (run in CI); bump the SDK and all its pins here together — see ADR 0013.
   expo56:
     "@expo/log-box": ~56.0.12
-    "@expo/metro-runtime": ~56.0.16
+    "@expo/metro-runtime": ~56.0.17
     # Device key/value store for the theme preference (ADR 0010 follow-up). A
     # native module, so it tracks the SDK: `expo install` resolves it from
     # bundledNativeModules (2.2.0 for SDK 56) and `expo install --check` guards it.
@@ -139,17 +139,17 @@ catalogs:
     # today: only @repo/telemetry dev-installs it for typechecking; apps/mobile
     # adds it (via `expo install`, `--check`-guarded) when mobile telemetry wires.
     "@sentry/react-native": ~8.13.0
-    expo: ~56.0.15
-    expo-constants: ~56.0.20
+    expo: ~56.0.16
+    expo-constants: ~56.0.21
     expo-linking: ~56.0.15
     # Device locale detection for the initial mobile locale (ADR 0020). A native
     # module, so it tracks the SDK like async-storage — `expo install` resolves
     # it from bundledNativeModules (56.0.6 for SDK 56) and `--check` guards it.
     expo-localization: ~56.0.6
-    expo-router: ~56.2.14
+    expo-router: ~56.2.15
     # Splash held until the persisted theme rehydrates, to avoid a cold-start
     # theme flash (ADR 0015); a config plugin, registered in app.config.ts.
-    expo-splash-screen: ~56.0.12
+    expo-splash-screen: ~56.0.13
     expo-status-bar: ~56.0.4
     expo-system-ui: ~56.0.5
     jest-expo: ~56.0.5

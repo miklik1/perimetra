@@ -14,7 +14,7 @@ import { AuthProvider } from "@repo/auth/react";
 import { env } from "@repo/config/env/web";
 import type { FlagsBootstrap } from "@repo/flags";
 import { FlagsProvider } from "@repo/flags/web";
-import { getTelemetry } from "@repo/telemetry";
+import { getTelemetry, sanitizeAnalyticsProperties } from "@repo/telemetry";
 
 import { NavShell } from "../components/nav-shell";
 import { AnalyticsIdentity } from "./analytics-identity";
@@ -83,6 +83,7 @@ export function Providers({
             bootstrap={flagsBootstrap}
             apiKey={env.NEXT_PUBLIC_POSTHOG_KEY}
             host={env.NEXT_PUBLIC_POSTHOG_HOST}
+            sanitizeProperties={sanitizeAnalyticsProperties}
           >
             <AnalyticsIdentity />
             <ThemeEffect />

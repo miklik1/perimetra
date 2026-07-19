@@ -7,6 +7,8 @@ import {
   scrubDescription,
   scrubEvent,
   scrubSpan,
+  scrubTransaction,
+  stripEmbeddedUrlQueries,
 } from "./scrub";
 
 const FILTERED = "[Filtered]";
@@ -276,6 +278,108 @@ describe("scrubDescription", () => {
     expect(scrubDescription("POST /api/checkout?coupon=SAVE20 returns 500 every time")).toBe(
       "POST /api/checkout?coupon=SAVE20 returns 500 every time",
     );
+  });
+});
+
+// ── ADR 1013 gap fixes: ws/protocol-relative embedded URLs + transaction name ─
+describe("redactString — ws/protocol-relative embedded URLs (ADR 1013 gap fix)", () => {
+  it("strips the query of an embedded ws(s):// URL", () => {
+    expect(redactString("connect wss://rt.app/socket?token=abc123 failed")).toBe(
+      "connect wss://rt.app/socket failed",
+    );
+    expect(redactString("ws://rt.app/s?jwt=x")).toBe("ws://rt.app/s");
+  });
+
+  it("strips the query of an embedded protocol-relative URL with a dotted host", () => {
+    expect(redactString("asset //cdn.app.com/a?search=Novak here")).toBe(
+      "asset //cdn.app.com/a here",
+    );
+    // Guarded by a DOTTED host: a bare comment / non-host "//" is NOT truncated.
+    expect(redactString("see // note?maybe later")).toBe("see // note?maybe later");
+    // A :port is part of the authority — without it the host group ends at the
+    // ":" and the whole match fails, leaving the query intact.
+    expect(redactString("fetch //api.stg.example.com:8443/c?search=Novakova")).toBe(
+      "fetch //api.stg.example.com:8443/c",
+    );
+  });
+
+  it("consumes the whole non-whitespace query run, so nothing can be stranded", () => {
+    // perimetra rejects upstream's carrier-sparing bound: any rule that infers
+    // the query's end from local context can be defeated by planting that shape
+    // inside the value. These three all leaked under earlier carrier-sparing
+    // designs; the whitespace-bounded tail cannot strand them.
+    for (const q of [
+      '?token="abc"&surname=Novakova',
+      '?tag="vip",customer=Novakova',
+      '?a=x":Novakova',
+    ]) {
+      const out = redactString(`Visited https://a.cz/s${q} for details`);
+      expect(out).toBe("Visited https://a.cz/s for details");
+      expect(out).not.toContain("Novakova");
+    }
+  });
+
+  it("still matches when a word character is glued to the scheme", () => {
+    // A word-boundary anchor is defeated by concatenation (`request` + `http://`),
+    // and the protocol-relative pass cannot cover for it on a single-label host
+    // like a k8s service name — together that yielded ZERO redaction.
+    expect(redactString("requesthttp://internal-svc/callback?token=SECRET&surname=Novakova")).toBe(
+      "requesthttp://internal-svc/callback",
+    );
+    expect(redactString("0https://internalhost/p?token=SECRET")).toBe("0https://internalhost/p");
+  });
+
+  it("KNOWN LIMIT: a raw space inside a query value strands the tail", () => {
+    // The tail is whitespace-bounded, so an unencoded space inside a query value
+    // ends the match early. Documented rather than fixed: consuming past
+    // whitespace would eat the surrounding prose, and the URL's true end is not
+    // knowable in free text. Pre-dates this ADR (perimetra's shipped `\S*` does
+    // the same). A real URL percent-encodes the space; a hand-written or decoded
+    // one in a log line may not. Tracked as owed — see ADR 1013 Consequences.
+    expect(redactString("Navigated to https://shop.cz/search?q=Jana Novakova")).toBe(
+      "Navigated to https://shop.cz/search Novakova",
+    );
+  });
+
+  it("sacrifices a structured carrier rather than risk stranding PII", () => {
+    // The accepted cost of the whitespace-bounded tail: a URL inside a JSON-ish
+    // carrier takes the rest of the carrier with it. An observability loss, by
+    // design — the alternative was a leak.
+    expect(redactString('{"url":"https://a/b?c=1","user":"x"}')).toBe('{"url":"https://a/b');
+  });
+
+  it("strips a protocol-relative URL's query, and leaves a non-URL alone", () => {
+    expect(redactString("cdn at //cdn.acme.cz/x?surname=Novakova end")).toBe(
+      "cdn at //cdn.acme.cz/x end",
+    );
+    expect(redactString("//cdn.acme.cz:8443/x?c=1 end")).toBe("//cdn.acme.cz:8443/x end");
+    // The dotted-host guard keeps a bare comment from being truncated at "?".
+    expect(redactString("// is this a comment? yes")).toBe("// is this a comment? yes");
+  });
+
+  it("stripEmbeddedUrlQueries cuts URL queries WITHOUT redacting value shapes", () => {
+    expect(stripEmbeddedUrlQueries("mailto a@b.cz see https://app/x?token=zzz")).toBe(
+      "mailto a@b.cz see https://app/x",
+    );
+    expect(stripEmbeddedUrlQueries("user a@b.cz")).toBe("user a@b.cz");
+  });
+});
+
+describe("scrubTransaction (ADR 1013 gap fix)", () => {
+  it("drops the query of a request-line OR bare-route name, not free text", () => {
+    expect(scrubTransaction("GET /api/clients?search=Novakova")).toBe("GET /api/clients");
+    expect(scrubTransaction("/api/clients?search=Novakova")).toBe("/api/clients");
+    expect(scrubTransaction("https://a.co/clients?search=x")).toBe("https://a.co/clients");
+    expect(scrubTransaction("checkout flow (retry?)")).toBe("checkout flow (retry?)");
+  });
+
+  it("scrubEvent strips the query from the event `transaction` name", () => {
+    expect(scrubEvent({ transaction: "GET /api/clients?search=Novakova" })).toEqual({
+      transaction: "GET /api/clients",
+    });
+    expect(scrubEvent({ transaction: "/api/clients?search=Novakova" })).toEqual({
+      transaction: "/api/clients",
+    });
   });
 });
 

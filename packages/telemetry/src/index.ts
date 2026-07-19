@@ -24,6 +24,11 @@ export { createLogSink } from "./sink";
 
 export { scrubEvent, scrubBreadcrumb, redactString } from "./scrub";
 
+// SDK-free analytics-sink scrub — the app injects it into `@repo/flags`'
+// `posthog.init` `before_send` so autocaptured `$pageview` URLs are query-
+// stripped too (the DAG forbids `flags → telemetry`, hence injection).
+export { sanitizeAnalyticsProperties } from "./analytics-scrub";
+
 // SDK-free (the scrub hooks are generic) — shared by both platform bindings.
 export { buildSentryOptions, type SentryInitConfig } from "./sentry-options";
 

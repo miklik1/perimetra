@@ -6,7 +6,14 @@
 # The optional `pgbouncer` profile fronts Postgres in transaction mode to
 # mirror production pooling: `docker compose --profile pgbouncer up -d`.
 
-name: fullstack-skeleton
+# Compose project name = the Docker volume/network namespace. This MUST NOT be
+# the skeleton's name, or perimetra shares volumes (postgres-data, minio-data, …)
+# with every other skeleton-stamped repo on this machine → cross-project data
+# bleed. The committed default is what makes a FRESH CLONE safe: docker/.env also
+# sets COMPOSE_PROJECT_NAME (for the host-port remap) but is gitignored, so
+# before this line the isolation existed only on boxes that happened to have that
+# untracked file. The env var, when set, still wins by Compose precedence.
+name: ${COMPOSE_PROJECT_NAME:-perimetra}
 
 services:
   postgres:
