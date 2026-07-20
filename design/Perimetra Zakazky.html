@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Perimetra — zakázky</title>
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/styles.css">
+<style>
+  body { margin: 0; background: #d8d5ce; font-family: var(--font-sans); }
+  a { color: var(--color-copper); text-decoration: none; }
+  a:hover { color: var(--color-copper-hover); }
+  .frame { position: absolute; }
+  .canvas-label { position: absolute; color: #2c2a26; }
+  .canvas-label .eyebrow { font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #8a857c; display: block; margin-bottom: 4px; }
+  .canvas-label h1 { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+  .canvas-label p { margin: 10px 0 0; font-size: 15px; color: #6f6a61; max-width: 900px; line-height: 1.55; }
+  .frame-cap { position: absolute; color: #2c2a26; }
+  .frame-cap p { margin: 0; font-size: 14px; color: #6f6a61; }
+  .frame-cap b { color: #2c2a26; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid #cfccc4; font-size: 12.5px; color: #4a463f; }
+  .chip b { font-weight: 600; color: #2c2a26; }
+</style>
+</head>
+<body>
+
+  <div class="canvas-label" style="left:60px; top:44px; width:1200px;">
+    <span class="eyebrow">Perimetra · internal — order → cash</span>
+    <h1>Where the order runs to cash</h1>
+    <p>Once the customer accepts, the nabídka becomes a zakázka the owner tracks from confirmation to invoice. A six-stage lifecycle (Potvrzeno → Doměřeno → Ve výrobě → K montáži → Namontováno → Vyfakturováno), the money split (záloha / doplatek), the production batch, and the customer contact — all in one place. Internal surface, so prices are bez DPH.</p>
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <span class="chip"><b>Kdo</b> majitel dílny</span>
+      <span class="chip"><b>Vstup</b> přijatá nabídka</span>
+      <span class="chip"><b>Cena</b> bez DPH</span>
+      <span class="chip"><b>Stav</b> Z-2026-0388 · ve výrobě</span>
+    </div>
+  </div>
+
+  <div class="frame-cap" style="left:60px; top:262px; width:1440px;"><p><b>Detail zakázky</b> — the state timeline across the top, drawing + spec, money split, and activity/výroba/zákazník tabs.</p></div>
+  <div class="frame" id="o-DETAIL" style="left:60px; top:300px;"></div>
+
+  <div class="frame-cap" style="left:1580px; top:262px; width:1440px;"><p><b>Seznam zakázek</b> — KPI row + table with stage, termín and hodnota; the „K montáži" row is flagged.</p></div>
+  <div class="frame" id="o-LIST" style="left:1580px; top:300px;"></div>
+
+  <div class="frame-cap" style="left:3100px; top:262px; width:390px;"><p><b>Telefon — detail</b></p></div>
+  <div class="frame" id="o-MOBILE" style="left:3100px; top:300px;"></div>
+
+  <div class="canvas-label" style="left:60px; top:1250px; width:1100px;">
+    <p style="margin:0; font-size:14px;">Orders are created when a customer accepts <a href="Perimetra Nabidka Online.html">the online nabídka</a>. Upstream: <a href="Perimetra Leads Inbox.html">leads inbox</a> · <a href="Perimetra Configurator.html">internal configurator</a>.</p>
+  </div>
+
+  <script src="_ds/_vendor/react.js"></script>
+  <script src="_ds/_vendor/react-dom.js"></script>
+  <script src="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.js"></script>
+  <script src="configurator/parts.jsx"></script>
+  <script src="configurator/frames-order.jsx"></script>
+  <script>window.PConfOrderMount();</script>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#b8552f"/>
+      <g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round">
+        <circle cx="28" cy="50" r="6"/><circle cx="72" cy="50" r="6"/>
+        <path d="M34 50h32"/><path d="M22 50h-6M84 50h-6"/>
+      </g>
+    </svg>
+  </template>
+</body>
+</html>

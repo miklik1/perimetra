@@ -1,0 +1,523 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/forms/ArrayField/**",
+              "components/forms/DisclosureSection/**",
+              "components/forms/EnumSelect/**",
+              "components/forms/FieldShell/**",
+              "components/general/Badge/**",
+              "components/general/Button/**",
+              "components/general/Checkbox/**",
+              "components/general/DefectList/**",
+              "components/general/Dialog/**",
+              "components/general/DisplayLabel/**",
+              "components/general/EmptyState/**",
+              "components/general/Field/**",
+              "components/general/FieldError/**",
+              "components/general/IconButton/**",
+              "components/general/IconCluster/**",
+              "components/general/Input/**",
+              "components/general/NavTree/**",
+              "components/general/Pager/**",
+              "components/general/Panel/**",
+              "components/general/Popover/**",
+              "components/general/SegmentedNav/**",
+              "components/general/SegmentedNavItem/**",
+              "components/general/Select/**",
+              "components/general/Separator/**",
+              "components/general/Sheet/**",
+              "components/general/Skeleton/**",
+              "components/general/Spinner/**",
+              "components/general/StatCard/**",
+              "components/general/StepNav/**",
+              "components/general/Switch/**",
+              "components/general/Tabs/**",
+              "components/general/Textarea/**",
+              "components/general/Toast/**",
+              "components/general/ToastViewport/**",
+              "components/general/Tooltip/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Chillax|Synonym|Amulya|Geist Mono))/i]",
+        "message": "Font not provided by the design system. Available: Chillax, Synonym, Amulya, Geist Mono."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "ArrayField": {
+        "replaces": []
+      },
+      "Badge": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": []
+      },
+      "Checkbox": {
+        "replaces": []
+      },
+      "DefectList": {
+        "replaces": []
+      },
+      "Dialog": {
+        "replaces": []
+      },
+      "DisclosureSection": {
+        "replaces": []
+      },
+      "DisplayLabel": {
+        "replaces": []
+      },
+      "EmptyState": {
+        "replaces": []
+      },
+      "EnumSelect": {
+        "replaces": []
+      },
+      "Field": {
+        "replaces": []
+      },
+      "FieldError": {
+        "replaces": []
+      },
+      "FieldShell": {
+        "replaces": []
+      },
+      "IconButton": {
+        "replaces": []
+      },
+      "IconCluster": {
+        "replaces": []
+      },
+      "Input": {
+        "replaces": []
+      },
+      "NavTree": {
+        "replaces": []
+      },
+      "Pager": {
+        "replaces": []
+      },
+      "Panel": {
+        "replaces": []
+      },
+      "Popover": {
+        "replaces": []
+      },
+      "SegmentedNav": {
+        "replaces": []
+      },
+      "SegmentedNavItem": {
+        "replaces": []
+      },
+      "Select": {
+        "replaces": []
+      },
+      "Separator": {
+        "replaces": []
+      },
+      "Sheet": {
+        "replaces": []
+      },
+      "Skeleton": {
+        "replaces": []
+      },
+      "Spinner": {
+        "replaces": []
+      },
+      "StatCard": {
+        "replaces": []
+      },
+      "StepNav": {
+        "replaces": []
+      },
+      "Switch": {
+        "replaces": []
+      },
+      "Tabs": {
+        "replaces": []
+      },
+      "Textarea": {
+        "replaces": []
+      },
+      "Toast": {
+        "replaces": []
+      },
+      "ToastViewport": {
+        "replaces": []
+      },
+      "Tooltip": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--animate-pulse",
+      "--animate-spin",
+      "--color-accent",
+      "--color-accent-foreground",
+      "--color-amber-400",
+      "--color-amber-500",
+      "--color-amber-600",
+      "--color-background",
+      "--color-black",
+      "--color-blue-400",
+      "--color-blue-600",
+      "--color-border",
+      "--color-card",
+      "--color-card-foreground",
+      "--color-chrome",
+      "--color-chrome-foreground",
+      "--color-chrome-subtle",
+      "--color-copper",
+      "--color-copper-foreground",
+      "--color-copper-hover",
+      "--color-destructive",
+      "--color-destructive-foreground",
+      "--color-deviation",
+      "--color-deviation-foreground",
+      "--color-emerald-300",
+      "--color-emerald-400",
+      "--color-emerald-50",
+      "--color-emerald-600",
+      "--color-emerald-700",
+      "--color-field",
+      "--color-field-raised",
+      "--color-foreground",
+      "--color-green-500",
+      "--color-green-600",
+      "--color-green-700",
+      "--color-info",
+      "--color-info-foreground",
+      "--color-info-subtle",
+      "--color-input",
+      "--color-muted",
+      "--color-muted-foreground",
+      "--color-nav-active",
+      "--color-nav-active-foreground",
+      "--color-popover",
+      "--color-popover-foreground",
+      "--color-primary",
+      "--color-primary-foreground",
+      "--color-red-500",
+      "--color-ring",
+      "--color-secondary",
+      "--color-secondary-foreground",
+      "--color-spotlight",
+      "--color-spotlight-foreground",
+      "--color-spotlight-subtle",
+      "--color-success",
+      "--color-success-foreground",
+      "--color-success-subtle",
+      "--color-violet-400",
+      "--color-violet-600",
+      "--color-warning",
+      "--color-warning-foreground",
+      "--color-warning-subtle",
+      "--color-white",
+      "--color-yellow-500",
+      "--container-2xl",
+      "--container-3xl",
+      "--container-4xl",
+      "--container-6xl",
+      "--container-7xl",
+      "--container-lg",
+      "--container-md",
+      "--container-sm",
+      "--container-xs",
+      "--default-font-family",
+      "--default-mono-font-family",
+      "--default-transition-duration",
+      "--default-transition-timing-function",
+      "--ease-brand",
+      "--font-data",
+      "--font-display",
+      "--font-mono",
+      "--font-sans",
+      "--font-weight-bold",
+      "--font-weight-light",
+      "--font-weight-medium",
+      "--font-weight-normal",
+      "--font-weight-semibold",
+      "--radius",
+      "--radius-2xl",
+      "--radius-card",
+      "--radius-card-lg",
+      "--radius-control",
+      "--radius-inset",
+      "--radius-lg",
+      "--radius-md",
+      "--radius-xl",
+      "--shadow-float",
+      "--shadow-soft",
+      "--shadow-soft-lg",
+      "--shadow-soft-sm",
+      "--spacing",
+      "--text-2xl",
+      "--text-2xl--line-height",
+      "--text-3xl",
+      "--text-3xl--line-height",
+      "--text-4xl",
+      "--text-4xl--line-height",
+      "--text-5xl",
+      "--text-5xl--line-height",
+      "--text-6xl",
+      "--text-6xl--line-height",
+      "--text-base",
+      "--text-base--line-height",
+      "--text-display",
+      "--text-display--font-weight",
+      "--text-display--letter-spacing",
+      "--text-display--line-height",
+      "--text-lg",
+      "--text-lg--line-height",
+      "--text-metric",
+      "--text-metric--font-weight",
+      "--text-metric--letter-spacing",
+      "--text-metric--line-height",
+      "--text-sm",
+      "--text-sm--line-height",
+      "--text-title",
+      "--text-title--font-weight",
+      "--text-title--letter-spacing",
+      "--text-title--line-height",
+      "--text-xl",
+      "--text-xl--line-height",
+      "--text-xs",
+      "--text-xs--line-height",
+      "--tracking-tight",
+      "--tracking-wide",
+      "--tracking-widest",
+      "--tw-backdrop-blur",
+      "--tw-blur",
+      "--tw-border-style",
+      "--tw-duration",
+      "--tw-ease",
+      "--tw-font-weight",
+      "--tw-invert",
+      "--tw-leading",
+      "--tw-numeric-spacing",
+      "--tw-outline-style",
+      "--tw-ring-color",
+      "--tw-ring-inset",
+      "--tw-ring-offset-color",
+      "--tw-ring-offset-shadow",
+      "--tw-ring-offset-width",
+      "--tw-ring-shadow",
+      "--tw-scale-x",
+      "--tw-scale-y",
+      "--tw-scale-z",
+      "--tw-shadow",
+      "--tw-tracking",
+      "--tw-translate-x",
+      "--tw-translate-y"
+    ],
+    "tokenKinds": {
+      "--font-sans": "font",
+      "--font-mono": "font",
+      "--color-red-500": "color",
+      "--color-amber-400": "color",
+      "--color-amber-500": "color",
+      "--color-amber-600": "color",
+      "--color-yellow-500": "color",
+      "--color-green-500": "color",
+      "--color-green-600": "color",
+      "--color-green-700": "color",
+      "--color-emerald-50": "color",
+      "--color-emerald-300": "color",
+      "--color-emerald-400": "color",
+      "--color-emerald-600": "color",
+      "--color-emerald-700": "color",
+      "--color-blue-400": "color",
+      "--color-blue-600": "color",
+      "--color-violet-400": "color",
+      "--color-violet-600": "color",
+      "--color-black": "color",
+      "--color-white": "color",
+      "--spacing": "spacing",
+      "--container-xs": "spacing",
+      "--container-sm": "spacing",
+      "--container-md": "spacing",
+      "--container-lg": "spacing",
+      "--container-2xl": "spacing",
+      "--container-3xl": "spacing",
+      "--container-4xl": "spacing",
+      "--container-6xl": "spacing",
+      "--container-7xl": "spacing",
+      "--text-xs": "font",
+      "--text-xs--line-height": "font",
+      "--text-sm": "font",
+      "--text-sm--line-height": "font",
+      "--text-base": "font",
+      "--text-base--line-height": "font",
+      "--text-lg": "font",
+      "--text-lg--line-height": "font",
+      "--text-xl": "font",
+      "--text-xl--line-height": "font",
+      "--text-2xl": "font",
+      "--text-2xl--line-height": "font",
+      "--text-3xl": "font",
+      "--text-3xl--line-height": "font",
+      "--text-4xl": "font",
+      "--text-4xl--line-height": "font",
+      "--text-5xl": "font",
+      "--text-5xl--line-height": "font",
+      "--text-6xl": "font",
+      "--text-6xl--line-height": "font",
+      "--font-weight-light": "font",
+      "--font-weight-normal": "font",
+      "--font-weight-medium": "font",
+      "--font-weight-semibold": "font",
+      "--font-weight-bold": "font",
+      "--tracking-tight": "font",
+      "--tracking-wide": "font",
+      "--tracking-widest": "font",
+      "--radius-md": "radius",
+      "--radius-lg": "radius",
+      "--radius-xl": "radius",
+      "--radius-2xl": "radius",
+      "--animate-spin": "other",
+      "--animate-pulse": "other",
+      "--default-transition-duration": "other",
+      "--default-transition-timing-function": "other",
+      "--default-font-family": "font",
+      "--default-mono-font-family": "font",
+      "--radius": "radius",
+      "--color-background": "color",
+      "--color-foreground": "color",
+      "--color-card": "color",
+      "--color-card-foreground": "color",
+      "--color-popover": "color",
+      "--color-popover-foreground": "color",
+      "--color-primary": "color",
+      "--color-primary-foreground": "color",
+      "--color-secondary": "color",
+      "--color-secondary-foreground": "color",
+      "--color-muted": "color",
+      "--color-muted-foreground": "color",
+      "--color-accent": "color",
+      "--color-accent-foreground": "color",
+      "--color-destructive": "color",
+      "--color-destructive-foreground": "color",
+      "--color-border": "color",
+      "--color-input": "color",
+      "--color-ring": "color",
+      "--font-display": "font",
+      "--font-data": "font",
+      "--color-field": "color",
+      "--color-field-raised": "color",
+      "--color-chrome": "color",
+      "--color-chrome-foreground": "color",
+      "--color-chrome-subtle": "color",
+      "--color-copper": "color",
+      "--color-copper-foreground": "color",
+      "--color-copper-hover": "color",
+      "--color-deviation": "color",
+      "--color-deviation-foreground": "color",
+      "--color-nav-active": "color",
+      "--color-nav-active-foreground": "color",
+      "--shadow-soft": "shadow",
+      "--shadow-soft-lg": "shadow",
+      "--text-display": "font",
+      "--text-display--line-height": "font",
+      "--text-display--letter-spacing": "font",
+      "--text-display--font-weight": "font",
+      "--radius-inset": "radius",
+      "--radius-control": "radius",
+      "--radius-card": "radius",
+      "--radius-card-lg": "radius",
+      "--text-title": "font",
+      "--text-title--line-height": "font",
+      "--text-title--letter-spacing": "font",
+      "--text-title--font-weight": "font",
+      "--text-metric": "font",
+      "--text-metric--line-height": "font",
+      "--text-metric--letter-spacing": "font",
+      "--text-metric--font-weight": "font",
+      "--ease-brand": "other",
+      "--shadow-soft-sm": "shadow",
+      "--shadow-float": "shadow",
+      "--color-success": "color",
+      "--color-success-foreground": "color",
+      "--color-success-subtle": "color",
+      "--color-warning": "color",
+      "--color-warning-foreground": "color",
+      "--color-warning-subtle": "color",
+      "--color-info": "color",
+      "--color-info-foreground": "color",
+      "--color-info-subtle": "color",
+      "--color-spotlight": "color",
+      "--color-spotlight-foreground": "color",
+      "--color-spotlight-subtle": "color",
+      "--tw-translate-x": "other",
+      "--tw-translate-y": "other",
+      "--tw-scale-x": "spacing",
+      "--tw-scale-y": "spacing",
+      "--tw-scale-z": "spacing",
+      "--tw-border-style": "other",
+      "--tw-leading": "font",
+      "--tw-font-weight": "font",
+      "--tw-tracking": "font",
+      "--tw-numeric-spacing": "spacing",
+      "--tw-shadow": "shadow",
+      "--tw-ring-shadow": "shadow",
+      "--tw-ring-color": "color",
+      "--tw-ring-offset-width": "spacing",
+      "--tw-ring-offset-shadow": "shadow",
+      "--tw-ring-offset-color": "color",
+      "--tw-blur": "other",
+      "--tw-invert": "other",
+      "--tw-backdrop-blur": "other",
+      "--tw-duration": "other",
+      "--tw-ease": "color",
+      "--tw-outline-style": "other",
+      "--tw-ring-inset": "spacing"
+    },
+    "fontFamilies": [
+      "Amulya",
+      "Chillax",
+      "Geist Mono",
+      "Synonym"
+    ]
+  }
+}

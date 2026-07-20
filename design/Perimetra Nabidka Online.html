@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Perimetra — nabídka online</title>
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/styles.css">
+<style>
+  body { margin: 0; background: #d8d5ce; font-family: var(--font-sans); }
+  a { color: var(--color-copper); text-decoration: none; }
+  a:hover { color: var(--color-copper-hover); }
+  .frame { position: absolute; }
+  .canvas-label { position: absolute; color: #2c2a26; }
+  .canvas-label .eyebrow { font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #8a857c; display: block; margin-bottom: 4px; }
+  .canvas-label h1 { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+  .canvas-label p { margin: 10px 0 0; font-size: 15px; color: #6f6a61; max-width: 900px; line-height: 1.55; }
+  .frame-cap { position: absolute; color: #2c2a26; }
+  .frame-cap p { margin: 0; font-size: 14px; color: #6f6a61; }
+  .frame-cap b { color: #2c2a26; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid #cfccc4; font-size: 12.5px; color: #4a463f; }
+  .chip b { font-weight: 600; color: #2c2a26; }
+</style>
+</head>
+<body>
+
+  <div class="canvas-label" style="left:60px; top:44px; width:1200px;">
+    <span class="eyebrow">Perimetra · customer-facing — nabídka online</span>
+    <h1>The quote the customer opens from the e-mail</h1>
+    <p>The web twin of the PDF: the same drawing, spec and price, but interactive and responsive — because the accept link gets opened on a phone as often as a laptop. One clear action turns the nabídka into a zakázka. Prices are shown s DPH (customer-facing), and the acceptance flows straight into an order confirmation with next steps.</p>
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <span class="chip"><b>Kdo</b> zákazník</span>
+      <span class="chip"><b>Akce</b> závazně objednat</span>
+      <span class="chip"><b>Cena</b> s DPH</span>
+      <span class="chip"><b>Twin of</b> nabídka PDF</span>
+    </div>
+  </div>
+
+  <div class="frame-cap" style="left:60px; top:262px; width:1280px;"><p><b>Desktop</b> — drawing + spec left, price + accept card right, obchodní zástupce contact.</p></div>
+  <div class="frame" id="q-DESKTOP" style="left:60px; top:300px;"></div>
+
+  <div class="frame-cap" style="left:1420px; top:262px; width:390px;"><p><b>Telefon — nabídka</b></p></div>
+  <div class="frame" id="q-MOBILE" style="left:1420px; top:300px;"></div>
+
+  <div class="frame-cap" style="left:1870px; top:262px; width:390px;"><p><b>Telefon — potvrzeno</b></p></div>
+  <div class="frame" id="q-ACCEPTED" style="left:1870px; top:300px;"></div>
+
+  <div class="canvas-label" style="left:60px; top:1330px; width:1100px;">
+    <p style="margin:0; font-size:14px;">Same content as <a href="Perimetra Nabidka.html">the printable nabídka PDF</a>. Accepting turns the quote into an order, which the owner tracks back in <a href="Perimetra Leads Inbox.html">the inbox</a>.</p>
+  </div>
+
+  <script src="_ds/_vendor/react.js"></script>
+  <script src="_ds/_vendor/react-dom.js"></script>
+  <script src="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.js"></script>
+  <script src="configurator/parts.jsx"></script>
+  <script src="configurator/frames-quote.jsx"></script>
+  <script>window.PConfQuoteMount();</script>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#b8552f"/>
+      <g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round">
+        <rect x="26" y="22" width="48" height="56" rx="4"/>
+        <path d="M38 50l8 8 16-18"/>
+      </g>
+    </svg>
+  </template>
+</body>
+</html>

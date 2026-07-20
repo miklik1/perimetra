@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perimetra — Nabídka N-2026-0512</title>
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/styles.css">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#d8d5ce}
+  doc-page{font-family:var(--font-sans);color:var(--color-foreground);font-size:11pt;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  a{color:var(--color-copper);text-decoration:none}
+  .num{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+  .mono{font-family:var(--font-mono)}
+  h1,h2,h3{font-family:var(--font-display);letter-spacing:-0.01em;margin:0}
+
+  /* running header/footer */
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:var(--color-primary);color:var(--color-primary-foreground);display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:17px}
+  .brand .name{font-family:var(--font-display);font-size:16px;font-weight:600}
+  .brand .sub{font-size:9.5pt;color:var(--color-muted-foreground)}
+
+  .wrap{padding:0}
+  .doc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:16px;margin-bottom:6px}
+  .doc-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:22px;padding-top:8px;font-size:8.5pt;color:var(--color-muted-foreground);border-top:1px solid var(--color-border)}
+  .eyebrow{font-size:8.5pt;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--color-muted-foreground)}
+
+  /* title band */
+  .titleband{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding-bottom:14px;border-bottom:2px solid var(--color-primary);margin-bottom:20px}
+  .titleband h1{font-size:27pt;font-weight:600;line-height:1.05}
+  .meta{text-align:right;font-size:9.5pt;line-height:1.7}
+  .meta .k{color:var(--color-muted-foreground)}
+
+  /* parties */
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .party{background:var(--color-chrome);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:15px 17px}
+  .party .lbl{font-size:8.5pt;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--color-muted-foreground);margin-bottom:7px}
+  .party .line{font-size:10pt;line-height:1.55}
+  .party .line.strong{font-weight:600;font-size:11pt}
+
+  /* product block */
+  .product{display:grid;grid-template-columns:1.15fr 1fr;gap:22px;align-items:start;margin-bottom:8px}
+  .drawing{background:var(--color-chrome);border:1px solid var(--color-border);border-radius:var(--radius-card);overflow:hidden}
+  .drawing .cap{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-top:1px solid var(--color-border);font-size:8.5pt;color:var(--color-muted-foreground)}
+  .spec .row{display:flex;justify-content:space-between;gap:16px;padding:7.5px 0;font-size:10pt;border-bottom:1px solid var(--color-border)}
+  .spec .row:last-child{border-bottom:0}
+  .spec .k{color:var(--color-muted-foreground)}
+  .spec .v{font-weight:500;text-align:right}
+  .spec h3{font-size:13pt;margin-bottom:8px}
+
+  /* price table */
+  .price{margin-top:22px;border:1px solid var(--color-border);border-radius:var(--radius-card);overflow:hidden;break-inside:avoid}
+  .price table{width:100%;border-collapse:collapse}
+  .price th{text-align:left;font-size:8.5pt;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--color-muted-foreground);background:var(--color-chrome-subtle);padding:10px 16px}
+  .price th.r,.price td.r{text-align:right}
+  .price td{padding:10px 16px;font-size:10pt;border-top:1px solid var(--color-border)}
+  .price td .desc{color:var(--color-muted-foreground);font-size:9pt;margin-top:2px}
+  .price tr.sum td{border-top:2px solid var(--color-primary);background:var(--color-spotlight-subtle)}
+  .price tr.sum .lbl{font-family:var(--font-display);font-weight:600;font-size:12pt}
+  .price tr.sum .tot{font-family:var(--font-data);font-weight:600;font-size:15pt}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:22px}
+  .note{background:var(--color-chrome);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:15px 17px;break-inside:avoid}
+  .note h3{font-size:11pt;margin-bottom:8px}
+  .note ul{margin:0;padding-left:16px;font-size:9.5pt;line-height:1.6;color:var(--color-foreground)}
+  .note li{margin-bottom:4px}
+  .valid{display:inline-flex;align-items:center;gap:8px;background:var(--color-copper);color:var(--color-copper-foreground);font-size:9.5pt;font-weight:600;padding:6px 12px;border-radius:999px}
+
+  .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:34px;break-inside:avoid}
+  .sign .box{border-top:1px solid var(--color-foreground);padding-top:7px;font-size:9pt;color:var(--color-muted-foreground)}
+</style>
+</head>
+<body>
+<doc-page size="a4" margin="14mm">
+
+  <div class="wrap">
+    <div class="doc-head">
+    <div class="brand">
+      <span class="mark">P</span>
+      <div>
+        <div class="name">Perimetra</div>
+        <div class="sub">Ploty a brány na míru · perimetra.cz</div>
+      </div>
+    </div>
+    <div style="text-align:right;font-size:9pt;color:var(--color-muted-foreground);line-height:1.6">
+      <div>Perimetra s.r.o. · Průmyslová 214, 251 01 Říčany</div>
+      <div>IČO 12345678 · DIČ CZ12345678</div>
+      <div>+420 800 100 200 · nabidky@perimetra.cz</div>
+    </div>
+    </div>
+    <div class="titleband">
+      <div>
+        <div class="eyebrow">Cenová nabídka</div>
+        <h1>Brána posuvná na míru</h1>
+      </div>
+      <div class="meta">
+        <div><span class="k">Číslo nabídky</span> &nbsp; <b class="mono">N-2026-0512</b></div>
+        <div><span class="k">Vystaveno</span> &nbsp; <span class="num">14. 7. 2026</span></div>
+        <div><span class="k">Platnost do</span> &nbsp; <span class="num">13. 8. 2026</span></div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="lbl">Zákazník</div>
+        <div class="line strong">Jan Novák</div>
+        <div class="line">K Lesu 214, 252 43 Průhonice</div>
+        <div class="line num">+420 777 123 456</div>
+        <div class="line">jan.novak@email.cz</div>
+      </div>
+      <div class="party">
+        <div class="lbl">Místo montáže</div>
+        <div class="line strong">Vjezd — západní strana pozemku</div>
+        <div class="line">K Lesu 214, 252 43 Průhonice</div>
+        <div class="line">Montážní povrch: betonová deska</div>
+        <div class="line">Doměření zdarma před výrobou</div>
+      </div>
+    </div>
+
+    <div class="product">
+      <div class="drawing">
+        <svg viewBox="0 0 560 340" style="width:100%;display:block;color:#383e42" xmlns="http://www.w3.org/2000/svg">
+          <rect width="560" height="340" fill="#f3f1ec"/>
+          <!-- width dim -->
+          <g stroke="#5b7a99" stroke-width="1" fill="#5b7a99" font-family="var(--font-data)">
+            <line x1="70" y1="42" x2="490" y2="42"/>
+            <path d="M70 42l8-4v8z"/><path d="M490 42l-8-4v8z"/>
+            <text x="280" y="36" text-anchor="middle" font-size="14" stroke="none">4 000 mm</text>
+          </g>
+          <!-- height dim -->
+          <g stroke="#5b7a99" stroke-width="1" fill="#5b7a99">
+            <line x1="512" y1="70" x2="512" y2="278"/>
+            <path d="M512 70l-4 8h8z"/><path d="M512 278l-4-8h8z"/>
+            <text x="528" y="180" text-anchor="middle" font-size="14" stroke="none" transform="rotate(90 528 180)">1 800 mm</text>
+          </g>
+          <!-- gate -->
+          <g stroke="#383e42" fill="none" stroke-linecap="round">
+            <rect x="78" y="72" width="404" height="206" rx="3" stroke-width="4"/>
+            <line x1="78" y1="104" x2="482" y2="104" stroke-width="3.5"/>
+            <line x1="78" y1="248" x2="482" y2="248" stroke-width="3.5"/>
+            <g stroke-width="2.6" opacity="0.6">
+              <line x1="108" y1="106" x2="108" y2="246"/><line x1="140" y1="106" x2="140" y2="246"/><line x1="172" y1="106" x2="172" y2="246"/><line x1="204" y1="106" x2="204" y2="246"/><line x1="236" y1="106" x2="236" y2="246"/><line x1="268" y1="106" x2="268" y2="246"/><line x1="300" y1="106" x2="300" y2="246"/><line x1="332" y1="106" x2="332" y2="246"/><line x1="364" y1="106" x2="364" y2="246"/><line x1="396" y1="106" x2="396" y2="246"/><line x1="428" y1="106" x2="428" y2="246"/><line x1="452" y1="106" x2="452" y2="246"/>
+            </g>
+            <path d="M78 278 L42 278 L42 264 L78 264" stroke-width="2.6" opacity="0.7"/>
+          </g>
+          <!-- posts -->
+          <rect x="60" y="56" width="12" height="240" rx="2" fill="#383e42" opacity="0.16"/>
+          <rect x="488" y="56" width="12" height="240" rx="2" fill="#383e42" opacity="0.16"/>
+          <line x1="24" y1="300" x2="536" y2="300" stroke="#383e42" stroke-width="1.5" opacity="0.3"/>
+        </svg>
+        <div class="cap"><span>Výrobní výkres — čelní pohled</span><span class="mono">FIL-BP · v2026.3</span></div>
+      </div>
+      <div class="spec">
+        <h3>Specifikace</h3>
+        <div class="row"><span class="k">Produkt</span><span class="v">Brána posuvná (samonosná)</span></div>
+        <div class="row"><span class="k">Rozměr (Š × V)</span><span class="v num">4 000 × 1 800 mm</span></div>
+        <div class="row"><span class="k">Rozteč sloupků</span><span class="v num">4 320 mm</span></div>
+        <div class="row"><span class="k">Výplň</span><span class="v">Lamela vodorovná 90 mm</span></div>
+        <div class="row"><span class="k">Rozteč výplně</span><span class="v num">120 mm</span></div>
+        <div class="row"><span class="k">Sloupek</span><span class="v num">100 × 100 mm</span></div>
+        <div class="row"><span class="k">Profil</span><span class="v mono">AL-PRF-40</span></div>
+        <div class="row"><span class="k">Odstín</span><span class="v">RAL 7016 — antracit</span></div>
+        <div class="row"><span class="k">Povrch</span><span class="v">Komaxit struktura mat</span></div>
+        <div class="row"><span class="k">Záruka</span><span class="v">5 let na konstrukci</span></div>
+      </div>
+    </div>
+
+    <div class="price">
+      <table>
+        <thead><tr><th>Položka</th><th class="r">Množství</th><th class="r">Cena bez DPH</th></tr></thead>
+        <tbody>
+          <tr><td>Brána posuvná FIL-BP<div class="desc">4 000 × 1 800 mm · lamela 90 mm · RAL 7016</div></td><td class="r num">1 ks</td><td class="r num">38 900 Kč</td></tr>
+          <tr><td>Sloupky 100 × 100 mm vč. kotvení<div class="desc">2 ks · pozinkované, komaxit</div></td><td class="r num">1 sada</td><td class="r num">6 350 Kč</td></tr>
+          <tr><td>Doprava a montáž<div class="desc">Průhonice · betonová deska</div></td><td class="r num">1×</td><td class="r num">3 000 Kč</td></tr>
+          <tr><td>Základ bez DPH</td><td class="r"></td><td class="r num" style="font-weight:600">48 250 Kč</td></tr>
+          <tr><td>DPH 21 %</td><td class="r"></td><td class="r num">10 132,50 Kč</td></tr>
+          <tr class="sum"><td class="lbl">Celkem k úhradě</td><td class="r"></td><td class="r tot">58 382,50 Kč</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cols">
+      <div class="note">
+        <h3>Co je v ceně</h3>
+        <ul>
+          <li>Výroba brány na míru vašemu vjezdu</li>
+          <li>Bezplatné doměření technikem před výrobou</li>
+          <li>Doprava a montáž po celé ČR</li>
+          <li>Záruka 5 let na konstrukci, 2 roky na povrch</li>
+          <li>Zaškolení obsluhy při předání</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>Dodací podmínky</h3>
+        <ul>
+          <li>Dodací lhůta: 4–6 týdnů od potvrzení objednávky</li>
+          <li>Záloha 50 % při objednání, doplatek při předání</li>
+          <li>Cena platí při montáži na připravený betonový základ</li>
+          <li>Pohon brány lze doobjednat samostatně</li>
+        </ul>
+        <div style="margin-top:12px"><span class="valid">Nabídka platí do 13. 8. 2026</span></div>
+      </div>
+    </div>
+
+    <div class="sign">
+      <div class="box">Za Perimetra s.r.o. — Ing. Pavel Horák, obchodní zástupce</div>
+      <div class="box">Souhlas zákazníka s objednávkou (podpis, datum)</div>
+    </div>
+
+    <div class="doc-foot">
+      <span>Perimetra s.r.o. · Nabídka N-2026-0512</span>
+      <span>Ceny jsou uvedeny včetně DPH 21 %. Nabídka je nezávazná.</span>
+    </div>
+  </div>
+
+</doc-page>
+<script src="configurator/doc-page.js"></script>
+</body>
+</html>

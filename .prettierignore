@@ -27,3 +27,6 @@ apps/api/src/openapi/__snapshots__/
 # review finding — the defect predates that drain). Formatting is skipped here;
 # keep rows hand-wrapped.
 docs/adr/README.md
+
+# Design reference exports (claude.ai/design canvas) — byte-fidelity reference, never format
+design/

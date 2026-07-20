@@ -1,0 +1,28 @@
+@font-face{
+  font-family: "Chillax";
+  src: url("./Chillax-Variable.woff2") format("woff2-variations");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face{
+  font-family: "Synonym";
+  src: url("./Synonym-Variable.woff2") format("woff2-variations");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face{
+  font-family: "Amulya";
+  src: url("./Amulya-Variable.woff2") format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face{
+  font-family: "Geist Mono";
+  src: url("./GeistMonoVF.woff") format("woff-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Perimetra — leads inbox</title>
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/styles.css">
+<style>
+  body { margin: 0; background: #d8d5ce; font-family: var(--font-sans); }
+  a { color: var(--color-copper); text-decoration: none; }
+  a:hover { color: var(--color-copper-hover); }
+  .frame { position: absolute; }
+  .canvas-label { position: absolute; color: #2c2a26; }
+  .canvas-label .eyebrow { font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #8a857c; display: block; margin-bottom: 4px; }
+  .canvas-label h1 { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+  .canvas-label p { margin: 10px 0 0; font-size: 15px; color: #6f6a61; max-width: 900px; line-height: 1.55; }
+  .frame-cap { position: absolute; color: #2c2a26; width: 1440px; }
+  .frame-cap b { color: #2c2a26; }
+  .frame-cap p { margin: 0; font-size: 14px; color: #6f6a61; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid #cfccc4; font-size: 12.5px; color: #4a463f; }
+  .chip b { font-weight: 600; color: #2c2a26; }
+</style>
+</head>
+<body>
+
+  <div class="canvas-label" style="left:60px; top:44px; width:1200px;">
+    <span class="eyebrow">Perimetra · internal — leads inbox</span>
+    <h1>Where the poptávky land</h1>
+    <p>The workshop owner's triage view. Every lead the configurator captures — web or mobile — arrives here with its configured build, contact details and an indicative price (bez DPH, this is an internal surface). Master list on the left, full triage detail on the right: config recap with the live preview, contact strip, activity timeline, and the one action that matters — turn it into a nabídka.</p>
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <span class="chip"><b>Kdo</b> majitel dílny</span>
+      <span class="chip"><b>Zdroj</b> web + mobil konfigurátor</span>
+      <span class="chip"><b>Cena</b> bez DPH (interní)</span>
+      <span class="chip"><b>Akce</b> → vytvořit nabídku</span>
+    </div>
+  </div>
+
+  <div class="frame-cap" style="left:60px;   top:262px;"><p><b>Triáž</b> — master list + detail, „Nová" lead selected with its build, contact, timeline and triage facts (dojezd, marže, přiřazení).</p></div>
+  <div class="frame" id="inbox-INBOX" style="left:60px; top:300px;"></div>
+
+  <div class="frame-cap" style="left:1580px; top:262px;"><p><b>Prázdný detail</b> — nothing selected yet; the list is filtered to „Nové".</p></div>
+  <div class="frame" id="inbox-EMPTY" style="left:1580px; top:300px;"></div>
+
+  <div class="canvas-label" style="left:60px; top:1272px;">
+    <span class="eyebrow">Responzivní — jiné kontexty</span>
+    <h1>Triage on tablet and phone</h1>
+    <p>The owner isn't always at the desk. Tablet keeps the two-pane triage with a collapsed icon rail; the phone splits it into a master list (with a bottom tab bar) and a detail screen reached by tapping a lead — the „Vytvořit nabídku" action stays pinned at the bottom.</p>
+  </div>
+
+  <div class="frame-cap" style="left:60px; top:1470px;"><p><b>Tablet</b> — 1194 × 834, landscape two-pane with icon sidenav.</p></div>
+  <div class="frame" id="inbox-TABLET" style="left:60px; top:1508px;"></div>
+
+  <div class="frame-cap" style="left:1334px; top:1470px; width:390px;"><p><b>Telefon — seznam</b></p></div>
+  <div class="frame" id="inbox-MOBLIST" style="left:1334px; top:1508px;"></div>
+
+  <div class="frame-cap" style="left:1784px; top:1470px; width:390px;"><p><b>Telefon — detail</b></p></div>
+  <div class="frame" id="inbox-MOBDETAIL" style="left:1784px; top:1508px;"></div>
+
+  <div class="canvas-label" style="left:60px; top:2420px; width:1100px;">
+    <p style="margin:0; font-size:14px;">Leads arrive from <a href="Perimetra Configurator Flow.html">the desktop lead catcher</a> and <a href="Perimetra Lead Catcher - Mobile.html">the mobile one</a>. The „Vytvořit nabídku" action opens <a href="Perimetra Configurator.html">the internal configurator</a>.</p>
+  </div>
+
+  <script src="_ds/_vendor/react.js"></script>
+  <script src="_ds/_vendor/react-dom.js"></script>
+  <script src="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.js"></script>
+  <script src="configurator/parts.jsx"></script>
+  <script src="configurator/frames-inbox.jsx"></script>
+  <script>window.PConfInboxMount();</script>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#b8552f"/>
+      <g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round">
+        <rect x="24" y="26" width="52" height="48" rx="4"/>
+        <path d="M24 34l26 16 26-16"/>
+      </g>
+    </svg>
+  </template>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Perimetra — konfigurátor</title>
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/styles.css">
+<style>
+  body { margin: 0; background: #d8d5ce; font-family: var(--font-sans); }
+  a { color: var(--color-copper); text-decoration: none; }
+  a:hover { color: var(--color-copper-hover); }
+  .frame { position: absolute; }
+  .canvas-label { position: absolute; color: #2c2a26; }
+  .canvas-label .eyebrow { font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: #8a857c; display: block; margin-bottom: 4px; }
+  .canvas-label h1 { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+  .canvas-label h2 { margin: 0; font-family: var(--font-display); font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+  .canvas-label p { margin: 10px 0 0; font-size: 15px; color: #6f6a61; max-width: 900px; line-height: 1.55; }
+  .frame-cap { position: absolute; color: #2c2a26; }
+  .frame-cap p { margin: 0; font-size: 14px; color: #6f6a61; max-width: 640px; line-height: 1.5; }
+  .frame-cap b { color: #2c2a26; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+    background: #fff; border: 1px solid #cfccc4; font-size: 12.5px; color: #4a463f; }
+  .chip b { font-weight: 600; color: #2c2a26; }
+</style>
+</head>
+<body>
+
+  <!-- title -->
+  <div class="canvas-label" style="left:60px; top:44px; width:1240px;">
+    <span class="eyebrow">Perimetra · CPQ — konfigurátor (rep/owner)</span>
+    <h1>Form-based by default, fullscreen when the 3D takes over</h1>
+    <p>Corrected framing: the <b>default is form-based</b> — the option-rail forms are the workspace and the 3D sits alongside as a live preview. A prominent <b>Celá obrazovka</b> toggle flips into fullscreen mode, where the scene fills the screen and becomes the interaction surface (editable dimension pills, selectable parts, a tool dock). One optimal path with that toggle, the state that proves it's a rep tool (typed Czech engine issues + margin-floor guard), then thought-out tablet and mobile. Internal, so it carries cost, margin and the margin-floor — never shown to a customer.</p>
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <span class="chip"><b>Kdo</b> rep / majitel — desk + tablet on-site</span>
+      <span class="chip"><b>Výchozí</b> formuláře + 3D náhled</span>
+      <span class="chip"><b>Toggle</b> celá obrazovka = přímá manipulace</span>
+      <span class="chip"><b>Cena</b> bez DPH · náklad + marže + floor</span>
+    </div>
+  </div>
+
+  <!-- ROW 1 — the optimal path + immersive variant -->
+  <div class="canvas-label" style="left:60px; top:344px;">
+    <span class="eyebrow">01 — Optimal path</span>
+    <h2>Form-based workspace + fullscreen mode</h2>
+    <p>Default: slim guided steps left (UiSpec kroky/skupiny), the option-rail forms as the primary column with cost/margin below, and the 3D alongside as a live preview carrying the „Celá obrazovka“ toggle. That toggle opens the fullscreen mode where the scene fills the screen and interaction moves onto the model.</p>
+  </div>
+  <div class="frame" id="v2-OPT" style="left:60px;   top:470px;"></div>
+  <div class="frame" id="v2-IMM" style="left:1580px; top:470px;"></div>
+  <div class="frame-cap" style="left:60px;   top:1400px;"><p><b>Form-based (default)</b> — guided steps left, option-rail forms + cost/margin as the primary column, 3D alongside as a live preview with a „Celá obrazovka“ toggle.</p></div>
+  <div class="frame-cap" style="left:1580px; top:1400px;"><p><b>Celá obrazovka / fullscreen</b> — the toggle's result: scene edge-to-edge, steps/inputs/commercial collapse to slim triggers, and the rep manipulates the model directly.</p></div>
+
+  <!-- ROW 2 — invalid + margin-floor -->
+  <div class="canvas-label" style="left:60px; top:1500px;">
+    <span class="eyebrow">02 — The state that proves it's a rep tool</span>
+    <h2>Invalid config + margin-floor guard</h2>
+    <p>Valid-only by construction: the engine rejects out-of-range input as typed, human-readable Czech issues at the point of sale, the price can't compute, and issuing is blocked. The margin-floor meter (and its below-floor override, logged to the deviation ledger) is commercial data no customer ever sees.</p>
+  </div>
+  <div class="frame" id="v2-INV" style="left:60px; top:1680px;"></div>
+  <div class="frame-cap" style="left:1580px; top:1700px; width:420px;"><p><b>Neplatná konfigurace</b> — šířka 6 400 mm nad maximem: field error, typed defect list, „Nelze spočítat", blocked CTA. The margin-floor meter appears in the happy-path commercial card (row 1), with a „Povolit odchylku" override when margin drops below the floor.</p></div>
+
+  <!-- ROW 3 — tablet -->
+  <div class="canvas-label" style="left:60px; top:2620px;">
+    <span class="eyebrow">03 — On-site tablet (landscape)</span>
+    <h2>Touch, scene-first, thumb-reachable commercial bar</h2>
+    <p>The rep configures at the customer's fence line. Steps become a horizontal touch chip row, the scene stays dominant with the inputs sheet floating, and a persistent bottom bar carries the price + 44 px actions.</p>
+  </div>
+  <div class="frame" id="v2-TAB" style="left:60px; top:2800px;"></div>
+
+  <!-- ROW 4 — mobile -->
+  <div class="canvas-label" style="left:1354px; top:2600px; width:440px;">
+    <span class="eyebrow">04 — Mobile</span>
+    <h2>One-step guided wizard</h2>
+    <p>Phone config is genuinely hard, so it's honest about it: the scene stays interactive up top (fullscreen a tap away), and exactly one group shows at a time in a bottom sheet with Zpět / Další and a live price + margin. Not a data-entry marathon — a focused tweak-and-advance loop.</p>
+  </div>
+  <div class="frame" id="v2-MOB" style="left:1354px; top:2860px;"></div>
+
+  <div class="canvas-label" style="left:1830px; top:2860px; width:520px;">
+    <p style="margin:0; font-size:14px;">This is the signature interactive surface. Downstream it feeds the <a href="Perimetra Nabidka Online.html">nabídka</a> and, once accepted, the <a href="Perimetra Zakazky.html">zakázka</a>; rules come from the <a href="Perimetra Katalog.html">katalog</a>.</p>
+  </div>
+
+  <script src="_ds/_vendor/react.js"></script>
+  <script src="_ds/_vendor/react-dom.js"></script>
+  <script src="_ds/perimetra-design-system-0f4e8eb1-8530-4316-9866-ab32e08b499f/_ds_bundle.js"></script>
+  <script src="configurator/parts.jsx"></script>
+  <script src="configurator/frames-v2.jsx"></script>
+  <script>window.PConfV2Mount();</script>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#b8552f"/>
+      <g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round">
+        <rect x="26" y="34" width="48" height="32" rx="2"/>
+        <path d="M32 40v20M40 38v24M48 40v20M56 38v24M64 40v20"/>
+        <circle cx="26" cy="34" r="3" fill="#b8552f"/><circle cx="74" cy="66" r="3" fill="#b8552f"/>
+      </g>
+    </svg>
+  </template>
+</body>
+</html>
