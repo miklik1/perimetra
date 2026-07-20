@@ -10,6 +10,7 @@ import { useDeviation } from "./deviation";
 import { useExplode } from "./explode";
 import { explodedPosition } from "./explode-offsets";
 import { finishById, useFinish, woodTexture, type FinishMaterial } from "./finish";
+import { selectionKeyOf, useManipulation } from "./manipulation";
 import { buildPieceGeometry } from "./profile-geometry";
 
 /**
@@ -58,6 +59,10 @@ const DEVIATION_COLOR = "#f59e0b";
 /** When the highlight toggle is on (ADR 0076), the non-deviated rest desaturates
  *  to a muted grey so the amber pieces pop out of a busy gate. */
 const DESATURATED_COLOR = "#9a9a9a";
+/** Selection glow (ADR 0116) — the copper UI accent, a browner hue than the
+ *  deviation amber so a selected part reads as "picked", not "deviated". A
+ *  deviated piece still wins (amber): its state outranks a selection emphasis. */
+const SELECTION_COLOR = "#b5762f";
 
 const ZERO_OFFSET: Vec3 = [0, 0, 0];
 
@@ -76,6 +81,7 @@ function Piece({
   material,
   woodMap,
   highlight,
+  selected,
   clippingPlanes,
 }: {
   piece: ScenePiece;
@@ -85,6 +91,8 @@ function Piece({
   material: FinishMaterial;
   woodMap: Texture | null;
   highlight: boolean;
+  /** This piece belongs to the picked part (ADR 0116) — a copper selection glow. */
+  selected: boolean;
   /** Section cut planes (ADR 0092); empty = no clip. */
   clippingPlanes: Plane[];
 }) {
@@ -139,6 +147,15 @@ function Piece({
     roughness = material.roughness;
   }
 
+  // A picked part glows copper (ADR 0116). Applied after the finish branches and
+  // gated on `!deviated`, so a deviated piece keeps its amber (its state
+  // outranks a selection emphasis) and a highlight-desaturated piece still
+  // signals that it is the one selected.
+  if (selected && !deviated) {
+    emissive = SELECTION_COLOR;
+    emissiveIntensity = 0.4;
+  }
+
   const mat = (
     <meshStandardMaterial
       key={hasMap ? "mapped" : "flat"}
@@ -160,11 +177,13 @@ function Piece({
       {geometry !== null ? (
         // The extruded geometry already spans x∈[0, length] from its origin;
         // `dispose={null}` — the module cache owns the shared buffer's lifecycle.
-        <mesh geometry={geometry} dispose={null}>
+        // `userData.pieceId` is the pick target (ADR 0116): a click reads it off
+        // the hit mesh to resolve the part.
+        <mesh geometry={geometry} dispose={null} userData={{ pieceId: piece.id }}>
           {mat}
         </mesh>
       ) : (
-        <mesh position={[piece.lengthMm / 2, 0, 0]}>
+        <mesh position={[piece.lengthMm / 2, 0, 0]} userData={{ pieceId: piece.id }}>
           <boxGeometry
             args={[piece.lengthMm, piece.profile?.wMm ?? 40, piece.profile?.dMm ?? 40]}
           />
@@ -193,6 +212,10 @@ export const SceneRenderer = memo(function SceneRenderer({
   // the rig `useFrame` so animating it never re-renders the walker.
   const material = useFinish((s) => finishById(s.finishId).material);
   const highlight = useDeviation((s) => s.highlight);
+  // The picked part (ADR 0116). Subscribing here re-renders the walker on a
+  // selection change (user-click rare, never per drag frame); a piece belongs to
+  // the selection when its part key matches.
+  const selected = useManipulation((s) => s.selected);
   const woodMap = useMemo(() => woodTexture(), []);
 
   // The explode rig: each piece registers its group here; one `useFrame` blooms
@@ -230,6 +253,7 @@ export const SceneRenderer = memo(function SceneRenderer({
               material={material}
               woodMap={woodMap}
               highlight={highlight}
+              selected={selected !== null && selectionKeyOf(piece.id) === selected}
               clippingPlanes={clippingPlanes}
             />
           ))}

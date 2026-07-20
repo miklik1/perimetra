@@ -2,7 +2,9 @@
  * Headless configurator capture (ADR 0116) — the eyes for the §12.1 item 6
  * responsive + both-themes pass on this display-less box. Signs in, then
  * screenshots `/configurator` at every width the ship bar names, in light and
- * dark, so the surface can be SEEN rather than inferred from green tests.
+ * dark, so the surface can be SEEN rather than inferred from green tests. At the
+ * desktop/tablet widths it also enters the immersive frame (v2-IMM) and captures
+ * the edge-to-edge direct-manipulation editor.
  *
  *   BASE=http://localhost:3002 EMAIL=... PASSWORD=... \
  *     node apps/web/scripts/verify/capture-configurator.mjs
@@ -115,6 +117,28 @@ for (const theme of ["light", "dark"]) {
     const out = `${OUT_DIR}/configurator-${vp.name}-${theme}.png`;
     await page.screenshot({ path: out });
     console.log(`captured ${out}`);
+
+    // Immersive frame (v2-IMM, ADR 0116) — the edge-to-edge direct-manipulation
+    // editor. Captured at the desktop/tablet widths the canvas draws it for; the
+    // toggle lives beside the view switch (top-right). Entering hides the context
+    // bar, so we wait on the tool dock instead. `.first()`: the segmented view
+    // switch also carries buttons, so scope to the toolbar's own name.
+    if (vp.width >= 1194) {
+      const enter = page.getByRole("button", { name: "Celá obrazovka" });
+      if ((await enter.count()) > 0) {
+        await enter.first().click();
+        await page
+          .getByRole("toolbar", { name: "Nástroje" })
+          .waitFor({ state: "visible", timeout: 15_000 })
+          .catch(() => errors.push(`[${theme} ${vp.name}] immersive dock did not appear`));
+        await page.waitForTimeout(400); // let the camera settle + handles project
+        const imm = `${OUT_DIR}/immersive-${vp.name}-${theme}.png`;
+        await page.screenshot({ path: imm });
+        console.log(`captured ${imm}`);
+      } else {
+        errors.push(`[${theme} ${vp.name}] no fullscreen toggle found`);
+      }
+    }
     await page.close();
   }
 }

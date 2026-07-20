@@ -14,19 +14,21 @@ import {
   type Scope,
   type Value,
 } from "@repo/model";
-import { Button, DisplayLabel, Panel, StepProgress, StickyActionBar } from "@repo/ui";
+import { Button, cn, DisplayLabel, Panel, StepProgress, StickyActionBar } from "@repo/ui";
 
 import { formatMoney } from "../../lib/format-money";
 import { marginPct } from "../../lib/margin";
 import { useCanSeeCost, usePriceBlind } from "../../lib/use-role";
 import { decodeConfig, encodeConfig } from "./config-hash";
 import { FinishPicker } from "./finish-picker";
+import { ImmersiveChrome } from "./immersive-chrome";
 import { useConfiguratorDerive } from "./lib/use-configurator-derive";
 import { BomTable } from "./panels/bom-table";
 import { CommercialPanel } from "./panels/commercial-panel";
 import { ParamField } from "./param-field";
 import type { CatalogBundle, ConfigurableProduct, ConfiguratorPricing } from "./products";
 import { SceneColumn } from "./scene-column";
+import { dimensionBindings, useManipulation } from "./scene/manipulation";
 import { webglAvailable } from "./scene/webgl";
 import { ContextBar } from "./shell/context-bar";
 import { StepChips } from "./shell/step-chips";
@@ -51,9 +53,12 @@ import { buildFlow, flowKey, type BrandStep, type BrandStepKind } from "./wizard
  *   - **< md (v2-MOB)** — the scene takes the top, the form becomes a bottom
  *     sheet, and the steps reduce to `StepProgress` dots.
  *
- * The immersive frame (v2-IMM) and the §7.6 direct-manipulation loop are NOT
- * here — they are a real-time editor rather than a layout, and they follow as
- * their own slice on top of the worker transport this one lands (ADR 0116).
+ * The immersive frame (v2-IMM) IS here now (ADR 0116): `immersive` (a slice of
+ * the manipulation store) promotes the scene `<main>` to full-bleed and hides
+ * the banded chrome, without remounting the WebGL canvas. The §7.6
+ * direct-manipulation loop — corner-handle width drag, editable dimension pills,
+ * part picking — lives in the scene layer (`scene/manipulation*`), fed by the
+ * bridge this component syncs. Měřit/Otočit are deferred (Martin's scope call).
  *
  * Catalog/releases/active pricing are served by the api (ADR 0060): the RSC
  * fetches the bundle and prop-passes it here. The derive runs on the engine
@@ -162,8 +167,15 @@ function ConfiguratorInner({
     }
   }, [products]);
 
+  const immersive = useManipulation((s) => s.immersive);
+
   const product = products[productIndex]!;
-  const { derivation, computing, error } = useConfiguratorDerive(product, catalogs, pricing, input);
+  const { derivation, computing, error, requestImmediate } = useConfiguratorDerive(
+    product,
+    catalogs,
+    pricing,
+    input,
+  );
   const result = derivation?.result ?? null;
 
   const steps = useMemo(
@@ -171,6 +183,26 @@ function ConfiguratorInner({
     [product.release, derivation?.scope, input],
   );
   const flow = useMemo(() => buildFlow(steps), [steps]);
+
+  // The dimension parameters the immersive handles/pills address (ADR 0116,
+  // §7.6). By position: the first two VISIBLE `range`-domain parameters with
+  // bounds are the width and height. A release does not author which parameter is
+  // a spatial dimension, so this is a heuristic (recorded as a deviation); a
+  // parameter with no bounds cannot clamp a drag and is skipped, and a dimension
+  // with no such parameter yields a null binding whose pill/handle is not shown.
+  const dimensionRanges = useMemo(() => {
+    const ranges: { key: string; label: string; min: number; max: number; step: number }[] = [];
+    for (const group of steps.flatMap((s) => s.groups)) {
+      for (const { def, visible } of group.params) {
+        if (!visible || def.domain?.kind !== "range") continue;
+        const { min, max, step } = def.domain;
+        if (typeof min !== "number" || typeof max !== "number") continue;
+        ranges.push({ key: def.key, label: def.label ?? def.key, min, max, step: step ?? 10 });
+        if (ranges.length === 2) return ranges;
+      }
+    }
+    return ranges;
+  }, [steps]);
 
   // Clamp rather than fall back. `flow.length` is release-authored and therefore
   // VARIABLE (ADR 0115) where it used to be a constant 5, so a step index can
@@ -197,6 +229,9 @@ function ConfiguratorInner({
   );
 
   const switchProduct = (index: number) => {
+    // The selection references the outgoing release's parts; clear it before the
+    // scene remounts on the new release (ADR 0116).
+    useManipulation.getState().setSelected(null);
     setProductIndex(index);
     setStepIndex(0);
     setInput({ ...products[index]!.initialInput });
@@ -210,6 +245,43 @@ function ConfiguratorInner({
       return next;
     });
   };
+
+  // The manipulation store starts each session banded and unselected, and is
+  // fully cleared when the surface unmounts (ADR 0116). `reset()` keeps the
+  // bridge — the sync effect below re-sets it the same commit — so the overlay
+  // never sees a null-bridge frame on mount. Resetting on UNMOUNT too matters
+  // because the store is a module singleton: without it, leaving `/configurator`
+  // in immersive mode and returning would paint one fullscreen frame before the
+  // mount effect reverted to banded. Clearing immersive on the way out means the
+  // next mount's first render is already banded.
+  useEffect(() => {
+    useManipulation.getState().reset();
+    return () => {
+      const m = useManipulation.getState();
+      m.reset();
+      m.setBridge(null);
+    };
+  }, []);
+
+  // Lend the immersive layer its data + write paths each render (§7.6). `commit`
+  // persists once (pointer-up / pill submit) through the ordinary input state so
+  // the derive follows and the value round-trips; `preview` fires an immediate,
+  // un-persisted derive for the drag's rAF cadence. `preview` reads THIS render's
+  // `input` as the base — stable through a drag (nothing is committed until
+  // pointer-up), so the dragged key overrides a correct base.
+  useEffect(() => {
+    const read = (key: string): number | null => {
+      const value = derivation?.scope?.[key] ?? input[key];
+      return typeof value === "number" ? value : null;
+    };
+    const { width, height } = dimensionBindings(dimensionRanges, read);
+    useManipulation.getState().setBridge({
+      width,
+      height,
+      commit: (key, value) => setInput((prev) => ({ ...prev, [key]: value })),
+      preview: (key, value) => requestImmediate({ ...input, [key]: value }),
+    });
+  }, [dimensionRanges, derivation?.scope, input, requestImmediate]);
 
   const goTo = (key: string) => {
     const next = flow.findIndex((s) => flowKey(s) === key);
@@ -280,25 +352,36 @@ function ConfiguratorInner({
     // screen at every width. The subtraction is coupled to that `h-14` — if the
     // app header's height changes, this must change with it.
     <div className="bg-field flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col">
-      <ContextBar
-        productLabel={product.release.modelId}
-        catalogVersion={product.catalogVersion}
-        computing={computing}
-      />
+      {/* Immersive mode (ADR 0116) hides the banded chrome and promotes the scene
+          `<main>` to full-bleed. The `<main>` is rendered in BOTH branches (only
+          its className changes), so the WebGL canvas never remounts on toggle;
+          the rail/form/bars are conditionally rendered because they carry no
+          expensive state (the edited config lives in `input` up here). */}
+      {!immersive && (
+        <ContextBar
+          productLabel={product.release.modelId}
+          catalogVersion={product.catalogVersion}
+          computing={computing}
+        />
+      )}
 
       {/* Steps, one band each. Exactly one is in the a11y tree at a time — the
           hidden ones are `display:none`, not visually hidden, so a screen reader
           never meets three copies of the same nav. */}
-      <div className="hidden md:block xl:hidden">
-        <StepChips items={railItems} activeKey={activeKey} onSelect={goTo} />
-      </div>
-      <div className="bg-chrome border-border flex-none border-b px-4 py-2.5 md:hidden">
-        <StepProgress
-          aria-label={t("configuration")}
-          total={flow.length}
-          current={activeIndex + 1}
-        />
-      </div>
+      {!immersive && (
+        <>
+          <div className="hidden md:block xl:hidden">
+            <StepChips items={railItems} activeKey={activeKey} onSelect={goTo} />
+          </div>
+          <div className="bg-chrome border-border flex-none border-b px-4 py-2.5 md:hidden">
+            <StepProgress
+              aria-label={t("configuration")}
+              total={flow.length}
+              current={activeIndex + 1}
+            />
+          </div>
+        </>
+      )}
 
       {/* One polite announcement per step change. Deliberately a dedicated
           region rather than making the visible heading live: a live heading
@@ -310,37 +393,44 @@ function ConfiguratorInner({
         })}`}
       </span>
 
-      <div className="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
-        <div className="hidden xl:flex">
-          <StepsRail items={railItems} activeKey={activeKey} onSelect={goTo} />
-        </div>
+      <div className={cn("flex min-h-0 flex-1", !immersive && "flex-col-reverse md:flex-row")}>
+        {!immersive && (
+          <div className="hidden xl:flex">
+            <StepsRail items={railItems} activeKey={activeKey} onSelect={goTo} />
+          </div>
+        )}
 
         {/* The form column. Below `md` it is the bottom sheet: capped height,
             its own scroll, rounded top, above the scene in reading order because
             the flex parent is `flex-col-reverse`. */}
-        <section
-          aria-label={stepLabel(step, t)}
-          className={
-            "bg-chrome border-border flex min-h-0 flex-none flex-col gap-4 overflow-y-auto " +
-            "max-h-[55dvh] rounded-t-2xl border-t p-4" +
-            "md:max-h-none md:w-[372px] md:rounded-none md:border-r md:border-t-0 md:p-5" +
-            "xl:w-[400px]"
-          }
-        >
-          {body}
-          {/* Commerce sits in the column at xl+, and in the sticky bar below it. */}
-          <div className="mt-auto hidden xl:block">
-            <CommercialPanel
-              result={result}
-              pricing={pricing}
-              catalogVersion={product.catalogVersion}
-              priceBlind={priceBlind}
-              canSeeCost={canSeeCost}
-            />
-          </div>
-        </section>
+        {!immersive && (
+          <section
+            aria-label={stepLabel(step, t)}
+            className={
+              "bg-chrome border-border flex min-h-0 flex-none flex-col gap-4 overflow-y-auto " +
+              "max-h-[55dvh] rounded-t-2xl border-t p-4" +
+              "md:max-h-none md:w-[372px] md:rounded-none md:border-r md:border-t-0 md:p-5" +
+              "xl:w-[400px]"
+            }
+          >
+            {body}
+            {/* Commerce sits in the column at xl+, and in the sticky bar below it. */}
+            <div className="mt-auto hidden xl:block">
+              <CommercialPanel
+                result={result}
+                pricing={pricing}
+                catalogVersion={product.catalogVersion}
+                priceBlind={priceBlind}
+                canSeeCost={canSeeCost}
+              />
+            </div>
+          </section>
+        )}
 
-        <main aria-label={t("scene")} className="relative min-h-0 min-w-0 flex-1">
+        <main
+          aria-label={t("scene")}
+          className={cn("relative min-h-0 min-w-0 flex-1", immersive && "fixed inset-0 z-50")}
+        >
           <SceneColumn
             step={step}
             derivation={derivation}
@@ -354,12 +444,29 @@ function ConfiguratorInner({
               )
             }
           />
+          {immersive && (
+            <ImmersiveChrome
+              stepLabel={stepLabel(step, t)}
+              current={activeIndex + 1}
+              total={flow.length}
+              onPrev={() => {
+                if (activeIndex > 0) setStepIndex(activeIndex - 1);
+              }}
+              onNext={() => {
+                if (activeIndex < flow.length - 1) setStepIndex(activeIndex + 1);
+              }}
+              result={result}
+              canSeeCost={canSeeCost}
+              priceBlind={priceBlind}
+            />
+          )}
         </main>
       </div>
 
       {/* The tablet/mobile commerce bar (v2-TAB). Absent entirely when the
-          session may not see money — absence, not a masked bar (ADR 0056). */}
-      {!priceBlind && (
+          session may not see money — absence, not a masked bar (ADR 0056) — and
+          in immersive, where the floating chip carries the price instead. */}
+      {!immersive && !priceBlind && (
         <div className="xl:hidden">
           <CommerceBar result={result} canSeeCost={canSeeCost} />
         </div>

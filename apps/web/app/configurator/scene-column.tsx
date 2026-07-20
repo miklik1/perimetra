@@ -6,6 +6,7 @@ import { useTranslations } from "@repo/i18n/web";
 import {
   Alert,
   Icon,
+  IconButton,
   Panel,
   SegmentedNav,
   SegmentedNavItem,
@@ -16,6 +17,7 @@ import {
 
 import type { UiDerivation } from "./derive";
 import { SitePlanSvg, WorkshopDrawingSvg } from "./drawing-svg";
+import { useManipulation } from "./scene/manipulation";
 import { SceneViewport } from "./scene/scene-viewport";
 import type { BrandStep } from "./wizard-flow";
 
@@ -186,9 +188,37 @@ function ReadyStage({ derivation }: { derivation: UiDerivation }): React.JSX.Ele
           {derivation.result.isValid ? null : <InvalidTint />}
         </>
       )}
-      <ViewSwitch />
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <ViewSwitch />
+        <FullscreenToggle />
+      </div>
       {state.computing ? <ComputingChip /> : null}
     </>
+  );
+}
+
+/**
+ * Enter / exit the immersive edge-to-edge editor (ADR 0116). Reads the shared
+ * manipulation store rather than a prop, so the same toggle serves both the
+ * banded "Celá obrazovka" affordance and the immersive exit; the immersive
+ * chrome carries a second, always-present exit ("Nastavení") so a later derive
+ * failure — which unmounts this ready-stage control — can never trap the user.
+ */
+function FullscreenToggle(): React.JSX.Element {
+  const t = useTranslations("configurator");
+  const immersive = useManipulation((s) => s.immersive);
+  const toggleImmersive = useManipulation((s) => s.toggleImmersive);
+  return (
+    <IconButton
+      size="md"
+      active={immersive}
+      aria-pressed={immersive}
+      aria-label={immersive ? t("exitImmersive") : t("enterImmersive")}
+      onClick={toggleImmersive}
+      className="pointer-coarse:size-11"
+    >
+      <Icon name={immersive ? "center" : "explode"} size={17} />
+    </IconButton>
   );
 }
 
@@ -383,8 +413,9 @@ function ViewSwitch(): React.JSX.Element {
       value={state.view}
       // The kit's contract is the generic `(value: string)`; the three values
       // in this group are authored right below, so this narrows what we wrote.
+      // Positioning now lives on the top-right cluster in `ReadyStage` (it shares
+      // the row with the fullscreen toggle), so the nav itself is unpositioned.
       onValueChange={(value) => actions.selectView(value as SceneView)}
-      className="absolute right-4 top-4 z-10"
     >
       <ViewSwitchItem view="3d" icon="cube" label={t("view3d")} />
       <ViewSwitchItem view="drawing" icon="draft" label={t("viewDrawing")} />

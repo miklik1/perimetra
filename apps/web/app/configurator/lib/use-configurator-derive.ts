@@ -33,6 +33,17 @@ export interface ConfiguratorDerive {
   computing: boolean;
   /** A derive failure (a bundle-assembly bug, I5), else null. */
   error: string | null;
+  /**
+   * Fire a derive for a synthetic input NOW, bypassing the 150 ms keystroke
+   * debounce — the direct-manipulation drag path (§7.6: the drag emits at most
+   * one derive per animation frame, and the caller does that rAF throttling).
+   * The result flows into `derivation`/`computing`/`error` like any other, so the
+   * live scene, price and defects track the drag; nothing is persisted (the
+   * caller commits once, through the ordinary input state, on pointer-up). It
+   * derives against the SAME cached context, so it inherits the price table and
+   * catalog the effect ordering guarantees are current.
+   */
+  requestImmediate: (input: ConfigInput) => void;
 }
 
 /**
@@ -163,5 +174,5 @@ export function useConfiguratorDerive(
     return () => clearTimeout(timer);
   }, [input, product, catalogs, pricing, request]);
 
-  return { derivation, computing, error };
+  return { derivation, computing, error, requestImmediate: request };
 }

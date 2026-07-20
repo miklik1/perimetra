@@ -7,7 +7,7 @@ import {
   Lightformer,
   type CameraControlsImpl,
 } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import {
   ACESFilmicToneMapping,
@@ -28,11 +28,15 @@ import { deviatedPieceCenters, placeEdgeMarker } from "./deviation-markers";
 import { useExplode } from "./explode";
 import { pieceExplodeOffsets } from "./explode-offsets";
 import { frameScene, type SceneFrame } from "./frame";
+import { selectionKeyOf, useManipulation } from "./manipulation";
+import { ManipulationOverlay } from "./manipulation-overlay";
+import { makeOverlayRefs, ManipulationProjector } from "./manipulation-rig";
 import { SceneBackdrop } from "./scene-backdrop";
 import { SceneRenderer } from "./scene-renderer";
 import { sceneById, SCENES, useScene } from "./scenes";
 import { useSection } from "./section";
 import { sectionPlane } from "./section-plane";
+import { ToolDock } from "./tool-dock";
 
 /** Stable empty clip set — a no-section scene passes this so the memo'd walker
  *  never re-renders for the toggle's "off" state. */
@@ -133,6 +137,51 @@ export default function SceneCanvas({
   const effectiveView: CameraView = explodeActive ? "exploded" : view;
   const pose = useMemo(() => cameraPose(effectiveView, frame), [effectiveView, frame]);
 
+  // Immersive direct-manipulation layer (ADR 0116, §7.6). `overlayRef` is a plain
+  // imperative object the in-Canvas projector writes and the DOM overlay reads
+  // (the DeviationProjector discipline — never React state, never a per-frame
+  // re-render).
+  const immersive = useManipulation((s) => s.immersive);
+  const overlayRef = useRef(makeOverlayRefs());
+
+  // Stale selection describes the PREVIOUS release's parts; the canvas remounts
+  // per release (SceneViewport `key`), so clear the selection on mount and drop
+  // any live drag on unmount.
+  useEffect(() => {
+    const m = useManipulation.getState();
+    m.setSelected(null);
+    return () => {
+      m.setSelected(null);
+      m.setDrag(null);
+    };
+  }, []);
+
+  // Picking (Výběr): a click that did not orbit selects the part under it. The
+  // pointer-down position gates click-vs-drag, so an orbit gesture that ends over
+  // a part does not select it. `getState()` reads the mode/tool/setters fresh, so
+  // the handlers never go stale and a store change never re-renders the canvas.
+  const pickDown = useRef<{ x: number; y: number } | null>(null);
+  const onScenePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    pickDown.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+  };
+  const onScenePick = (e: ThreeEvent<MouseEvent>) => {
+    const m = useManipulation.getState();
+    if (!m.immersive || m.tool !== "select") return;
+    const down = pickDown.current;
+    if (down !== null) {
+      const moved = Math.hypot(e.nativeEvent.clientX - down.x, e.nativeEvent.clientY - down.y);
+      if (moved > 5) return; // an orbit drag, not a pick
+    }
+    const pieceId = e.object.userData?.pieceId;
+    if (typeof pieceId !== "string") return;
+    e.stopPropagation();
+    m.setSelected(selectionKeyOf(pieceId));
+  };
+  const onSceneMissed = () => {
+    const m = useManipulation.getState();
+    if (m.immersive && m.tool === "select") m.setSelected(null);
+  };
+
   return (
     <div className="relative h-full w-full">
       <Canvas
@@ -173,7 +222,15 @@ export default function SceneCanvas({
         {/* In-context backdrop (ADR 0093) — ground + context, or nothing in studio. */}
         <SceneBackdrop sceneId={sceneId} frame={frame} />
 
-        <SceneRenderer scene={scene} offsets={offsets} clippingPlanes={clippingPlanes} />
+        {/* Picking wrapper (ADR 0116): a click on a piece bubbles here with the
+            hit mesh; the handlers gate on immersive+select and click-vs-orbit. */}
+        <group
+          onPointerDown={onScenePointerDown}
+          onClick={onScenePick}
+          onPointerMissed={onSceneMissed}
+        >
+          <SceneRenderer scene={scene} offsets={offsets} clippingPlanes={clippingPlanes} />
+        </group>
 
         {/* Soft contact shadow grounds the gate on the scene floor (hero mode, no
             grid) — at the gate's true solid bottom (`min[1]`) so it sits on the
@@ -246,6 +303,10 @@ export default function SceneCanvas({
         {/* Mutates the section plane each frame off the live cut (ADR 0092). */}
         <SectionPlaneRig plane={sectionPlaneRef.current} frame={frame} />
 
+        {/* Immersive: projects the gate AABB corners + pill anchors to the DOM
+            overlay each frame, and refreshes px-per-mm for the drag (ADR 0116). */}
+        {immersive && <ManipulationProjector frame={frame} refs={overlayRef.current} />}
+
         <CameraRig pose={pose} />
       </Canvas>
 
@@ -270,80 +331,83 @@ export default function SceneCanvas({
 
       {/* Viewport mode cluster (ADR 0091 explode + ADR 0092 section) — toggles
           plus their contextual scrub controls; an affordance like the deviation
-          cluster on the right. */}
-      <div className="absolute left-3 top-3 flex items-start gap-2">
-        <IconCluster>
-          <IconButton
-            size="sm"
-            active={explodeActive}
-            disabled={!canExplode}
-            onClick={toggleExplode}
-            aria-pressed={explodeActive}
-            aria-label={t("explode")}
-            title={t("explode")}
-          >
-            <ExplodeGlyph />
-          </IconButton>
-          <IconButton
-            size="sm"
-            active={sectionEnabled}
-            onClick={toggleSection}
-            aria-pressed={sectionEnabled}
-            aria-label={t("section")}
-            title={t("section")}
-          >
-            <SectionGlyph />
-          </IconButton>
-        </IconCluster>
-        {/* Each control sits in its OWN fixed `h-8` row (matching the `size-8`
+          cluster on the right. In immersive mode the tool dock supersedes it
+          (ADR 0116), so this banded cluster (and its scrub sliders) yields. */}
+      {!immersive && (
+        <div className="absolute left-3 top-3 flex items-start gap-2">
+          <IconCluster>
+            <IconButton
+              size="sm"
+              active={explodeActive}
+              disabled={!canExplode}
+              onClick={toggleExplode}
+              aria-pressed={explodeActive}
+              aria-label={t("explode")}
+              title={t("explode")}
+            >
+              <ExplodeGlyph />
+            </IconButton>
+            <IconButton
+              size="sm"
+              active={sectionEnabled}
+              onClick={toggleSection}
+              aria-pressed={sectionEnabled}
+              aria-label={t("section")}
+              title={t("section")}
+            >
+              <SectionGlyph />
+            </IconButton>
+          </IconCluster>
+          {/* Each control sits in its OWN fixed `h-8` row (matching the `size-8`
             toggle) at `items-center`, so it lines up with its own toggle —
             present-but-empty when that mode is off, so the section row never
             slides up under the explode toggle. */}
-        <div className="flex flex-col gap-2">
-          <div className="flex h-8 items-center">
-            {explodeActive && (
-              // Floored at 5% so a scrub can never drive the target to 0 — full
-              // collapse is the toggle's job, so the slider never unmounts itself.
-              <input
-                type="range"
-                min={5}
-                max={100}
-                value={Math.round(explodeTarget * 100)}
-                onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
-                aria-label={t("explodeAmount")}
-                className="accent-copper h-1 w-28 cursor-pointer"
-              />
-            )}
-          </div>
-          <div className="flex h-8 items-center gap-2">
-            {sectionEnabled && (
-              <>
-                <IconButton
-                  size="sm"
-                  onClick={cycleSectionAxis}
-                  aria-label={t("sectionAxis")}
-                  title={t("sectionAxis")}
-                >
-                  <span className="font-data text-[11px] font-semibold uppercase">
-                    {sectionAxis}
-                  </span>
-                </IconButton>
-                {/* Full 0..1 range — position is WHERE the cut sits, not whether
-                    section is on (that's the toggle), so 0/1 are valid ends. */}
+          <div className="flex flex-col gap-2">
+            <div className="flex h-8 items-center">
+              {explodeActive && (
+                // Floored at 5% so a scrub can never drive the target to 0 — full
+                // collapse is the toggle's job, so the slider never unmounts itself.
                 <input
                   type="range"
-                  min={0}
+                  min={5}
                   max={100}
-                  value={Math.round(sectionPosition * 100)}
-                  onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
-                  aria-label={t("sectionPosition")}
+                  value={Math.round(explodeTarget * 100)}
+                  onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
+                  aria-label={t("explodeAmount")}
                   className="accent-copper h-1 w-28 cursor-pointer"
                 />
-              </>
-            )}
+              )}
+            </div>
+            <div className="flex h-8 items-center gap-2">
+              {sectionEnabled && (
+                <>
+                  <IconButton
+                    size="sm"
+                    onClick={cycleSectionAxis}
+                    aria-label={t("sectionAxis")}
+                    title={t("sectionAxis")}
+                  >
+                    <span className="font-data text-[11px] font-semibold uppercase">
+                      {sectionAxis}
+                    </span>
+                  </IconButton>
+                  {/* Full 0..1 range — position is WHERE the cut sits, not whether
+                    section is on (that's the toggle), so 0/1 are valid ends. */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(sectionPosition * 100)}
+                    onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
+                    aria-label={t("sectionPosition")}
+                    className="accent-copper h-1 w-28 cursor-pointer"
+                  />
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Count badge + highlight toggle — only when something deviates (§6 chrome). */}
       {deviatedCenters.length > 0 && (
@@ -385,6 +449,16 @@ export default function SceneCanvas({
           );
         })}
       </div>
+
+      {/* Immersive direct-manipulation layer (ADR 0116): the tool dock plus the
+          corner handles, dimension pills and selection chip. The overlay reads
+          the same `overlayRef` the in-Canvas projector writes each frame. */}
+      {immersive && (
+        <>
+          <ToolDock canExplode={canExplode} />
+          <ManipulationOverlay refs={overlayRef.current} scene={scene} />
+        </>
+      )}
     </div>
   );
 }
