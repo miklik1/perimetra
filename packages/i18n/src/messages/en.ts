@@ -234,8 +234,6 @@ const en: MessagesInput = {
     sectionAxis: "Section axis",
     sectionPosition: "Section position",
     stepProdukt: "Product",
-    stepLokalita: "Location",
-    stepKonfigurace: "Configuration",
     stepBarva: "Colour & finish",
     stepSouhrn: "Summary",
     stepNoParams: "No settings for this step.",

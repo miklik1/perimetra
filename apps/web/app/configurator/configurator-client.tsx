@@ -19,28 +19,41 @@ import type { CatalogBundle, ConfigurableProduct } from "./products";
 import { SceneViewport } from "./scene/scene-viewport";
 import { webglAvailable } from "./scene/webgl";
 import { Summary } from "./summary";
-import { buildFlow, type BrandStep, type BrandStepKind } from "./wizard-flow";
+import { buildFlow, flowKey, type BrandStep, type BrandStepKind } from "./wizard-flow";
 
 /**
  * The generated configurator (CORE_SPEC §8) wearing the Bombardier-derived brand
- * (ADR 0072) and the 5-step UX grammar (ADR 0077): a fixed CZ spine — Produkt ·
- * Lokalita · Konfigurace · Barva a povrch · Souhrn — over the release's OWN
- * authored UiSpec (so labels/options/groups stay release data, §8). The engine
- * runs in the browser (pure, I1); hybrid coverage pairs the live R3F hero with
- * the `drawing2d.ts` SVG plan (Lokalita) + elevation (Summary) + WebGL fallback.
+ * (ADR 0072) and the UX grammar of ADR 0077 as amended by ADR 0115: three
+ * app-shell steps — Produkt · «the release's own authored steps» · Barva a
+ * povrch · Souhrn — so a release's step structure, labels, options and groups
+ * are all release data (§8) rather than an app-land spine. The engine runs in
+ * the browser (pure, I1); hybrid coverage pairs the live R3F hero with the
+ * `drawing2d.ts` SVG plan (the first release step) + elevation (Summary) +
+ * WebGL fallback.
  *
  * Catalog/releases/active price table are served by the api (ADR 0060): the RSC
  * fetches the bundle and prop-passes it here.
  */
 
 /** Brand step → its CZ pill label key (literal union for the typed `t`). */
+/**
+ * Only the three app-shell steps label from i18n. A release-authored step
+ * labels from its OWN `label` (CORE_SPEC §8 — the release authors its UI), so
+ * it is deliberately absent from this map.
+ */
 const STEP_LABEL = {
   produkt: "stepProdukt",
-  lokalita: "stepLokalita",
-  konfigurace: "stepKonfigurace",
   barva: "stepBarva",
   souhrn: "stepSouhrn",
-} as const satisfies Record<BrandStepKind, string>;
+} as const satisfies Record<Exclude<BrandStepKind, "release">, string>;
+
+/** Shell steps read their label from the catalog; release steps carry their own. */
+function stepLabel(
+  step: BrandStep,
+  t: (key: (typeof STEP_LABEL)[keyof typeof STEP_LABEL]) => string,
+): string {
+  return step.kind === "release" ? (step.label ?? step.id) : t(STEP_LABEL[step.kind]);
+}
 
 export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null }) {
   const router = useRouter();
@@ -160,15 +173,15 @@ function ConfiguratorInner({
         <div className="flex-1">
           <StepNav
             aria-label={t("title")}
-            value={flow[stepIndex]?.kind}
-            onValueChange={(kind) => {
-              const next = flow.findIndex((s) => s.kind === kind);
+            value={flow[stepIndex] === undefined ? undefined : flowKey(flow[stepIndex])}
+            onValueChange={(key) => {
+              const next = flow.findIndex((s) => flowKey(s) === key);
               if (next !== -1) setStepIndex(next);
             }}
           >
             {flow.map((s) => (
-              <StepNav.Item key={s.kind} value={s.kind}>
-                <StepNav.Label>{t(STEP_LABEL[s.kind])}</StepNav.Label>
+              <StepNav.Item key={flowKey(s)} value={flowKey(s)}>
+                <StepNav.Label>{stepLabel(s, t)}</StepNav.Label>
               </StepNav.Item>
             ))}
           </StepNav>
@@ -177,7 +190,7 @@ function ConfiguratorInner({
 
       <main className="mx-auto grid w-full max-w-7xl items-start gap-8 p-6 lg:grid-cols-[minmax(340px,38%)_1fr]">
         <section className="flex flex-col gap-5">
-          <DisplayLabel className="text-3xl sm:text-4xl">{t(STEP_LABEL[step.kind])}</DisplayLabel>
+          <DisplayLabel className="text-3xl sm:text-4xl">{stepLabel(step, t)}</DisplayLabel>
 
           <StepBody
             step={step}
@@ -282,8 +295,11 @@ function StepBody({
           productLabel={release.modelId}
         />
       );
-    default:
-      // lokalita / konfigurace — the release's authored groups (§8).
+    // Named rather than `default:`, so adding a fourth SHELL kind is a compile
+    // error here (as it already is in `STEP_LABEL`) instead of silently
+    // rendering as an empty release step.
+    case "release":
+      // A release-authored step — its own groups, rendered from data (§8).
       return (
         <ParamGroups
           groups={step.groups}
@@ -322,8 +338,9 @@ function ParamGroups({
   return (
     <Panel className="flex flex-col gap-5 text-sm" elevation="flat">
       {visibleGroups.map((group, i) => (
-        // Index-composed key: Konfigurace flattens groups from several authored
-        // steps, so a release reusing a group id across steps can't collide.
+        // Index-composed key. Since ADR 0115 each step renders only its OWN
+        // groups, so a collision needs a release to repeat a group id within one
+        // step — publish validation does not forbid it, so keep the index.
         <fieldset key={`${group.id}-${i}`} className="flex flex-col gap-3">
           {group.label !== undefined && (
             <legend className="text-muted-foreground mb-2 text-xs font-semibold uppercase">
@@ -386,7 +403,8 @@ function ProductPicker({
 }
 
 /** The hero: persistent live R3F across the 3D steps (the camera animates between
- *  named poses), the SVG plan on Lokalita, the SVG elevation as the WebGL-down
+ *  named poses), the SVG plan on the step carrying `plan` (the first
+ *  release-authored one, ADR 0115), the SVG elevation as the WebGL-down
  *  fallback (technique 10). */
 function Hero({
   step,
@@ -401,7 +419,9 @@ function Hero({
 }) {
   const t = useTranslations("configurator");
 
-  if (step.kind === "lokalita") {
+  // The first release-authored step frames the top-down site plan rather than
+  // the 3D scene — the ADR 0077 "Lokalita" carry-over (see `wizard-flow.ts`).
+  if (step.plan) {
     return derivation.plan !== undefined ? (
       <Panel elevation="raised" padded={false} className="h-full overflow-hidden p-4">
         <SitePlanSvg plan={derivation.plan} className="h-full w-full" />

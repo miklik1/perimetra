@@ -233,8 +233,6 @@ const cs = {
     sectionAxis: "Osa řezu",
     sectionPosition: "Poloha řezu",
     stepProdukt: "Produkt",
-    stepLokalita: "Lokalita",
-    stepKonfigurace: "Konfigurace",
     stepBarva: "Barva a povrch",
     stepSouhrn: "Souhrn",
     stepNoParams: "Pro tento krok nejsou žádná nastavení.",

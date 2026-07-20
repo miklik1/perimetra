@@ -4,13 +4,25 @@ import * as React from "react";
 
 import { type Catalog, type ExprScope } from "@repo/model";
 
-import { runReleaseValidation, type ReleaseValidation } from "./release-engine";
+import { useEngineWorker } from "../../../../lib/engine-worker/use-engine-worker";
+import {
+  runReleaseValidation,
+  type EngineRequest,
+  type EngineResponse,
+  type ReleaseValidation,
+} from "./release-engine";
 import { type ReleaseDraftInput, type ReleaseEditorForm } from "./section-schemas";
-import { useEngineWorker } from "./use-engine-worker";
 
 export type { ReleaseValidation } from "./release-engine";
 
 const DEBOUNCE_MS = 250;
+
+/**
+ * The editor's compute worker. The `new URL(…, import.meta.url)` must stay here
+ * at the call site — bundlers statically analyse that exact expression.
+ */
+const createReleaseEngineWorker = (): Worker =>
+  new Worker(new URL("./release-engine.worker.ts", import.meta.url), { type: "module" });
 
 /**
  * Live, debounced client-side validation — the editor's spine. Offloads the
@@ -35,9 +47,12 @@ export function useReleaseValidation(
 
   // Last-write-wins: only the reply whose id matches the latest request applies.
   const tokenRef = React.useRef(0);
-  const { post } = useEngineWorker((message) => {
-    if (message.kind === "validate" && message.id === tokenRef.current) setResult(message.result);
-  });
+  const { post } = useEngineWorker<EngineRequest, EngineResponse>(
+    createReleaseEngineWorker,
+    (message) => {
+      if (message.kind === "validate" && message.id === tokenRef.current) setResult(message.result);
+    },
+  );
 
   const request = React.useCallback(
     (values: ReleaseDraftInput) => {

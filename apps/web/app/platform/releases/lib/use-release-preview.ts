@@ -13,11 +13,23 @@ import {
 import { type Scope } from "@repo/model";
 import { priceTableSchema } from "@repo/validators";
 
-import { runReleasePreview, type PreviewResult } from "./release-engine";
+import { useEngineWorker } from "../../../../lib/engine-worker/use-engine-worker";
+import {
+  runReleasePreview,
+  type EngineRequest,
+  type EngineResponse,
+  type PreviewResult,
+} from "./release-engine";
 import { type ReleaseDraftInput, type ReleaseEditorForm } from "./section-schemas";
-import { useEngineWorker } from "./use-engine-worker";
 
 const DEBOUNCE_MS = 180;
+
+/**
+ * The editor's compute worker. The `new URL(…, import.meta.url)` must stay here
+ * at the call site — bundlers statically analyse that exact expression.
+ */
+const createReleaseEngineWorker = (): Worker =>
+  new Worker(new URL("./release-engine.worker.ts", import.meta.url), { type: "module" });
 
 export interface ActivePrices {
   table: PriceTable;
@@ -107,11 +119,14 @@ export function useReleasePreview(
   });
 
   const tokenRef = React.useRef(0);
-  const { post } = useEngineWorker((message) => {
-    if (message.kind === "preview" && message.id === tokenRef.current) {
-      setState(toPreview(message.result));
-    }
-  });
+  const { post } = useEngineWorker<EngineRequest, EngineResponse>(
+    createReleaseEngineWorker,
+    (message) => {
+      if (message.kind === "preview" && message.id === tokenRef.current) {
+        setState(toPreview(message.result));
+      }
+    },
+  );
 
   const request = React.useCallback(
     (values: ReleaseDraftInput, sampleInput: ConfigInput) => {
