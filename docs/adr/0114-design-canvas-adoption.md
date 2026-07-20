@@ -466,31 +466,104 @@ The token work in §2 lands **first**, as one slice, before any surface is
 reskinned. Its acceptance criteria are the following, and the slice is not done
 until every one is met.
 
-**7.1 — The spacing scale.** Twelve rungs on a 4px base with 2px half-steps through
-the dense low range, derived from the measured `gap:` distribution in the canvas
-(which clusters at 4/6/8/10/12/14/16, with 2/3/5/7/9/11 reading as noise between
-rungs): `--spacing-3xs` 2px, `--spacing-2xs` 4px, `--spacing-xs` 6px,
-`--spacing-sm` 8px, `--spacing-md` 10px, `--spacing-lg` 12px, `--spacing-xl` 14px,
-`--spacing-2xl` 16px, `--spacing-3xl` 20px, `--spacing-4xl` 24px, `--spacing-5xl`
-28px, `--spacing-6xl` 32px. The snap rule for implementers reading a canvas frame:
-2→`3xs`, 3/4→`2xs`, 5/6/7→`xs`, 8/9→`sm`, 10/11→`md`, 12/13→`lg`, 14/15→`xl`,
-16/18→`2xl`, 20/22→`3xl`, 24/26→`4xl`, 28→`5xl`.
+> **AMENDED 2026-07-20 (§7.1, §7.2, §7.3, §7.4).** As first written, §7.1 and §7.2
+> named token families that COLLIDE with Tailwind v4's own namespaces, §7.3 specified a
+> mix direction that is arithmetically a no-op for two of its eight bases, and §7.4
+> prescribed two changes that would have broken mobile. All four were implemented as
+> specified, measured, and found broken; the text below is the corrected specification.
+> The original wording is preserved in the struck paragraphs so the reasoning trail
+> survives. See "The namespace lesson" under Consequences.
+>
+> **How they were caught, and the standing requirement.** None of the three namespace
+> defects was visible to any gate — each compiled clean and passed types, lint and
+> build, because the failure is a change in what EXISTING utilities mean, not an error
+> anywhere. They were found only by **differential compile**: compiling the theme
+> before and after the change and diffing the emitted utility values against that
+> baseline. That is therefore the **required verification for any future change to a
+> token namespace** in this repo — adding a family, renaming one, or adding a rung to
+> an existing one. The bar: no utility that existed before changes its computed value,
+> and every new utility emits what it claims.
 
-**7.2 — The body-type ramp.** The canvas's 23 distinct font sizes collapse to
-eleven rungs, each with a line-height: `--text-2xs` 10px, `--text-xs` 11px,
-`--text-sm` 12px, `--text-base` 13px, `--text-md` 14px, `--text-lg` 15px,
-`--text-xl` 16px, `--text-2xl` 18px, `--text-3xl` 20px, `--text-4xl` 22px,
-`--text-5xl` 28px. Every half-pixel rung collapses down to the rung below it
-(10.5→`2xs`, 11.5→`xs`, 12.5→`sm`, 13.5→`base`, 14.5→`md`, 15.5→`lg`), and 17→`xl`,
-19→`2xl`, 21→`3xl`, 23/24→`4xl`, 26/30→`5xl`. These sit **below** the existing
-editorial `--text-title` (32), `--text-metric` (40) and `--text-display` (96), which
-are unchanged — there is no collision.
+**7.1 — The spacing scale. NO TOKENS — the built-in scale already covers it.**
+
+~~Twelve rungs `--spacing-3xs` 2px … `--spacing-6xl` 32px.~~ **Superseded.** The
+`--spacing-*` namespace is not private to padding/gap: Tailwind v4 resolves
+`max-w-*`, `min-w-*`, `w-*` and `basis-*` against `--spacing-*` first, falling back
+to its built-in `--container-*` scale only when no `--spacing-*` rung of that name
+exists. Defining t-shirt rungs therefore SHADOWED the container scale — measured by
+compile: `max-w-md` 28rem→10px, `max-w-sm` 24rem→8px, `max-w-2xl` 42rem→16px,
+`basis-lg` 32rem→12px — collapsing 34 call sites (login-form, dialog, toast,
+accept-invitation, account/security, brand-lab's own container) to slivers, and
+inconsistently, since `max-w-7xl` kept 80rem for want of a `--spacing-7xl`.
+
+The rungs were never needed. Tailwind v4's built-in `--spacing: 0.25rem` base
+generates every value §7.1 asked for, half-steps included, via fractional utilities
+(verified by compile: each emits `calc(0.25rem * n)`). The canonical **snap rule**
+from a canvas pixel measurement to the utility suffix is therefore:
+
+| px  | suffix | px  | suffix |
+| --- | ------ | --- | ------ |
+| 2   | `0.5`  | 16  | `4`    |
+| 4   | `1`    | 20  | `5`    |
+| 6   | `1.5`  | 24  | `6`    |
+| 8   | `2`    | 28  | `7`    |
+| 10  | `2.5`  | 32  | `8`    |
+| 12  | `3`    |     |        |
+| 14  | `3.5`  |     |        |
+
+So `p-2.5` is 10px and `gap-3.5` is 14px with no token added; 4px base unit = `-1`,
+default panel/card inset 16px = `p-4`, section separation 32px = `-8`. Snap an
+improvised measurement to the nearest rung: 2→`0.5`, 3/4→`1`, 5/6/7→`1.5`, 8/9→`2`,
+10/11→`2.5`, 12/13→`3`, 14/15→`3.5`, 16/18→`4`, 20/22→`5`, 24/26→`6`, 28→`7`,
+32→`8`. The base `--spacing: 0.25rem` key is untouched and unaffected either way.
+The rung vocabulary is carried as a comment block in `theme.css` — the comment is
+the deliverable, since there is no token to read.
+
+**7.2 — The body-type ramp, under the `--text-ui-*` namespace.** The canvas's 23
+distinct font sizes collapse to eleven rungs, each with a line-height:
+`--text-ui-2xs` 10px, `--text-ui-xs` 11px, `--text-ui-sm` 12px, `--text-ui-base`
+13px, `--text-ui-md` 14px, `--text-ui-lg` 15px, `--text-ui-xl` 16px, `--text-ui-2xl`
+18px, `--text-ui-3xl` 20px, `--text-ui-4xl` 22px, `--text-ui-5xl` 28px. Every
+half-pixel rung collapses down to the rung below it (10.5→`2xs`, 11.5→`xs`,
+12.5→`sm`, 13.5→`base`, 14.5→`md`, 15.5→`lg`), and 17→`xl`, 19→`2xl`, 21→`3xl`,
+23/24→`4xl`, 26/30→`5xl`.
+
+~~The bare names `--text-2xs` … `--text-5xl`.~~ **Superseded.** Tailwind v4's
+built-in font-size scale occupies exactly `xs, sm, base, lg, xl, 2xl…9xl` in the
+SAME `--text-*` namespace, so the bare names did not add rungs — they REDEFINED the
+stock scale for the whole codebase, silently resizing ~314 existing `text-sm`/
+`text-xs` call sites (measured: `text-sm` 14px→12px, `text-xs` 12px→11px) across
+/quotes, /orders, /customers, /admin, /platform, /configurator and all of
+`packages/ui`. The `-ui-` infix is a namespace of its own: all eleven rungs generate
+real utilities (`text-ui-sm` → 12px, verified) while every stock `text-*` class keeps
+Tailwind's meaning (`text-sm` → 0.875rem, verified). Canvas rung names are kept
+verbatim so a frame annotation maps one-to-one — note that `text-ui-base` (13px) is
+the body default, **not** `text-base` (16px).
+
+These sit **below** the existing editorial `--text-title` (32), `--text-metric` (40)
+and `--text-display` (96), which are unchanged.
 
 **7.3 — The interaction-state layer.** States are **derived, not hand-authored per
 theme**, because a hardcoded lighten/darken direction is wrong in one of the two
-themes. Each state token mixes its base toward `--color-foreground`, which already
-inverts per theme, so one declaration in `@theme` is correct in both and no dark
-counterpart is needed. The ladder is **hover at 88%, active at 78%**, and disabled
+themes. Each state token mixes its base toward a **pole that already inverts per
+theme**, so one declaration in `@theme` is correct in both and no dark counterpart
+is needed.
+
+Most bases mix toward `--color-foreground`. **Two do not, and this is a correctness
+constraint rather than a taste call:** `--color-primary` and `--color-nav-active`
+ARE the foreground for practical purposes — both are the same near-black ink in
+light and the same near-white `oklch(0.98 0 0)` in dark. ~~Mixing them toward
+`--color-foreground` like the rest.~~ **Superseded:** that mix is arithmetically a
+no-op, measured ΔL **0.0004** in light and **exactly 0.0000** in dark, i.e. the
+default action on every surface had no hover and no press feedback in either theme.
+Those two mix toward `--color-background` instead — the only pole with contrast when
+a base already equals the foreground — measuring ΔL **0.094** light / **0.092** dark
+at hover and **0.172** / **0.169** at active, in line with the 0.024–0.095 the other
+tokens get. Both remain single derived declarations, correct in both themes with no
+dark counterpart. The general rule: **if a base token equals the foreground, its
+states derive toward the background.**
+
+The ladder is **hover at 88%, active at 78%**, and disabled
 is opacity-shaped rather than hue-shaped (`--opacity-disabled: 0.45`). The set
 covers `primary`, `secondary`, `chrome`, `nav-active`, `destructive`, `success`,
 `warning` and `info`. **`--color-copper-hover` is the one exception and stays
@@ -498,10 +571,57 @@ hand-authored**: its existing light and dark values are deliberately tuned for t
 brand CTA, and although they already run in the mix-toward-foreground direction,
 replacing them with the derived value would regress a considered choice.
 
-**7.4 — The dark-variant fix.** `theme.css:156` `@variant dark {` → `.dark {`, and
-the `@custom-variant dark (&:where(.dark, .dark *))` declaration moved into
-`theme.css` so no compile entry can omit it. The bundle is then regenerated per
-`.design-sync/NOTES.md` and its dark layer verified to carry a real selector.
+**7.4 — The dark-variant fix, via `:root, .dark { @variant dark { … } }`.**
+
+~~`theme.css:156` `@variant dark {` → `.dark {`, and the `@custom-variant dark
+(&:where(.dark, .dark *))` declaration moved into `theme.css` so no compile entry can
+omit it.~~ **Superseded — both instructions would have broken mobile.** `theme.css` is
+shared with NativeWind v5, and on native the dark variant is not a CSS selector at all
+but a **runtime colour-scheme signal**: `react-native-css` recognises a conditional
+root variable only as `:root` inside a `prefers-color-scheme: dark` media query, as
+`.dark:root`, or as `:root[class~="dark"]`. A plain `.dark { … }` is none of those —
+it becomes a className-keyed style that nothing on native ever wears, so the 47 tokens
+would have been dead on mobile. And hoisting `@custom-variant dark (&:where(.dark,
+.dark *))` into the shared file would have overridden the default dark variant for the
+mobile compiler too, stripping `prefers-color-scheme` from **every** mobile `dark:`
+utility — a far wider break than the one being fixed.
+
+The shipped mechanism instead wraps the variant in a real parent:
+`:root, .dark { @variant dark { … } }`. The variant now has something for its `&` to
+bind to, and each compiler expands **its own** dark semantics from the one block —
+web to `:root, .dark { &:where(.dark, .dark *) { … } }`, mobile to
+`:root, .dark { @media (prefers-color-scheme: dark) { … } }`. Not one declaration is
+duplicated, and `@custom-variant dark` **stays in the web entry points** rather than
+moving here. The wrapper is load-bearing and must not be flattened; the reasoning is
+carried as a comment above the block in `theme.css`.
+
+Two findings from the investigation belong on the record, because both are worse than
+§2 stated:
+
+- **The web defect was total, not partial.** §2 reasoned that a top-level `&` becomes
+  `:scope` and so matched `html.dark` while missing a nested `.dark` subtree. That is
+  wrong. A top-level `&` matches **nothing** — verified in both Chromium and Firefox,
+  on `<html class="dark">` as well as on a nested div. All 47 dark token overrides
+  were dead on web **everywhere**, and what looked like dark mode was only ever
+  `dark:` utilities painted over light token values. `/brand-lab` was not
+  half-flipped; the token layer under it never flipped at all.
+- **Mobile dark was independently broken, and had been before this wave.** At top
+  level the variant produced declarations with no enclosing selector, a shape
+  lightningcss rejects outright. That is a second, pre-existing failure with the same
+  root cause and a different victim.
+
+**What is verified, stated exactly.** The web half is verified — the `&` resolves in
+Chromium and Firefox, and both `<html class="dark">` and a nested `<div class="dark">`
+flip. The mobile half is a **compile-time fix only**: lightningcss now receives a
+valid rule where before it received a selectorless one. That is all that was observed.
+It is **not** evidence that mobile dark mode works — the Expo web CSS export is a
+**zero-byte file both before and after** the change, so a passing build says nothing
+either way. **Mobile dark remains unverified at runtime**, and an
+`Appearance.setColorScheme("dark")` check on a real device or simulator, observing a
+token actually flip, is **owed**. Do not upgrade the claim without it.
+
+The bundle is then regenerated per `.design-sync/NOTES.md` and its dark layer verified
+to carry a real selector.
 
 **7.5 — The design-sync preflight.** The scripted preflight decided in §1 —
 one command that copies `tooling/tailwind-config/theme.css` to
@@ -579,6 +699,34 @@ it as the no-regression control.
   ADR 0111 the review is a render pass, not a gate: implementation proceeds, the
   captures accumulate, and Martin's corrections land as adjustments rather than
   as a hold on the wave.
+
+- **The namespace lesson (added 2026-07-20, paid for once).** A design token in
+  Tailwind v4 is not a private name — it is an entry in a namespace the framework
+  itself resolves against, and adding a rung can therefore SILENTLY REDEFINE
+  utilities nobody touched. Two of the three families this ADR specified did exactly
+  that: `--spacing-*` shadowed the `--container-*` scale behind `max-w-*`/`min-w-*`/
+  `w-*`/`basis-*`, and `--text-*` redefined the stock font-size scale outright. Both
+  compiled clean, passed types, passed lint, and passed the build; nothing but a
+  differential compile could have caught them, because the failure is a change in
+  what EXISTING classes mean, not an error anywhere. So: **before adding any token
+  family, check the name against Tailwind's built-in namespaces, and verify by
+  compiling the theme before and after and diffing the emitted utility values.** The
+  bar is that no utility which existed before changes its computed value, and every
+  new utility emits what it claims. A token that generates nothing, or that silently
+  re-points an existing class, is worse than no token. When a canvas name collides,
+  take a distinct prefix (`--text-ui-*`) rather than the collision. And check first
+  whether the built-in scale already covers the need — §7.1's twelve rungs turned out
+  to be entirely redundant with `--spacing: 0.25rem` plus fractional utilities.
+- **Empirical claims in token files must state only what was observed.** The §7.4
+  dark-variant fix is verified for web (the `&` now resolves in chromium and firefox)
+  and is a compile-time fix for mobile (lightningcss rejects a selectorless rule).
+  It is **not** evidence that mobile dark mode works: the mobile CSS export is a
+  zero-byte file both before and after the change, so the build passing says nothing
+  either way. Mobile dark remains **unverified at runtime** pending an
+  `Appearance.setColorScheme("dark")` check on a real device. The comment in
+  `theme.css` previously claimed the wrapper was "why the mobile bundle was a
+  zero-byte file", which was false; a false empirical claim in a token file is worse
+  than no claim, because it retires the very check that would find the truth.
 
 Related: ADR 0111 (the design system this applies, and the `.ds-css` staleness
 hazard this ADR finally schedules a fix for), ADR 0072 (the brand foundation),

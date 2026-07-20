@@ -20,6 +20,7 @@
     "knip": "knip",
     "check:control-chars": "node scripts/check-control-chars.mjs",
     "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
+    "design-sync:preflight": "node scripts/design-sync-preflight.mjs",
     "prepare": "lefthook install || true"
   },
   "prettier": "@repo/prettier-config",

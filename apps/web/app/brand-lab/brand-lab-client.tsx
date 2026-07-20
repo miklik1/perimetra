@@ -188,6 +188,243 @@ function Swatch({
   );
 }
 
+/**
+ * ── Token-family galleries (ADR 0114 §7.6) ───────────────────────────────────
+ *
+ * The spacing scale, the body-type ramp and the interaction-state ladder are
+ * pure token vocabulary — nothing in the kit renders them, so without a surface
+ * here they are undiscoverable, which is exactly the failure that let the design
+ * canvas improvise 717 hardcoded literals. Each is a compound built on the same
+ * idiom as the kit's own StatCard: a context COMPOSITION GUARD (carries no
+ * value — it just makes a stray slot throw instead of rendering unstyled),
+ * `Object.assign` for the namespace, `data-slot` for the capture harness.
+ *
+ * Every utility below is written as a LITERAL class string, never assembled from
+ * a template. Tailwind's scanner reads source text, so a computed
+ * `bg-${base}-hover` would emit no rule and the swatch would render empty.
+ */
+function useCompositionGuard(context: React.Context<boolean>, part: string): void {
+  if (!React.use(context)) {
+    throw new Error(`<${part}> must be rendered inside its parent.`);
+  }
+}
+
+// ── Spacing scale ────────────────────────────────────────────────────────────
+const SpacingScaleContext = React.createContext<boolean>(false);
+
+function SpacingScaleRoot({ className, children, ...props }: React.ComponentProps<"div">) {
+  return (
+    <SpacingScaleContext value={true}>
+      <div data-slot="spacing-scale" className={cn("flex flex-col gap-3", className)} {...props}>
+        {children}
+      </div>
+    </SpacingScaleContext>
+  );
+}
+
+/**
+ * One rung. The bar's width IS the rung (`bar` is the literal `w-*` utility),
+ * so the rhythm of the scale — dense 2px half-steps low, opening to 4px steps
+ * above 16px — is legible by comparing bar lengths down the column.
+ */
+function SpacingScaleRung({
+  token,
+  px,
+  bar,
+  note,
+}: {
+  token: string;
+  px: number;
+  bar: string;
+  note?: string;
+}) {
+  useCompositionGuard(SpacingScaleContext, "SpacingScale.Rung");
+  return (
+    <div data-slot="spacing-scale-rung" className="flex items-center gap-4">
+      <span className="font-data w-24 shrink-0 text-xs font-semibold">{token}</span>
+      <div className="flex w-24 shrink-0 items-center">
+        <div className={cn("bg-copper h-3 rounded-full", bar)} />
+      </div>
+      <span className="font-data text-muted-foreground w-12 shrink-0 text-xs">{px}px</span>
+      {note ? <span className="text-muted-foreground text-xs">{note}</span> : null}
+    </div>
+  );
+}
+
+const SpacingScale = Object.assign(SpacingScaleRoot, { Rung: SpacingScaleRung });
+
+// ── Body-type ramp ───────────────────────────────────────────────────────────
+const TypeRampContext = React.createContext<boolean>(false);
+
+function TypeRampRoot({ className, children, ...props }: React.ComponentProps<"div">) {
+  return (
+    <TypeRampContext value={true}>
+      <div data-slot="type-ramp" className={cn("flex flex-col gap-4", className)} {...props}>
+        {children}
+      </div>
+    </TypeRampContext>
+  );
+}
+
+/**
+ * One rung of the body ramp. `token` doubles as the applied `text-*` utility, so
+ * the specimen is rendered AT the size it names. The specimen itself is a slot
+ * (children) — every line is Czech and diacritic-dense on purpose: the brand
+ * constraint is "Czech typography, diacritics at all weights", and háčky/čárky
+ * are where a ramp's line-heights actually fail.
+ */
+function TypeRampSpecimen({
+  token,
+  size,
+  children,
+}: {
+  token: string;
+  size: string;
+  children: React.ReactNode;
+}) {
+  useCompositionGuard(TypeRampContext, "TypeRamp.Specimen");
+  return (
+    <div
+      data-slot="type-ramp-specimen"
+      className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-6"
+    >
+      <span className="font-data text-muted-foreground w-32 shrink-0 text-xs">
+        <span className="text-foreground font-semibold">{token}</span> · {size}
+      </span>
+      <p className={cn("min-w-0", token)}>{children}</p>
+    </div>
+  );
+}
+
+const TypeRamp = Object.assign(TypeRampRoot, { Specimen: TypeRampSpecimen });
+
+// ── Interaction states ───────────────────────────────────────────────────────
+const StateLadderContext = React.createContext<boolean>(false);
+
+function StateLadderRoot({ className, children, ...props }: React.ComponentProps<"div">) {
+  return (
+    <StateLadderContext value={true}>
+      <div
+        data-slot="state-ladder"
+        className={cn("grid gap-5 sm:grid-cols-2", className)}
+        {...props}
+      >
+        {children}
+      </div>
+    </StateLadderContext>
+  );
+}
+
+/** A labelled group of adjacent state swatches for one base token. */
+function StateLadderRow({ token, children }: { token: string; children: React.ReactNode }) {
+  useCompositionGuard(StateLadderContext, "StateLadder.Row");
+  return (
+    <div data-slot="state-ladder-row" className="flex flex-col gap-2">
+      <span className="font-data text-xs font-semibold">{token}</span>
+      <div className="flex gap-1">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * One step of the ladder. Adjacent (gap-1) on purpose — hover sits 88% and
+ * active 78% toward `--color-foreground`, and a separation that small only
+ * reads when the swatches touch.
+ */
+function StateLadderStep({ state, className }: { state: string; className: string }) {
+  useCompositionGuard(StateLadderContext, "StateLadder.Step");
+  return (
+    <div
+      data-slot="state-ladder-step"
+      className={cn("rounded-inset flex h-14 flex-1 items-end p-2", className)}
+    >
+      <span className="font-data text-ui-2xs">{state}</span>
+    </div>
+  );
+}
+
+const StateLadder = Object.assign(StateLadderRoot, {
+  Row: StateLadderRow,
+  Step: StateLadderStep,
+});
+
+/**
+ * The spacing rungs — the utility suffix, px, the literal width utility, and the
+ * role the theme file documents for it.
+ *
+ * These are NOT custom tokens: there is no `--spacing-*` in the theme file, by
+ * design. Tailwind's built-in `--spacing: 0.25rem` base already generates every
+ * rung the canvas needs, half-steps included, so the gallery documents the SNAP
+ * RULE (canvas px → the utility you type) rather than a token vocabulary.
+ * Naming them `--spacing-md` etc. would shadow Tailwind's `--container-*` scale
+ * and collapse every `max-w-md`/`basis-lg` in the app — see the long warning in
+ * tooling/tailwind-config/theme.css.
+ */
+const SPACING_RUNGS = [
+  { token: "0.5", px: 2, bar: "w-0.5", note: "hairline · icon-to-label" },
+  { token: "1", px: 4, bar: "w-1", note: "the base unit" },
+  { token: "1.5", px: 6, bar: "w-1.5" },
+  { token: "2", px: 8, bar: "w-2" },
+  { token: "2.5", px: 10, bar: "w-2.5" },
+  { token: "3", px: 12, bar: "w-3" },
+  { token: "3.5", px: 14, bar: "w-3.5" },
+  { token: "4", px: 16, bar: "w-4", note: "default panel/card inset" },
+  { token: "5", px: 20, bar: "w-5" },
+  { token: "6", px: 24, bar: "w-6" },
+  { token: "7", px: 28, bar: "w-7" },
+  { token: "8", px: 32, bar: "w-8", note: "section separation · top of scale" },
+] as const;
+
+/** The body ramp — token (= the applied utility), size/line-height, specimen. */
+const TYPE_RUNGS = [
+  ["text-ui-2xs", "10 / 14", "Příliš žluťoučký kůň úpěl ďábelské ódy"],
+  ["text-ui-xs", "11 / 16", "Odchylka §6 — rozměr mimo standardní řadu"],
+  ["text-ui-sm", "12 / 16", "Zákazník: Kovářství Ryšánek, Přeštice"],
+  ["text-ui-base", "13 / 18", "Povrchová úprava: RAL 7016 — antracitová šeď"],
+  ["text-ui-md", "14 / 20", "Montáž včetně dopravy, záruka 24 měsíců"],
+  ["text-ui-lg", "15 / 20", "Technický výkres pro dílnu — čísla dílců"],
+  ["text-ui-xl", "16 / 24", "Nabídka č. 4 — křídlová vrata, šířka 3 200 mm"],
+  ["text-ui-2xl", "18 / 24", "Výrobní dávka připravena k expedici"],
+  ["text-ui-3xl", "20 / 28", "Cena celkem 129 891,50 Kč bez DPH"],
+  ["text-ui-4xl", "22 / 28", "Šablona kusovníku"],
+  ["text-ui-5xl", "28 / 34", "Přehled zakázek"],
+] as const;
+
+/**
+ * The bases that got hover/active tokens. The two ink bases (primary,
+ * nav-active) are ordered LAST: they derive toward --color-background rather
+ * than --color-foreground, so they read as the documented exception after the
+ * uniform cases have established the pattern.
+ */
+const STATE_LADDERS = [
+  [
+    "secondary",
+    "text-secondary-foreground",
+    "bg-secondary",
+    "bg-secondary-hover",
+    "bg-secondary-active",
+  ],
+  ["chrome", "text-chrome-foreground", "bg-chrome", "bg-chrome-hover", "bg-chrome-active"],
+  [
+    "destructive",
+    "text-destructive-foreground",
+    "bg-destructive",
+    "bg-destructive-hover",
+    "bg-destructive-active",
+  ],
+  ["success", "text-success-foreground", "bg-success", "bg-success-hover", "bg-success-active"],
+  ["warning", "text-warning-foreground", "bg-warning", "bg-warning-hover", "bg-warning-active"],
+  ["info", "text-info-foreground", "bg-info", "bg-info-hover", "bg-info-active"],
+  ["primary", "text-primary-foreground", "bg-primary", "bg-primary-hover", "bg-primary-active"],
+  [
+    "nav-active",
+    "text-nav-active-foreground",
+    "bg-nav-active",
+    "bg-nav-active-hover",
+    "bg-nav-active-active",
+  ],
+] as const;
+
 export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
   const [step, setStep] = React.useState(1);
   const [seg, setSeg] = React.useState("interior");
@@ -295,6 +532,60 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
           </div>
         </Section>
 
+        {/* Interaction states (ADR 0114 §7.3) */}
+        <Section
+          title="Interaction states"
+          hint="Derived, never hand-authored per theme: each state mixes its base toward --color-foreground (hover 88 %, active 78 %), so ONE declaration is correct in both themes. Active sits at twice hover's distance so the press reads as a continuation of the same gesture."
+        >
+          <Panel className="flex flex-col gap-8">
+            <StateLadder>
+              {STATE_LADDERS.map(([token, fg, base, hover, active]) => (
+                <StateLadder.Row key={token} token={token}>
+                  <StateLadder.Step state="base" className={cn(base, fg)} />
+                  <StateLadder.Step state="hover" className={cn(hover, fg)} />
+                  <StateLadder.Step state="active" className={cn(active, fg)} />
+                </StateLadder.Row>
+              ))}
+            </StateLadder>
+            <div className="flex flex-col gap-3">
+              <p className="text-muted-foreground max-w-3xl text-sm">
+                <span className="font-data text-foreground font-semibold">primary</span> and{" "}
+                <span className="font-data text-foreground font-semibold">nav-active</span> are
+                ALREADY <code className="font-data">--color-foreground</code> (the same ink in
+                light, the same near-white in dark), so mixing them toward it was an exact no-op and
+                their states had no feedback at all. They mix toward{" "}
+                <code className="font-data">--color-background</code> instead — the only pole with
+                contrast when a base equals the foreground — measuring ΔL 0.094 light / 0.092 dark
+                at hover. Every other base mixes toward the foreground and separates cleanly.
+              </p>
+            </div>
+            <Separator />
+            <div className="flex flex-col gap-3">
+              <span className="font-data text-xs font-semibold">opacity-disabled · 0.45</span>
+              <p className="text-muted-foreground max-w-3xl text-sm">
+                Disabled is opacity-shaped, not hue-shaped: the same control turned down, which is
+                honest against every base tone in both themes where a per-token muted hue would need
+                sixteen hand-tuned values.
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="bg-primary text-primary-foreground rounded-inset flex h-14 w-28 items-end p-2">
+                  <span className="font-data text-ui-2xs">enabled</span>
+                </div>
+                <div className="bg-primary text-primary-foreground rounded-inset opacity-disabled flex h-14 w-28 items-end p-2">
+                  <span className="font-data text-ui-2xs">disabled</span>
+                </div>
+                <Separator orientation="vertical" className="h-10" />
+                <Button>Enabled</Button>
+                <Button disabled>Disabled</Button>
+                <Button variant="copper">Enabled</Button>
+                <Button variant="copper" disabled>
+                  Disabled
+                </Button>
+              </div>
+            </div>
+          </Panel>
+        </Section>
+
         {/* Radius + Elevation */}
         <div className="grid gap-16 lg:grid-cols-2">
           <Section
@@ -336,6 +627,26 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
           </Section>
         </div>
 
+        {/* Spacing (ADR 0114 §7.1) */}
+        <Section
+          title="Spacing"
+          hint="A 4px base with 2px half-steps through the dense low range, opening to 4px steps above 16px where the eye stops resolving 2px. Each bar's width IS its rung. These are Tailwind's built-in fractional rungs, NOT custom tokens — p-2.5 is 10px and gap-3.5 is 14px out of the box, so the scale needs no --spacing-* tokens (naming them would shadow the --container-* scale and collapse every max-w-md in the app). Read the left column as the suffix you type."
+        >
+          <Panel>
+            <SpacingScale>
+              {SPACING_RUNGS.map((rung) => (
+                <SpacingScale.Rung
+                  key={rung.token}
+                  token={rung.token}
+                  px={rung.px}
+                  bar={rung.bar}
+                  note={"note" in rung ? rung.note : undefined}
+                />
+              ))}
+            </SpacingScale>
+          </Panel>
+        </Section>
+
         {/* Typography */}
         <Section
           title="Typography"
@@ -350,6 +661,22 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
               Příliš žluťoučký kůň úpěl ďábelské ódy.
             </p>
             <p className="font-data text-sm">Data — Amulya · 129 891.504 CZK · N381G</p>
+          </Panel>
+        </Section>
+
+        {/* Body-type ramp (ADR 0114 §7.2) */}
+        <Section
+          title="Body-type ramp"
+          hint="Eleven rungs, each carrying its own line-height so vertical rhythm travels with the size and no call site pairs them by hand. Specimens are Czech and diacritic-dense — háčky and čárky are where a ramp's leading actually fails. The rungs live under their own text-ui-* namespace so all eleven generate while every stock text-* class keeps Tailwind's meaning — text-ui-base is the 13px body default, text-base is still 16px. A dense instrument panel, not a document."
+        >
+          <Panel>
+            <TypeRamp>
+              {TYPE_RUNGS.map(([token, size, specimen]) => (
+                <TypeRamp.Specimen key={token} token={token} size={size}>
+                  {specimen}
+                </TypeRamp.Specimen>
+              ))}
+            </TypeRamp>
           </Panel>
         </Section>
 

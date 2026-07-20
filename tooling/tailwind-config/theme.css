@@ -151,72 +151,275 @@
   --color-spotlight: oklch(0.72 0.045 240); /* #96ADC2 steel blue */
   --color-spotlight-foreground: oklch(0.99 0 0);
   --color-spotlight-subtle: oklch(0.93 0.02 240);
+
+  /*
+   * Spacing scale (ADR 0114 §7.1) — DELIBERATELY NO TOKENS. This is a comment, and
+   * the comment IS the deliverable: the rung vocabulary below is the canonical snap
+   * rule from a canvas pixel measurement to the utility you type.
+   *
+   * The canvas `gap:`/padding distribution clusters hard at 4/6/8/10/12/14/16 while
+   * 2/3/5/7/9/11 read as noise BETWEEN rungs — so the low end wants 2px half-steps
+   * and the scale opens to 4px steps above 16px where the eye stops resolving 2px.
+   * Tailwind v4's built-in `--spacing: 0.25rem` base ALREADY generates every one of
+   * those rungs via fractional utilities, so adding named tokens buys nothing and
+   * costs correctness (see the namespace warning below).
+   *
+   *   canvas px │ utility │ computed        canvas px │ utility │ computed
+   *   ──────────┼─────────┼──────────       ──────────┼─────────┼──────────
+   *      2      │  -0.5   │ 0.125rem           16     │  -4     │ 1rem
+   *      4      │  -1     │ 0.25rem            20     │  -5     │ 1.25rem
+   *      6      │  -1.5   │ 0.375rem           24     │  -6     │ 1.5rem
+   *      8      │  -2     │ 0.5rem             28     │  -7     │ 1.75rem
+   *     10      │  -2.5   │ 0.625rem           32     │  -8     │ 2rem
+   *     12      │  -3     │ 0.75rem
+   *     14      │  -3.5   │ 0.875rem
+   *
+   * So: 4px base unit = `-1`, the default panel/card inset 16px = `p-4`, section
+   * separation 32px = `-8`. Snap an improvised measurement to the nearest rung —
+   * 2→0.5, 3/4→1, 5/6/7→1.5, 8/9→2, 10/11→2.5, 12/13→3, 14/15→3.5, 16/18→4,
+   * 20/22→5, 24/26→6, 28→7, 32→8 — so a hand measurement can never introduce a
+   * between-rung value. `p-2.5` is 10px and `gap-3.5` is 14px TODAY, no token added.
+   *
+   * WHY NOT `--spacing-md: 10px` ETC. (this was tried, and it broke the app): the
+   * `--spacing-*` namespace is NOT private to padding/gap. Tailwind v4 resolves
+   * `max-w-*`, `min-w-*`, `w-*` and `basis-*` against `--spacing-*` FIRST and falls
+   * back to its built-in `--container-*` scale only when no `--spacing-*` rung of
+   * that name exists. Defining t-shirt rungs here therefore SHADOWED the container
+   * scale: `max-w-md` went 28rem → 10px, `max-w-sm` 24rem → 8px, `basis-lg`
+   * 32rem → 12px, collapsing 34 call sites (login-form, dialog, toast,
+   * accept-invitation, account/security, brand-lab's own container) to slivers —
+   * and inconsistently, since `max-w-7xl` kept 80rem for want of a `--spacing-7xl`.
+   * The base `--spacing: 0.25rem` is a different key and is unaffected either way.
+   * If a named rung is ever genuinely needed, it must go under a non-colliding
+   * prefix (the `--text-ui-*` precedent below), never bare `--spacing-*`.
+   */
+
+  /*
+   * Body-type ramp (ADR 0114 §7.2) — the canvas's 23 distinct font sizes collapsed
+   * to eleven rungs, each carrying its own line-height so vertical rhythm travels
+   * with the size and no call site has to pair them by hand. Every half-pixel rung
+   * in the canvas collapses DOWN to the rung below it (10.5→2xs, 11.5→xs, 12.5→sm,
+   * 13.5→base, 14.5→md, 15.5→lg), with 17→xl, 19→2xl, 21→3xl, 23/24→4xl, 26/30→5xl.
+   * Line-heights tighten as size grows — dense UI text needs the leading, editorial
+   * sizes need it taken away.
+   *
+   * These sit BELOW the editorial --text-title (32) / --text-metric (40) /
+   * --text-display (96) declared above, which are unchanged: this ramp is the body
+   * and UI register, those three are the display register, and the two never meet.
+   *
+   * WHY THE `ui` INFIX (this matters — the bare form was tried and broke the app):
+   * Tailwind v4's built-in font-size scale occupies exactly the names xs, sm, base,
+   * lg, xl, 2xl…9xl in the SAME `--text-*` namespace. Declaring `--text-sm: 12px`
+   * here does not add a rung, it REDEFINES `text-sm` for the whole codebase — it
+   * silently resized ~314 existing `text-sm`/`text-xs` call sites (14px → 12px)
+   * across /quotes, /orders, /customers, /admin, /platform, /configurator and all of
+   * packages/ui. The `-ui-` infix is a namespace of its own, so all eleven rungs
+   * still generate real utilities (`text-ui-sm`) while every stock `text-*` class
+   * keeps Tailwind's meaning. Use `text-ui-*` for product UI; the stock scale stays
+   * available and unchanged for anything that wants document-scale type.
+   *
+   * The canvas rung names are kept verbatim (2xs…5xl) so a frame annotation maps
+   * one-to-one — `text-ui-base` (13px) is the body default, NOT `text-base` (16px).
+   */
+  --text-ui-2xs: 10px;
+  --text-ui-2xs--line-height: 14px;
+  --text-ui-xs: 11px;
+  --text-ui-xs--line-height: 16px;
+  --text-ui-sm: 12px;
+  --text-ui-sm--line-height: 16px;
+  --text-ui-base: 13px;
+  --text-ui-base--line-height: 18px;
+  --text-ui-md: 14px;
+  --text-ui-md--line-height: 20px;
+  --text-ui-lg: 15px;
+  --text-ui-lg--line-height: 20px;
+  --text-ui-xl: 16px;
+  --text-ui-xl--line-height: 24px;
+  --text-ui-2xl: 18px;
+  --text-ui-2xl--line-height: 24px;
+  --text-ui-3xl: 20px;
+  --text-ui-3xl--line-height: 28px;
+  --text-ui-4xl: 22px;
+  --text-ui-4xl--line-height: 28px;
+  --text-ui-5xl: 28px;
+  --text-ui-5xl--line-height: 34px;
+
+  /* Disabled is opacity-shaped rather than hue-shaped (ADR 0114 §7.3): a disabled
+   * control must read as the SAME control turned down, not as a different colour,
+   * and one opacity is honest against every base tone in both themes where a
+   * per-token muted hue would need sixteen hand-tuned values. */
+  --opacity-disabled: 0.45;
 }
 
-@variant dark {
-  --color-background: oklch(0.21 0.006 285.885);
-  --color-foreground: oklch(0.98 0 0);
+/*
+ * Interaction-state layer (ADR 0114 §7.3) — DERIVED, never hand-authored per theme.
+ *
+ * A hardcoded lighten-or-darken direction is necessarily wrong in one of the two
+ * themes: darkening a hover reads as "pressed" on a light surface and as "receding"
+ * on a dark one. So each state mixes its base toward a POLE that already inverts per
+ * theme. That makes ONE declaration correct in both, and no dark counterpart is
+ * needed below. The ladder is hover 88% / active 78% — active is deliberately twice
+ * the distance of hover so the press reads as a continuation of the same gesture
+ * rather than a new colour.
+ *
+ * WHICH POLE — and this is a correctness constraint, not a taste call. Most tokens
+ * mix toward --color-foreground. But --color-primary and --color-nav-active ARE
+ * --color-foreground for practical purposes: both are the same near-black ink in
+ * light and the same near-white oklch(0.98 0 0) in dark. Mixing them toward the
+ * foreground is arithmetically a no-op — measured ΔL 0.0004 in light and EXACTLY
+ * 0.0000 in dark — i.e. the default action on every surface had no hover and no
+ * press feedback in either theme. Those two therefore mix toward
+ * --color-background instead, the only pole with contrast when a base already
+ * equals the foreground; measured ΔL 0.094 light / 0.092 dark at hover and
+ * 0.172 / 0.169 at active, in line with the 0.024–0.095 the other tokens get.
+ * Rule of thumb: if a base token equals the foreground, its states go toward the
+ * background. --color-copper-hover stays hand-authored and is not part of this set.
+ *
+ * WHY `@theme inline` and not plain `@theme`: a plain @theme token is emitted once
+ * on `:root`, so its `var(--color-foreground)` is resolved THERE — against the root
+ * theme — and a nested `.dark` container (which is exactly how /brand-lab renders
+ * its side-by-side, and how any scoped-theme panel works) would inherit the already-
+ * resolved LIGHT mix. `inline` instead substitutes the color-mix() expression into
+ * the utility itself, so the var() resolves at the consuming ELEMENT and the state
+ * re-derives correctly at any nesting depth. Verified in chromium and firefox.
+ * Tailwind emits an `in srgb` static fallback alongside an `@supports (color-mix(in
+ * lab, …))` branch, so pre-color-mix engines degrade to the light-theme mix rather
+ * than to nothing.
+ */
+/* Each declaration MUST stay on ONE line. Prettier wrapping a color-mix() across
+ * lines makes Tailwind resolve it STATICALLY at build time — baking the light values
+ * in and dropping the var()/@supports form that the dark theme depends on. Hence the
+ * ignore directive below; it is correctness, not style. */
+/* prettier-ignore */
+@theme inline {
+  --color-primary-hover: color-mix(in oklab, var(--color-primary) 88%, var(--color-background));
+  --color-primary-active: color-mix(in oklab, var(--color-primary) 78%, var(--color-background));
 
-  --color-card: oklch(0.274 0.006 286.033);
-  --color-card-foreground: oklch(0.98 0 0);
+  --color-secondary-hover: color-mix(in oklab, var(--color-secondary) 88%, var(--color-foreground));
+  --color-secondary-active: color-mix(in oklab, var(--color-secondary) 78%, var(--color-foreground));
 
-  --color-popover: oklch(0.274 0.006 286.033);
-  --color-popover-foreground: oklch(0.98 0 0);
+  --color-chrome-hover: color-mix(in oklab, var(--color-chrome) 88%, var(--color-foreground));
+  --color-chrome-active: color-mix(in oklab, var(--color-chrome) 78%, var(--color-foreground));
 
-  /* Brand ink, dark (ADR 0111) — the default action flips to near-white, mirroring
-   * --color-nav-active in dark; dark ink text sits on it. */
-  --color-primary: oklch(0.98 0 0);
-  --color-primary-foreground: oklch(0.21 0.006 285.885);
+  --color-nav-active-hover: color-mix(in oklab, var(--color-nav-active) 88%, var(--color-background));
+  --color-nav-active-active: color-mix(in oklab, var(--color-nav-active) 78%, var(--color-background));
 
-  --color-secondary: oklch(0.274 0.006 286.033);
-  --color-secondary-foreground: oklch(0.98 0 0);
+  --color-destructive-hover: color-mix(in oklab, var(--color-destructive) 88%, var(--color-foreground));
+  --color-destructive-active: color-mix(in oklab, var(--color-destructive) 78%, var(--color-foreground));
 
-  --color-muted: oklch(0.274 0.006 286.033);
-  --color-muted-foreground: oklch(0.705 0.015 286.067);
+  --color-success-hover: color-mix(in oklab, var(--color-success) 88%, var(--color-foreground));
+  --color-success-active: color-mix(in oklab, var(--color-success) 78%, var(--color-foreground));
 
-  --color-accent: oklch(0.274 0.006 286.033);
-  --color-accent-foreground: oklch(0.98 0 0);
+  --color-warning-hover: color-mix(in oklab, var(--color-warning) 88%, var(--color-foreground));
+  --color-warning-active: color-mix(in oklab, var(--color-warning) 78%, var(--color-foreground));
 
-  --color-destructive: oklch(0.704 0.191 22.216);
-  --color-destructive-foreground: oklch(0.98 0 0);
+  --color-info-hover: color-mix(in oklab, var(--color-info) 88%, var(--color-foreground));
+  --color-info-active: color-mix(in oklab, var(--color-info) 78%, var(--color-foreground));
+}
 
-  --color-border: oklch(1 0 0 / 10%);
-  --color-input: oklch(1 0 0 / 15%);
-  --color-ring: oklch(0.66 0.124 60.4); /* copper focus ring, dark (ADR 0111) */
+/*
+ * Dark token overrides.
+ *
+ * The `:root, .dark` wrapper is load-bearing and must not be flattened away. A
+ * bare top-level `@variant dark { … }` compiled to `&:where(.dark, .dark *) { … }`
+ * with NO parent selector, and a top-level `&` matches nothing — verified in both
+ * chromium and firefox, on `<html class="dark">` as well as on a nested div. Every
+ * token below was silently dead on web, so dark mode was only ever `dark:`
+ * utilities painted over light token values.
+ *
+ * Giving the variant a real parent fixes it without duplicating a single
+ * declaration, and lets each platform expand its OWN dark semantics from this one
+ * block:
+ *   web    → `:root, .dark { &:where(.dark, .dark *) { … } }` — `&` now resolves,
+ *            so both `<html class="dark">` and a nested `<div class="dark">` flip.
+ *            This part is verified in chromium and firefox.
+ *   mobile → `:root, .dark { @media (prefers-color-scheme: dark) { … } }`, the
+ *            shape react-native-css expects for a conditional root variable driven
+ *            by the runtime colour-scheme signal (Appearance.setColorScheme).
+ *
+ * What is actually established about the mobile half is narrower than it looks, so
+ * state it exactly: at top level the variant produced declarations with NO selector,
+ * lightningcss rejects that shape, and the wrapper gives the variant a real parent
+ * so a valid rule is emitted. That is a compile-time fix, and it is all that was
+ * observed. It is NOT evidence that mobile dark mode works: the mobile CSS export is
+ * a zero-byte file both BEFORE and AFTER this change (md5 d41d8cd98f00b204e9800998
+ * ecf8427e — the md5 of the empty string), so the build passing tells us nothing
+ * about mobile dark either way. MOBILE DARK REMAINS UNVERIFIED AT RUNTIME, pending
+ * an Appearance.setColorScheme("dark") check on a real device/simulator that
+ * observes a token actually flipping. Do not upgrade this claim without that check.
+ *
+ * For the same reason `@custom-variant dark (&:where(.dark, .dark *))` must STAY in
+ * the web entry points and must NOT be hoisted into this shared file: defining it
+ * here would override the default dark variant for mobile too and strip the
+ * prefers-color-scheme condition, killing every `dark:` utility on native.
+ */
+:root,
+.dark {
+  @variant dark {
+    --color-background: oklch(0.21 0.006 285.885);
+    --color-foreground: oklch(0.98 0 0);
 
-  /* Brand layer, dark — the configurator pins light, but the surface tokens stay
-   * valid app-wide: field/chrome/nav flip to dark, copper/deviation are hue-stable. */
-  --color-field: oklch(0.21 0.006 285.885);
-  --color-field-raised: oklch(0.244 0.006 286.033);
-  --color-chrome: oklch(0.274 0.006 286.033);
-  --color-chrome-foreground: oklch(0.98 0 0);
-  --color-chrome-subtle: oklch(0.31 0.006 286.033);
-  --color-copper: oklch(0.66 0.124 60.4);
-  --color-copper-foreground: oklch(0.16 0 0);
-  --color-copper-hover: oklch(0.7 0.124 60.4);
-  --color-deviation: oklch(0.79 0.165 70.08);
-  --color-deviation-foreground: oklch(0.21 0.006 285.885);
-  --color-nav-active: oklch(0.98 0 0);
-  --color-nav-active-foreground: oklch(0.21 0.006 285.885);
+    --color-card: oklch(0.274 0.006 286.033);
+    --color-card-foreground: oklch(0.98 0 0);
 
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-soft-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.55);
+    --color-popover: oklch(0.274 0.006 286.033);
+    --color-popover-foreground: oklch(0.98 0 0);
 
-  /* System-scale color + elevation overrides, dark (ADR 0111). Radius / type /
-   * motion are hue-independent — they need no dark variant. */
-  --shadow-soft-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
+    /* Brand ink, dark (ADR 0111) — the default action flips to near-white, mirroring
+     * --color-nav-active in dark; dark ink text sits on it. */
+    --color-primary: oklch(0.98 0 0);
+    --color-primary-foreground: oklch(0.21 0.006 285.885);
 
-  --color-success: oklch(0.68 0.11 155);
-  --color-success-foreground: oklch(0.16 0 0);
-  --color-success-subtle: oklch(0.3 0.04 155);
-  --color-warning: oklch(0.78 0.15 75);
-  --color-warning-foreground: oklch(0.2 0.03 75);
-  --color-warning-subtle: oklch(0.32 0.05 80);
-  --color-info: oklch(0.66 0.06 235);
-  --color-info-foreground: oklch(0.16 0 0);
-  --color-info-subtle: oklch(0.3 0.03 235);
-  --color-spotlight: oklch(0.66 0.05 240);
-  --color-spotlight-foreground: oklch(0.99 0 0);
-  --color-spotlight-subtle: oklch(0.32 0.03 240);
+    --color-secondary: oklch(0.274 0.006 286.033);
+    --color-secondary-foreground: oklch(0.98 0 0);
+
+    --color-muted: oklch(0.274 0.006 286.033);
+    --color-muted-foreground: oklch(0.705 0.015 286.067);
+
+    --color-accent: oklch(0.274 0.006 286.033);
+    --color-accent-foreground: oklch(0.98 0 0);
+
+    --color-destructive: oklch(0.704 0.191 22.216);
+    --color-destructive-foreground: oklch(0.98 0 0);
+
+    --color-border: oklch(1 0 0 / 10%);
+    --color-input: oklch(1 0 0 / 15%);
+    --color-ring: oklch(0.66 0.124 60.4); /* copper focus ring, dark (ADR 0111) */
+
+    /* Brand layer, dark — the configurator pins light, but the surface tokens stay
+     * valid app-wide: field/chrome/nav flip to dark, copper/deviation are hue-stable. */
+    --color-field: oklch(0.21 0.006 285.885);
+    --color-field-raised: oklch(0.244 0.006 286.033);
+    --color-chrome: oklch(0.274 0.006 286.033);
+    --color-chrome-foreground: oklch(0.98 0 0);
+    --color-chrome-subtle: oklch(0.31 0.006 286.033);
+    --color-copper: oklch(0.66 0.124 60.4);
+    --color-copper-foreground: oklch(0.16 0 0);
+    --color-copper-hover: oklch(0.7 0.124 60.4);
+    --color-deviation: oklch(0.79 0.165 70.08);
+    --color-deviation-foreground: oklch(0.21 0.006 285.885);
+    --color-nav-active: oklch(0.98 0 0);
+    --color-nav-active-foreground: oklch(0.21 0.006 285.885);
+
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-soft-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.55);
+
+    /* System-scale color + elevation overrides, dark (ADR 0111). Radius / type /
+     * motion are hue-independent — they need no dark variant. */
+    --shadow-soft-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+    --color-success: oklch(0.68 0.11 155);
+    --color-success-foreground: oklch(0.16 0 0);
+    --color-success-subtle: oklch(0.3 0.04 155);
+    --color-warning: oklch(0.78 0.15 75);
+    --color-warning-foreground: oklch(0.2 0.03 75);
+    --color-warning-subtle: oklch(0.32 0.05 80);
+    --color-info: oklch(0.66 0.06 235);
+    --color-info-foreground: oklch(0.16 0 0);
+    --color-info-subtle: oklch(0.3 0.03 235);
+    --color-spotlight: oklch(0.66 0.05 240);
+    --color-spotlight-foreground: oklch(0.99 0 0);
+    --color-spotlight-subtle: oklch(0.32 0.03 240);
+  }
 }
