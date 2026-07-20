@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import type { ConfigInput } from "@repo/engine";
+import type { ConfigInput, PriceTable } from "@repo/engine";
 import {
   catalogV1,
   catalogV2,
@@ -21,9 +21,10 @@ import {
   slidingGateV1,
   swingGateV1,
 } from "@repo/fixtures";
-import type { Catalog } from "@repo/model";
+import { DEFAULT_ROUNDING_POLICY, type Catalog } from "@repo/model";
 
 import { deriveForUi } from "../configurator/derive";
+import type { ConfiguratorPricing } from "../configurator/products";
 import type { CameraView } from "../configurator/scene/camera-poses";
 import { useDeviation } from "../configurator/scene/deviation";
 import { useFinish } from "../configurator/scene/finish";
@@ -58,6 +59,20 @@ const SceneCanvas = dynamic(() => import("../configurator/scene/scene-canvas"), 
   ssr: false,
 });
 
+/**
+ * The lab derives for GEOMETRY only — it renders scenes and never shows money —
+ * so it pins the default rounding policy and carries no cost layer (ADR 0116).
+ * Stated explicitly rather than defaulted, because the whole point of
+ * `ConfiguratorPricing` is that no caller silently inherits a policy: a lab that
+ * does not care must still say so.
+ */
+const labPricing = (table: PriceTable): ConfiguratorPricing => ({
+  table,
+  cost: null,
+  marginFloorPct: null,
+  rounding: DEFAULT_ROUNDING_POLICY,
+});
+
 /** The real Excel-anchored sliding gate, derived through the same engine path
  *  the configurator uses (deriveForUi → deriveInstanceDetailed + buildScene). */
 /** The 7 Výplet fill types, each in its OWN validated golden config — the
@@ -78,8 +93,8 @@ function realSlidingGateScene(fillTypeId?: string) {
   const golden =
     (fillTypeId ? fillGoldens[fillTypeId as keyof typeof fillGoldens] : undefined) ??
     planka_100_2d_3panel;
-  const product = { release: slidingGateV1, initialInput: golden.config };
-  return deriveForUi(product, golden.config, golden.prices, catalogs).scene;
+  const product = { release: slidingGateV1, initialInput: golden.config, catalogVersion: 1 };
+  return deriveForUi(product, golden.config, labPricing(golden.prices), catalogs).scene;
 }
 
 /** The REAL `swing-gate@1` (CAR-33) at the Excel VZOR (two-leaf / divided /
@@ -88,8 +103,8 @@ function realSlidingGateScene(fillTypeId?: string) {
 function realSwingGateScene() {
   const catalogs: ReadonlyMap<string, Catalog> = new Map([[swingGateV1.id, catalogV3]]);
   const config = planka_120_3d_vzor.config;
-  const product = { release: swingGateV1, initialInput: config };
-  return deriveForUi(product, config, planka_120_3d_vzor.prices, catalogs).scene;
+  const product = { release: swingGateV1, initialInput: config, catalogVersion: 3 };
+  return deriveForUi(product, config, labPricing(planka_120_3d_vzor.prices), catalogs).scene;
 }
 
 /** The REAL `fence-run@1` (CAR-32) at the canonical bay (2000 × 2000, 4 bays),
@@ -104,8 +119,8 @@ function realFenceScene(fillTypeId?: string) {
     frame_material: "alu",
     include_installation: true,
   };
-  const product = { release: fenceRunV1, initialInput: config };
-  return deriveForUi(product, config, fencePrices, catalogs).scene;
+  const product = { release: fenceRunV1, initialInput: config, catalogVersion: 2 };
+  return deriveForUi(product, config, labPricing(fencePrices), catalogs).scene;
 }
 
 export function SceneLabClient() {

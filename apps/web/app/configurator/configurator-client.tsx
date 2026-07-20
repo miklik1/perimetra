@@ -4,35 +4,60 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { AuthGuard } from "@repo/auth/react";
-import type { ConfigInput, PriceTable } from "@repo/engine";
-import { useTranslations } from "@repo/i18n/web";
-import { resolveUi, type Catalog, type ResolvedUiGroup, type Value } from "@repo/model";
-import { Button, DisplayLabel, Panel, StepNav } from "@repo/ui";
+import type { ConfigInput } from "@repo/engine";
+import { useLocale, useTranslations } from "@repo/i18n/web";
+import {
+  resolveUi,
+  type Catalog,
+  type OptionSet,
+  type ResolvedUiGroup,
+  type Scope,
+  type Value,
+} from "@repo/model";
+import { Button, DisplayLabel, Panel, StepProgress, StickyActionBar } from "@repo/ui";
 
-import { usePriceBlind } from "../../lib/use-role";
+import { formatMoney } from "../../lib/format-money";
+import { marginPct } from "../../lib/margin";
+import { useCanSeeCost, usePriceBlind } from "../../lib/use-role";
 import { decodeConfig, encodeConfig } from "./config-hash";
-import { deriveForUi, type UiDerivation } from "./derive";
-import { SitePlanSvg, WorkshopDrawingSvg } from "./drawing-svg";
 import { FinishPicker } from "./finish-picker";
+import { useConfiguratorDerive } from "./lib/use-configurator-derive";
+import { BomTable } from "./panels/bom-table";
+import { CommercialPanel } from "./panels/commercial-panel";
 import { ParamField } from "./param-field";
-import type { CatalogBundle, ConfigurableProduct } from "./products";
-import { SceneViewport } from "./scene/scene-viewport";
+import type { CatalogBundle, ConfigurableProduct, ConfiguratorPricing } from "./products";
+import { SceneColumn } from "./scene-column";
 import { webglAvailable } from "./scene/webgl";
-import { Summary } from "./summary";
+import { ContextBar } from "./shell/context-bar";
+import { StepChips } from "./shell/step-chips";
+import { StepsRail, type RailItem } from "./shell/steps-rail";
+import { formatValue, Summary } from "./summary";
 import { buildFlow, flowKey, type BrandStep, type BrandStepKind } from "./wizard-flow";
 
 /**
- * The generated configurator (CORE_SPEC §8) wearing the Bombardier-derived brand
- * (ADR 0072) and the UX grammar of ADR 0077 as amended by ADR 0115: three
- * app-shell steps — Produkt · «the release's own authored steps» · Barva a
- * povrch · Souhrn — so a release's step structure, labels, options and groups
- * are all release data (§8) rather than an app-land spine. The engine runs in
- * the browser (pure, I1); hybrid coverage pairs the live R3F hero with the
- * `drawing2d.ts` SVG plan (the first release step) + elevation (Summary) +
- * WebGL fallback.
+ * The generated configurator (CORE_SPEC §8), wearing the ADR 0114 design canvas
+ * (`design/configurator/frames-v2.jsx`) over the ADR 0115 step model.
  *
- * Catalog/releases/active price table are served by the api (ADR 0060): the RSC
- * fetches the bundle and prop-passes it here.
+ * The shell is one responsive layout across three bands rather than three
+ * layouts, because they are the same surface at three widths and the canvas
+ * draws them as separate frames only because a static export cannot show a
+ * breakpoint:
+ *
+ *   - **lg+ (v2-OPT / v2-INV)** — vertical 210px steps rail · 400px form column ·
+ *     scene fills the rest.
+ *   - **md–lg (v2-TAB, tablet on-site)** — steps promote to a horizontal chip
+ *     row, the form column narrows, and commerce moves to a sticky bottom bar
+ *     with coarse-pointer targets.
+ *   - **< md (v2-MOB)** — the scene takes the top, the form becomes a bottom
+ *     sheet, and the steps reduce to `StepProgress` dots.
+ *
+ * The immersive frame (v2-IMM) and the §7.6 direct-manipulation loop are NOT
+ * here — they are a real-time editor rather than a layout, and they follow as
+ * their own slice on top of the worker transport this one lands (ADR 0116).
+ *
+ * Catalog/releases/active pricing are served by the api (ADR 0060): the RSC
+ * fetches the bundle and prop-passes it here. The derive runs on the engine
+ * worker (ADR 0116, §7.6 — never the main thread).
  */
 
 /** Brand step → its CZ pill label key (literal union for the typed `t`). */
@@ -83,13 +108,16 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
     >
       {bundle === null || bundle.products.length === 0 || bundle.catalogs.size === 0 ? (
         notice(t("noProducts"))
-      ) : bundle.prices === null ? (
+      ) : bundle.pricing === null ? (
+        // Empty-but-honest (ADR 0063): a fabricator's prices are their own data,
+        // so with no active table the surface says so rather than deriving a zero.
+        // This is also the workshop's 403 path (ADR 0056).
         notice(t("noPrices"))
       ) : (
         <ConfiguratorInner
           products={bundle.products}
           catalogs={bundle.catalogs}
-          prices={bundle.prices}
+          pricing={bundle.pricing}
         />
       )}
     </AuthGuard>
@@ -104,14 +132,15 @@ function Field({ children }: { children: React.ReactNode }) {
 function ConfiguratorInner({
   products,
   catalogs,
-  prices,
+  pricing,
 }: {
   products: ConfigurableProduct[];
   catalogs: ReadonlyMap<string, Catalog>;
-  prices: PriceTable;
+  pricing: ConfiguratorPricing;
 }) {
   const t = useTranslations("configurator");
   const priceBlind = usePriceBlind();
+  const canSeeCost = useCanSeeCost();
 
   const [productIndex, setProductIndex] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -134,19 +163,37 @@ function ConfiguratorInner({
   }, [products]);
 
   const product = products[productIndex]!;
-  const derivation = useMemo(
-    () => deriveForUi(product, input, prices, catalogs),
-    [product, input, prices, catalogs],
-  );
+  const { derivation, computing, error } = useConfiguratorDerive(product, catalogs, pricing, input);
+  const result = derivation?.result ?? null;
+
   const steps = useMemo(
-    () => resolveUi(product.release, derivation.scope ?? input),
-    [product.release, derivation.scope, input],
+    () => resolveUi(product.release, derivation?.scope ?? input),
+    [product.release, derivation?.scope, input],
   );
   const flow = useMemo(() => buildFlow(steps), [steps]);
-  const step = flow[stepIndex] ?? flow[0]!;
+
+  // Clamp rather than fall back. `flow.length` is release-authored and therefore
+  // VARIABLE (ADR 0115) where it used to be a constant 5, so a step index can
+  // outlive the flow that produced it — on a product switch, or on a release
+  // whose `relevance` drops a step. The previous `flow[stepIndex] ?? flow[0]`
+  // silently showed the FIRST step while the nav still highlighted the stale
+  // index, so body and nav disagreed. Clamping keeps them one value.
+  const activeIndex = Math.min(stepIndex, flow.length - 1);
+  const step = flow[activeIndex]!;
+  const activeKey = flowKey(step);
+
   const shareToken = useMemo(
     () => encodeConfig({ releaseId: product.release.id, input }),
     [product.release.id, input],
+  );
+
+  const railItems = useRailItems(
+    flow,
+    activeIndex,
+    input,
+    derivation?.scope,
+    product.release.optionSets ?? [],
+    t,
   );
 
   const switchProduct = (index: number) => {
@@ -164,82 +211,281 @@ function ConfiguratorInner({
     });
   };
 
-  return (
-    <Field>
-      <header className="border-border/60 bg-field/80 sticky top-0 z-10 flex flex-wrap items-center gap-4 border-b px-6 py-3 backdrop-blur">
-        <span className="text-foreground font-display text-lg font-semibold tracking-tight">
-          Perimetra
+  const goTo = (key: string) => {
+    const next = flow.findIndex((s) => flowKey(s) === key);
+    if (next !== -1) setStepIndex(next);
+  };
+
+  const body = (
+    <>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-ui-2xl font-semibold tracking-tight">
+          {stepLabel(step, t)}
+        </h2>
+        <span className="text-muted-foreground text-ui-xs whitespace-nowrap">
+          {t("stepCounter", { current: String(activeIndex + 1), total: String(flow.length) })}
         </span>
-        <div className="flex-1">
-          <StepNav
-            aria-label={t("title")}
-            value={flow[stepIndex] === undefined ? undefined : flowKey(flow[stepIndex])}
-            onValueChange={(key) => {
-              const next = flow.findIndex((s) => flowKey(s) === key);
-              if (next !== -1) setStepIndex(next);
-            }}
-          >
-            {flow.map((s) => (
-              <StepNav.Item key={flowKey(s)} value={flowKey(s)}>
-                <StepNav.Label>{stepLabel(s, t)}</StepNav.Label>
-              </StepNav.Item>
-            ))}
-          </StepNav>
+      </div>
+
+      <StepBody
+        step={step}
+        products={products}
+        productIndex={productIndex}
+        onSwitchProduct={switchProduct}
+        release={product.release}
+        steps={steps}
+        input={input}
+        scope={derivation?.scope}
+        result={result}
+        drawing={derivation?.drawing}
+        priceBlind={priceBlind}
+        shareToken={shareToken}
+        onValueChange={setValue}
+      />
+
+      <div className="flex justify-between pt-1">
+        {/* `aria-disabled` + a no-op handler, NOT `disabled`. Pressing Enter on
+            the LAST step used to flip `disabled` on the element that currently
+            held focus, and a disabled element cannot keep focus — the browser
+            dropped it to <body>, so the next Tab restarted at the top of the
+            page. The control stays focusable and announces as unavailable. */}
+        <Button
+          variant="outline"
+          size="sm"
+          aria-disabled={activeIndex === 0}
+          onClick={() => {
+            if (activeIndex > 0) setStepIndex(activeIndex - 1);
+          }}
+        >
+          {t("back")}
+        </Button>
+        <Button
+          variant="copper"
+          size="sm"
+          aria-disabled={activeIndex >= flow.length - 1}
+          onClick={() => {
+            if (activeIndex < flow.length - 1) setStepIndex(activeIndex + 1);
+          }}
+        >
+          {t("next")}
+        </Button>
+      </div>
+    </>
+  );
+
+  return (
+    // NOT `h-dvh`. `nav-shell.tsx` renders an in-flow `h-14` app header above
+    // this subtree, so a full-viewport height here made the surface 56px taller
+    // than its slot and pushed the sticky commerce bar off the bottom of the
+    // screen at every width. The subtraction is coupled to that `h-14` — if the
+    // app header's height changes, this must change with it.
+    <div className="bg-field flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col">
+      <ContextBar
+        productLabel={product.release.modelId}
+        catalogVersion={product.catalogVersion}
+        computing={computing}
+      />
+
+      {/* Steps, one band each. Exactly one is in the a11y tree at a time — the
+          hidden ones are `display:none`, not visually hidden, so a screen reader
+          never meets three copies of the same nav. */}
+      <div className="hidden md:block xl:hidden">
+        <StepChips items={railItems} activeKey={activeKey} onSelect={goTo} />
+      </div>
+      <div className="bg-chrome border-border flex-none border-b px-4 py-2.5 md:hidden">
+        <StepProgress
+          aria-label={t("configuration")}
+          total={flow.length}
+          current={activeIndex + 1}
+        />
+      </div>
+
+      {/* One polite announcement per step change. Deliberately a dedicated
+          region rather than making the visible heading live: a live heading
+          re-announces on every unrelated re-render of its subtree. */}
+      <span aria-live="polite" className="sr-only">
+        {`${stepLabel(step, t)} — ${t("stepCounter", {
+          current: String(activeIndex + 1),
+          total: String(flow.length),
+        })}`}
+      </span>
+
+      <div className="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
+        <div className="hidden xl:flex">
+          <StepsRail items={railItems} activeKey={activeKey} onSelect={goTo} />
         </div>
-      </header>
 
-      <main className="mx-auto grid w-full max-w-7xl items-start gap-8 p-6 lg:grid-cols-[minmax(340px,38%)_1fr]">
-        <section className="flex flex-col gap-5">
-          <DisplayLabel className="text-3xl sm:text-4xl">{stepLabel(step, t)}</DisplayLabel>
-
-          <StepBody
-            step={step}
-            products={products}
-            productIndex={productIndex}
-            onSwitchProduct={switchProduct}
-            release={product.release}
-            steps={steps}
-            input={input}
-            scope={derivation.scope}
-            result={derivation.result}
-            drawing={derivation.drawing}
-            priceBlind={priceBlind}
-            shareToken={shareToken}
-            onValueChange={setValue}
-          />
-
-          <div className="flex justify-between pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={stepIndex === 0}
-              onClick={() => setStepIndex(stepIndex - 1)}
-            >
-              {t("back")}
-            </Button>
-            <Button
-              variant="copper"
-              size="sm"
-              disabled={stepIndex >= flow.length - 1}
-              onClick={() => setStepIndex(stepIndex + 1)}
-            >
-              {t("next")}
-            </Button>
-          </div>
-        </section>
-
-        <section className="lg:sticky lg:top-24">
-          <div className="h-[440px] lg:h-[calc(100vh-9rem)]">
-            <Hero
-              step={step}
-              derivation={derivation}
-              releaseId={product.release.id}
-              webgl={webgl}
+        {/* The form column. Below `md` it is the bottom sheet: capped height,
+            its own scroll, rounded top, above the scene in reading order because
+            the flex parent is `flex-col-reverse`. */}
+        <section
+          aria-label={stepLabel(step, t)}
+          className={
+            "bg-chrome border-border flex min-h-0 flex-none flex-col gap-4 overflow-y-auto " +
+            "max-h-[55dvh] rounded-t-2xl border-t p-4" +
+            "md:max-h-none md:w-[372px] md:rounded-none md:border-r md:border-t-0 md:p-5" +
+            "xl:w-[400px]"
+          }
+        >
+          {body}
+          {/* Commerce sits in the column at xl+, and in the sticky bar below it. */}
+          <div className="mt-auto hidden xl:block">
+            <CommercialPanel
+              result={result}
+              pricing={pricing}
+              catalogVersion={product.catalogVersion}
+              priceBlind={priceBlind}
+              canSeeCost={canSeeCost}
             />
           </div>
         </section>
-      </main>
-    </Field>
+
+        <main aria-label={t("scene")} className="relative min-h-0 min-w-0 flex-1">
+          <SceneColumn
+            step={step}
+            derivation={derivation}
+            computing={computing}
+            error={error}
+            releaseId={product.release.id}
+            webgl={webgl}
+            bom={
+              result === null ? null : (
+                <BomForRole result={result} priceBlind={priceBlind} rounding={pricing.rounding} />
+              )
+            }
+          />
+        </main>
+      </div>
+
+      {/* The tablet/mobile commerce bar (v2-TAB). Absent entirely when the
+          session may not see money — absence, not a masked bar (ADR 0056). */}
+      {!priceBlind && (
+        <div className="xl:hidden">
+          <CommerceBar result={result} canSeeCost={canSeeCost} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The BOM view, picked by role at the call site so the price-blind variant is
+ * visible in the JSX rather than hidden behind a boolean the table interprets.
+ */
+function BomForRole({
+  result,
+  priceBlind,
+  rounding,
+}: {
+  result: UiResult;
+  priceBlind: boolean;
+  rounding: ConfiguratorPricing["rounding"];
+}) {
+  return priceBlind ? (
+    <BomTable.PriceBlind result={result} rounding={rounding} className="h-full" />
+  ) : (
+    <BomTable result={result} rounding={rounding} className="h-full" />
+  );
+}
+
+type UiResult = NonNullable<ReturnType<typeof useConfiguratorDerive>["derivation"]>["result"];
+
+/**
+ * The compact commerce bar for the tablet and mobile bands (frames-v2.jsx:384-391).
+ * Price and validity only — the canvas's two CTAs are deliberately absent
+ * (ADR 0116: saving already lives on the Souhrn step, and quoting has no
+ * destination from an unbound configurator).
+ */
+function CommerceBar({ result, canSeeCost }: { result: UiResult | null; canSeeCost: boolean }) {
+  const t = useTranslations("configurator");
+  const locale = useLocale();
+  if (result === null) return null;
+
+  // The canvas's tablet bar draws "Cena bez DPH · marže 34 %", and the full
+  // `CommercialPanel` only exists at lg+ — so without this an ADMIN on a 900px
+  // tablet (the canvas's own on-site band) lost cost, margin and the floor
+  // meter entirely, with no way to reach them at that width. The margin rides
+  // in the bar's caption for exactly the viewers allowed to see it.
+  const margin =
+    canSeeCost && result.isValid && result.costMoney !== undefined
+      ? marginPct(result.money, result.costMoney)
+      : null;
+
+  return (
+    <StickyActionBar tone="primary" aria-label={t("priceExVat")}>
+      <StickyActionBar.Price>
+        <span className="text-ui-xs opacity-80">
+          {t("priceExVat")}
+          {margin !== null && Number.isFinite(margin)
+            ? ` · ${t("marginWithPct", { pct: String(Math.round(margin)) })}`
+            : ""}
+        </span>
+        <span className="font-data text-ui-2xl font-semibold tabular-nums">
+          {result.isValid ? formatMoney(result.money.total, locale) : t("priceBlocked")}
+        </span>
+      </StickyActionBar.Price>
+      <StickyActionBar.Note tone={result.isValid ? "muted" : "destructive"}>
+        {result.isValid ? t("configValidShort") : t("priceBlockedNote")}
+      </StickyActionBar.Note>
+    </StickyActionBar>
+  );
+}
+
+/**
+ * The rail's per-step data. `done` and `sub` have no schema behind them
+ * (§8.2 asks where they come from), so both are DERIVED rather than invented.
+ *
+ * **`done` is wizard progress — `index < activeIndex` — and deliberately not
+ * parameter completeness.** The obvious-looking rule ("every visible parameter
+ * on this step has a value") was tried and is WRONG on the shipped corpus, in
+ * both directions at once: `sliding-gate@1` seeds all three `Výbava a práce`
+ * parameters from `initialInput`, so that step rendered a completed check before
+ * the user had ever opened it, while `Rozměry` and `Konstrukce` each own a
+ * parameter that is in the `ui` spec but absent from `initialInput` and carries
+ * no `relevance` gate — so they could never read as done no matter what the user
+ * did. Every user would have seen the one step nobody visits marked complete and
+ * the two steps they actually edit marked incomplete. Progress is monotone,
+ * matches what the canvas draws (earlier steps checked, current step ringed),
+ * and cannot invert.
+ *
+ * `sub` is the value echo, taken from the step's OWN first two visible
+ * parameters — not the first two that happen to be filled, which made the echo
+ * jump to a different pair the moment a later field was touched. Values go
+ * through `formatValue`, the same formatter the Souhrn spec sheet uses, so a
+ * bool renders "Ano" rather than the raw `true` and an enum renders its authored
+ * label rather than its id. Effective values (`scope`) are preferred over raw
+ * input so a defaulted parameter still echoes.
+ */
+function useRailItems(
+  flow: BrandStep[],
+  activeIndex: number,
+  input: ConfigInput,
+  scope: Scope | undefined,
+  optionSets: OptionSet[],
+  t: (key: (typeof STEP_LABEL)[keyof typeof STEP_LABEL] | "yes" | "no") => string,
+): RailItem[] {
+  return useMemo(
+    () =>
+      flow.map((step, index) => {
+        const defs = step.groups
+          .flatMap((g) => g.params)
+          .filter((p) => p.visible)
+          .map((p) => p.def)
+          .slice(0, 2);
+        const sub = defs
+          .map((def) =>
+            formatValue(def, scope?.[def.key] ?? input[def.key], optionSets, t("yes"), t("no")),
+          )
+          .filter((v) => v !== "—")
+          .join(" × ");
+        return {
+          key: flowKey(step),
+          label: stepLabel(step, t),
+          ...(sub === "" ? {} : { sub }),
+          done: index < activeIndex,
+        };
+      }),
+    [flow, activeIndex, input, scope, optionSets, t],
   );
 }
 
@@ -266,9 +512,11 @@ function StepBody({
   release: ConfigurableProduct["release"];
   steps: ReturnType<typeof resolveUi>;
   input: ConfigInput;
-  scope: UiDerivation["scope"];
-  result: UiDerivation["result"];
-  drawing: UiDerivation["drawing"];
+  scope: ReturnType<typeof useConfiguratorDerive>["derivation"] extends null
+    ? never
+    : Parameters<typeof resolveUi>[1] | undefined;
+  result: UiResult | null;
+  drawing: NonNullable<ReturnType<typeof useConfiguratorDerive>["derivation"]>["drawing"];
   priceBlind: boolean;
   shareToken: string;
   onValueChange: (key: string, value: Value | undefined) => void;
@@ -281,7 +529,7 @@ function StepBody({
     case "barva":
       return <FinishPicker />;
     case "souhrn":
-      return (
+      return result === null ? null : (
         <Summary
           steps={steps}
           scope={scope}
@@ -323,7 +571,7 @@ function ParamGroups({
   groups: ResolvedUiGroup[];
   optionSets: ConfigurableProduct["release"]["optionSets"];
   input: ConfigInput;
-  scope: UiDerivation["scope"];
+  scope: Parameters<typeof resolveUi>[1] | undefined;
   onValueChange: (key: string, value: Value | undefined) => void;
 }) {
   const t = useTranslations("configurator");
@@ -399,56 +647,5 @@ function ProductPicker({
         })}
       </div>
     </Panel>
-  );
-}
-
-/** The hero: persistent live R3F across the 3D steps (the camera animates between
- *  named poses), the SVG plan on the step carrying `plan` (the first
- *  release-authored one, ADR 0115), the SVG elevation as the WebGL-down
- *  fallback (technique 10). */
-function Hero({
-  step,
-  derivation,
-  releaseId,
-  webgl,
-}: {
-  step: BrandStep;
-  derivation: UiDerivation;
-  releaseId: string;
-  webgl: boolean;
-}) {
-  const t = useTranslations("configurator");
-
-  // The first release-authored step frames the top-down site plan rather than
-  // the 3D scene — the ADR 0077 "Lokalita" carry-over (see `wizard-flow.ts`).
-  if (step.plan) {
-    return derivation.plan !== undefined ? (
-      <Panel elevation="raised" padded={false} className="h-full overflow-hidden p-4">
-        <SitePlanSvg plan={derivation.plan} className="h-full w-full" />
-      </Panel>
-    ) : (
-      <ViewportNote message={t("sceneInvalid")} />
-    );
-  }
-
-  if (webgl && derivation.scene !== undefined) {
-    return <SceneViewport key={releaseId} scene={derivation.scene} view={step.view} />;
-  }
-
-  // WebGL unavailable (or invalid scene) → the pure technical elevation.
-  return derivation.drawing !== undefined ? (
-    <Panel elevation="raised" className="h-full overflow-hidden">
-      <WorkshopDrawingSvg drawing={derivation.drawing} className="h-full w-full" />
-    </Panel>
-  ) : (
-    <ViewportNote message={t("sceneInvalid")} />
-  );
-}
-
-function ViewportNote({ message }: { message: string }) {
-  return (
-    <div className="bg-field-raised text-muted-foreground shadow-soft flex h-full items-center justify-center rounded-2xl text-sm">
-      {message}
-    </div>
   );
 }

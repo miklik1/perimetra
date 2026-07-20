@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "@repo/i18n/web";
 import { resolveUi, type ProductModelRelease, type Value } from "@repo/model";
 
 import { formatMoney } from "../../../../lib/format-money";
+import { useCanSeeCost } from "../../../../lib/use-role";
 import { ParamField } from "../../../configurator/param-field";
 import { ResultsPanel } from "../../../configurator/results-panel";
 import { type ReleasePreview } from "../lib/use-release-preview";
@@ -36,6 +37,11 @@ export function PreviewTab({
   priceBlind: boolean;
 }) {
   const t = useTranslations("releaseEditor");
+  // Cost + margin are admin-only (ADR 0116), a NARROWER line than the ADR 0056
+  // price-blindness the `priceBlind` prop carries. Read here rather than added
+  // to the prop list: the editor above has no role knowledge to pass down, and
+  // this is the only consumer of the distinction on this surface.
+  const canSeeCost = useCanSeeCost();
 
   // Resolve the wizard off the release itself; `scope` (when valid) feeds the
   // `effective` (default-applied) values + relevance, else the raw input.
@@ -85,7 +91,7 @@ export function PreviewTab({
 
       {preview.result && <ResultsPanel result={preview.result} priceBlind={priceBlind} />}
 
-      {preview.result?.isValid && preview.result.costMoney && !priceBlind && (
+      {preview.result?.isValid && preview.result.costMoney && canSeeCost && (
         <CostMargin money={preview.result.money} costMoney={preview.result.costMoney} />
       )}
     </div>

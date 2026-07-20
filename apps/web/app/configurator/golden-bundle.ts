@@ -14,16 +14,31 @@ import {
   sitePrices,
   slidingGateV1,
 } from "@repo/fixtures";
-import type { Catalog } from "@repo/model";
+import { DEFAULT_ROUNDING_POLICY, type Catalog } from "@repo/model";
 
 import type { SiteDeriveContext } from "../site/derive";
-import type { ConfigurableProduct } from "./products";
+import type { ConfigurableProduct, ConfiguratorPricing } from "./products";
 
 export const goldenPrices: PriceTable = sitePrices;
 
+/**
+ * The golden corpus as `ConfiguratorPricing` (ADR 0116). No cost layer and no
+ * floor: the delta-0 lineage predates the cost model (ADR 0059), and the golden
+ * totals (gate 81 451.504, site 134 723.5) are stated under the DEFAULT rounding
+ * policy — so pinning that policy EXPLICITLY here is what keeps those goldens
+ * meaningful. A test that wants cost/margin builds its own literal rather than
+ * mutating this one.
+ */
+export const goldenPricing: ConfiguratorPricing = {
+  table: sitePrices,
+  cost: null,
+  marginFloorPct: null,
+  rounding: DEFAULT_ROUNDING_POLICY,
+};
+
 export const goldenProducts: ConfigurableProduct[] = [
-  { release: slidingGateV1, initialInput: siteGateConfig },
-  { release: fenceRunV1, initialInput: siteFenceConfig },
+  { release: slidingGateV1, initialInput: siteGateConfig, catalogVersion: 2 },
+  { release: fenceRunV1, initialInput: siteFenceConfig, catalogVersion: 2 },
 ];
 
 /** Per-release catalog map (ADR 0065), keyed by release id — both golden
@@ -36,5 +51,5 @@ export const goldenCatalogs: ReadonlyMap<string, Catalog> = new Map([
 export const goldenCtx: SiteDeriveContext = {
   products: goldenProducts,
   catalogs: goldenCatalogs,
-  prices: goldenPrices,
+  pricing: goldenPricing,
 };

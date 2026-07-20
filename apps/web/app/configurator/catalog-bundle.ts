@@ -1,8 +1,8 @@
 import "server-only";
 
 import { isForbidden, isNotFound, type ApiClient } from "@repo/api";
-import type { ConfigInput, PriceTable } from "@repo/engine";
-import type { Catalog, ProductModelRelease } from "@repo/model";
+import type { ConfigInput, CostTable, PriceTable } from "@repo/engine";
+import type { Catalog, ProductModelRelease, RoundingPolicy } from "@repo/model";
 import { appendSearchParams } from "@repo/utils";
 import {
   catalogVersionSchema,
@@ -12,7 +12,7 @@ import {
   type ReleaseSummary,
 } from "@repo/validators";
 
-import type { CatalogBundle, ConfigurableProduct } from "./products";
+import type { CatalogBundle, ConfigurableProduct, ConfiguratorPricing } from "./products";
 
 /**
  * Assemble the configurator/site bundle from the api (ADR 0060, over the ADR 0053
@@ -55,7 +55,7 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     cursor = page!.nextCursor ?? undefined;
   } while (cursor);
 
-  if (summaries.length === 0) return { products: [], catalogs: new Map(), prices: null };
+  if (summaries.length === 0) return { products: [], catalogs: new Map(), pricing: null };
 
   // 2. Each release body + initialInput (the list ships metadata only).
   const details = await Promise.all(
@@ -63,9 +63,11 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
       client.apiFetch(`/v1/releases/${s.id}`, { parse: (d) => releaseSchema.parse(d) }),
     ),
   );
-  const products: ConfigurableProduct[] = details.map((d) => ({
+  const products: ConfigurableProduct[] = details.map((d, i) => ({
     release: d!.body as ProductModelRelease,
     initialInput: (d!.initialInput as ConfigInput | null) ?? {},
+    // `details` is `Promise.all` over `summaries` in order, so index i pairs.
+    catalogVersion: summaries[i]!.catalogVersion,
   }));
 
   // 3. Per-release catalog (ADR 0065): each release derives against its OWN pinned
@@ -89,16 +91,31 @@ export async function fetchCatalogBundle(client: ApiClient): Promise<CatalogBund
     products.map((p, i) => [p.release.id, catalogByVersion.get(summaries[i]!.catalogVersion)!]),
   );
 
-  // 4. The org's active price table (price-blind / none → null, not an error).
-  let prices: PriceTable | null = null;
+  // 4. The org's active pricing (price-blind / none → null, not an error).
+  //
+  // The endpoint has always shipped the whole commercial row; until ADR 0116 this
+  // kept `table` and dropped the rest, so the client engine ran with no cost
+  // layer (no margin was renderable at all) and under the DEFAULT rounding policy
+  // rather than the org's — the configurator's price could therefore differ from
+  // the one `issue` freezes. All four layers now travel together.
+  let pricing: ConfiguratorPricing | null = null;
   try {
     const active = await client.apiFetch("/v1/price-tables/active", {
       parse: (d) => priceTableSchema.parse(d),
     });
-    if (active) prices = active.table as PriceTable;
+    if (active) {
+      pricing = {
+        table: active.table as PriceTable,
+        cost: (active.cost as CostTable | null) ?? null,
+        // Decimal string on the wire (a percent, 0–100 — the same units the
+        // server guard compares against); null when the org sets no floor.
+        marginFloorPct: active.marginFloorPct === null ? null : Number(active.marginFloorPct),
+        rounding: active.roundingPolicy as RoundingPolicy,
+      };
+    }
   } catch (error) {
     if (!isForbidden(error) && !isNotFound(error)) throw error;
   }
 
-  return { products, catalogs, prices };
+  return { products, catalogs, pricing };
 }

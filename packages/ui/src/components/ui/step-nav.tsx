@@ -22,8 +22,18 @@ import { Icon } from "./icon";
  * `collapsed` prop"). A boolean here would have to be computed by every screen
  * that renders a wizard, and screens that compute the same thing separately
  * eventually disagree. The rail simply reports what fits in the space it was
- * given: below `18rem` the labels and sub-lines drop out and each item keeps its
+ * given: below `10rem` the labels and sub-lines drop out and each item keeps its
  * accessible name, so nothing is lost to a screen reader at any width.
+ *
+ * The threshold is `10rem` (160px) and that number is load-bearing. It was
+ * `18rem` (288px) until the ADR 0116 configurator surface tried to use this
+ * component at the very width the paragraph above documents: a container query
+ * measures the nav's own CONTENT box, so the canvas's 210px rail presents about
+ * 186px here — under 288px, so the expanded state was structurally unreachable
+ * and the rail always drew as dots, contradicting this file's own stated intent.
+ * 160px sits cleanly between the collapsed rail (~44px) and that 186px, so both
+ * documented densities are now reachable. Any future change must be checked
+ * against the CONTENT box, not the rail's outer width.
  *
  * The compact rail in the export labels its dots with the native `title`
  * attribute, which §12.2 bans outright — `title` is invisible to keyboard and
@@ -98,7 +108,7 @@ function StepNavHeading({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="step-nav-heading"
       className={cn(
-        "text-muted-foreground text-ui-xs @[18rem]/step-nav:block hidden px-2 pb-2 pt-0.5 font-semibold uppercase tracking-[0.06em]",
+        "text-muted-foreground text-ui-xs @[10rem]/step-nav:block hidden px-2 pb-2 pt-0.5 font-semibold uppercase tracking-[0.06em]",
         className,
       )}
       {...props}
@@ -135,7 +145,7 @@ function StepNavItem({ className, value, state, onClick, children, ...props }: S
         className={cn(
           "ease-brand rounded-control flex items-center gap-3 p-2 text-left outline-none transition-colors duration-200",
           "focus-visible:ring-ring focus-visible:ring-2",
-          "@[18rem]/step-nav:justify-start @[18rem]/step-nav:px-2.5 @[18rem]/step-nav:py-2.5 justify-center",
+          "@[10rem]/step-nav:justify-start @[10rem]/step-nav:px-2.5 @[10rem]/step-nav:py-2.5 justify-center",
           active && "bg-chrome-subtle shadow-[inset_2px_0_0_var(--color-copper)]",
           locked ? "opacity-disabled cursor-default" : "hover:bg-chrome-subtle cursor-pointer",
           className,
@@ -155,7 +165,7 @@ function StepNavItem({ className, value, state, onClick, children, ...props }: S
          * carries; `sr-only` -> `not-sr-only` keeps the accessible name intact at
          * every width from a single subtree.
          */}
-        <span className="@[18rem]/step-nav:not-sr-only @[18rem]/step-nav:flex @[18rem]/step-nav:min-w-0 @[18rem]/step-nav:flex-1 @[18rem]/step-nav:flex-col sr-only">
+        <span className="@[10rem]/step-nav:not-sr-only @[10rem]/step-nav:flex @[10rem]/step-nav:min-w-0 @[10rem]/step-nav:flex-1 @[10rem]/step-nav:flex-col sr-only">
           {children}
         </span>
       </button>

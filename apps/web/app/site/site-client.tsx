@@ -91,7 +91,7 @@ export function SiteClient({
     >
       {bundle === null || bundle.products.length === 0 || bundle.catalogs.size === 0 ? (
         notice(t("noProducts"))
-      ) : bundle.prices === null ? (
+      ) : bundle.pricing === null ? (
         notice(t("noPrices"))
       ) : (
         <SiteCanvas
@@ -100,7 +100,7 @@ export function SiteClient({
           initialInstances={initialInstances}
           initialVersion={initialVersion}
           initialSelectedId={initialSelectedId}
-          ctx={{ products: bundle.products, catalogs: bundle.catalogs, prices: bundle.prices }}
+          ctx={{ products: bundle.products, catalogs: bundle.catalogs, pricing: bundle.pricing }}
         />
       )}
     </AuthGuard>

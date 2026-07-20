@@ -7,7 +7,7 @@ import { I18nProvider } from "@repo/i18n/web";
 import { resolveUi } from "@repo/model";
 
 import { deriveForUi } from "./derive";
-import { goldenCatalogs, goldenPrices, goldenProducts } from "./golden-bundle";
+import { goldenCatalogs, goldenPricing, goldenProducts } from "./golden-bundle";
 import { Summary } from "./summary";
 
 /**
@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 const gate = goldenProducts[0]!;
 
 function renderSummary() {
-  const derivation = deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalogs);
+  const derivation = deriveForUi(gate, gate.initialInput, goldenPricing, goldenCatalogs);
   const steps = resolveUi(gate.release, derivation.scope ?? gate.initialInput);
   return render(
     <I18nProvider locale="cs" messages={cs}>

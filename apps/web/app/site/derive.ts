@@ -19,7 +19,6 @@ import {
   type ConfigInput,
   type DerivationResult,
   type Issue,
-  type PriceTable,
   type SiteInstance,
   type SiteResult,
 } from "@repo/engine";
@@ -34,7 +33,7 @@ import {
   type Vec3,
 } from "@repo/renderers";
 
-import { type ConfigurableProduct } from "../configurator/products";
+import { type ConfigurableProduct, type ConfiguratorPricing } from "../configurator/products";
 
 /** The api-served catalog context the canvas derives against (ADR 0060):
  *  the published products (indexed roster), each release's catalog keyed by
@@ -44,7 +43,17 @@ import { type ConfigurableProduct } from "../configurator/products";
 export interface SiteDeriveContext {
   products: ConfigurableProduct[];
   catalogs: ReadonlyMap<string, Catalog>;
-  prices: PriceTable;
+  pricing: ConfiguratorPricing;
+}
+
+/** The commercial options every derive on this context runs under (ADR 0116) —
+ *  cost when the table carries it, and ALWAYS the org's rounding policy, so the
+ *  canvas price matches the one `issue` freezes rather than the engine default. */
+function deriveOptions(ctx: SiteDeriveContext) {
+  return {
+    ...(ctx.pricing.cost !== null && { costs: ctx.pricing.cost }),
+    rounding: ctx.pricing.rounding,
+  };
 }
 
 /** One placed instance as the canvas stores it: which release (by product
@@ -156,8 +165,9 @@ export function deriveInstanceScope(
   const { result, scope } = deriveInstanceDetailed(
     releaseOf(ctx, instance),
     terrainInput(ctx, site, instance),
-    ctx.prices,
+    ctx.pricing.table,
     catalogOf(ctx, instance),
+    deriveOptions(ctx),
   );
   return { result, ...(scope && { scope }) };
 }
@@ -207,7 +217,13 @@ export function deriveSiteForUi(
   site: Site,
   placed: PlacedInstance[],
 ): SiteUiDerivation {
-  const result = deriveSite(site, siteInstances(ctx, placed), ctx.prices, ctx.catalogs);
+  const result = deriveSite(
+    site,
+    siteInstances(ctx, placed),
+    ctx.pricing.table,
+    ctx.catalogs,
+    deriveOptions(ctx),
+  );
 
   const placementOf = new Map(site.placements.map((p) => [p.instanceId, p]));
   const usedPorts = new Set(

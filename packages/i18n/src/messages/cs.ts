@@ -242,6 +242,65 @@ const cs = {
     shareCopied: "Odkaz zkopírován",
     noProducts: "Zatím nejsou publikovány žádné produkty.",
     noPrices: "Pro vaši roli nebo organizaci není k dispozici aktivní ceník.",
+
+    // ── The ADR 0114/0116 configurator surface (design/configurator/frames-v2) ──
+    // Copy transferred verbatim from the canvas where the canvas draws it; the
+    // rest is filled in the canvas's register (§12.1 item 8).
+    configuration: "Konfigurace",
+    stepCounter: "krok {current} ze {total}",
+    catalogVersion: "katalog {version}",
+    saved: "Uloženo",
+    unsaved: "Neuloženo",
+    backToProject: "Zpět na projekt",
+    // The scene view switch.
+    view3d: "3D",
+    viewDrawing: "Výkres",
+    viewBom: "Rozpad",
+    computing: "Přepočítávám…",
+    watermarkLive: "Živý 3D náhled",
+    watermarkDrawing: "Automatický výkres",
+    deriveFailed: "Konfiguraci se nepodařilo spočítat.",
+    // The commercial panel (rep-only; cost/margin narrow further to admin).
+    priceExVat: "Cena položky bez DPH",
+    priceBlocked: "Nelze spočítat",
+    priceBlockedNote: "Konfigurace obsahuje chybu.",
+    cost: "Náklad (nákup)",
+    margin: "Marže",
+    marginWithPct: "Marže {pct} %",
+    marginFloor: "limit {pct} %",
+    marginBelowFloor: "Marže pod limitem",
+    // The canvas pairs this with a „Povolit odchylku“ button. There is no
+    // deviation-ledger backend, so the surface states the consequence and omits
+    // the action rather than shipping a control that leads nowhere (ADR 0116).
+    marginBelowFloorNote: "Vydání nabídky bude vyžadovat schválení odchylky.",
+    configValid: "Konfigurace platná · marže nad limitem",
+    configValidShort: "Konfigurace platná",
+    createQuote: "Vytvořit nabídku",
+    errorsBlockIssue:
+      "{count, plural, one {# chyba blokuje vydání} few {# chyby blokují vydání} other {# chyb blokuje vydání}}",
+    // The Rozpad / BOM table.
+    configuratorLabel: "Konfigurátor",
+    viewSwitchLabel: "Zobrazení náhledu",
+    // Shown to a viewer who may see the price but NOT the margin (sales, ADR
+    // 0116) when the configuration breaches the org's margin floor. It must warn
+    // WITHOUT disclosing the margin — otherwise the role split leaks through the
+    // warning. Without it a sales rep meets the breach as a 422 at issue.
+    approvalRequired: "Vydání této konfigurace bude vyžadovat schválení.",
+    // `marginPct` is not finite when the price is zero or negative against a real
+    // cost — a real state (a fully discounted line), not an error, and rendering
+    // "-Infinity %" would be worse than naming it.
+    marginNotComputable: "Marži nelze spočítat",
+    // BOM units. `Part.unit` is a `BomUnit` enum and was rendering raw, so a
+    // Czech table read "12,5 meter".
+    unitMeter: "m",
+    unitPiece: "ks",
+    unitSet: "sada",
+    unitHour: "h",
+    bomSection: "Skupina",
+    bomDimension: "Rozměr",
+    bomUnitPrice: "Cena/ks",
+    bomLineTotal: "Celkem",
+    bomEmpty: "Konfigurace zatím neobsahuje žádné položky.",
     saveToProject: {
       title: "Uložit do projektu",
       newProject: "Nový projekt",

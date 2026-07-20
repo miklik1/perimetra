@@ -31,7 +31,7 @@ import { finishById, useFinish } from "./scene/finish";
  * belongs to the ADR 0048 deep-link receiving side (M6), where an anonymous
  * visitor actually exists.
  */
-function formatValue(
+export function formatValue(
   def: { type: string; domain?: { kind: string; values?: string[] } },
   value: Value | undefined,
   optionSets: OptionSet[],

@@ -51,6 +51,20 @@ export function useEngineWorker<Req extends { kind: string }, Res extends { kind
       return; // stay on the synchronous fallback
     }
     worker.onmessage = (event: MessageEvent<Res>) => handlerRef.current(event.data);
+    // A worker that CONSTRUCTS but never runs is the dangerous case: the
+    // constructor is async, so a 404 on the worker chunk (a stale build manifest
+    // during a deploy rollover) or a throw at module evaluation does NOT reject
+    // here. Without these handlers `workerRef` stays set, every `post` reports
+    // success, the consumer's synchronous fallback is never reached, and no
+    // response ever arrives — the surface sits on its loading state forever with
+    // no error to show. Dropping the reference converts that into `post()`
+    // returning false, which is the fallback signal consumers already handle.
+    const drop = () => {
+      workerRef.current = null;
+      worker.terminate();
+    };
+    worker.onerror = drop;
+    worker.onmessageerror = drop;
     workerRef.current = worker;
     return () => {
       worker.terminate();

@@ -7,7 +7,7 @@ import { I18nProvider } from "@repo/i18n/web";
 
 import { formatMoney } from "../../lib/format-money";
 import { deriveForUi } from "./derive";
-import { goldenCatalogs, goldenPrices, goldenProducts } from "./golden-bundle";
+import { goldenCatalogs, goldenPricing, goldenProducts } from "./golden-bundle";
 import { ResultsPanel } from "./results-panel";
 
 /**
@@ -25,7 +25,7 @@ const gate = goldenProducts[0]!;
 
 /** A real, engine-produced valid result (the delta-0 golden lineage). */
 function goldenResult(): DerivationResult {
-  return deriveForUi(gate, gate.initialInput, goldenPrices, goldenCatalogs).result;
+  return deriveForUi(gate, gate.initialInput, goldenPricing, goldenCatalogs).result;
 }
 
 /** A real, engine-produced INVALID result (clear height below the minimum). */
@@ -33,7 +33,7 @@ function invalidResult(): DerivationResult {
   return deriveForUi(
     gate,
     { ...gate.initialInput, clear_height_mm: 100 },
-    goldenPrices,
+    goldenPricing,
     goldenCatalogs,
   ).result;
 }
