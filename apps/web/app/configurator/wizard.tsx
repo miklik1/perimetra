@@ -41,10 +41,18 @@ export function Wizard({
     <Panel className="flex flex-col gap-5 text-sm" elevation="flat">
       <StepNav
         aria-label={t("title")}
-        steps={steps.map((s) => ({ id: s.id, label: s.label ?? s.id }))}
-        activeIndex={stepIndex}
-        onSelect={onStepChange}
-      />
+        value={steps[stepIndex]?.id}
+        onValueChange={(id) => {
+          const next = steps.findIndex((s) => s.id === id);
+          if (next !== -1) onStepChange(next);
+        }}
+      >
+        {steps.map((s) => (
+          <StepNav.Item key={s.id} value={s.id}>
+            <StepNav.Label>{s.label ?? s.id}</StepNav.Label>
+          </StepNav.Item>
+        ))}
+      </StepNav>
 
       {step.groups.map((group) => {
         const visible = group.params.filter((p) => p.visible);

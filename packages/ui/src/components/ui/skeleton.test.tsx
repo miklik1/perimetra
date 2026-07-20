@@ -11,6 +11,12 @@ describe("Skeleton", () => {
     expect(sk).toHaveAttribute("data-slot", "skeleton");
     expect(sk).toHaveClass("animate-pulse", "rounded-control", "bg-muted", "h-8", "w-40");
   });
+
+  it("stops the pulse under prefers-reduced-motion, for every consumer at once", () => {
+    render(<Skeleton data-testid="sk" />);
+
+    expect(screen.getByTestId("sk")).toHaveClass("motion-reduce:animate-none");
+  });
 });
 
 describe("Spinner", () => {

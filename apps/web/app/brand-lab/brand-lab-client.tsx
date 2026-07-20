@@ -752,7 +752,23 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
           hint="Pill step-nav (near-black active) and the circular icon-button cluster."
         >
           <Panel className="flex flex-col gap-8">
-            <StepNav steps={steps} activeIndex={step} onSelect={setStep} aria-label="Demo steps" />
+            <StepNav
+              value={steps[step]?.id}
+              onValueChange={(id) => {
+                const next = steps.findIndex((s) => s.id === id);
+                if (next !== -1) setStep(next);
+              }}
+              aria-label="Demo steps"
+              className="max-w-[210px]"
+            >
+              <StepNav.Heading>Konfigurace</StepNav.Heading>
+              {steps.map((s, i) => (
+                <StepNav.Item key={s.id} value={s.id} state={i < step ? "done" : undefined}>
+                  <StepNav.Label>{s.label}</StepNav.Label>
+                  <StepNav.Sub>{i === step ? "Probíhá" : i < step ? "Hotovo" : "Čeká"}</StepNav.Sub>
+                </StepNav.Item>
+              ))}
+            </StepNav>
             <div className="flex items-center gap-8">
               <IconCluster orientation="horizontal">
                 <IconButton aria-label="add">

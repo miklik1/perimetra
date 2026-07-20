@@ -315,6 +315,22 @@
 
   --color-info-hover: color-mix(in oklab, var(--color-info) 88%, var(--color-foreground));
   --color-info-active: color-mix(in oklab, var(--color-info) 78%, var(--color-foreground));
+
+  /* Design-canvas adoption (ADR 0114). Three tint rungs the canvas wrote as RAW
+   * inline color-mix() math over tokens, with no name of their own. Naming them is
+   * the point: an unnamed 5% tint written twice (design/configurator/frames-v2.jsx:133
+   * and parts.jsx:156 carry the SAME recipe in two files) becomes 6% the third time
+   * someone eyeballs it. They live here, `inline`, for the nesting reason above.
+   *
+   * Namespace safety — the rule this repo learned the hard way (ADR 0114 §7.1/§7.2):
+   * --color-* IS a Tailwind-v4-owned namespace, but the framework's built-in names are
+   * the palette families (red-500, zinc-900, …). `ring-subtle`, `destructive-subtle`
+   * and `swatch-outline` collide with none of them, so each ADDS a utility and shadows
+   * nothing. The four existing -subtle rungs (success/warning/info/spotlight) are the
+   * in-file precedent. Verified by differential compile: purely additive. */
+  --color-ring-subtle: color-mix(in oklab, var(--color-ring) 8%, transparent);
+  --color-destructive-subtle: color-mix(in oklab, var(--color-destructive) 5%, transparent);
+  --color-swatch-outline: color-mix(in oklab, var(--color-foreground) 20%, transparent);
 }
 
 /*

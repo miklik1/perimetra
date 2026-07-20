@@ -160,10 +160,18 @@ function ConfiguratorInner({
         <div className="flex-1">
           <StepNav
             aria-label={t("title")}
-            steps={flow.map((s) => ({ id: s.kind, label: t(STEP_LABEL[s.kind]) }))}
-            activeIndex={stepIndex}
-            onSelect={setStepIndex}
-          />
+            value={flow[stepIndex]?.kind}
+            onValueChange={(kind) => {
+              const next = flow.findIndex((s) => s.kind === kind);
+              if (next !== -1) setStepIndex(next);
+            }}
+          >
+            {flow.map((s) => (
+              <StepNav.Item key={s.kind} value={s.kind}>
+                <StepNav.Label>{t(STEP_LABEL[s.kind])}</StepNav.Label>
+              </StepNav.Item>
+            ))}
+          </StepNav>
         </div>
       </header>
 

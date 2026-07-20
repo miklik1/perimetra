@@ -4,7 +4,7 @@ export { Toast, ToastViewport, toastVariants, type ToastProps } from "./componen
 export { Panel, panelVariants } from "./components/ui/panel";
 export { Badge, badgeVariants } from "./components/ui/badge";
 export { DisplayLabel } from "./components/ui/display-label";
-export { StepNav, type StepNavItem, type StepNavProps } from "./components/ui/step-nav";
+export { StepNav, StepProgress } from "./components/ui/step-nav";
 export { IconButton, IconCluster, iconButtonVariants } from "./components/ui/icon-button";
 export { FieldError, type FieldErrorProps } from "./components/ui/field-error";
 
@@ -41,5 +41,15 @@ export {
 } from "./components/ui/dialog";
 export { Skeleton, Spinner, Separator } from "./components/ui/skeleton";
 export { EmptyState } from "./components/ui/empty-state";
+
+// Design-canvas adoption (ADR 0114) — the export's own vocabulary, ported
+// verbatim. See design/README.md §9.
+export { Icon, ICON_PATHS, type IconName } from "./components/ui/icon";
+export { Alert, alertVariants, type AlertTone } from "./components/ui/alert";
+export { KeyValueList } from "./components/ui/key-value-list";
+export { SelectableCard } from "./components/ui/selectable-card";
+export { FadeScrollArea } from "./components/ui/fade-scroll-area";
+export { StickyActionBar } from "./components/ui/sticky-action-bar";
+export { SkeletonText } from "./components/ui/skeleton-text";
 
 export { cn } from "./lib/utils";
