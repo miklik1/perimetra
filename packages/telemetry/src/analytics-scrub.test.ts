@@ -168,11 +168,14 @@ describe("sanitizeAnalyticsProperties", () => {
 
   it("keeps an ambiguous chain intact when it contains no href at all", () => {
     // ADR 1018 defect 2 (over-redaction). The drop is gated on the chain actually
-    // containing an href: with no `href="` bytes anywhere, this scrub's only
-    // mutation is provably a no-op, so `[Filtered]` destroyed the whole element
-    // tree while removing nothing. Most autocapture events are clicks on buttons
-    // and divs with no href, and one straight double quote in a Czech UI label is
-    // enough to make the chain ambiguous.
+    // containing an href, so `[Filtered]` no longer destroys the whole element
+    // tree here. Most autocapture events are clicks on buttons and divs with no
+    // href, and one straight double quote in a Czech UI label is enough to make
+    // the chain ambiguous. NB since ADR 1022 the keep is no longer a free trade —
+    // a non-href segment could carry an embedded URL query that this branch now
+    // forgoes — but the residue is bounded to that one class, against losing the
+    // entire tree. This chain carries no URL, so nothing is forgone in THIS case;
+    // see the `attr__src` variant below for one that does.
     const chain = String.raw`button:attr__aria-label="Smazat \"Faktura 42\""nth-child="3";div:nth-child="1"`;
     expect(sanitizeAnalyticsProperties({ $elements_chain: chain })).toEqual({
       $elements_chain: chain,
@@ -333,5 +336,148 @@ describe("sanitizeAnalyticsProperties", () => {
         $elements_chain: String.raw`a:attr__HREF="/x?a=1\";customer=Novakova"`,
       }).$elements_chain,
     ).toBe("[Filtered]");
+  });
+
+  // ADR 1022 — non-href value segments of the chain. posthog-js serializes EVERY
+  // attribute of a non-sensitive element and folds the clicked element's text in
+  // too, so the chain carries URLs under names the href rule does not match.
+  // Before this branch existed the chain was the one property where those queries
+  // survived while the byte-identical value under `$elements` / `$el_text` was
+  // stripped in the same call.
+  it("strips an absolute URL's query out of a non-href attribute value", () => {
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'img:attr__src="https://app.cz/avatar?email=jan@example.cz"nth-child="1"',
+      }).$elements_chain,
+    ).toBe('img:attr__src="https://app.cz/avatar"nth-child="1"');
+  });
+
+  it("strips an absolute URL's query out of the folded-in element text", () => {
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'button:nth-child="1"text="Kopirovat https://app.cz/p/x?token=SECRETTOK"',
+      }).$elements_chain,
+    ).toBe('button:nth-child="1"text="Kopirovat https://app.cz/p/x"');
+  });
+
+  it("leaves a bare '?' in ordinary label text alone (no dropUrlQuery on non-href values)", () => {
+    // The generic pass needs a `://` or a dotted `//host`, which is exactly why it
+    // is used here instead of `dropUrlQuery`: a confirmation label must not be
+    // truncated at its question mark.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements_chain: 'button:nth-child="1"text="Smazat klienta?"',
+      }).$elements_chain,
+    ).toBe('button:nth-child="1"text="Smazat klienta?"');
+  });
+
+  it("keeps the chain byte-aligned — structure segments are never rewritten", () => {
+    const scrubbed = sanitizeAnalyticsProperties({
+      $elements_chain:
+        'img:attr__src="https://a.cz/x?q=1"nth-child="2";a:attr__href="/clients?search=Novakova"nth-child="1"',
+    }).$elements_chain as string;
+    expect(scrubbed).toBe(
+      'img:attr__src="https://a.cz/x"nth-child="2";a:attr__href="/clients"nth-child="1"',
+    );
+    // The rejoin is only sound if the quote count is preserved: the generic pass
+    // deletes characters and can never introduce a delimiter.
+    expect(scrubbed.split('"')).toHaveLength(9);
+  });
+
+  // ADR 1024 — the parity guard checks EVERY even segment, including the last.
+  it("rejects a chain whose shifted split parks the href value in the LAST segment", () => {
+    // The bounded loop (`i < parts.length - 1`) exempted the final even segment
+    // as "trailing text". That is exactly where a split shifted by one bare quote
+    // parks the href VALUE: only 'x=' was ever checked, it ends in `=`, and the
+    // URL at index 2 was read as structure and returned untouched — the chain
+    // came back BYTE-IDENTICAL with the token intact. Now `[Filtered]`.
+    const chain = 'x="y:attr__href="https://app.cz/p?token=SECRETTOK';
+    expect(chain).not.toContain(String.raw`\"`);
+    expect(sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain).toBe(
+      "[Filtered]",
+    );
+  });
+
+  it("still accepts a well-formed chain, whose last even segment is empty", () => {
+    // The tightening is free precisely because a well-formed chain ends on a
+    // closing quote, so the exempt segment is always "". This pins that the new
+    // rule does not start dropping ordinary chains.
+    const chain = 'a:attr__href="/clients?search=Novakova"nth-child="1"';
+    expect(chain.split('"').at(-1)).toBe("");
+    expect(sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain).toBe(
+      'a:attr__href="/clients"nth-child="1"',
+    );
+  });
+
+  it("does not run the generic pass on a chain whose parity is unverifiable", () => {
+    // The interaction between ADR 1020 and ADR 1022: the generic pass is only
+    // sound while an odd segment IS the value's exact extent, so it must not run
+    // once the grammar check has proved the split slipped. An injected tag_name
+    // quote makes `attr__src`'s URL land on an even index; the chain carries no
+    // href, so the ambiguous-case policy KEEPS it whole rather than rewriting the
+    // wrong segments. This is also the case that makes the keep-branch's residue
+    // concrete: the email query IS forgone here, which is the bounded cost ADR
+    // 1022 accepts rather than destroying the tree on an unparseable chain.
+    const chain = 'img"x:attr__src="https://a.cz/avatar?email=jan@example.cz"nth-child="1"';
+    expect(chain).not.toContain(String.raw`\"`);
+    expect(sanitizeAnalyticsProperties({ $elements_chain: chain }).$elements_chain).toBe(chain);
+  });
+
+  // ADR 1023 — `$heatmap_data`, the one property whose object KEYS are URLs.
+  it("drops the query from $heatmap_data's URL keys", () => {
+    expect(
+      sanitizeAnalyticsProperties({
+        $heatmap_data: { "https://app.cz/clients?search=Novakova": [{ x: 1, y: 2 }] },
+      }).$heatmap_data,
+    ).toEqual({ "https://app.cz/clients": [{ x: 1, y: 2 }] });
+  });
+
+  it("merges $heatmap_data buckets that collapse onto the same path", () => {
+    // Overwriting instead of merging would silently make a redaction rule a
+    // data-loss rule: `Object.fromEntries` keeps only the last repeated key.
+    expect(
+      sanitizeAnalyticsProperties({
+        $heatmap_data: {
+          "https://app.cz/clients?search=Novakova": [{ x: 1, y: 2 }],
+          "https://app.cz/clients?search=Svoboda": [{ x: 3, y: 4 }],
+          "https://app.cz/recipes": [{ x: 5, y: 6 }],
+        },
+      }).$heatmap_data,
+    ).toEqual({
+      "https://app.cz/clients": [
+        { x: 1, y: 2 },
+        { x: 3, y: 4 },
+      ],
+      "https://app.cz/recipes": [{ x: 5, y: 6 }],
+    });
+  });
+
+  // ADR 1025 — the merge must not be built by assignment into an object literal.
+  it("keeps a $heatmap_data bucket whose key is `__proto__`", () => {
+    // `merged[k] = v` is a [[Set]], so `__proto__` would hit Object.prototype's
+    // setter: the bucket became the result's PROTOTYPE and no own key was
+    // created, silently destroying interaction data — the exact failure the merge
+    // exists to prevent. Accumulating in a Map and finishing through
+    // Object.fromEntries (CreateDataProperty) keeps it an ordinary own property.
+    const out = sanitizeAnalyticsProperties({
+      $heatmap_data: JSON.parse('{"__proto__":[{"x":1}],"https://a.cz/b?q=1":[{"x":2}]}'),
+    }).$heatmap_data as Record<string, unknown>;
+    expect(Object.keys(out).sort()).toEqual(["__proto__", "https://a.cz/b"]);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(out, "__proto__")?.value).toEqual([{ x: 1 }]);
+  });
+
+  // ADR 1025 — the emitted-bytes residue, pinned so the comment stays honest.
+  it('can emit a `\\"` when a value ends in a backslash before its query', () => {
+    // stripEmbeddedUrlQueries only DELETES, so our own split/rejoin stays
+    // aligned — but deleting to end-of-segment can leave a trailing backslash
+    // adjacent to the rejoin delimiter, producing an escape the input did not
+    // contain. Re-running the scrub on that output is safe (ambiguity gate, no
+    // href, kept), which is the property that actually matters.
+    const out = sanitizeAnalyticsProperties({
+      $elements_chain: 'img:attr__src="https://a.cz/x\\?q=1"nth-child="1"',
+    }).$elements_chain as string;
+    expect(out).toBe('img:attr__src="https://a.cz/x\\"nth-child="1"');
+    expect(sanitizeAnalyticsProperties({ $elements_chain: out }).$elements_chain).toBe(out);
   });
 });

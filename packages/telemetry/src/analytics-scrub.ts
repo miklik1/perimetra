@@ -1,6 +1,6 @@
 /**
- * PostHog analytics property scrubber (ADR 1011, extended by ADR 1013) — the
- * analytics-sink mirror of the Sentry URL-query scrub in `./scrub`.
+ * PostHog analytics property scrubber (ADR 1011, extended by ADRs 1013, 1022 and
+ * 1023) — the analytics-sink mirror of the Sentry URL-query scrub in `./scrub`.
  *
  * WHY a second sink. The Sentry scrubber runs on Sentry events; the analytics
  * adapter (`./posthog-analytics`) runs `scrubEvent` on the properties of events
@@ -103,11 +103,21 @@ const CHAIN_HAS_AMBIGUOUS_ESCAPE = /\\"/;
 // `href="` + value + `"`, and `attr__href="` contains that same byte sequence, so
 // the ABSENCE of these bytes PROVES there is no href value anywhere — the one
 // conclusion that stays sound on a chain too ambiguous to parse. It gates the
-// drop: without an href the only mutation this scrub performs is provably a
-// no-op, so dropping would destroy the whole element tree for zero redaction
-// gain. A quote in captured text or an `aria-label` (`Smazat \"Faktura 42\"` —
-// ordinary in Czech UI copy) makes a chain ambiguous, and most autocapture events
-// are clicks on buttons and divs that carry no href. The test is a regex, not
+// drop, and what that gate COSTS changed with ADR 1022. Before it, the href cut
+// was this scrub's only mutation, so an href-less chain was provably a no-op and
+// keeping one forwent literally nothing. That is no longer true: a non-href
+// segment can now carry an embedded URL query, so a KEPT ambiguous chain does
+// leave that residue — and unlike the parseable case it is NOT covered by the
+// `$elements` path, which strips the same bytes either way. The trade still
+// favours keeping, for the reason it always did: the residue is bounded to the
+// `stripEmbeddedUrlQueries` class, whereas dropping destroys the ENTIRE element
+// tree on the overwhelming majority of autocapture events — clicks on buttons and
+// divs that carry no href, where one straight quote in captured text or an
+// `aria-label` (`Smazat \"Faktura 42\"` — ordinary in Czech UI copy) is enough to
+// make the chain ambiguous. Spelled out rather than left implicit, because the
+// claim this replaces was true when written and silently became false.
+//
+// The test is a regex, not
 // `String.includes`, so it is case-insensitive — `HREF="` is reachable, but NOT
 // via HTML parsing: the tokenizer's attribute-name state lowercases ASCII
 // upper-alpha unconditionally, and it is not context-sensitive to foreign
@@ -184,12 +194,77 @@ function scrubElementsChain(chain: string): string {
   if (CHAIN_HAS_AMBIGUOUS_ESCAPE.test(chain)) return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
   const parts = chain.split('"');
   // Parity must be VERIFIED, not assumed — see CHAIN_STRUCTURE_SEGMENT_TAIL.
-  for (let i = 0; i < parts.length - 1; i += 2)
-    if (!CHAIN_STRUCTURE_SEGMENT_TAIL.test(parts[i] as string))
-      return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
+  //
+  // EVERY even segment is checked, including the last (ADR 1024). An earlier
+  // revision bounded this loop at `parts.length - 1`, exempting the final even
+  // segment on the reasoning that it is trailing text rather than a name that
+  // opens a value. That exemption is exactly where a shifted split parks the
+  // href value: `x="y:attr__href="https://app.cz/p?token=secret` splits to
+  // ['x=', 'y:attr__href=', 'https://…?token=secret'], the only CHECKED segment
+  // ('x=') ends in `=` and passes, and the URL sits unexamined at the exempt
+  // index 2 — read as structure, never scrubbed, chain returned BYTE-IDENTICAL.
+  // The exemption cost nothing to remove because in a WELL-FORMED chain the
+  // final even segment is always the EMPTY string: a chain ends with a closing
+  // quote, so splitting leaves a trailing "". (When the quote count is odd the
+  // last index is odd — a value — and the last even index is already covered by
+  // the `=` rule, which is what keeps the deliberate truncated-chain behaviour
+  // of ADR 1018 intact.) So the last even segment is required to be empty and
+  // every other one to end in `=`.
+  for (let i = 0; i < parts.length; i += 2) {
+    const segment = parts[i] as string;
+    const aligned =
+      i === parts.length - 1 ? segment === "" : CHAIN_STRUCTURE_SEGMENT_TAIL.test(segment);
+    if (!aligned) return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
+  }
   for (let i = 1; i < parts.length; i += 2) {
-    if (CHAIN_HREF_NAME_TAIL.test(parts[i - 1] as string))
-      parts[i] = dropUrlQuery(parts[i] as string);
+    const value = parts[i] as string;
+    // An href value is the whole URL, so its query is cut outright. Every OTHER
+    // value segment gets the same generic embedded-URL pass an ordinary string
+    // property would get (ADR 1022), because those segments are not href-shaped
+    // but do carry URLs: posthog-js serializes EVERY attribute of a non-sensitive
+    // element (`attr__src`, `attr__value`, `attr__data-*`) and folds the clicked
+    // element's `text` in as well, so an
+    // `<img src="https://cdn.app.cz/avatar?email=…">` or a label reading
+    // "Copy https://app.cz/p/x?token=…" reached the chain with its query intact.
+    // Without this branch the chain was the ONE property where those bytes
+    // survived: the byte-identical value under `$elements` or `$el_text` is
+    // stripped in the SAME call, which is exactly the kind of silent asymmetry
+    // this module exists to remove.
+    //
+    // The header rejects the generic pass over the WHOLE chain because its tail
+    // would run past a value's closing quote and shred the following attributes.
+    // That hazard does not apply per-segment, and here the distinction rests on
+    // something stronger than the no-`\"` precondition ADR 1020 showed to be
+    // unsound on its own: the parity loop above has already VERIFIED that this
+    // split is aligned, so an odd segment is the value's EXACT extent rather than
+    // merely assumed to be. `stripEmbeddedUrlQueries` then only ever DELETES
+    // characters — it can never introduce a `"` — so the quote count is preserved
+    // and the rejoin stays byte-aligned with the structure segments, which are
+    // not touched at all.
+    //
+    // That is a claim about OUR parse, and it is worth being precise that it is
+    // not a claim about the bytes we EMIT (ADR 1025). Deleting to end-of-segment
+    // can leave a value ending in a backslash that was previously separated from
+    // the delimiter by the query, so the rejoin can produce a `\"` that the input
+    // did not contain: `attr__src="https://a.cz/x\?q=1"` scrubs to
+    // `attr__src="https://a.cz/x\"`. Our own quote COUNT and alignment are
+    // untouched (we already split), and re-running this scrub on its own output
+    // is safe — the `\"` trips the ambiguity gate, and an href-less chain is then
+    // kept. The residue is that PostHog's ingestion parser sees a chain one
+    // escape more ambiguous than the one the SDK emitted, i.e. degraded element
+    // detail on an input that already had to contain a stray backslash before a
+    // query. Recorded rather than fixed: making it exact would mean re-escaping
+    // on the way out, which mutates bytes outside the matched query and is a
+    // strictly larger hazard than the one it removes.
+    //
+    // Known residue, matching the `$elements` object path rather than diverging
+    // from it: a RELATIVE URL in a non-href attribute (`attr__src="/avatar?x=1"`)
+    // keeps its query, because the generic pass needs a `://` or a dotted
+    // `//host`. Closing it would mean `dropUrlQuery` on every value, which
+    // truncates ordinary label text at a legitimate "?" ("Smazat?").
+    parts[i] = CHAIN_HREF_NAME_TAIL.test(parts[i - 1] as string)
+      ? dropUrlQuery(value)
+      : stripEmbeddedUrlQueries(value);
   }
   return parts.join('"');
 }
@@ -230,6 +305,61 @@ function scrubEntry(key: string, value: unknown): unknown {
   // an author has no signal the array form is not.
   if (Array.isArray(value)) return value.map((item) => scrubEntry(key, item));
   if (value !== null && typeof value === "object") {
+    // `$heatmap_data` is the one PostHog property whose object KEYS are URLs
+    // (ADR 1023): the heatmaps buffer is keyed by `location.href` and flushed as
+    // `capture("$$heatmap", { $heatmap_data: buffer })`, so the raw querystring
+    // IS the key. Every other rule in this module reads a key and rewrites a
+    // value, so a `?search=<surname>` sitting IN a key survived untouched — this
+    // module's own headline leak class shipping in the clear, on an event a
+    // project enables from the PostHog UI with no code change and therefore no
+    // review.
+    //
+    // NO SDK SETTING SUBSTITUTES FOR THIS (ADR 1025, correcting ADR 1023). Both
+    // that ADR and the comment this replaces said the href is masked "only when
+    // `mask_personal_data_properties` is set, which defaults to false" — true
+    // about the default, but it implies the flag would otherwise cover us, and it
+    // does NOT. `heatmaps.js` passes only `PERSONAL_DATA_CAMPAIGN_PARAMS` (+ any
+    // `custom_personal_data_properties`) into `maskQueryParams`, which rewrites
+    // just those NAMED params — `gclid`, `fbclid`, `dclid`, … So even with the
+    // flag ON, `?search=Novakova` is passed through verbatim: the SDK never masks
+    // an arbitrary query key here. The corrected claim is STRONGER than the one
+    // it replaces, and the difference matters because the weaker sentence
+    // licenses a derived repo to flip the SDK flag INSTEAD of draining this fix.
+    //
+    // Buckets are MERGED rather than overwritten. Two distinct querystrings on
+    // one path collapse to the same key here, and `Object.fromEntries` keeps only
+    // the last of a repeated key, so building the map naively would drop
+    // interaction data silently — a redaction rule must not also become a
+    // data-loss rule. Non-array bucket values are not merged (nothing in the SDK
+    // produces them); the later value wins, as it would have anyway.
+    //
+    // The accumulator is a `Map`, not an object literal (ADR 1025). Written the
+    // obvious way this branch would be the only place in the module that builds
+    // its result by ASSIGNMENT rather than by `Object.fromEntries`, and the two
+    // are not equivalent: `merged[k] = v` is a [[Set]], so a key of `__proto__`
+    // hits `Object.prototype`'s setter and sets the RESULT'S PROTOTYPE instead of
+    // defining an own property — the bucket is silently dropped, which is exactly
+    // the data-loss failure the merge exists to prevent, reintroduced through the
+    // back door. `Object.fromEntries` uses CreateDataProperty and never had that
+    // behaviour, so the generic path this branch overrides was already safe;
+    // accumulating in a `Map` and finishing through `Object.fromEntries` keeps
+    // both the merge and that safety, and returns an ordinary object like every
+    // other branch rather than a surprising null-prototype one.
+    if (key === "$heatmap_data") {
+      const merged = new Map<string, unknown>();
+      for (const [href, bucket] of Object.entries(value)) {
+        const safeHref = dropUrlQuery(href);
+        const scrubbed = scrubEntry(href, bucket);
+        const existing = merged.get(safeHref);
+        merged.set(
+          safeHref,
+          Array.isArray(existing) && Array.isArray(scrubbed)
+            ? [...existing, ...scrubbed]
+            : scrubbed,
+        );
+      }
+      return Object.fromEntries(merged);
+    }
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubEntry(k, v)]));
   }
   // Numbers, booleans, null — ids, timestamps, counts: untouched.

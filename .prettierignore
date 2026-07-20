@@ -14,3 +14,16 @@ ios
 # output) — prettier reformatting them at commit time breaks the openapi
 # contract test (the pre-commit hook globs *.json).
 apps/api/src/openapi/__snapshots__/
+
+# The ADR index is a hand-maintained table whose cells are dense with inline
+# code spans. Prettier's markdown parser disagrees with GFM about where a code
+# span ends when backticks sit adjacent to prose, and then "normalises" `_`↔`*`
+# emphasis INSIDE what GFM renders as code — silently rewriting identifier names
+# (`URL_KEYS`→`URL*KEYS`, `CHAIN_HREF_NAME_TAIL`, `server_name`). It does not
+# converge either: successive runs flip the same tokens back and forth, so no
+# amount of source rewording makes the file stable. A decision index that
+# corrupts the constant names it cites is worse than an unformatted one, and the
+# corruption lands on whichever commit happens to run `pnpm format` (ADR 1024/1025
+# review finding — the defect predates that drain). Formatting is skipped here;
+# keep rows hand-wrapped.
+docs/adr/README.md
