@@ -11,7 +11,12 @@
       // node; its `k6/http` imports are k6-runtime modules knip can't resolve.
       // The binary itself (root `pnpm loadtest` script) is installed outside
       // npm, like mobile's maestro.
-      "ignore": ["loadtest/**"],
+      // The claude.ai/design canvas export (ADR 0114) — verbatim reference bytes,
+      // not application source. The frames are standalone `window.PConf` scripts
+      // loaded by their sibling HTML, never imported by the app, and they are
+      // prettierignored for the same reason: byte-fidelity against the canvas is
+      // the point. Implementation lives in `apps/web`, never here.
+      "ignore": ["loadtest/**", "design/**"],
       "ignoreBinaries": ["k6"]
     },
     "apps/api": {
