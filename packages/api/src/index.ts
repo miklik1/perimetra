@@ -46,6 +46,7 @@ export type {
 } from "./builders/define-endpoints";
 export { createUsersQueries } from "./endpoints/users";
 export { createAuthQueries } from "./endpoints/auth";
+export { createNavQueries } from "./endpoints/nav";
 // @gen:exports — `pnpm gen api-resource` adds the resource endpoint export here.
 // RSC-safe hydration utilities (no client state). The React client surface —
 // provider + hooks — lives behind the `"use client"` boundary in `./react`

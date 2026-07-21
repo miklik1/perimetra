@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
@@ -9,6 +8,8 @@ import { AuthGuard, useAuth, useAuthClient } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
 import { ORG_ROLES, type OrgRole } from "@repo/validators";
+
+import { SettingsLayout } from "../../components/settings/settings-layout";
 
 /**
  * Team management (ADR 0057): the org invite + member-sharing surface, all on
@@ -65,17 +66,10 @@ function TeamContent() {
   const pending = (orgQuery.data?.invitations ?? []).filter((i) => i.status === "pending");
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 p-8">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
+    <SettingsLayout active="team">
+      <div className="flex justify-end">
         <OrgSwitcher />
-      </header>
-
-      {isAdmin && (
-        <Link href="/team/legal-profile" className="text-copper text-sm hover:underline">
-          {t("legalProfileLink")} →
-        </Link>
-      )}
+      </div>
 
       {isAdmin && <InviteForm onInvited={invalidateOrg} />}
       {!isAdmin && <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>}
@@ -129,7 +123,7 @@ function TeamContent() {
           )}
         </section>
       )}
-    </main>
+    </SettingsLayout>
   );
 }
 

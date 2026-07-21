@@ -16,7 +16,9 @@
  *                node apps/web/scripts/verify/capture-production.mjs
  *
  * Env: WEB_URL (default http://localhost:3002), OUT (default apps/web/.verify),
- * LABEL (output basename, default quote-production).
+ * LABEL (output basename, default quote-production), THEME (light|dark, default
+ * light) — dark is captured deterministically via a colorScheme context, so
+ * `THEME=dark` yields a real dark shot rather than a raced light one.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -30,6 +32,7 @@ const QUOTE_ID = process.env.QUOTE_ID;
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = process.env.OUT ?? resolve(here, "../../.verify");
 const LABEL = process.env.LABEL ?? "quote-production";
+const THEME = (process.env.THEME ?? "light").toLowerCase() === "dark" ? "dark" : "light";
 // Override to capture a different authed route with the same login flow (e.g.
 // `/quotes` to eyes-on the workshop row-routing, CAR-24).
 const ROUTE = process.env.ROUTE ?? (QUOTE_ID ? `/quotes/${QUOTE_ID}/production` : undefined);
@@ -44,7 +47,24 @@ if (!EMAIL || !PASSWORD || !ROUTE) {
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
+// A context with `colorScheme` fixed at creation, so the emulated
+// `prefers-color-scheme` is stable and ThemeEffect resolves it deterministically
+// (the context-per-theme technique capture-configurator/brand use — a
+// localStorage `theme=dark` seed + `classList.add` races ThemeEffect and shoots
+// LIGHT). Preference seeded to `system` so ThemeEffect reads the context scheme.
+const context = await browser.newContext({
+  colorScheme: THEME,
+  viewport: { width: 1280, height: 1400 },
+});
+await context.addInitScript(() => {
+  try {
+    // eslint-disable-next-line no-undef -- runs in the browser via addInitScript
+    localStorage.setItem("theme", "system");
+  } catch {
+    /* pre-hydration: storage may be unavailable */
+  }
+});
+const page = await context.newPage();
 
 const errors = [];
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -65,21 +85,31 @@ await page
   .locator('[data-slot="display-label"], h1, main')
   .first()
   .waitFor({ state: "visible", timeout: 30_000 });
+// Assert the theme actually resolved (a light "dark" shot is exactly the bug the
+// context-per-theme technique replaced the old racing seed to catch).
+await page
+  .waitForFunction(
+    (t) => document.documentElement.classList.contains("dark") === (t === "dark"),
+    THEME,
+    { timeout: 5_000 },
+  )
+  .catch(() => errors.push(`[${THEME}] theme did not resolve to ${THEME}`));
 // Let SVG drawings + fonts settle.
 await page.waitForTimeout(1000);
 
-const out = join(OUT, `${LABEL}.png`);
+const out = join(OUT, `${LABEL}-${THEME}.png`);
 await page.screenshot({ path: out, fullPage: true });
 
 const bodyText = await page.locator("body").innerText();
 const report = {
   label: LABEL,
+  theme: THEME,
   url,
   errors,
   containsMoneySymbol: bodyText.includes("Kč"),
   capturedAt: new Date().toISOString(),
 };
-writeFileSync(join(OUT, `${LABEL}.report.json`), JSON.stringify(report, null, 2));
+writeFileSync(join(OUT, `${LABEL}-${THEME}.report.json`), JSON.stringify(report, null, 2));
 
 await browser.close();
 console.log(`captured ${out}`);

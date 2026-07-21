@@ -34,6 +34,15 @@ const en: MessagesInput = {
     team: "Team",
     admin: "Admin",
     platform: "Platform",
+    badge: "{count, plural, =0 {no new items} one {# new item} other {# new items}}",
+  },
+  settings: {
+    title: "Settings",
+    account: "Account",
+    security: "Security",
+    team: "Team",
+    legalProfile: "Legal profile",
+    admin: "Pricing & versions",
   },
   home: {
     title: "Web",
@@ -66,13 +75,11 @@ const en: MessagesInput = {
     },
   },
   account: {
-    title: "Account",
     greeting: "Welcome back, {name}!",
     signedInAs: "Signed in as {email}",
     logout: "Log out",
     checkingSession: "Checking session…",
     security: {
-      link: "Security",
       title: "Security",
       twoFactorTitle: "Two-factor authentication (TOTP)",
       enabled: "Two-factor authentication is enabled.",
@@ -95,13 +102,11 @@ const en: MessagesInput = {
       enableError: "Could not start two-factor setup (check your password).",
       confirmError: "That code didn't match — try again.",
       disableError: "Could not disable two-factor (check your password).",
-      back: "Back to account",
     },
   },
   legalProfile: {
     title: "Company billing details",
     description: "Supplier details shown on quotes and tax documents (§ 29 ZDPH).",
-    backToTeam: "Back to team",
     onlyAdmin: "Only an admin can edit the company billing details.",
     save: "Save",
     saving: "Saving…",
@@ -149,7 +154,6 @@ const en: MessagesInput = {
     organization: "Organization",
     switchOrg: "Switch organization",
     onlyAdmin: "Only an admin can manage members.",
-    legalProfileLink: "Company billing details",
     roles: {
       admin: "Admin",
       sales: "Sales",
@@ -672,7 +676,6 @@ const en: MessagesInput = {
     },
   },
   admin: {
-    title: "Admin — Price tables",
     onlyAdmin: "This section is only accessible to admins.",
     catalogVersions: "Catalog versions",
     releases: "Releases",

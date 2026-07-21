@@ -465,6 +465,15 @@ export class QuotesService {
     return { items: items.map((row) => toSummary(row, role)), nextCursor };
   }
 
+  /**
+   * Count the caller's open quotes (`draft` + `issued`) — the nav-counts pill
+   * source (1c-3). Uses the SAME ownership narrowing as `list` (`sales` → own,
+   * admin → whole org), so the pill and the list can never disagree.
+   */
+  async countOpen(scope: RequestScope, role: OrgRole): Promise<number> {
+    return this.quotes.countOpen(scope, scopeOpts(role));
+  }
+
   async get(scope: RequestScope, role: OrgRole, quoteId: string): Promise<QuoteDetail> {
     const row = await this.quotes.findById(scope, scopeOpts(role), quoteId);
     if (!row) throw new NotFoundException("Quote not found");

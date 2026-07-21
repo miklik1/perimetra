@@ -37,5 +37,13 @@ export const meResponseSchema = userSchema.extend({
    * and the platform operator is (also) an org admin of their own workspace.
    */
   isPlatformAdmin: z.boolean(),
+  /**
+   * The session's stamped active organization (ADR 0055) — the tenant every
+   * scoped read resolves under. `null` while the session is still resolving or
+   * the user has no org yet. Surfaced here (the canonical identity endpoint) so
+   * the FE can address the tenant realtime channel `org:<id>` without a second
+   * Better Auth session read — the same single-source discipline as `role`.
+   */
+  activeOrganizationId: z.string().nullable(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;

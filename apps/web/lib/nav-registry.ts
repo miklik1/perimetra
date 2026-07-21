@@ -107,11 +107,11 @@ export const NAV_ENTRIES: readonly NavEntry[] = [
   },
   {
     key: "settings",
-    // Interim (ADR 0118 §11.2 deviation): §4.1 points Nastavení at /settings,
-    // whose tabbed section index is the 1c-2 slice. Until it exists we point at
-    // /account (the first tab, an existing route) so the entry never 404s;
-    // `activeMatch` keeps the whole section highlighting correct.
-    to: { route: "account" },
+    // §4.1 points Nastavení at /settings — the tabbed section index (1c-2), which
+    // redirects to its first tab (/account). Its sibling surfaces keep their own
+    // URLs; `activeMatch` (prefix-matched) keeps the whole section highlighted on
+    // any of them — /account ⊇ /account/security, /team ⊇ /team/legal-profile.
+    to: { route: "settings" },
     icon: "scale",
     group: "footer",
     activeMatch: ["account", "team", "admin"],

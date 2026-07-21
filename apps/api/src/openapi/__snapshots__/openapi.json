@@ -2568,6 +2568,20 @@
           "Invoices"
         ]
       }
+    },
+    "/v1/me/nav-counts": {
+      "get": {
+        "operationId": "NavController_getNavCounts_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Nav"
+        ]
+      }
     }
   },
   "info": {

@@ -5,6 +5,7 @@ import { Link } from "@repo/navigation";
 import { cn, Icon } from "@repo/ui";
 
 import { isNavEntryActive, type NavEntry } from "../../lib/nav-registry";
+import { NavBadge, navCountFor, type NavCounts } from "./nav-badge";
 
 /**
  * Mobile (<768 px) — the bottom tab bar (§4.4). MAIN group only, capped at five
@@ -16,10 +17,12 @@ import { isNavEntryActive, type NavEntry } from "../../lib/nav-registry";
 export function TabBar({
   entries,
   pathname,
+  counts = {},
   className,
 }: {
   entries: readonly NavEntry[];
   pathname: string;
+  counts?: NavCounts;
   className?: string;
 }) {
   const t = useTranslations("nav");
@@ -35,6 +38,7 @@ export function TabBar({
     >
       {main.map((entry) => {
         const active = isNavEntryActive(pathname, entry);
+        const count = navCountFor(entry, counts);
         return (
           <Link
             key={entry.key}
@@ -45,7 +49,13 @@ export function TabBar({
               active ? "text-primary" : "text-muted-foreground",
             )}
           >
-            <Icon name={entry.icon} size={22} />
+            <span className="relative flex items-center justify-center">
+              <Icon name={entry.icon} size={22} />
+              {/* §4.4: at the mobile breakpoint the count is a presence DOT, not
+                  a number — but the real count still rides the dot's aria-label,
+                  so a screen reader announces it. */}
+              {count !== undefined && <NavBadge count={count} placement="dot" />}
+            </span>
             <span className="max-w-full truncate">{t(entry.key)}</span>
           </Link>
         );

@@ -24,8 +24,19 @@ export const routes = {
   },
   user: { path: "/users/:id", params: { id: "string" } },
   login: { path: "/login" },
+  // Settings section index (ADR 0118 §4.1 / 1c-2). `/settings` is the tabbed
+  // shell Nastavení points at; it redirects to the first tab (`/account`). Its
+  // sibling surfaces keep their own URLs (`/account`, `/account/security`,
+  // `/team`, `/team/legal-profile`, `/admin`) and render the shared tab strip.
+  settings: { path: "/settings" },
   account: { path: "/account" },
+  // The 2FA/security sub-tab of the account section — a named route so the
+  // settings tab strip links it typed, like every other tab.
+  accountSecurity: { path: "/account/security" },
   team: { path: "/team" },
+  // The org legal-profile (dodavatel identity) — a settings tab (1c-2). Named so
+  // the tab strip and cross-links reference it typed rather than via a raw href.
+  legalProfile: { path: "/team/legal-profile" },
   acceptInvitation: {
     path: "/accept-invitation/:invitationId",
     params: { invitationId: "string" },

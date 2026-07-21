@@ -82,3 +82,16 @@ export function usePlatformAdmin(): boolean {
   const { data } = useQuery(authQueries.me());
   return data?.isPlatformAdmin ?? false;
 }
+
+/**
+ * The session's stamped active organization id (ADR 0055), read from the SAME
+ * authoritative `/v1/me` the BE scopes on — so the FE addresses the tenant
+ * realtime channel `org:<id>` (the nav-counts invalidation, 1c-3) for the exact
+ * org the server would authorize a subscription to. `null` while the session
+ * probe is in flight, the user is anonymous, or no org is active yet.
+ */
+export function useActiveOrgId(): string | null {
+  const authQueries = useAuthQueries();
+  const { data } = useQuery(authQueries.me());
+  return data?.activeOrganizationId ?? null;
+}

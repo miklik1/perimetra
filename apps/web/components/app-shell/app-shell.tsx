@@ -7,6 +7,7 @@ import { usePathname } from "@repo/navigation";
 import { TooltipProvider } from "@repo/ui";
 
 import { visibleNavEntries, type NavContext } from "../../lib/nav-registry";
+import { useNavCounts } from "../../lib/use-nav-counts";
 import { usePlatformAdmin, useRole } from "../../lib/use-role";
 import { IconRail } from "./icon-rail";
 import { MobileTopBar } from "./mobile-top-bar";
@@ -68,8 +69,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const role = useRole();
   const isPlatformAdmin = usePlatformAdmin();
+  // The badge counts (1c-3), fetched once + kept live off the org realtime
+  // channel; the rails paint pills from this map (§4.1). Called unconditionally
+  // (hooks rule), but gated to the FRAMED authed routes below — so no socket or
+  // poll fires on a chromeless print sheet / public preview that renders bare.
+  const framed = isAuthenticated && !isChromelessRoute(pathname);
+  const counts = useNavCounts({ active: framed });
 
-  if (!isAuthenticated || isChromelessRoute(pathname)) {
+  if (!framed) {
     return <>{children}</>;
   }
 
@@ -86,8 +93,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider>
       <div className="flex h-dvh w-full flex-col md:flex-row">
-        <SideRail entries={entries} pathname={pathname} className="hidden xl:flex" />
-        <IconRail entries={entries} pathname={pathname} className="hidden md:flex xl:hidden" />
+        <SideRail
+          entries={entries}
+          pathname={pathname}
+          counts={counts}
+          className="hidden xl:flex"
+        />
+        <IconRail
+          entries={entries}
+          pathname={pathname}
+          counts={counts}
+          className="hidden md:flex xl:hidden"
+        />
         <MobileTopBar
           entries={entries}
           pathname={pathname}
@@ -98,7 +115,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <main>, so a wrapping <main> here would nest two "main" landmarks on
             every framed route. */}
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
-        {showTabBar && <TabBar entries={entries} pathname={pathname} className="flex md:hidden" />}
+        {showTabBar && (
+          <TabBar
+            entries={entries}
+            pathname={pathname}
+            counts={counts}
+            className="flex md:hidden"
+          />
+        )}
       </div>
     </TooltipProvider>
   );

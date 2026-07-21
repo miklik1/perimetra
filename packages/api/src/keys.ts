@@ -22,5 +22,11 @@ export const keys = {
     all: ["auth"] as const,
     me: () => [...keys.auth.all, "me"] as const,
   },
+  nav: {
+    all: ["nav"] as const,
+    // GET /v1/me/nav-counts — the app-shell badge counts (1c-3). A single-entry
+    // tier so `keys.nav.all` invalidates it wholesale off a realtime event.
+    counts: () => [...keys.nav.all, "counts"] as const,
+  },
   // @gen:exports — `pnpm gen api-resource` adds the resource key tier here.
 } as const;

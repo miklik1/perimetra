@@ -15,6 +15,7 @@ import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
 
+import { SettingsLayout } from "../../components/settings/settings-layout";
 import { adminKeys, createAdminQueries } from "../../lib/admin-queries";
 import { toast } from "../../lib/toast";
 import { PriceTableForm } from "./price-table-form";
@@ -51,9 +52,7 @@ function AdminContent({ componentCodes }: AdminClientProps) {
   const isAdmin = me?.role === "admin";
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 p-8">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
-
+    <SettingsLayout active="admin">
       {!isAdmin && <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>}
 
       {isAdmin && (
@@ -71,7 +70,7 @@ function AdminContent({ componentCodes }: AdminClientProps) {
           </section>
         </>
       )}
-    </main>
+    </SettingsLayout>
   );
 }
 

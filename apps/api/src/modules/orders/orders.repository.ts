@@ -10,12 +10,19 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { order, type OrderRow, type OrderStatus } from "@repo/db/schema/orders";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
+
+/** The "live build queue" statuses the nav pill counts (1c-3):
+ *  `completed`/`cancelled` are terminal, so only these two are in flight. */
+const ACTIVE_ORDER_STATUSES = [
+  "confirmed",
+  "in_production",
+] as const satisfies readonly OrderStatus[];
 
 export interface ListOrdersParams {
   cursor?: string | undefined;
@@ -71,6 +78,16 @@ export class OrdersRepository {
     const items = rows.slice(0, params.limit);
     const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
     return { items, nextCursor };
+  }
+
+  /** Count the org's active orders (`confirmed` + `in_production`) — the nav
+   *  pill source (1c-3). Org-scoped, every role (orders are org-visible). */
+  async countActive(scope: RequestScope): Promise<number> {
+    const [row] = await this.txHost.tx
+      .select({ value: count() })
+      .from(order)
+      .where(and(this.scoped(scope), inArray(order.status, ACTIVE_ORDER_STATUSES)));
+    return row?.value ?? 0;
   }
 
   async findById(scope: RequestScope, orderId: string): Promise<OrderRow | null> {

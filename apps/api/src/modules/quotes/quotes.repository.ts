@@ -6,12 +6,17 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { quote, type QuoteRow, type QuoteStatus } from "@repo/db/schema/quotes";
 
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
+
+/** The "open work" statuses the nav pill counts (1c-3): a quote still in play.
+ *  `expired` is a DERIVED read of a lapsed `issued` quote (never stored), so a
+ *  lapsed quote stays counted here — it is still actionable/reviseable. */
+const OPEN_QUOTE_STATUSES = ["draft", "issued"] as const satisfies readonly QuoteStatus[];
 
 export interface ListQuotesParams {
   cursor?: string | undefined;
@@ -90,6 +95,20 @@ export class QuotesRepository {
     const items = rows.slice(0, params.limit);
     const nextCursor = rows.length > params.limit ? (items.at(-1)?.id ?? null) : null;
     return { items, nextCursor };
+  }
+
+  /**
+   * Count the open quotes (`draft` + `issued`) the caller may see — the nav
+   * pill source (1c-3). Runs through the SAME `scoped()` filter as `list`, so a
+   * `sales` rep's count is narrowed to their own rows exactly as their list is;
+   * admin/workshop count the whole org. A pure aggregate — no rows shipped.
+   */
+  async countOpen(scope: RequestScope, opts: QuoteScopeOpts): Promise<number> {
+    const [row] = await this.txHost.tx
+      .select({ value: count() })
+      .from(quote)
+      .where(and(this.scoped(scope, opts), inArray(quote.status, OPEN_QUOTE_STATUSES)));
+    return row?.value ?? 0;
   }
 
   async findById(

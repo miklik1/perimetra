@@ -5,6 +5,7 @@ import { Link } from "@repo/navigation";
 import { cn, Icon, Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui";
 
 import { isNavEntryActive, type NavEntry } from "../../lib/nav-registry";
+import { NavBadge, navCountFor, type NavCounts } from "./nav-badge";
 
 /**
  * Tablet (768–1279 px) — the 68 px icon rail (§4.4). Glyph only; the label is
@@ -17,10 +18,12 @@ import { isNavEntryActive, type NavEntry } from "../../lib/nav-registry";
 export function IconRail({
   entries,
   pathname,
+  counts = {},
   className,
 }: {
   entries: readonly NavEntry[];
   pathname: string;
+  counts?: NavCounts;
   className?: string;
 }) {
   const t = useTranslations("nav");
@@ -45,7 +48,12 @@ export function IconRail({
       <ul className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto py-2">
         {main.map((entry) => (
           <li key={entry.key}>
-            <IconRailLink entry={entry} pathname={pathname} label={t(entry.key)} />
+            <IconRailLink
+              entry={entry}
+              pathname={pathname}
+              label={t(entry.key)}
+              count={navCountFor(entry, counts)}
+            />
           </li>
         ))}
       </ul>
@@ -66,27 +74,36 @@ function IconRailLink({
   entry,
   pathname,
   label,
+  count,
 }: {
   entry: NavEntry;
   pathname: string;
   label: string;
+  count?: number;
 }) {
+  const t = useTranslations("nav");
   const active = isNavEntryActive(pathname, entry);
+  // The glyph link OWNS its `aria-label` (there is no visible text), and per the
+  // accessible-name algorithm that suppresses any descendant's name — so the
+  // count must be FOLDED INTO this label, and the badge rendered decorative,
+  // rather than left on the badge where it would never be announced.
+  const accessibleName = count !== undefined ? `${label}, ${t("badge", { count })}` : label;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
           to={entry.to}
-          aria-label={label}
+          aria-label={accessibleName}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "rounded-control focus-visible:ring-ring flex h-11 w-11 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
+            "rounded-control focus-visible:ring-ring relative flex h-11 w-11 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
             active
               ? "bg-nav-active text-nav-active-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-chrome-subtle",
           )}
         >
           <Icon name={entry.icon} size={20} />
+          {count !== undefined && <NavBadge count={count} placement="corner" decorative />}
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>

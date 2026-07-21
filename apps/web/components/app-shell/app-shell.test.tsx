@@ -29,6 +29,14 @@ vi.mock("../../lib/use-role", () => ({
   usePlatformAdmin: usePlatformAdminMock,
 }));
 
+// The nav-count hook opens a socket + a TanStack query; mock it so the shell
+// tests stay pure DOM. Default = no pills; a per-test override drives the
+// pill-rendering case.
+const { useNavCountsMock } = vi.hoisted(() => ({
+  useNavCountsMock: vi.fn(() => ({}) as Record<string, number>),
+}));
+vi.mock("../../lib/use-nav-counts", () => ({ useNavCounts: useNavCountsMock }));
+
 function renderShell(pathname = "/orders") {
   usePathnameMock.mockReturnValue(pathname);
   return render(
@@ -143,6 +151,39 @@ describe("AppShell — three renderings over one registry", () => {
     expect(rail.getByRole("link", { name: "Nabídky" })).toBeInTheDocument();
     expect(rail.getByRole("link", { name: "Nastavení" })).toBeInTheDocument();
     expect(rail.queryByRole("link", { name: "Platforma" })).toBeNull();
+  });
+
+  it("paints count pills on quotes + orders across ALL THREE densities (1c-3)", () => {
+    useRoleMock.mockReturnValue("admin");
+    useNavCountsMock.mockReturnValue({ quotes: 3, orders: 5 });
+    renderShell("/orders");
+    // Desktop side rail — a labelled inline pill: a visible number, announced via
+    // the row's own accessible name (the link carries no overriding aria-label).
+    expect(sideRail().getByText("3")).toBeInTheDocument();
+    expect(sideRail().getByText("5")).toBeInTheDocument();
+    // Tablet icon rail — a numeric corner badge. The glyph link OWNS its
+    // aria-label, which per the accname algorithm suppresses the descendant
+    // badge, so the count is FOLDED INTO the link's accessible name (the a11y fix)
+    // while the badge stays visible-but-decorative.
+    expect(iconRail().getByText("3")).toBeInTheDocument();
+    expect(iconRail().getByRole("link", { name: /Nabídky.*3 nové/ })).toBeInTheDocument();
+    expect(iconRail().getByRole("link", { name: /Zakázky.*5 nových/ })).toBeInTheDocument();
+    // Mobile tab bar — a DOT, not a number (§4.4); the real count rides the dot's
+    // aria-label, so the link still ANNOUNCES it though no digit is drawn.
+    expect(tabBar().queryByText("5")).toBeNull();
+    expect(tabBar().getByRole("link", { name: /5 nových/ })).toBeInTheDocument();
+    expect(tabBar().getByRole("link", { name: /3 nové/ })).toBeInTheDocument();
+    // A surface with no count source (Nastavení) never gets a pill.
+    expect(sideRail().queryByText("0")).toBeNull();
+    useNavCountsMock.mockReturnValue({});
+  });
+
+  it("renders no pill for a zero or absent count (an empty pill is worse than none, §4.1)", () => {
+    useRoleMock.mockReturnValue("admin");
+    useNavCountsMock.mockReturnValue({ quotes: 0 });
+    renderShell("/orders");
+    expect(sideRail().queryByText("0")).toBeNull();
+    useNavCountsMock.mockReturnValue({});
   });
 
   it("marks the active section via aria-current, prefix-matched", () => {

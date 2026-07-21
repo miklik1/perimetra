@@ -32,6 +32,16 @@ const cs = {
     team: "Tým",
     admin: "Správa",
     platform: "Platforma",
+    badge:
+      "{count, plural, =0 {žádné nové položky} one {# nová položka} few {# nové položky} other {# nových položek}}",
+  },
+  settings: {
+    title: "Nastavení",
+    account: "Účet",
+    security: "Zabezpečení",
+    team: "Tým",
+    legalProfile: "Právní profil",
+    admin: "Ceníky a verze",
   },
   home: {
     title: "Web",
@@ -65,13 +75,11 @@ const cs = {
     },
   },
   account: {
-    title: "Účet",
     greeting: "Vítejte zpět, {name}!",
     signedInAs: "Přihlášen jako {email}",
     logout: "Odhlásit se",
     checkingSession: "Ověřování relace…",
     security: {
-      link: "Zabezpečení",
       title: "Zabezpečení",
       twoFactorTitle: "Dvoufázové ověření (TOTP)",
       enabled: "Dvoufázové ověření je zapnuté.",
@@ -94,13 +102,11 @@ const cs = {
       enableError: "Nepodařilo se zahájit nastavení (zkontrolujte heslo).",
       confirmError: "Kód nesouhlasí — zkuste to znovu.",
       disableError: "Nepodařilo se vypnout (zkontrolujte heslo).",
-      back: "Zpět na účet",
     },
   },
   legalProfile: {
     title: "Fakturační údaje firmy",
     description: "Údaje dodavatele na nabídkách a daňových dokladech (§ 29 ZDPH).",
-    backToTeam: "Zpět na tým",
     onlyAdmin: "Fakturační údaje může upravovat pouze správce.",
     save: "Uložit",
     saving: "Ukládání…",
@@ -148,7 +154,6 @@ const cs = {
     organization: "Organizace",
     switchOrg: "Přepnout organizaci",
     onlyAdmin: "Členy může spravovat pouze správce.",
-    legalProfileLink: "Fakturační údaje firmy",
     roles: {
       admin: "Správce",
       sales: "Obchod",
@@ -702,7 +707,6 @@ const cs = {
     },
   },
   admin: {
-    title: "Administrace — ceníky",
     onlyAdmin: "Tuto sekci mohou používat pouze správci.",
     catalogVersions: "Verze katalogu",
     releases: "Vydání (releases)",

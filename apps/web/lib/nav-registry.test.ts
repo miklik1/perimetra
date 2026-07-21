@@ -132,6 +132,8 @@ describe("isNavEntryActive", () => {
 
   it("lights Nastavení across all its child sections via activeMatch", () => {
     const settings = entry("settings");
+    // Its own /settings index, plus each sibling surface it absorbs (1c-2).
+    expect(isNavEntryActive("/settings", settings)).toBe(true);
     expect(isNavEntryActive("/account", settings)).toBe(true);
     expect(isNavEntryActive("/account/security", settings)).toBe(true);
     expect(isNavEntryActive("/team", settings)).toBe(true);

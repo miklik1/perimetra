@@ -31,6 +31,7 @@ export class MeController {
     Pick<SessionContext["user"], "id" | "email" | "name" | "createdAt"> & {
       role: OrgRole;
       isPlatformAdmin: boolean;
+      activeOrganizationId: string | null;
     }
   > {
     // Fresh per request (the cached `session.user.role` would be ≤60s stale).
@@ -40,6 +41,9 @@ export class MeController {
     // session.user, so spreading it would ship those over the wire. Field-pick
     // only the contract fields; the org `role` + `isPlatformAdmin` are added fresh.
     const { id, email, name, createdAt } = session.user;
-    return { id, email, name, createdAt, role, isPlatformAdmin };
+    // The stamped active org (ADR 0055) — the tenant the FE addresses the
+    // `org:<id>` realtime channel for (1c-3). Null for an org-less session.
+    const activeOrganizationId = session.session.activeOrganizationId ?? null;
+    return { id, email, name, createdAt, role, isPlatformAdmin, activeOrganizationId };
   }
 }

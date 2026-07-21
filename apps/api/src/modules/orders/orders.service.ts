@@ -82,6 +82,12 @@ export class OrdersService {
     return { items: items.map(toOrder), nextCursor };
   }
 
+  /** Count the org's active orders (`confirmed` + `in_production`) — the
+   *  nav-counts pill source (1c-3). Org-scoped; visible to every role. */
+  async countActive(scope: RequestScope): Promise<number> {
+    return this.orders.countActive(scope);
+  }
+
   /** 404 covers both "doesn't exist" and "not yours" — no existence oracle. */
   async get(scope: RequestScope, orderId: string): Promise<OrderDetail> {
     const row = await this.orders.findById(scope, orderId);

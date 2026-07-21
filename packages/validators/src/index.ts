@@ -3,6 +3,7 @@ export * from "./auth";
 // Membership-scoped RBAC role contract (ADR 0056) — shared by the FE role
 // mirror and the `@repo/api` me query.
 export * from "./roles";
+export * from "./nav-counts";
 export * from "./api-error";
 // Generic primitives only — the CZ set stays behind the explicit
 // `@repo/validators/primitives/cz` subpath (delete one file to de-CZ a fork).

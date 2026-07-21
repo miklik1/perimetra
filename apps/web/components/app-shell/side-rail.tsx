@@ -5,6 +5,7 @@ import { Link } from "@repo/navigation";
 import { cn } from "@repo/ui";
 
 import type { NavEntry } from "../../lib/nav-registry";
+import { navCountFor, type NavCounts } from "./nav-badge";
 import { NavRowLink } from "./nav-link";
 
 /**
@@ -15,10 +16,12 @@ import { NavRowLink } from "./nav-link";
 export function SideRail({
   entries,
   pathname,
+  counts = {},
   className,
 }: {
   entries: readonly NavEntry[];
   pathname: string;
+  counts?: NavCounts;
   className?: string;
 }) {
   const t = useTranslations("nav");
@@ -38,7 +41,12 @@ export function SideRail({
       <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
         {main.map((entry) => (
           <li key={entry.key}>
-            <NavRowLink entry={entry} pathname={pathname} label={t(entry.key)} />
+            <NavRowLink
+              entry={entry}
+              pathname={pathname}
+              label={t(entry.key)}
+              count={navCountFor(entry, counts)}
+            />
           </li>
         ))}
       </ul>

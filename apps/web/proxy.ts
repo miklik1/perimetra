@@ -25,6 +25,7 @@ import { env } from "@repo/config/env/web";
 
 /** Routes that require a session cookie to be present. */
 const PROTECTED_PREFIXES = [
+  "/settings",
   "/account",
   "/projects",
   "/configurator",

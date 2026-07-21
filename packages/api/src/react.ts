@@ -2,6 +2,7 @@
 
 import { useApiClient } from "./api-provider";
 import { createAuthQueries } from "./endpoints/auth";
+import { createNavQueries } from "./endpoints/nav";
 import { createUsersQueries } from "./endpoints/users";
 
 // Client-only surface (`@repo/api/react`): the provider, the client hook,
@@ -27,3 +28,6 @@ export const useUsersQueries = () => createUsersQueries(useApiClient());
 
 /** Per-endpoint hook for auth (`login`, `me`), bound to the client from context. */
 export const useAuthQueries = () => createAuthQueries(useApiClient());
+
+/** Per-endpoint hook for nav (`navCounts`), bound to the client from context. */
+export const useNavQueries = () => createNavQueries(useApiClient());
