@@ -1,11 +1,10 @@
 "use client";
 
-import { useId } from "react";
 import { z } from "zod";
 
 import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, Field, Input, Panel, Switch, Textarea } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { lookupIcoSchema, type CreateCustomerInput, type Customer } from "@repo/validators";
 
@@ -24,9 +23,10 @@ import { toast } from "../../lib/toast";
  * the-form action (it's a status flip, not a field edit) — see
  * `customer-detail-client.tsx`.
  *
- * Render-taste is functional-minimal (out of scope per CAR-23) — same raw-
- * input shape as `LegalProfileForm`, which this mirrors field-for-field where
- * the two entities overlap (name/ico/dic/vatPayer/address).
+ * Fields are grouped into sectioned `Panel` blocks (Identifikace / Kontakt /
+ * Adresa / Poznámka) on the kit `Field`/`Input`/`Textarea`/`Switch` primitives
+ * — same field-for-field shape `LegalProfileForm` mirrors where the two
+ * entities overlap (name/ico/dic/vatPayer/address).
  */
 const customerFormSchema = z.object({
   name: z.string().min(1),
@@ -79,9 +79,6 @@ function toInput(v: CustomerFormValues): CreateCustomerInput {
   };
 }
 
-const inputClass =
-  "border-border bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 aria-invalid:border-destructive";
-
 export function CustomerForm({
   initial,
   onSaved,
@@ -97,8 +94,6 @@ export function CustomerForm({
   const client = useApiClient();
   const queryClient = useQueryClient();
   const queries = createCustomersQueries(client);
-  const nameId = useId();
-  const nameErrorId = useId();
 
   const {
     register,
@@ -149,14 +144,15 @@ export function CustomerForm({
   const icoValue = watch("ico").trim();
   const dicValue = watch("dic").trim().toUpperCase();
   const vies = useViesLookup(client, dicValue);
+  const vatPayer = watch("vatPayer");
 
-  const field = (key: Exclude<keyof CustomerFormValues, "vatPayer">) => (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={`${nameId}-${key}`} className="font-medium">
-        {t(`fields.${key}`)}
-      </label>
-      <input {...register(key)} id={`${nameId}-${key}`} className={inputClass} />
-    </div>
+  const field = (key: Exclude<keyof CustomerFormValues, "vatPayer" | "note">) => (
+    <Field>
+      <Field.Label>{t(`fields.${key}`)}</Field.Label>
+      <Field.Control>
+        <Input {...register(key)} />
+      </Field.Control>
+    </Field>
   );
 
   const onSubmit = handleSubmit((values) => {
@@ -172,62 +168,93 @@ export function CustomerForm({
     <form
       method="post"
       onSubmit={onSubmit}
-      className="border-border flex w-full max-w-2xl flex-col gap-4 rounded-md border p-6 text-sm"
+      className="flex w-full flex-col gap-6 text-sm"
       noValidate
     >
-      {!initial && <h2 className="font-semibold">{t("newCustomer")}</h2>}
+      {!initial && <h2 className="font-display text-lg font-semibold">{t("newCustomer")}</h2>}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={nameId} className="font-medium">
-          {t("fields.name")}
-        </label>
-        <input
-          {...register("name")}
-          id={nameId}
-          className={inputClass}
-          aria-invalid={errors.name ? true : undefined}
-          aria-describedby={errors.name ? nameErrorId : undefined}
-        />
-        {errors.name && (
-          <p id={nameErrorId} className="text-destructive text-xs">
-            {t("nameRequired")}
-          </p>
-        )}
-      </div>
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.identity")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <Field>
+            <Field.Label>{t("fields.name")}</Field.Label>
+            <Field.Control>
+              <Input {...register("name")} />
+            </Field.Control>
+            {errors.name && <Field.Error>{t("nameRequired")}</Field.Error>}
+          </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        {field("ico")}
-        {field("dic")}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => ares.mutate(icoValue)}
-          disabled={!lookupIcoSchema.safeParse(icoValue).success || ares.isPending}
-        >
-          {ares.isPending ? tLookup("aresLoading") : tLookup("aresLoad")}
-        </Button>
-        <ViesBadge result={vies.data} loading={vies.isFetching} />
-      </div>
+          <div className="grid grid-cols-2 gap-4">
+            {field("ico")}
+            {field("dic")}
+          </div>
 
-      <label className="flex items-center gap-2 font-medium">
-        <input type="checkbox" {...register("vatPayer")} className="size-4" />
-        {t("fields.vatPayer")}
-      </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => ares.mutate(icoValue)}
+              disabled={!lookupIcoSchema.safeParse(icoValue).success || ares.isPending}
+            >
+              {ares.isPending ? tLookup("aresLoading") : tLookup("aresLoad")}
+            </Button>
+            <ViesBadge result={vies.data} loading={vies.isFetching} />
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {field("email")}
-        {field("phone")}
-      </div>
-      {field("addressLine")}
-      <div className="grid grid-cols-2 gap-4">
-        {field("postalCode")}
-        {field("city")}
-      </div>
-      {field("country")}
-      {field("note")}
+          <Field className="flex-row items-center justify-between gap-3">
+            <Field.Label className="mb-0">{t("fields.vatPayer")}</Field.Label>
+            <Field.Control>
+              <Switch
+                checked={vatPayer}
+                onCheckedChange={(checked) => setValue("vatPayer", checked, { shouldDirty: true })}
+              />
+            </Field.Control>
+          </Field>
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.contact")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <div className="grid grid-cols-2 gap-4">
+            {field("email")}
+            {field("phone")}
+          </div>
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.address")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          {field("addressLine")}
+          <div className="grid grid-cols-2 gap-4">
+            {field("postalCode")}
+            {field("city")}
+          </div>
+          {field("country")}
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.note")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <Field>
+            <Field.Label>{t("fields.note")}</Field.Label>
+            <Field.Control>
+              <Textarea {...register("note")} rows={4} />
+            </Field.Control>
+          </Field>
+        </Panel.Body>
+      </Panel>
 
       <div className="flex items-center gap-4">
         <Button type="submit" variant="copper" disabled={mutation.isPending}>

@@ -1,11 +1,23 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ApiProvider } from "@repo/api/react";
 import { cs } from "@repo/i18n";
 import { I18nProvider } from "@repo/i18n/web";
 
 import { CustomerForm } from "./customer-form";
+
+// jsdom ships no ResizeObserver; the kit `Switch` (vatPayer) mounts inside a
+// <form>, which keeps Radix's hidden bubble-input mounted (`isFormControl`),
+// and that sizes itself via `useSize` → `ResizeObserver` (same gap
+// `popover.test.tsx` stubs for Radix's Popper).
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
 
 // MSW (vitest.setup.ts) serves `lookups` (deterministic ARES/VIES stand-ins,
 // ADR 0090) + `customers` mock groups.

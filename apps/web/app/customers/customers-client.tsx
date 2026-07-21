@@ -17,6 +17,11 @@ import { CustomersList } from "./customers-list";
  * admin/sales (`useCanManageCustomers` mirrors the server's `@RequireRole
  * ("admin", "sales")` on `CustomersController` — workshop is denied fail-
  * closed) — the same pattern `LegalProfileClient` uses for its admin-only gate.
+ *
+ * Reskinned via the settings-layout idiom (ADR 0119/0120): the AppShell owns
+ * height + scroll + `bg-background`, so the authed `<main>` drops
+ * `min-h-screen`/`bg-field` — the AuthGuard fallback keeps `min-h-screen
+ * bg-field` since it renders bare, outside the shell's framed content slot.
  */
 export function CustomersClient() {
   const router = useRouter();
@@ -41,7 +46,7 @@ function Content() {
   const [showNew, setShowNew] = useState(false);
 
   return (
-    <main className="bg-field mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6 md:p-8">
       <DisplayLabel as="h1">{t("title")}</DisplayLabel>
 
       {!canManage ? (

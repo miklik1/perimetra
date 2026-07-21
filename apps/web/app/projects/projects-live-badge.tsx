@@ -7,6 +7,7 @@ import { useQueryClient } from "@repo/api/react";
 import { useAuth } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
 import { useChannel, useConnectionState } from "@repo/realtime/react";
+import { Badge } from "@repo/ui";
 
 import { projectKeys } from "../../lib/projects-queries";
 import { useRealtime } from "../realtime-provider";
@@ -48,20 +49,18 @@ export function ProjectsLiveBadge() {
 
   const label =
     state === "connected" ? t("live") : state === "connecting" ? t("connecting") : t("offline");
+  const tone = state === "connected" ? "success" : state === "connecting" ? "warning" : "outline";
   const dotClass =
     state === "connected"
-      ? "bg-green-500"
+      ? "bg-success"
       : state === "connecting"
-        ? "bg-yellow-500"
+        ? "bg-warning"
         : "bg-muted-foreground";
 
   return (
-    <span
-      className="border-border text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs"
-      role="status"
-    >
-      <span aria-hidden className={`size-2 rounded-full ${dotClass}`} />
+    <Badge tone={tone} role="status" className="gap-1.5">
+      <span aria-hidden className={`size-1.5 rounded-full ${dotClass}`} />
       {label}
-    </span>
+    </Badge>
   );
 }

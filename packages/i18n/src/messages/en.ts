@@ -190,6 +190,17 @@ const en: MessagesInput = {
     newProject: "New project",
     name: "Name",
     description: "Description",
+    columns: {
+      name: "Name",
+      description: "Description",
+      status: "Status",
+      created: "Created",
+    },
+    status: {
+      active: "Active",
+      archived: "Archived",
+    },
+    actionsLabel: "Actions",
     create: "Create project",
     creating: "Creating…",
     created: "Created.",
@@ -634,6 +645,18 @@ const en: MessagesInput = {
   },
   customers: {
     title: "Customers",
+    columns: {
+      name: "Customer",
+      ico: "Company ID",
+      city: "City",
+      status: "Status",
+    },
+    sections: {
+      identity: "Identification",
+      contact: "Contact",
+      address: "Address",
+      note: "Note",
+    },
     checkingSession: "Checking session…",
     onlyAdminOrSales: "Only sales or admin can manage customers.",
     empty: "No customers yet.",

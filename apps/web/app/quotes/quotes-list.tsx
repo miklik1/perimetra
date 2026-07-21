@@ -70,7 +70,7 @@ export function QuotesList() {
         </EmptyState>
       )}
       {quotes.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="relative min-w-0 overflow-x-auto">
           <table aria-label={t("tableLabel")} className="w-full border-collapse text-sm">
             <thead>
               <tr>

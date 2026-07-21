@@ -190,6 +190,17 @@ const cs = {
     newProject: "Nový projekt",
     name: "Název",
     description: "Popis",
+    columns: {
+      name: "Název",
+      description: "Popis",
+      status: "Stav",
+      created: "Vytvořeno",
+    },
+    status: {
+      active: "Aktivní",
+      archived: "Archivováno",
+    },
+    actionsLabel: "Akce",
     create: "Vytvořit projekt",
     creating: "Vytváření…",
     created: "Vytvořeno.",
@@ -662,6 +673,18 @@ const cs = {
   },
   customers: {
     title: "Odběratelé",
+    columns: {
+      name: "Zákazník",
+      ico: "IČO",
+      city: "Město",
+      status: "Stav",
+    },
+    sections: {
+      identity: "Identifikace",
+      contact: "Kontakt",
+      address: "Adresa",
+      note: "Poznámka",
+    },
     checkingSession: "Ověřování relace…",
     onlyAdminOrSales: "Odběratele mohou spravovat pouze obchod nebo správce.",
     empty: "Zatím žádní odběratelé.",

@@ -67,7 +67,8 @@
         "scripts/verify/capture-configurator.mjs",
         "scripts/verify/capture-settings.mjs",
         "scripts/verify/capture-orders.mjs",
-        "scripts/verify/capture-quotes.mjs"
+        "scripts/verify/capture-quotes.mjs",
+        "scripts/verify/capture-projects-customers.mjs"
       ]
     },
     "apps/mobile": {
