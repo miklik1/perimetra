@@ -346,12 +346,14 @@ function ConfiguratorInner({
   );
 
   return (
-    // NOT `h-dvh`. `nav-shell.tsx` renders an in-flow `h-14` app header above
-    // this subtree, so a full-viewport height here made the surface 56px taller
-    // than its slot and pushed the sticky commerce bar off the bottom of the
-    // screen at every width. The subtraction is coupled to that `h-14` — if the
-    // app header's height changes, this must change with it.
-    <div className="bg-field flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col">
+    // `h-full`, not a viewport calc. The app shell (components/app-shell, ADR
+    // 0118) hands this surface a correctly-sized flex-1 `<main>` slot — full
+    // height on desktop/tablet (the nav is a side rail, no top header to
+    // subtract) and viewport-minus-top-bar on mobile — so the surface just fills
+    // it. When unauthenticated the shell renders children bare and the AuthGuard
+    // fallback's own `min-h-screen` takes over; both are full-height, so nothing
+    // jumps on auth-resolve. The old hand-coupled `calc(100dvh-3.5rem)` is gone.
+    <div className="bg-field flex h-full min-h-0 flex-col">
       {/* Immersive mode (ADR 0116) hides the banded chrome and promotes the scene
           `<main>` to full-bleed. The `<main>` is rendered in BOTH branches (only
           its className changes), so the WebGL canvas never remounts on toggle;

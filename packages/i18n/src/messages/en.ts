@@ -19,6 +19,11 @@ const en: MessagesInput = {
   },
   nav: {
     main: "Main navigation",
+    dashboard: "Overview",
+    leads: "Leads",
+    catalog: "Catalog",
+    settings: "Settings",
+    menu: "More options",
     home: "Home",
     account: "Account",
     configurator: "Configurator",

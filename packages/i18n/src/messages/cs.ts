@@ -17,6 +17,11 @@ const cs = {
   },
   nav: {
     main: "Hlavní navigace",
+    dashboard: "Přehled",
+    leads: "Poptávky",
+    catalog: "Katalog",
+    settings: "Nastavení",
+    menu: "Další volby",
     home: "Domů",
     account: "Účet",
     configurator: "Konfigurátor",

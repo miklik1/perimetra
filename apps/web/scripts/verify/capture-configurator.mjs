@@ -44,19 +44,27 @@ const VIEWPORTS = [
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 
-// One authenticated context, reused across every viewport — the sign-in cookie
-// is the expensive part and it is orthogonal to layout.
-const context = await browser.newContext();
-const signIn = await context.request.post(`${BASE}/api/auth/sign-in/email`, {
-  data: { email: EMAIL, password: PASSWORD },
-});
-if (!signIn.ok()) {
-  console.error(`sign-in failed: ${signIn.status()} ${await signIn.text()}`);
-  process.exit(1);
+// A context PER THEME, each with its `colorScheme` fixed at creation, so the
+// emulated `prefers-color-scheme` is stable for the whole pass and ThemeEffect
+// (preference = `system`, seeded per page) resolves + KEEPS it. Per-page
+// `emulateMedia` on a single shared context proved unreliable in this loop —
+// some desktop dark pages silently re-rendered LIGHT after the theme check
+// (found 2026-07-21, ADR 0118 eyes-on) — a per-context scheme does not. The
+// sign-in cookie is re-minted per context (a cheap POST).
+async function signInTo(context) {
+  const res = await context.request.post(`${BASE}/api/auth/sign-in/email`, {
+    data: { email: EMAIL, password: PASSWORD },
+  });
+  if (!res.ok()) {
+    console.error(`sign-in failed: ${res.status()} ${await res.text()}`);
+    process.exit(1);
+  }
 }
-console.log("signed in");
 
 for (const theme of ["light", "dark"]) {
+  const context = await browser.newContext({ colorScheme: theme });
+  await signInTo(context);
+  console.log(`signed in (${theme})`);
   for (const vp of VIEWPORTS) {
     const page = await context.newPage();
     page.on("pageerror", (e) => errors.push(`[${theme} ${vp.name}] ${String(e)}`));
@@ -65,19 +73,18 @@ for (const theme of ["light", "dark"]) {
     });
     await page.setViewportSize({ width: vp.width, height: vp.height });
 
-    // Drive dark the app's real way — seed the persisted preference so the
-    // no-FOUC script and the theme store both resolve dark and put `.dark` on
-    // <html> (the `@custom-variant dark` seam). Same technique as capture-brand.
-    if (theme === "dark") {
-      await page.addInitScript(() => {
-        try {
-          // eslint-disable-next-line no-undef -- runs in the browser
-          localStorage.setItem("theme", "dark");
-        } catch {
-          /* pre-hydration: storage may be unavailable */
-        }
-      });
-    }
+    // Preference = `system`, so ThemeEffect resolves the context's fixed
+    // (emulated) `prefers-color-scheme` and keeps `.dark` on <html> across
+    // hydration. See the context-per-theme note above for why this replaced the
+    // old localStorage `theme=dark` + `classList.add("dark")` technique.
+    await page.addInitScript(() => {
+      try {
+        // eslint-disable-next-line no-undef -- runs in the browser
+        localStorage.setItem("theme", "system");
+      } catch {
+        /* pre-hydration: storage may be unavailable */
+      }
+    });
 
     // NOT `networkidle`: the dev server's HMR socket and the Centrifugo
     // realtime connection are long-lived, so the network never goes idle and
@@ -87,9 +94,13 @@ for (const theme of ["light", "dark"]) {
       .locator("[data-slot='context-bar']")
       .first()
       .waitFor({ state: "visible", timeout: 60_000 });
-    if (theme === "dark") {
-      await page.evaluate(() => document.documentElement.classList.add("dark"));
-    }
+    await page
+      .waitForFunction(
+        (t) => document.documentElement.classList.contains("dark") === (t === "dark"),
+        theme,
+        { timeout: 10_000 },
+      )
+      .catch(() => errors.push(`[${theme} ${vp.name}] theme did not resolve to ${theme}`));
     // The derive runs on a worker, so the price/BOM arrive after first paint.
     // Wait for the SETTLED signal — a rendered price — not for the absence of
     // the "recalculating" string: the context bar keeps an `aria-hidden` ghost
@@ -141,6 +152,7 @@ for (const theme of ["light", "dark"]) {
     }
     await page.close();
   }
+  await context.close();
 }
 
 await browser.close();

@@ -9,7 +9,7 @@ import type { IssueQuoteInput } from "@repo/validators";
 import { IssueQuotePanel } from "./issue-quote-panel";
 
 // The panel calls `useRouter()` (post-issue navigation) — mocked like
-// nav-shell.test.tsx so rendering it doesn't need a real app-router mount.
+// app-shell.test.tsx so rendering it doesn't need a real app-router mount.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
