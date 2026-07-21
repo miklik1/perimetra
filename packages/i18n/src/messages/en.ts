@@ -482,6 +482,14 @@ const en: MessagesInput = {
     loading: "Loading…",
     loadMore: "Load more",
     noMore: "No more",
+    tableLabel: "Quote list",
+    emptyDescription: "Quotes appear once issued from a project.",
+    columns: {
+      documentNumber: "Quote number",
+      status: "Status",
+      total: "Total",
+      validUntil: "Valid until",
+    },
     status: {
       draft: "Draft",
       issued: "Issued",
@@ -515,6 +523,31 @@ const en: MessagesInput = {
       noExpiry: "No expiry",
       expiredWarning:
         "This quote expired {date}. The link still works, but the buyer can no longer accept or decline it.",
+    },
+    detail: {
+      eyebrow: "Price quote",
+      number: "Quote number",
+      issuedAt: "Issued",
+      validUntil: "Valid until",
+      noExpiry: "No expiry",
+    },
+    lineage: {
+      supersededTitle: "Superseded by a newer revision",
+      supersededBody:
+        "This quote has been superseded by a newer revision — the newer version applies.",
+      viewSuperseding: "View newer revision",
+      revisionTitle: "Revision of an earlier quote",
+      revisionBody: "This quote is a revision of an earlier quote.",
+      viewOriginal: "View original quote",
+    },
+    bom: {
+      title: "Quote bill of materials",
+      colItem: "Item",
+      colCategory: "Category",
+      colQuantity: "Quantity",
+      colSources: "Instances",
+      colPrice: "Net price",
+      empty: "No bill of materials is available for this quote.",
     },
     issue: {
       title: "Issue quote",

@@ -511,6 +511,14 @@ const cs = {
     loading: "Načítání…",
     loadMore: "Načíst další",
     noMore: "Žádné další",
+    tableLabel: "Seznam nabídek",
+    emptyDescription: "Nabídky se objeví po vydání z projektu.",
+    columns: {
+      documentNumber: "Číslo nabídky",
+      status: "Stav",
+      total: "Celkem",
+      validUntil: "Platnost do",
+    },
     status: {
       draft: "Návrh",
       issued: "Vydáno",
@@ -544,6 +552,30 @@ const cs = {
       noExpiry: "Bez časového omezení",
       expiredWarning:
         "Platnost nabídky vypršela {date}. Odkaz stále funguje, ale zákazník už nemůže nabídku přijmout ani odmítnout.",
+    },
+    detail: {
+      eyebrow: "Cenová nabídka",
+      number: "Číslo nabídky",
+      issuedAt: "Vystaveno",
+      validUntil: "Platnost do",
+      noExpiry: "Bez časového omezení",
+    },
+    lineage: {
+      supersededTitle: "Nahrazeno novější revizí",
+      supersededBody: "Tato nabídka byla nahrazena novější revizí — platí novější verze.",
+      viewSuperseding: "Zobrazit novější revizi",
+      revisionTitle: "Revize předchozí nabídky",
+      revisionBody: "Tato nabídka je revizí dřívější nabídky.",
+      viewOriginal: "Zobrazit původní nabídku",
+    },
+    bom: {
+      title: "Rozpis položek nabídky",
+      colItem: "Položka",
+      colCategory: "Kategorie",
+      colQuantity: "Množství",
+      colSources: "Sestavy",
+      colPrice: "Cena bez DPH",
+      empty: "Rozpis položek není u této nabídky k dispozici.",
     },
     issue: {
       title: "Vydat nabídku",

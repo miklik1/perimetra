@@ -79,6 +79,14 @@ function seedQuote(index: number, over: Partial<QuoteDetail>): QuoteDetail {
 let quotes: QuoteDetail[] = [];
 let createSeq = 0;
 
+/** A workshop-stripped (price-blind, ADR 0056) snapshot shape — no `money`/`tax`
+ *  keys at all, mirroring the server's `blindSnapshot` allow-list. Used for the
+ *  seeded price-blind row so the list/detail absence assertions have a real
+ *  `total: null` fixture to render against. */
+function blindSnapshot() {
+  return {};
+}
+
 function seed(): QuoteDetail[] {
   return [
     seedQuote(1, { status: "issued", snapshot: snapshot("129891.5", standardTax) }),
@@ -88,6 +96,15 @@ function seed(): QuoteDetail[] {
       snapshot: snapshot("129891.5", reverseChargeTax),
     }),
     seedQuote(3, { status: "accepted", snapshot: snapshot("129891.5", standardTax) }),
+    // Price-blind (workshop) row (ADR 0056): `total` is server-nulled, and the
+    // snapshot carries none of the money/tax keys a priced view would — the
+    // list/detail "never renders Kč" absence assertions exercise this.
+    seedQuote(4, {
+      status: "issued",
+      total: null,
+      validUntil: "2026-08-15T00:00:00.000Z",
+      snapshot: blindSnapshot(),
+    }),
   ];
 }
 quotes = seed();
