@@ -458,9 +458,16 @@ const en: MessagesInput = {
     title: "Orders",
     checkingSession: "Checking session…",
     empty: "No orders yet.",
+    emptyDescription: "Orders appear once a quote is accepted.",
+    tableLabel: "Orders list",
     loading: "Loading…",
     loadMore: "Load more",
     noMore: "No more",
+    columns: {
+      orderNumber: "Order",
+      status: "Status",
+      createdAt: "Created",
+    },
     status: {
       confirmed: "Confirmed",
       in_production: "In production",

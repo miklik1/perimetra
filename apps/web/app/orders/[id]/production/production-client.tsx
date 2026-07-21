@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApiClient, useQuery } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
+import { Icon } from "@repo/ui";
 
 import { errorMessageKey } from "../../../../lib/error-messages";
 import { createOrdersQueries } from "../../../../lib/orders-queries";
@@ -22,6 +23,11 @@ export function OrderProductionClient({ id }: { id: string }) {
   const tErrors = useTranslations("errors");
   const ordersQueries = createOrdersQueries(useApiClient());
   const { data: production, error } = useQuery(ordersQueries.production(id));
+  // The breadcrumb leaf is the ORDER number the user clicked in the list — the
+  // production snapshot only carries the underlying quote's evidenční číslo
+  // (documentNumber), so the order-scoped identifier comes from the thin,
+  // price-blind order read, not the production projection.
+  const { data: order } = useQuery(ordersQueries.order(id));
 
   return (
     <AuthGuard
@@ -32,10 +38,14 @@ export function OrderProductionClient({ id }: { id: string }) {
         </main>
       }
     >
-      <main className="bg-field mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">
-        <Link href="/orders" className="text-muted-foreground text-sm hover:underline">
-          ← {t("title")}
-        </Link>
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 md:p-8">
+        <nav aria-label={t("title")} className="flex items-center gap-2 text-sm">
+          <Link href="/orders" className="text-muted-foreground hover:text-foreground">
+            {t("title")}
+          </Link>
+          <Icon name="chevron" size={13} aria-hidden className="text-muted-foreground" />
+          {order && <span className="font-data text-foreground">{order.orderNumber}</span>}
+        </nav>
         {error && (
           <p className="text-destructive text-sm" role="alert">
             {tErrors(errorMessageKey(error))}

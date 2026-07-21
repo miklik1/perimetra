@@ -17,7 +17,13 @@ export default async function OrderProductionPage({ params }: { params: Promise<
   const { id } = await params;
   const ordersQueries = createOrdersQueries(await createServerApiClient());
   const qc = getQueryClient();
-  await qc.prefetchQuery(ordersQueries.production(id));
+  // Prefetch both the production projection (the page body) and the thin order
+  // reference (the breadcrumb's order-number leaf) so the chrome hydrates
+  // SSR-complete — no client-side breadcrumb flash.
+  await Promise.all([
+    qc.prefetchQuery(ordersQueries.production(id)),
+    qc.prefetchQuery(ordersQueries.order(id)),
+  ]);
 
   return (
     <HydrationBoundary state={dehydrate(qc)}>

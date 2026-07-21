@@ -487,9 +487,16 @@ const cs = {
     title: "Zakázky",
     checkingSession: "Ověřování relace…",
     empty: "Zatím žádné zakázky.",
+    emptyDescription: "Zakázky se objeví po přijetí nabídky.",
+    tableLabel: "Seznam zakázek",
     loading: "Načítání…",
     loadMore: "Načíst další",
     noMore: "Žádné další",
+    columns: {
+      orderNumber: "Zakázka",
+      status: "Stav",
+      createdAt: "Vytvořeno",
+    },
     status: {
       confirmed: "Potvrzeno",
       in_production: "Ve výrobě",

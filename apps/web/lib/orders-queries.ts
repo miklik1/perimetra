@@ -2,8 +2,10 @@ import { defineInfiniteQuery, defineQuery } from "@repo/api";
 import type { ApiClient } from "@repo/api";
 import { appendSearchParams, stableParams, type SearchParamsInput } from "@repo/utils";
 import {
+  orderSchema,
   ordersPageSchema,
   quoteProductionSchema,
+  type OrderDetail,
   type OrdersPage,
   type OrderStatus,
   type QuoteProduction,
@@ -22,6 +24,8 @@ const orderKeys = {
   all: ["orders"] as const,
   lists: () => [...orderKeys.all, "list"] as const,
   list: (filters?: SearchParamsInput) => [...orderKeys.lists(), stableParams(filters)] as const,
+  details: () => [...orderKeys.all, "detail"] as const,
+  detail: (id: string) => [...orderKeys.details(), id] as const,
   productions: () => [...orderKeys.all, "production"] as const,
   production: (id: string) => [...orderKeys.productions(), id] as const,
 } as const;
@@ -42,6 +46,18 @@ export function createOrdersQueries(client: ApiClient) {
           appendSearchParams("/v1/orders", { ...filters, cursor: cursor || undefined }),
         schema: (data) => ordersPageSchema.parse(data),
         getNextPageParam: (lastPage) => lastPage.nextCursor,
+      }),
+
+    // GET /v1/orders/:id (ADR-O1) — the thin order reference (id/quoteId/
+    // orderNumber/status/dates, NO money), role-independent so it is honest on
+    // the price-blind production route. Sourced so the workshop detail breadcrumb
+    // can show the ORDER number the user clicked, not the underlying quote's
+    // evidenční číslo (the production snapshot carries only the quote number).
+    order: (id: string) =>
+      defineQuery<OrderDetail>(client, {
+        queryKey: orderKeys.detail(id),
+        path: `/v1/orders/${id}`,
+        schema: (data) => orderSchema.parse(data),
       }),
 
     // GET /v1/orders/:id/production (ADR-O1) — the re-homed workshop build view:

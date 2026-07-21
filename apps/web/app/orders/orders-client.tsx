@@ -10,8 +10,11 @@ import { OrdersList } from "./orders-list";
 
 /**
  * Client subtree of the protected orders page (ADR 0109 / ADR-O1), gated like
- * /quotes. Branded on the Part-A neutral system: a warm `bg-field` canvas, a
- * Chillax display heading, the list in matte `bg-chrome` panels.
+ * /quotes. Reskinned to the canvas o-LIST look (design/configurator/frames-order.jsx
+ * `FrameList`) via the settings-layout idiom: the AppShell owns height + scroll +
+ * `bg-background`, so the authed `<main>` drops `min-h-screen`/`bg-field` (the
+ * §5 per-surface min-h fix) — the AuthGuard fallback keeps `min-h-screen` since it
+ * renders bare, outside the shell's framed content slot.
  */
 export function OrdersClient() {
   const router = useRouter();
@@ -25,7 +28,7 @@ export function OrdersClient() {
         </main>
       }
     >
-      <main className="bg-field mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6 md:p-8">
         <DisplayLabel as="h1">{t("title")}</DisplayLabel>
         <OrdersList />
       </main>
