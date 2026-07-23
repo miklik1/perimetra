@@ -93,8 +93,13 @@ export const quoteRoutes: MockRoute[] = [
     method: "POST",
     pattern: "/v1/quotes/shared/:shareToken/accept",
     handler: ({ params }) => {
-      if (!findQuoteByShareToken(params.shareToken ?? "")) {
-        throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
+      const quote = findQuoteByShareToken(params.shareToken ?? "");
+      if (!quote) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
+      // Mirrors the real service's supersession guard (ADR-O1/CAR-158): checked
+      // BEFORE the generic "not open" 409, and carries no `status` field — the
+      // buyer view's `isSupersededConflict` keys on the code alone.
+      if (quote.supersededById) {
+        throw new MockHttpError(409, "quote_superseded", "Quote has been superseded");
       }
       const result = setQuoteStatusFixture(params.shareToken ?? "", "accepted");
       if (!result) throw new MockHttpError(409, "QUOTE_NOT_OPEN", "Quote is not open");
@@ -105,8 +110,10 @@ export const quoteRoutes: MockRoute[] = [
     method: "POST",
     pattern: "/v1/quotes/shared/:shareToken/decline",
     handler: ({ params }) => {
-      if (!findQuoteByShareToken(params.shareToken ?? "")) {
-        throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
+      const quote = findQuoteByShareToken(params.shareToken ?? "");
+      if (!quote) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
+      if (quote.supersededById) {
+        throw new MockHttpError(409, "quote_superseded", "Quote has been superseded");
       }
       const result = setQuoteStatusFixture(params.shareToken ?? "", "declined");
       if (!result) throw new MockHttpError(409, "QUOTE_NOT_OPEN", "Quote is not open");

@@ -105,6 +105,15 @@ function seed(): QuoteDetail[] {
       validUntil: "2026-08-15T00:00:00.000Z",
       snapshot: blindSnapshot(),
     }),
+    // Superseded (ADR-O1/CAR-158): `status` stays `issued` — supersession is a
+    // SEPARATE pointer — so the buyer route's `superseded: true` and the
+    // accept/decline `quote_superseded` 409 both exercise off this row, without
+    // ever touching the generic `QUOTE_NOT_OPEN` path.
+    seedQuote(5, {
+      status: "issued",
+      supersededById: "00000000-0000-7000-8000-000000000001",
+      snapshot: snapshot("129891.5", standardTax),
+    }),
   ];
 }
 quotes = seed();

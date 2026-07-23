@@ -34,4 +34,15 @@ describe("findSharedNabidkaFixture mock parity", () => {
   it("returns undefined for an unknown shareToken", () => {
     expect(findSharedNabidkaFixture("no-such-token")).toBeUndefined();
   });
+
+  // ADR-O1/CAR-158: a superseded quote's `status` is untouched (supersession is
+  // a separate pointer) — the buyer route must still report the real effective
+  // status AND flag `superseded`, never conflate the two.
+  it("flags a superseded quote's status as unchanged, with superseded true", () => {
+    const found = findSharedNabidkaFixture("share-000000000005");
+    const result = sharedNabidkaSchema.safeParse(found);
+    expect(result.success).toBe(true);
+    expect(found?.status).toBe("issued");
+    expect(found?.superseded).toBe(true);
+  });
 });

@@ -641,12 +641,25 @@ const cs = {
       generatedNote: "Tato nabídka je reprodukovatelná z evidovaných vstupů (I3).",
     },
     buyer: {
-      accept: "Přijmout nabídku",
+      accept: "Závazně objednat",
       decline: "Odmítnout nabídku",
       accepted: "Nabídku jste přijali. Děkujeme.",
       declined: "Nabídku jste odmítli.",
       expired: "Platnost této nabídky vypršela.",
       error: "Akci se nepodařilo dokončit. Zkuste to prosím znovu.",
+      tagline: "Ploty a brány na míru",
+      readyBadge: "Nabídka připravena",
+      greetingNamed: "Dobrý den, {name}",
+      greetingGeneric: "Dobrý den",
+      intro:
+        "Prohlédněte si prosím nabídku níže. Jakmile bude vše v pořádku, potvrďte ji jedním kliknutím.",
+      validityDays:
+        "{days, plural, one {Platí ještě # den} few {Platí ještě # dny} other {Platí ještě # dní}}",
+      validityDate: "Platí do {date}",
+      totalCaption: "Celkem s DPH",
+      supersededTitle: "Nabídka byla nahrazena",
+      supersededBody:
+        "Tato nabídka byla nahrazena novější verzí a nelze ji už potvrdit ani odmítnout. Vyčkejte prosím na nový odkaz.",
     },
     production: {
       title: "Výroba",

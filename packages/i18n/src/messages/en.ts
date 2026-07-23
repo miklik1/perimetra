@@ -613,12 +613,24 @@ const en: MessagesInput = {
       generatedNote: "This quote is reproducible from its recorded inputs (I3).",
     },
     buyer: {
-      accept: "Accept quote",
+      accept: "Place binding order",
       decline: "Decline quote",
       accepted: "You have accepted this quote. Thank you.",
       declined: "You have declined this quote.",
       expired: "This quote has expired.",
       error: "The action could not be completed. Please try again.",
+      tagline: "Custom fences & gates",
+      readyBadge: "Offer ready",
+      greetingNamed: "Hello, {name}",
+      greetingGeneric: "Hello",
+      intro:
+        "Please review the offer below. Once everything looks right, confirm it with one click.",
+      validityDays: "{days, plural, one {Valid for # more day} other {Valid for # more days}}",
+      validityDate: "Valid until {date}",
+      totalCaption: "Total incl. VAT",
+      supersededTitle: "This offer has been superseded",
+      supersededBody:
+        "This offer has been superseded by a newer version and can no longer be accepted or declined. Please wait for a new link.",
     },
     production: {
       title: "Production",

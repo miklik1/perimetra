@@ -11,9 +11,11 @@ import { SharedNabidkaView } from "./shared-nabidka-view";
  * `NabidkaDocument` through the cookie-less public client (the snapshot's
  * cost/margin, re-derivation seeds, and I3 stamps never cross the boundary —
  * built server-side, stripped by the response DTO), then hands it to the client
- * view, which renders the SAME branded `NabidkaDocumentView` the rep sees plus
- * accept/decline. The route lives OUTSIDE the `/quotes` protected prefix, so the
- * proxy auth gate lets it through; an unknown/withdrawn token fails closed (404).
+ * view, which renders the branded `NabidkaLandingView` conversion surface (the
+ * ADR-0089 Wave-B reversal, replacing the earlier `NabidkaDocumentView` print
+ * twin) plus accept/decline. The route lives OUTSIDE the `/quotes` protected
+ * prefix, so the proxy auth gate lets it through; an unknown/withdrawn token
+ * fails closed (404).
  */
 export default async function SharedNabidkaPage({
   params,
