@@ -62,7 +62,9 @@ const en: MessagesInput = {
     login: "Sign in",
     logout: "Sign out",
     email: "Email",
+    emailInvalid: "Enter a valid email address.",
     password: "Password",
+    passwordRequired: "Enter your password.",
     submit: "Continue",
     signingIn: "Signing in…",
     twoFactor: {
@@ -112,6 +114,12 @@ const en: MessagesInput = {
     saving: "Saving…",
     saved: "Billing details saved",
     nameRequired: "Company name is required",
+    sections: {
+      identity: "Identification",
+      address: "Address",
+      banking: "Banking details",
+      note: "Note",
+    },
     fields: {
       name: "Company name",
       ico: "Business ID",
@@ -122,6 +130,7 @@ const en: MessagesInput = {
       postalCode: "Postal code",
       country: "Country",
       bankAccount: "Bank account",
+      iban: "IBAN",
       registrationNote: "Commercial register entry",
     },
   },

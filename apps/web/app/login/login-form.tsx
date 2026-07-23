@@ -1,12 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useId } from "react";
 
 import { useMutation } from "@repo/api/react";
 import { useAuthClient } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button, FieldError } from "@repo/ui";
+import { Button, Field, Input, Panel } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { loginSchema, type LoginInput } from "@repo/validators";
 
@@ -27,6 +26,13 @@ const DEFAULT_DESTINATION = "/account";
  * where they were headed after sign-in. A 2FA-enrolled user is NOT signed in by
  * the password step — Better Auth withholds the session and signals a TOTP
  * challenge, so they are routed to `/two-factor` first (ADR 0040).
+ *
+ * Kit reskin: the card is a `Panel` (`bg-chrome`/`shadow-soft`, ADR 0072) and the
+ * rows are the compound `Field`/`Field.Control`/`Field.Error` — the same
+ * composition `CustomerForm` uses (its own doc-comment names `LegalProfileForm`
+ * as the field-shape precedent this mirrors in turn). Field errors render a
+ * form-owned translated key (not `errors.x.message` raw) per the
+ * `no-raw-field-error-message` lint rule.
  */
 export function LoginForm() {
   const router = useRouter();
@@ -40,10 +46,6 @@ export function LoginForm() {
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const authClient = useAuthClient();
-  const emailId = useId();
-  const passwordId = useId();
-  const emailErrorId = useId();
-  const passwordErrorId = useId();
 
   const {
     register,
@@ -78,9 +80,6 @@ export function LoginForm() {
     },
   });
 
-  const inputClass =
-    "border-border bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 aria-invalid:border-destructive";
-
   return (
     <form
       // `method="post"` is load-bearing even though `onSubmit` handles every
@@ -90,48 +89,40 @@ export function LoginForm() {
       // header, and the access logs of every hop (ADR 1001).
       method="post"
       onSubmit={handleSubmit((values) => mutation.mutate(values))}
-      className="border-border flex w-full max-w-md flex-col gap-3 rounded-md border p-4 text-sm"
+      className="flex w-full max-w-md flex-col gap-4 text-sm"
       noValidate
     >
-      <div className="flex flex-col gap-1">
-        <label htmlFor={emailId} className="font-medium">
-          {t("email")}
-        </label>
-        <input
-          {...register("email")}
-          id={emailId}
-          type="email"
-          className={inputClass}
-          aria-invalid={errors.email ? true : undefined}
-          aria-describedby={errors.email ? emailErrorId : undefined}
-        />
-        <FieldError id={emailErrorId} error={errors.email} />
+      <Panel elevation="flat">
+        <Panel.Body>
+          <Field>
+            <Field.Label>{t("email")}</Field.Label>
+            <Field.Control>
+              <Input {...register("email")} type="email" />
+            </Field.Control>
+            {errors.email && <Field.Error>{t("emailInvalid")}</Field.Error>}
+          </Field>
+
+          <Field>
+            <Field.Label>{t("password")}</Field.Label>
+            <Field.Control>
+              <Input {...register("password")} type="password" />
+            </Field.Control>
+            {errors.password && <Field.Error>{t("passwordRequired")}</Field.Error>}
+          </Field>
+        </Panel.Body>
+      </Panel>
+
+      <div className="flex flex-col gap-2">
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? t("signingIn") : t("login")}
+        </Button>
+
+        {mutation.isError && (
+          <p className="text-destructive text-xs" role="alert">
+            {tErrors(authErrorMessageKey(mutation.error))}
+          </p>
+        )}
       </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={passwordId} className="font-medium">
-          {t("password")}
-        </label>
-        <input
-          {...register("password")}
-          id={passwordId}
-          type="password"
-          className={inputClass}
-          aria-invalid={errors.password ? true : undefined}
-          aria-describedby={errors.password ? passwordErrorId : undefined}
-        />
-        <FieldError id={passwordErrorId} error={errors.password} />
-      </div>
-
-      <Button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? t("signingIn") : t("login")}
-      </Button>
-
-      {mutation.isError && (
-        <p className="text-destructive" role="alert">
-          {tErrors(authErrorMessageKey(mutation.error))}
-        </p>
-      )}
     </form>
   );
 }

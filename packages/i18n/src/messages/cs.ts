@@ -62,7 +62,9 @@ const cs = {
     login: "Přihlásit se",
     logout: "Odhlásit se",
     email: "E-mail",
+    emailInvalid: "Zadejte platnou e-mailovou adresu.",
     password: "Heslo",
+    passwordRequired: "Zadejte heslo.",
     submit: "Pokračovat",
     signingIn: "Přihlašování…",
     twoFactor: {
@@ -112,6 +114,12 @@ const cs = {
     saving: "Ukládání…",
     saved: "Fakturační údaje uloženy",
     nameRequired: "Název firmy je povinný",
+    sections: {
+      identity: "Identifikace",
+      address: "Adresa",
+      banking: "Bankovní spojení",
+      note: "Poznámka",
+    },
     fields: {
       name: "Název firmy",
       ico: "IČO",
@@ -122,6 +130,7 @@ const cs = {
       postalCode: "PSČ",
       country: "Země",
       bankAccount: "Bankovní účet",
+      iban: "IBAN",
       registrationNote: "Zápis v obchodním rejstříku",
     },
   },

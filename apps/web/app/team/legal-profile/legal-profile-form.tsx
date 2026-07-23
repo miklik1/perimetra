@@ -1,33 +1,30 @@
 "use client";
 
-import { useId } from "react";
 import { z } from "zod";
 
-import { useApiClient, useMutation, useQuery, useQueryClient } from "@repo/api/react";
+import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, Field, Input, Panel, Switch, Textarea } from "@repo/ui";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
-import {
-  lookupDicSchema,
-  lookupIcoSchema,
-  type LegalProfile,
-  type UpsertLegalProfileInput,
-} from "@repo/validators";
+import { lookupIcoSchema, type LegalProfile, type UpsertLegalProfileInput } from "@repo/validators";
 
 import { devErrorDetail, errorMessageKey } from "../../../lib/error-messages";
 import { createLegalProfileQueries, legalProfileKeys } from "../../../lib/legal-profile-queries";
-import { createLookupsQueries } from "../../../lib/lookups-queries";
-import { aresPrefill, ViesBadge } from "../../../lib/registry-lookup";
+import { useAresLookup, useViesLookup, ViesBadge } from "../../../lib/registry-lookup";
 import { toast } from "../../../lib/toast";
 
 /**
  * Legal-profile form (ADR 0088) — the org's dodavatel identity behind every
  * nabídka. Form-local schema (all strings + the VAT-payer flag); empties map to
  * null on submit, and the server's `upsertLegalProfileSchema` is the strict gate
- * (IČO/DIČ/bank checksums) so a bad value surfaces as a mutation error.
+ * (IČO/DIČ/IBAN/bank checksums) so a bad value surfaces as a mutation error —
+ * the local schema deliberately does NOT re-validate the IBAN (mod-97) itself.
  *
- * Render-taste (layout/grouping) is owed to Martin's eye — built functional on
- * the brand kit; the §29-ZDPH field-set itself is legal-gated (flagged ADR 0088).
+ * Sectioned `Panel` blocks (Identifikace / Adresa / Bankovní spojení /
+ * Poznámka) on the kit `Field`/`Input`/`Textarea`/`Switch` primitives — same
+ * field-for-field shape `CustomerForm` mirrors where the two entities overlap
+ * (name/ico/dic/vatPayer/address), including the shared `useAresLookup` /
+ * `useViesLookup` composition (ADR 0090/CAR-23).
  */
 const legalProfileFormSchema = z.object({
   name: z.string().min(1),
@@ -39,6 +36,7 @@ const legalProfileFormSchema = z.object({
   postalCode: z.string(),
   country: z.string(),
   bankAccount: z.string(),
+  iban: z.string(),
   registrationNote: z.string(),
 });
 type LegalProfileFormValues = z.infer<typeof legalProfileFormSchema>;
@@ -54,6 +52,7 @@ function toDefaults(initial: LegalProfile | null): LegalProfileFormValues {
     postalCode: initial?.postalCode ?? "",
     country: initial?.country ?? "CZ",
     bankAccount: initial?.bankAccount ?? "",
+    iban: initial?.iban ?? "",
     registrationNote: initial?.registrationNote ?? "",
   };
 }
@@ -71,12 +70,10 @@ function toInput(v: LegalProfileFormValues): UpsertLegalProfileInput {
     postalCode: blank(v.postalCode),
     country: v.country.trim() || "CZ",
     bankAccount: blank(v.bankAccount),
+    iban: blank(v.iban),
     registrationNote: blank(v.registrationNote),
   };
 }
-
-const inputClass =
-  "border-border bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 aria-invalid:border-destructive";
 
 export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) {
   const t = useTranslations("legalProfile");
@@ -85,9 +82,6 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
   const client = useApiClient();
   const queryClient = useQueryClient();
   const queries = createLegalProfileQueries(client);
-  const lookupsQueries = createLookupsQueries(client);
-  const nameId = useId();
-  const nameErrorId = useId();
 
   const {
     register,
@@ -106,104 +100,122 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
     onError: (error) => toast.error(tErrors(errorMessageKey(error))),
   });
 
-  // IČO → ARES prefill of the supplier's own identity (name + DIČ + sídlo). The
-  // IČO field is watched so the button enables on a well-formed value; vatPayer
-  // is left to the explicit toggle.
+  // IČO → ARES prefill of the supplier's own identity (name + DIČ + sídlo) —
+  // the shared hook (ADR 0090), same one `CustomerForm` consumes.
+  const ares = useAresLookup(client, (prefill) => {
+    const set = (key: keyof LegalProfileFormValues, value: string) =>
+      setValue(key, value, { shouldValidate: true, shouldDirty: true });
+    if (prefill.name) set("name", prefill.name);
+    if (prefill.dic) set("dic", prefill.dic);
+    if (prefill.addressLine) set("addressLine", prefill.addressLine);
+    if (prefill.city) set("city", prefill.city);
+    if (prefill.postalCode) set("postalCode", prefill.postalCode);
+    set("country", prefill.country);
+  });
+
   const icoValue = watch("ico").trim();
-  const ares = useMutation({
-    ...lookupsQueries.ares(),
-    onSuccess: (result) => {
-      const prefill = aresPrefill(result);
-      if (!prefill) {
-        toast.error(tLookup(result.status === "not_found" ? "aresNotFound" : "aresUnavailable"));
-        return;
-      }
-      const set = (key: keyof LegalProfileFormValues, value: string) =>
-        setValue(key, value, { shouldValidate: true, shouldDirty: true });
-      if (prefill.name) set("name", prefill.name);
-      if (prefill.dic) set("dic", prefill.dic);
-      if (prefill.addressLine) set("addressLine", prefill.addressLine);
-      if (prefill.city) set("city", prefill.city);
-      if (prefill.postalCode) set("postalCode", prefill.postalCode);
-      set("country", prefill.country);
-      if (result.dissolved) toast.warning(tLookup("aresDissolved"));
-    },
-    onError: () => toast.error(tLookup("aresUnavailable")),
-  });
-
-  // DIČ → VIES validity badge — reactive, gated on a well-formed DIČ.
   const dicValue = watch("dic").trim().toUpperCase();
-  const vies = useQuery({
-    ...lookupsQueries.vies(dicValue),
-    enabled: lookupDicSchema.safeParse(dicValue).success,
-  });
+  const vies = useViesLookup(client, dicValue);
+  const vatPayer = watch("vatPayer");
 
-  const field = (key: Exclude<keyof LegalProfileFormValues, "vatPayer">) => (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={`${nameId}-${key}`} className="font-medium">
-        {t(`fields.${key}`)}
-      </label>
-      <input {...register(key)} id={`${nameId}-${key}`} className={inputClass} />
-    </div>
+  const field = (key: Exclude<keyof LegalProfileFormValues, "vatPayer" | "registrationNote">) => (
+    <Field>
+      <Field.Label>{t(`fields.${key}`)}</Field.Label>
+      <Field.Control>
+        <Input {...register(key)} />
+      </Field.Control>
+    </Field>
   );
 
   return (
     <form
       method="post"
       onSubmit={handleSubmit((values) => mutation.mutate(toInput(values)))}
-      className="border-border flex w-full max-w-2xl flex-col gap-4 rounded-md border p-6 text-sm"
+      className="flex w-full flex-col gap-6 text-sm"
       noValidate
     >
-      <div className="flex flex-col gap-1">
-        <label htmlFor={nameId} className="font-medium">
-          {t("fields.name")}
-        </label>
-        <input
-          {...register("name")}
-          id={nameId}
-          className={inputClass}
-          aria-invalid={errors.name ? true : undefined}
-          aria-describedby={errors.name ? nameErrorId : undefined}
-        />
-        {errors.name && (
-          <p id={nameErrorId} className="text-destructive text-xs">
-            {t("nameRequired")}
-          </p>
-        )}
-      </div>
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.identity")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <Field>
+            <Field.Label>{t("fields.name")}</Field.Label>
+            <Field.Control>
+              <Input {...register("name")} />
+            </Field.Control>
+            {errors.name && <Field.Error>{t("nameRequired")}</Field.Error>}
+          </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        {field("ico")}
-        {field("dic")}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => ares.mutate(icoValue)}
-          disabled={!lookupIcoSchema.safeParse(icoValue).success || ares.isPending}
-        >
-          {ares.isPending ? tLookup("aresLoading") : tLookup("aresLoad")}
-        </Button>
-        <ViesBadge result={vies.data} loading={vies.isFetching} />
-      </div>
+          <div className="grid grid-cols-2 gap-4">
+            {field("ico")}
+            {field("dic")}
+          </div>
 
-      <label className="flex items-center gap-2 font-medium">
-        <input type="checkbox" {...register("vatPayer")} className="size-4" />
-        {t("fields.vatPayer")}
-      </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => ares.mutate(icoValue)}
+              disabled={!lookupIcoSchema.safeParse(icoValue).success || ares.isPending}
+            >
+              {ares.isPending ? tLookup("aresLoading") : tLookup("aresLoad")}
+            </Button>
+            <ViesBadge result={vies.data} loading={vies.isFetching} />
+          </div>
 
-      {field("addressLine")}
-      <div className="grid grid-cols-2 gap-4">
-        {field("postalCode")}
-        {field("city")}
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        {field("country")}
-        {field("bankAccount")}
-      </div>
-      {field("registrationNote")}
+          <Field className="flex-row items-center justify-between gap-3">
+            <Field.Label className="mb-0">{t("fields.vatPayer")}</Field.Label>
+            <Field.Control>
+              <Switch
+                checked={vatPayer}
+                onCheckedChange={(checked) => setValue("vatPayer", checked, { shouldDirty: true })}
+              />
+            </Field.Control>
+          </Field>
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.address")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          {field("addressLine")}
+          <div className="grid grid-cols-2 gap-4">
+            {field("postalCode")}
+            {field("city")}
+          </div>
+          {field("country")}
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.banking")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <div className="grid grid-cols-2 gap-4">
+            {field("bankAccount")}
+            {field("iban")}
+          </div>
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("sections.note")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <Field>
+            <Field.Label>{t("fields.registrationNote")}</Field.Label>
+            <Field.Control>
+              <Textarea {...register("registrationNote")} rows={4} />
+            </Field.Control>
+          </Field>
+        </Panel.Body>
+      </Panel>
 
       <div className="flex items-center gap-4">
         <Button type="submit" variant="copper" disabled={mutation.isPending}>

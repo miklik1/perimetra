@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApiClient, useQuery } from "@repo/api/react";
 import { AuthGuard } from "@repo/auth/react";
 import { useTranslations } from "@repo/i18n/web";
+import { Panel } from "@repo/ui";
 
 import { SettingsLayout } from "../../../components/settings/settings-layout";
 import { createLegalProfileQueries } from "../../../lib/legal-profile-queries";
@@ -21,7 +22,7 @@ export function LegalProfileClient() {
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
-      fallback={<main className="flex min-h-screen items-center justify-center">…</main>}
+      fallback={<main className="bg-field flex min-h-screen items-center justify-center">…</main>}
     >
       <Content />
     </AuthGuard>
@@ -44,9 +45,17 @@ function Content() {
         </header>
 
         {!isAdmin ? (
-          <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>
+          <Panel elevation="flat">
+            <Panel.Body>
+              <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>
+            </Panel.Body>
+          </Panel>
         ) : isLoading ? (
-          <p className="text-muted-foreground text-sm">…</p>
+          <Panel elevation="flat">
+            <Panel.Body>
+              <p className="text-muted-foreground text-sm">…</p>
+            </Panel.Body>
+          </Panel>
         ) : (
           <LegalProfileForm initial={data ?? null} />
         )}
