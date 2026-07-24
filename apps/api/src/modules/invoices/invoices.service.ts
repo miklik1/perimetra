@@ -42,6 +42,7 @@ import { type InvoiceRow } from "@repo/db/schema/invoices";
 import { type TaxModeKind } from "@repo/model";
 import {
   type Invoice,
+  type InvoiceDocument,
   type InvoiceReproduction,
   type InvoicesPage,
   type InvoiceSummary,
@@ -60,6 +61,7 @@ import { OrdersService } from "../orders/orders.service.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { QuotesService } from "../quotes/quotes.service.js";
 import { formatInvoiceNumber } from "./document-number.js";
+import { buildInvoiceDocumentView } from "./invoice-document.js";
 import { buildInvoiceDocument, reproduceInvoice } from "./invoice-mapper.js";
 import { InvoicesRepository, type InvoiceScopeOpts } from "./invoices.repository.js";
 import { INVOICE_ISSUED, INVOICE_PAID } from "./invoices.tokens.js";
@@ -135,6 +137,36 @@ export class InvoicesService {
     const row = await this.invoices.findById(scope, scopeOpts(role), invoiceId);
     if (!row) throw new NotFoundException("Invoice not found");
     return toDetail(row);
+  }
+
+  /**
+   * The frozen §29 document, projected through the KERNEL's own view-model
+   * builder (ADR 0127). Same 404 shape as `get`/`verify` — absent, other org and
+   * another rep are one answer, so the response is never an existence oracle.
+   *
+   * A frozen payload that will not parse fails CLOSED with a typed 422; it is
+   * never rendered partially (ADR 0126's inversion rule — on a tax document a
+   * missing field is a DEFECT, not honest subtraction). Not a 404: the row
+   * exists and this caller may read it, and claiming non-existence would corrupt
+   * the 404-is-not-an-oracle contract. Not a 500: an opaque server error is
+   * un-actionable, and this module's whole vocabulary of refusals is a typed
+   * 422 + `code`.
+   */
+  async getDocument(
+    scope: RequestScope,
+    role: OrgRole,
+    invoiceId: string,
+  ): Promise<InvoiceDocument> {
+    const row = await this.invoices.findById(scope, scopeOpts(role), invoiceId);
+    if (!row) throw new NotFoundException("Invoice not found");
+    const built = buildInvoiceDocumentView(row.snapshot);
+    if (!built.ok) {
+      throw new UnprocessableEntityException({
+        message: "the frozen invoice document could not be read",
+        code: "invoice_document_unreadable",
+      });
+    }
+    return built.document;
   }
 
   /**

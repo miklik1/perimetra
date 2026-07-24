@@ -11,7 +11,7 @@ import { z } from "zod";
  *  - `leads`  — reserved: the leads module does not exist yet, so the endpoint
  *               never emits it (the registry carries the `countKey` ahead of the
  *               source). Kept in the contract so wiring it later is additive.
- *  - `quotes` — open quotes needing attention: stored status `draft` + `issued`
+ *  - `quotes` — open quotes needing attention: stored status `issued`
  *               (a lapsed/expired issued quote stays counted — it is still
  *               actionable/reviseable; `expired` is a derived read, not a stored
  *               status). admin/sales only; a `sales` caller is narrowed to their

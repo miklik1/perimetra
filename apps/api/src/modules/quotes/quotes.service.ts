@@ -492,7 +492,7 @@ export class QuotesService {
   }
 
   /**
-   * Count the caller's open quotes (`draft` + `issued`) — the nav-counts pill
+   * Count the caller's open quotes (`issued`) — the nav-counts pill
    * source (1c-3). Uses the SAME ownership narrowing as `list` (`sales` → own,
    * admin → whole org), so the pill and the list can never disagree.
    */
@@ -588,7 +588,7 @@ export class QuotesService {
    * level, so there is no role branch here at all. Ownership scope is the SAME
    * widened `scopeOpts` as `get`/`list` (workshop sees the whole org, ADR
    * above). Gated to an effectively issued/accepted quote (`isProducible`) —
-   * a draft/declined/expired quote 404s (absence, not a 403 — consistent with
+   * a declined/expired quote 404s (absence, not a 403 — consistent with
    * the org-scope-isolation "no existence oracle" precedent).
    */
   async getProduction(
@@ -1356,7 +1356,7 @@ export class QuotesService {
    * an emailed link must always SEE their offer (accepted / declined / expired) —
    * the effective status drives an at-a-glance banner + the accept/decline
    * affordance in the view. A shareToken only ever exists on an issued-or-later
-   * quote, so a resolvable token never surfaces a draft; an unknown token 404s.
+   * quote (a quote is born `issued`); an unknown token 404s.
    * A malformed/price-blind snapshot (no tax/money/bom) fails closed (404).
    */
   async getSharedNabidka(shareToken: string): Promise<SharedNabidka> {

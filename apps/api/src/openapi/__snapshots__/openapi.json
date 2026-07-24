@@ -1082,7 +1082,6 @@
             "schema": {
               "type": "string",
               "enum": [
-                "draft",
                 "issued",
                 "accepted",
                 "declined",
@@ -2470,6 +2469,29 @@
     "/v1/invoices/{id}": {
       "get": {
         "operationId": "InvoicesController_get_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Invoices"
+        ]
+      }
+    },
+    "/v1/invoices/{id}/document": {
+      "get": {
+        "operationId": "InvoicesController_document_v1",
         "parameters": [
           {
             "name": "id",

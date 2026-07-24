@@ -16,7 +16,13 @@ import { cursorQuerySchema, paginated } from "./api/pagination";
 import { roundingPolicySchema } from "./price-tables";
 import { isoDatetime } from "./primitives";
 
-export const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
+// `draft` was REMOVED (ADR 0127, superseding ADR 0083:27-29): it was never
+// writable — the sole insert path hardcodes `issued` and the sole mutation path
+// (`resolveByShareToken`) accepts only `accepted`/`declined`. The reservation is
+// spent: the revision half shipped differently (ADR 0109/CAR-158 mints a NEW
+// `issued` row). Kept in lockstep with the @repo/db mirror; no DB artifact (text
+// column, no PG enum), so re-adding later costs one tuple entry and no migration.
+export const QUOTE_STATUSES = ["issued", "accepted", "declined", "expired"] as const;
 export const quoteStatusSchema = z.enum(QUOTE_STATUSES);
 export type QuoteStatus = z.infer<typeof quoteStatusSchema>;
 
@@ -425,8 +431,7 @@ export const productionInstanceSchema = z.object({
 });
 
 /** Only an effectively `issued`/`accepted` quote has a production run — a
- *  declined/expired offer, or an (unreachable today) draft, has nothing to
- *  build. */
+ *  declined/expired offer has nothing to build. */
 export const producibleQuoteStatusSchema = z.enum(["issued", "accepted"]);
 
 // --- Frozen technical drawing + spec/dimension rows (ADR 0102/0108) ----------

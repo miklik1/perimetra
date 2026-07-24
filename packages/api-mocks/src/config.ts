@@ -2,6 +2,7 @@ import { type MockDispatchConfig } from "./core/dispatch";
 import { type MockRoute } from "./core/types";
 import { authRoutes } from "./handlers/auth";
 import { customerRoutes } from "./handlers/customers";
+import { invoiceRoutes } from "./handlers/invoices";
 import { lookupRoutes } from "./handlers/lookups";
 import { orderRoutes } from "./handlers/orders";
 import { projectRoutes } from "./handlers/projects";
@@ -22,6 +23,7 @@ export const routeGroups = {
   projects: projectRoutes,
   quotes: quoteRoutes,
   orders: orderRoutes,
+  invoices: invoiceRoutes,
   customers: customerRoutes,
   lookups: lookupRoutes,
   // @gen:exports — `pnpm gen api-resource` registers the resource route group here.

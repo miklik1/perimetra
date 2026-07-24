@@ -106,8 +106,8 @@ function dimensionRowsOf(drawing: TechnicalDrawing): ProductionDimensionRow[] {
 }
 
 /** Only an effectively `issued`/`accepted` quote has a production run — a
- *  declined/expired offer, or an (unreachable today) draft, has nothing to
- *  build. Fail-closed the same way the buyer nabídka route's snapshot guard is. */
+ *  declined/expired offer has nothing to build. Fail-closed the same way the
+ *  buyer nabídka route's snapshot guard is. */
 export function isProducible(status: QuoteStatus): status is "issued" | "accepted" {
   return status === "issued" || status === "accepted";
 }

@@ -29,6 +29,7 @@ import {
 
 import {
   type Invoice,
+  type InvoiceDocument,
   type InvoiceReproduction,
   type InvoicesPage,
 } from "@repo/validators/invoices";
@@ -42,6 +43,7 @@ import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
 import {
+  InvoiceDocumentDto,
   InvoiceDto,
   InvoiceReproductionDto,
   InvoicesPageDto,
@@ -85,6 +87,22 @@ export class InvoicesController {
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<Invoice> {
     return this.invoices.get(scope, role, id);
+  }
+
+  /** The pure-data §29 document view (ADR 0127) — the kernel's own
+   *  `buildPdfViewModel` over the FROZEN snapshot, zod-validated on the way out.
+   *  The web must never import `@cardo/tax-cz` (its `/export` index eagerly loads
+   *  the ISDOC/UBL exporters and therefore native libxmljs2 + saxon-js), so the
+   *  document layer is SERVED, not shipped. */
+  @Get(":id/document")
+  @RequireRole("admin", "sales")
+  @ZodSerializerDto(InvoiceDocumentDto)
+  document(
+    @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<InvoiceDocument> {
+    return this.invoices.getDocument(scope, role, id);
   }
 
   /** Mark an issued invoice paid — admin only, idempotent (409 on repeat). */

@@ -15,11 +15,14 @@ import type { OrgRole } from "@repo/validators";
  * Vocabulary and visibility mirror the roles model (§4.3, ADR 0056/0062):
  *  - `dashboard` (Přehled `/`) and `orders` (Zakázky) show to ANY org member.
  *  - `leads` (Poptávky, → /customers until the leads module lands), `quotes`
- *    (Nabídky) and `catalog` (Katalog, → /configurator) are the priced/
- *    commercial surfaces: `admin`/`sales` only. Workshop is deliberately
- *    excluded — a nabídka is constitutively priced and the configurator prices
- *    what it configures (workshop 403s on `/price-tables/active`), so routing
- *    workshop there is a dead end (§4.3).
+ *    (Nabídky), `invoices` (Faktury, ADR 0127) and `catalog` (Katalog, →
+ *    /configurator) are the priced/commercial surfaces: `admin`/`sales` only.
+ *    Workshop is deliberately excluded — a nabídka is constitutively priced and
+ *    the configurator prices what it configures (workshop 403s on
+ *    `/price-tables/active`), so routing workshop there is a dead end (§4.3).
+ *    `InvoicesController` is `@RequireRole('admin','sales')` on every route, so
+ *    workshop is price-blind by ABSENCE (403 on the whole surface, no price-blind
+ *    projection) and the predicate below mirrors that exactly.
  *  - `settings` (Nastavení) always shows once authenticated — even an org-less /
  *    still-resolving session (`role: null`) reaches its Účet/Zabezpečení tabs.
  *  - `platform` (Platforma) is gated by the platform/vendor operator flag, which
@@ -44,7 +47,15 @@ type NavCountKey = "leads" | "quotes" | "orders";
 
 export interface NavEntry {
   /** i18n label key under the `nav` namespace (packages/i18n/src/messages/{cs,en}.ts). */
-  key: "dashboard" | "leads" | "quotes" | "orders" | "catalog" | "settings" | "platform";
+  key:
+    | "dashboard"
+    | "leads"
+    | "quotes"
+    | "orders"
+    | "invoices"
+    | "catalog"
+    | "settings"
+    | "platform";
   to: Href;
   icon: IconName;
   group: NavGroup;
@@ -88,6 +99,21 @@ export const NAV_ENTRIES: readonly NavEntry[] = [
     group: "main",
     countKey: "orders",
     show: anyOrgMember,
+  },
+  // Faktury (ADR 0112 backend / ADR 0127 surface) sits after Zakázky because
+  // array order IS render order and the pipeline reads leads → quotes → orders →
+  // invoices; `catalog` follows as a tool, not a pipeline stage. NO `countKey`:
+  // an unpaid-invoice pill would need a new `NavCountKey` + contract + service
+  // field, and whether such a count is honest (and per-rep narrowed) is
+  // unsettled — `leads` is the standing precedent that an unbacked pill is worse
+  // than none (§4.1). NO `activeMatch` either: prefix matching on `/invoices`
+  // already lights the section on /invoices/:id and its /faktura print sheet.
+  {
+    key: "invoices",
+    to: { route: "invoices" },
+    icon: "save",
+    group: "main",
+    show: adminOrSales,
   },
   {
     key: "catalog",

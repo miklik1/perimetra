@@ -107,7 +107,7 @@ export class QuotesController {
    * drawings off the frozen snapshot, never re-derived (I3). No `@RequireRole`
    * — admin/sales/workshop all reach it (same as `get`); the response shape
    * itself is role-INDEPENDENT (always price-blind — production is a surface,
-   * not a permission level). A draft/declined/expired quote 404s (nothing to
+   * not a permission level). A declined/expired quote 404s (nothing to
    * build), same absence-not-403 style as the org-scope isolation guard.
    */
   @Get(":id/production")

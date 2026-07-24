@@ -15,8 +15,11 @@ import { type RequestScope } from "../../common/tenancy/request-scope.js";
 
 /** The "open work" statuses the nav pill counts (1c-3): a quote still in play.
  *  `expired` is a DERIVED read of a lapsed `issued` quote (never stored), so a
- *  lapsed quote stays counted here — it is still actionable/reviseable. */
-const OPEN_QUOTE_STATUSES = ["draft", "issued"] as const satisfies readonly QuoteStatus[];
+ *  lapsed quote stays counted here — it is still actionable/reviseable. The
+ *  `satisfies` clause is the lockstep tripwire against QUOTE_STATUSES (it is what
+ *  caught the ADR-0127 `draft` removal, which was behaviour-identical: `draft`
+ *  never matched a row). */
+const OPEN_QUOTE_STATUSES = ["issued"] as const satisfies readonly QuoteStatus[];
 
 export interface ListQuotesParams {
   cursor?: string | undefined;
@@ -121,7 +124,7 @@ export class QuotesRepository {
   }
 
   /**
-   * Count the open quotes (`draft` + `issued`) the caller may see — the nav
+   * Count the open quotes (`issued`) the caller may see — the nav
    * pill source (1c-3). Runs through the SAME `scoped()` filter as `list`, so a
    * `sales` rep's count is narrowed to their own rows exactly as their list is;
    * admin/workshop count the whole org. A pure aggregate — no rows shipped.

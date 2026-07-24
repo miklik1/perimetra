@@ -54,6 +54,11 @@ export const routes = {
   // only (workshop is 403'd by the api; the nav entry's show-predicate mirrors it).
   customers: { path: "/customers" },
   customer: { path: "/customers/:id", params: { id: "string" } },
+  // Invoices surface (ADR 0112 / ADR 0127) — the §29 daňový doklad. The
+  // /invoices/:id/faktura print sub-route uses a raw string href (like /quotes'),
+  // so only the list + detail need typed entries.
+  invoices: { path: "/invoices" },
+  invoice: { path: "/invoices/:id", params: { id: "string" } },
   // Buyer-facing PUBLIC nabídka (ADR 0089) — token-credentialed, no session.
   // Deliberately OUTSIDE the `/quotes` protected prefix (proxy.ts auth gate).
   sharedNabidka: { path: "/nabidka/:token", params: { token: "string" } },

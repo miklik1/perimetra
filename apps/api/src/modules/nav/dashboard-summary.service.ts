@@ -38,7 +38,7 @@ type ActivityStatus = RecentOrderActivity["status"] | RecentQuoteActivity["statu
 interface DashboardKpis {
   /** Active orders — `confirmed` + `in_production`. Always present (every role). */
   activeOrders: number;
-  /** Open quotes needing attention — `draft` + `issued`. Non-workshop only. */
+  /** Open quotes needing attention — stored status `issued`. Non-workshop only. */
   openQuotes?: number;
   /** Accepted quotes (won deals). Non-workshop only. */
   acceptedQuotes?: number;

@@ -12,6 +12,7 @@ import {
   type QuoteProduction,
   type QuoteReproduction,
   type QuotesPage,
+  type QuoteStatus,
 } from "@repo/validators";
 
 /**
@@ -34,7 +35,9 @@ const quoteKeys = {
 export type ListQuotesFilters = {
   limit?: number;
   sort?: "createdAt:asc" | "createdAt:desc";
-  status?: "draft" | "issued" | "accepted" | "declined" | "expired";
+  /** The contract tuple, not a hand-duplicated union (ADR 0127) — a status
+   *  added/removed in @repo/validators reaches this filter by construction. */
+  status?: QuoteStatus;
 };
 
 export interface IssueQuoteVariables {

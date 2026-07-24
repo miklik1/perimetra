@@ -72,10 +72,10 @@ const DOC_TABLE_SUM_ROW = "border-primary bg-spotlight-subtle border-t-2";
 /**
  * The buyer-facing public link (CAR-16, ADR 0089's `/nabidka/:shareToken`
  * route) surfaced on the rep's own quote detail — so a rep can copy/paste it
- * to the buyer without hunting for the shareToken. Shown for every
- * effectively-non-draft status (issued and every state reachable from it —
- * accepted/declined/expired all keep working links, ADR 0083); a draft has no
- * shareable offer yet, so it renders nothing. `quote.status` is already the
+ * to the buyer without hunting for the shareToken. Shown for EVERY status: a
+ * quote is born `issued` and every state reachable from it —
+ * accepted/declined/expired — keeps a working link (ADR 0083). `quote.status`
+ * is already the
  * READ-time effective status (`effectiveStatus`, computed server-side in
  * `quotes.service.ts`'s `toSummary` — never re-derived here), so an
  * `issued` quote past its `validUntil` already reads `expired` and gets the
@@ -250,8 +250,8 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
             <KeyValueList.Row label={t("detail.issuedAt")}>
               {formatDate(quote.createdAt, { dateStyle: "medium" }, locale)}
             </KeyValueList.Row>
-            {/* Validity gap-fill (§3.2) — the header carries this fact even when
-             *  no buyer-link panel renders below (e.g. a draft). */}
+            {/* Validity gap-fill (§3.2) — the header carries this fact in its
+             *  own right, next to the other identity rows. */}
             <KeyValueList.Row label={t("detail.validUntil")}>
               {quote.validUntil
                 ? formatDate(quote.validUntil, { dateStyle: "medium" }, locale)
@@ -281,15 +281,16 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
         />
       )}
 
-      {/* The buyer link (CAR-16) — draft has nothing to share yet */}
-      {quote.status !== "draft" && (
-        <BuyerLinkPanel
-          status={quote.status}
-          shareToken={quote.shareToken}
-          validUntil={quote.validUntil}
-          locale={locale}
-        />
-      )}
+      {/* The buyer link (CAR-16) — unconditional: a quote is born `issued`, so
+          every status it can hold has a shareable offer behind it. (This was
+          guarded on `status !== "draft"` until ADR 0127 removed that provably
+          unwritable status; the guard was dead, not defensive.) */}
+      <BuyerLinkPanel
+        status={quote.status}
+        shareToken={quote.shareToken}
+        validUntil={quote.validUntil}
+        locale={locale}
+      />
 
       {/* The DPH breakdown. NOT a daňový doklad — a nabídka has its own number
           series, no DUZP and no payment block, and its VAT is derived bottom-up

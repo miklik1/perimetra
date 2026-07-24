@@ -3,9 +3,12 @@
  * immutable snapshot. The SNAPSHOT never changes once issued; only the `status`
  * field moves, through guarded transitions:
  *
- *   draft ──issue──▶ issued ──accept (buyer/shareToken)──▶ accepted
- *                       │
- *                       └──decline (buyer/shareToken)─────▶ declined
+ *   (issue) ──▶ issued ──accept (buyer/shareToken)──▶ accepted
+ *                  │
+ *                  └──decline (buyer/shareToken)─────▶ declined
+ *
+ * A quote is BORN `issued` — there is no pre-issue stored state. The `draft`
+ * status was removed as provably unwritable (ADR 0127, superseding ADR 0083).
  *
  * `expired` is DERIVED, never stored: an `issued` quote whose `validUntil` has
  * passed READS as expired (so no cron/worker is needed, and the lapse is exact).

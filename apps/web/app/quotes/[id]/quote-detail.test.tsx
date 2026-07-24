@@ -5,7 +5,7 @@ import { ApiProvider } from "@repo/api/react";
 import { cs } from "@repo/i18n";
 import { I18nProvider } from "@repo/i18n/web";
 import { formatDate } from "@repo/utils";
-import { type QuoteDetail } from "@repo/validators";
+import { QUOTE_STATUSES, type QuoteDetail } from "@repo/validators";
 
 import { QuoteDetailView } from "./quote-detail";
 
@@ -64,18 +64,11 @@ const REVERSE: QuoteDetail = {
   },
 };
 
-// CAR-16: draft has nothing to share yet; issued/expired do (ADR 0089's
-// `/nabidka/:shareToken` public route). `status` here is already the
-// READ-time effective status the api computes (`effectiveStatus`) — these
-// fixtures never need a client-side clock.
-const DRAFT: QuoteDetail = {
-  ...STANDARD,
-  id: "00000000-0000-7000-8000-000000000003",
-  documentNumber: "2026/0003",
-  status: "draft",
-  shareToken: "share-3",
-};
-
+// CAR-16: every status a quote can hold has a shareable offer behind it (ADR
+// 0089's `/nabidka/:shareToken` public route) — a quote is born `issued`, and
+// ADR 0127 removed the unwritable `draft` that was the sole no-link case.
+// `status` here is already the READ-time effective status the api computes
+// (`effectiveStatus`) — these fixtures never need a client-side clock.
 const ISSUED_WITH_VALIDITY: QuoteDetail = {
   ...STANDARD,
   id: "00000000-0000-7000-8000-000000000004",
@@ -250,10 +243,15 @@ describe("QuoteDetailView — buyer link (CAR-16)", () => {
     expect(screen.getAllByText((text) => text.includes(dateLabel)).length).toBeGreaterThan(0);
   });
 
-  it("draft: shows no buyer link", () => {
-    renderView(DRAFT);
-    expect(screen.queryByText("Odkaz pro zákazníka")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Kopírovat odkaz" })).not.toBeInTheDocument();
+  // ADR 0127: the panel was guarded on `status !== "draft"` until that provably
+  // unwritable status was removed; the guard is now unconditional. This pins the
+  // removal — EVERY status the contract can carry must show a working link, so a
+  // future status that genuinely has nothing to share fails here deliberately.
+  it.each(QUOTE_STATUSES)("%s: shows the buyer link (no status is link-less)", (status) => {
+    renderView({ ...STANDARD, status });
+    expect(
+      screen.getByText(`${window.location.origin}/nabidka/${STANDARD.shareToken}`),
+    ).toBeInTheDocument();
   });
 
   it("expired: still shows the link, plus an expired warning", () => {

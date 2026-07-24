@@ -15,12 +15,13 @@ function keys(role: OrgRole | null, isPlatformAdmin: boolean): string[] {
 }
 
 describe("NAV_ENTRIES", () => {
-  it("registers exactly the 7 known surfaces in §4.1 order, each with a unique key", () => {
+  it("registers exactly the 8 known surfaces in §4.1 order, each with a unique key", () => {
     expect(NAV_ENTRIES.map((e) => e.key)).toStrictEqual([
       "dashboard",
       "leads",
       "quotes",
       "orders",
+      "invoices",
       "catalog",
       "platform",
       "settings",
@@ -34,6 +35,7 @@ describe("NAV_ENTRIES", () => {
       leads: "main",
       quotes: "main",
       orders: "main",
+      invoices: "main",
       catalog: "main",
       platform: "footer",
       settings: "footer",
@@ -64,6 +66,7 @@ describe("visibleNavEntries", () => {
       "leads",
       "quotes",
       "orders",
+      "invoices",
       "catalog",
       "settings",
     ]);
@@ -75,6 +78,7 @@ describe("visibleNavEntries", () => {
       "leads",
       "quotes",
       "orders",
+      "invoices",
       "catalog",
       "platform",
       "settings",
@@ -87,12 +91,13 @@ describe("visibleNavEntries", () => {
       "leads",
       "quotes",
       "orders",
+      "invoices",
       "catalog",
       "settings",
     ]);
   });
 
-  it("workshop (price-blind) loses Poptávky/Nabídky/Katalog, keeps Přehled/Zakázky/Nastavení", () => {
+  it("workshop (price-blind) loses Poptávky/Nabídky/Faktury/Katalog, keeps Přehled/Zakázky/Nastavení", () => {
     expect(keys("workshop", false)).toStrictEqual(["dashboard", "orders", "settings"]);
   });
 
@@ -100,6 +105,9 @@ describe("visibleNavEntries", () => {
     const visible = keys("workshop", true);
     expect(visible).not.toContain("leads");
     expect(visible).not.toContain("quotes");
+    // Faktury is admin/sales-only: `InvoicesController` 403s workshop on every
+    // route, so the rail must never offer it (price-blind by ABSENCE, ADR 0127).
+    expect(visible).not.toContain("invoices");
     expect(visible).not.toContain("catalog");
     // `platform` is orthogonal to org role (ADR 0062) — the flag alone gates it.
     expect(visible).toContain("platform");

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { QUOTE_STATUSES } from "@repo/db/schema/quotes";
+
 import {
   isProducible,
   productionSafeDrawing,
@@ -14,10 +16,17 @@ describe("isProducible — only issued/accepted have a build (CAR-24)", () => {
     expect(isProducible("accepted")).toBe(true);
   });
 
-  it("refuses draft/declined/expired — nothing to build", () => {
-    expect(isProducible("draft")).toBe(false);
+  it("refuses declined/expired — nothing to build", () => {
     expect(isProducible("declined")).toBe(false);
     expect(isProducible("expired")).toBe(false);
+  });
+
+  /** Exhaustive over the tuple (ADR 0127 removed `draft` from it) — a status
+   *  added later cannot silently become producible. */
+  it("refuses every status other than issued/accepted", () => {
+    for (const status of QUOTE_STATUSES.filter((s) => s !== "issued" && s !== "accepted")) {
+      expect(isProducible(status)).toBe(false);
+    }
   });
 });
 

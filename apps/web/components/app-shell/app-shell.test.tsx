@@ -80,6 +80,12 @@ describe("AppShell — chrome suppression", () => {
     renderShell("/orders/o1/production/traveler");
     expect(screen.queryByTestId("app-side-rail")).toBeNull();
   });
+
+  it("renders children bare on the /faktura invoice print sheet (ADR 0127)", () => {
+    renderShell("/invoices/inv1/faktura");
+    expect(screen.getByText("PAGE CONTENT")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-side-rail")).toBeNull();
+  });
 });
 
 describe("AppShell — three renderings over one registry", () => {

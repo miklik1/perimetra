@@ -34,7 +34,10 @@ import { project } from "../projects/index.js";
 // `declined` is additive (text column, no DB enum) — no migration; kept in
 // lockstep with @repo/validators QUOTE_STATUSES. `expired` is DERIVED on read
 // from `validUntil` (ADR 0083), not a stored transition (no cron needed).
-export const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
+// `draft` was REMOVED (ADR 0127, superseding ADR 0083:27-29) — provably
+// unwritable, and with no PG enum/default/CHECK behind this text column the
+// removal is a TYPE-only change (drizzle-kit generate: no schema changes).
+export const QUOTE_STATUSES = ["issued", "accepted", "declined", "expired"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export const quote = pgTable(

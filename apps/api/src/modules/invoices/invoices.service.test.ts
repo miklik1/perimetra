@@ -142,6 +142,10 @@ function makeService() {
   const invoices = {
     list: vi.fn(),
     findById: vi.fn(),
+    // The worker-only SCOPE-LESS read (no org filter, no owner filter). Present
+    // on the mock so a request path that reached for it would be caught here
+    // rather than silently bypassing the ADR-0082 narrowing.
+    findByIdSystem: vi.fn(),
     insert: vi.fn(),
     markPaid: vi.fn(),
     unmarkPaid: vi.fn(),
@@ -346,6 +350,9 @@ describe("InvoicesService read scope (ADR 0082)", () => {
       await deps.service.list(SCOPE, role, { limit: 20, sort: "createdAt:desc" });
       await deps.service.get(SCOPE, role, "inv-1");
       await deps.service.verifyReproducibility(SCOPE, role, "inv-1");
+      // The document read (ADR 0127) inherits the SAME narrowing — a new read
+      // over the frozen buyer identity must never widen it.
+      await deps.service.getDocument(SCOPE, role, "inv-1");
 
       expect(deps.invoices.list).toHaveBeenCalledWith(
         SCOPE,
@@ -355,6 +362,8 @@ describe("InvoicesService read scope (ADR 0082)", () => {
       for (const call of deps.invoices.findById.mock.calls) {
         expect(call[1]).toEqual({ restrictToOwner });
       }
+      // The worker-only scope-less read is never reachable from a request path.
+      expect(deps.invoices.findByIdSystem).not.toHaveBeenCalled();
     }
   });
 
@@ -367,6 +376,34 @@ describe("InvoicesService read scope (ADR 0082)", () => {
     await expect(
       deps.service.verifyReproducibility(SCOPE, "sales", "inv-other"),
     ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(deps.service.getDocument(SCOPE, "sales", "inv-other")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  /**
+   * The document read (ADR 0127) fails CLOSED. A frozen payload that will not
+   * parse is a typed 422 — never a 404 (the row exists and this caller may read
+   * it), never a 500 (un-actionable), and never a half-rendered §29 sheet.
+   */
+  it("getDocument 422s invoice_document_unreadable on a malformed frozen snapshot", async () => {
+    const deps = makeService();
+    deps.invoices.findById.mockResolvedValue(makeRow({ snapshot: {} }));
+    await expect(deps.service.getDocument(SCOPE, "admin", "inv-1")).rejects.toMatchObject({
+      status: 422,
+      response: { code: "invoice_document_unreadable" },
+    });
+  });
+
+  it("getDocument projects the frozen snapshot through the kernel view model", async () => {
+    const deps = makeService();
+    deps.invoices.findById.mockResolvedValue(makeRow(REPRODUCIBLE));
+    const doc = await deps.service.getDocument(SCOPE, "admin", "inv-1");
+    expect(doc.documentNumber).toBe("FV2026/0001");
+    expect(doc.documentTypeLabel).toBe("Daňový doklad");
+    expect(doc.totalAmount).toBe("121000.00");
+    expect(doc.supplierEmail).toBeNull();
+    expect(doc.issuingSystem).toBe("Perimetra");
   });
 
   it("verify re-derives UNCHANGED for a row the caller may see (I3 is not a visibility rule)", async () => {

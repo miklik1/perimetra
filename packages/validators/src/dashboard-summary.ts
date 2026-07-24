@@ -36,7 +36,7 @@ import { quoteStatusSchema } from "./quotes";
 export const dashboardKpisSchema = z.object({
   /** Active orders — `confirmed` + `in_production`. Always present. */
   activeOrders: z.number().int().nonnegative(),
-  /** Open quotes needing attention — `draft` + `issued` (owner-narrowed for
+  /** Open quotes needing attention — stored status `issued` (owner-narrowed for
    *  sales). Non-workshop only. */
   openQuotes: z.number().int().nonnegative().optional(),
   /** Accepted quotes (owner-narrowed for sales). Non-workshop only. */

@@ -18,15 +18,21 @@ import { TabBar } from "./tab-bar";
  * Routes that render their OWN session-less chrome — public share links, auth
  * flows — or are print sheets. The shell never frames them: an authenticated
  * visitor previewing a buyer `/nabidka/:token`, a user mid `/two-factor`, and
- * critically the two `/traveler` print routes, which are `window.print()`ed so
- * app chrome must NOT bleed onto the A4 (the live §4.2 bug this closes — the old
- * top-bar shell missed the `/traveler` suffix).
+ * critically the print routes — the two `/traveler` sheets and the invoice
+ * `/faktura` §29 doklad — which are `window.print()`ed so app chrome must NOT
+ * bleed onto the A4 (the live §4.2 bug this closes — the old top-bar shell
+ * missed the `/traveler` suffix).
  */
 const PUBLIC_PREFIXES = ["/login", "/nabidka", "/accept-invitation", "/two-factor"];
-const PRINT_SUFFIX = "/traveler";
+
+/** Print-sheet route suffixes the shell never frames. `window.print()`ed sheets
+ *  must not carry app chrome onto the A4 (the live §4.2 bug the /traveler entry
+ *  closed). A list, not one string, because /invoices/:id/faktura (ADR 0127) is
+ *  the second such sheet. */
+const PRINT_SUFFIXES = ["/traveler", "/faktura"];
 
 function isChromelessRoute(pathname: string): boolean {
-  if (pathname.endsWith(PRINT_SUFFIX)) return true;
+  if (PRINT_SUFFIXES.some((suffix) => pathname.endsWith(suffix))) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

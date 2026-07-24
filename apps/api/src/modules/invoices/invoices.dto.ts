@@ -4,6 +4,7 @@
  * schemas stay the single source of truth.
  */
 import {
+  invoiceDocumentSchema,
   invoiceReproductionSchema,
   invoiceSchema,
   invoicesPageSchema,
@@ -22,3 +23,7 @@ export class ListInvoicesQueryDto extends createZodDto(listInvoicesQuerySchema) 
 export class InvoiceDto extends createZodDto(invoiceSchema) {}
 export class InvoicesPageDto extends createZodDto(invoicesPageSchema) {}
 export class InvoiceReproductionDto extends createZodDto(invoiceReproductionSchema) {}
+/** The frozen §29 document projected through the kernel's view-model builder
+ *  (ADR 0127) — strip semantics are what keep the parsed-but-unsurfaced frozen
+ *  fields (buyerEmail, discrete addresses, per-line regime) off the wire. */
+export class InvoiceDocumentDto extends createZodDto(invoiceDocumentSchema) {}

@@ -72,7 +72,8 @@
         "scripts/verify/capture-wave-a.mjs",
         "scripts/verify/capture-wave-c.mjs",
         "scripts/verify/capture-wave-d.mjs",
-        "scripts/verify/capture-nabidka.mjs"
+        "scripts/verify/capture-nabidka.mjs",
+        "scripts/verify/capture-invoices.mjs"
       ]
     },
     "apps/mobile": {

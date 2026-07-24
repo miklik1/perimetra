@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 import {
   allRoutes,
   resetCustomers,
+  resetInvoices,
   resetProjects,
   resetQuotes,
   resetSessions,
@@ -35,5 +36,6 @@ afterEach(() => {
   resetProjects();
   resetQuotes();
   resetCustomers();
+  resetInvoices();
 });
 afterAll(() => server.close());

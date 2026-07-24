@@ -13,9 +13,15 @@
  *    a double-issue on one order is a structural 409 (`invoice_order_active_uq`).
  *  - Workshop is price-blind by ABSENCE (403 on the whole surface).
  *  - PER-REP isolation (ADR 0082): a sales rep sees only the invoices it issued;
- *    another rep's invoice 404s on list/detail/verify (the buyer's §29 identity
- *    lives in facts/snapshot, so org scope alone is not a tight enough boundary)
- *    — while admin still sees everything and I3 re-derivation is untouched.
+ *    another rep's invoice 404s on list/detail/verify/document (the buyer's §29
+ *    identity lives in facts/snapshot, so org scope alone is not a tight enough
+ *    boundary) — while admin still sees everything and I3 re-derivation is
+ *    untouched.
+ *  - The DOCUMENT read (`GET /:id/document`, ADR 0127) projects the FROZEN
+ *    snapshot through the kernel's own `buildPdfViewModel`: every printed value
+ *    traces back to `invoice.snapshot`, `supplierEmail` is an absence (there is
+ *    no data source), `issuingSystem` is the platform constant, and reading it
+ *    does not perturb I3.
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { eq } from "drizzle-orm";
@@ -188,6 +194,106 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
       reproduced: boolean;
     };
     expect(verify.reproduced).toBe(true);
+
+    // ...and the DOCUMENT view carries the kernel's §29 odst. 2 písm. c) legend
+    // verbatim, with a zero-VAT recapitulation (ADR 0127). The legend text is
+    // NEVER composed downstream — a second legend path on a regulated document
+    // is exactly what the no-duplication ruling forbids.
+    const docRes = await get(tenant, `/v1/invoices/${invoice.id}/document`);
+    expect(docRes.statusCode, docRes.body).toBe(200);
+    const doc = docRes.json() as {
+      reverseCharge: boolean;
+      reverseChargeLegend: string | null;
+      vatTotal: string;
+      vatRows: { vatAmount: string }[];
+    };
+    expect(doc.reverseCharge).toBe(true);
+    expect(doc.reverseChargeLegend).toBe("daň odvede zákazník");
+    expect(doc.vatTotal).toBe("0.00");
+    expect(doc.vatRows.length).toBeGreaterThan(0);
+    for (const row of doc.vatRows) expect(row.vatAmount).toBe("0.00");
+  });
+
+  /**
+   * ADR 0127 — the document read is a projection of the FROZEN snapshot and
+   * NOTHING else. Every assertion below ties a printed value back to
+   * `invoice.snapshot` (read through the already-shipped detail endpoint), so a
+   * future live read sneaking onto the document surface fails here.
+   */
+  it("GET /:id/document projects the frozen snapshot through the kernel view model", async () => {
+    const customerId = await createCustomer(tenant);
+    const { orderId } = await orderFor(tenant, { customerId });
+    const invoice = (await post(tenant, "/v1/invoices", { orderId })).json() as {
+      id: string;
+      documentNumber: string;
+      total: string;
+      variableSymbol: string;
+    };
+
+    const frozen = (await get(tenant, `/v1/invoices/${invoice.id}`)).json() as {
+      snapshot: {
+        number: string;
+        currency: string;
+        buyerName: string;
+        buyerIco: string | null;
+        supplierIco: string;
+        variableSymbol: string;
+        issueDate: string;
+        duzpDate: string;
+        dueDate: string | null;
+        lines: unknown[];
+      };
+    };
+
+    const res = await get(tenant, `/v1/invoices/${invoice.id}/document`);
+    expect(res.statusCode, res.body).toBe(200);
+    const doc = res.json() as Record<string, unknown>;
+
+    // Identity + dates: the frozen values, not the row's and not today's.
+    expect(doc.documentNumber).toBe(invoice.documentNumber);
+    expect(doc.documentNumber).toBe(frozen.snapshot.number);
+    expect(doc.issueDate).toBe(frozen.snapshot.issueDate);
+    expect(doc.duzpDate).toBe(frozen.snapshot.duzpDate);
+    expect(doc.dueDate).toBe(frozen.snapshot.dueDate);
+    expect(doc.variableSymbol).toBe(frozen.snapshot.variableSymbol);
+    // The FROZEN currency, never the `invoice.currency` row column.
+    expect(doc.currency).toBe(frozen.snapshot.currency);
+
+    // Kernel-owned labels — one source, rendered verbatim by the print surface.
+    expect(doc.documentTypeLabel).toBe("Daňový doklad");
+    expect(doc.paymentMethod).toBe("Bankovním převodem");
+
+    // Parties come off the frozen snapshot.
+    expect(doc.buyerName).toBe(frozen.snapshot.buyerName);
+    expect(doc.buyerIco).toBe(frozen.snapshot.buyerIco);
+    expect(doc.supplierIco).toBe(frozen.snapshot.supplierIco);
+
+    // Money: the kernel's dot-decimal formatCents output, equal to the row's
+    // frozen gross total (which is formatCents(snapshot.totalCents)).
+    expect(doc.totalAmount).toBe(invoice.total);
+    expect(doc.totalAmount).toMatch(/^-?\d+\.\d{2}$/);
+    expect(doc.subtotalBase).toMatch(/^-?\d+\.\d{2}$/);
+    expect(doc.vatTotal).toMatch(/^-?\d+\.\d{2}$/);
+    expect((doc.lines as unknown[]).length).toBe(frozen.snapshot.lines.length);
+
+    // FREEZE HONESTY: no live legal-profile read reaches the sheet. There is no
+    // e-mail source at all, so absence is the only honest value.
+    expect(doc.supplierEmail).toBeNull();
+    expect(doc.issuingSystem).toBe("Perimetra");
+
+    // Deliberate subtraction — strictly less than GET /v1/invoices/:id ships.
+    expect(doc).not.toHaveProperty("buyerEmail");
+    expect(doc).not.toHaveProperty("id");
+    expect(doc).not.toHaveProperty("status");
+    expect(doc).not.toHaveProperty("paidAt");
+
+    // I3 NON-REGRESSION: reading the document is a pure projection — the row
+    // still re-derives byte-identically afterwards.
+    expect((await post(tenant, `/v1/invoices/${invoice.id}/verify`)).json()).toEqual({
+      invoiceId: invoice.id,
+      reproduced: true,
+      mismatches: [],
+    });
   });
 
   it("422 customer_required when the quote carries no attached customer", async () => {
@@ -224,8 +330,15 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
   });
 
   it("workshop is price-blind by absence — 403 on the whole invoice surface", async () => {
+    const customerId = await createCustomer(tenant);
+    const { orderId } = await orderFor(tenant, { customerId });
+    const { id } = (await post(tenant, "/v1/invoices", { orderId })).json() as { id: string };
+
     await setRole(tenant.id, "workshop");
     expect((await get(tenant, "/v1/invoices")).statusCode).toBe(403);
+    // The document surface is part of that absence — there is NO price-blind
+    // projection of a §29 doklad (ADR 0127), so it 403s like the rest.
+    expect((await get(tenant, `/v1/invoices/${id}/document`)).statusCode).toBe(403);
     await setRole(tenant.id, "admin");
   });
 
@@ -291,9 +404,11 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     expect(salesIds).not.toContain(otherInvoiceId);
 
     // 404, NOT 403 — a 403 would confirm the document exists (an oracle), and
-    // `verify` is narrowed for exactly the same reason.
+    // `verify` (plus the ADR-0127 `document` read, which would otherwise print
+    // the colleague's buyer identity onto an A4) is narrowed for the same reason.
     expect((await get(tenant, `/v1/invoices/${otherInvoiceId}`)).statusCode).toBe(404);
     expect((await post(tenant, `/v1/invoices/${otherInvoiceId}/verify`)).statusCode).toBe(404);
+    expect((await get(tenant, `/v1/invoices/${otherInvoiceId}/document`)).statusCode).toBe(404);
 
     // ...while the rep's OWN invoice is untouched: readable and still byte-
     // identical on re-derivation (this is a visibility change, never an I3 one).
@@ -320,6 +435,11 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     expect(adminDetail.snapshot.buyerName).toBe("Odběratel a.s.");
     expect(adminDetail.snapshot.buyerIco).toBe("45274649");
     expect(adminDetail.snapshot.buyerDic).toBe("CZ45274649");
+
+    // ...including through the document read the print surface uses.
+    const adminDoc = await get(tenant, `/v1/invoices/${otherInvoiceId}/document`);
+    expect(adminDoc.statusCode, adminDoc.body).toBe(200);
+    expect((adminDoc.json() as { buyerName: string }).buyerName).toBe("Odběratel a.s.");
 
     // And it still re-derives byte-identically for the caller who may see it.
     expect((await post(tenant, `/v1/invoices/${otherInvoiceId}/verify`)).json()).toEqual({

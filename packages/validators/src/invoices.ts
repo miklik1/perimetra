@@ -86,6 +86,95 @@ export const invoiceSchema = invoiceSummarySchema.extend({
 });
 export type Invoice = z.infer<typeof invoiceSchema>;
 
+/**
+ * The pure-data §29 DOCUMENT view (ADR 0127) — a field-for-field mirror of the
+ * kernel's `PdfViewModel`, which `buildPdfViewModel` produces from the FROZEN
+ * `ExportableDocument` alone. Served by `GET /v1/invoices/:id/document` so the
+ * web never has to import `@cardo/tax-cz` (its `/export` index eagerly loads the
+ * ISDOC/UBL exporters and therefore native `libxmljs2` + `saxon-js`).
+ *
+ * Every money value is the kernel's `formatCents` output — a DOT-decimal string
+ * (xsd:decimal canonical), NOT the I10 decimal-koruna wire money of
+ * `invoiceSummarySchema.total`. It is rendered VERBATIM beside `currency`;
+ * re-formatting it web-side would be a second money path on a regulated
+ * document (the 2026-07-14 no-duplication ruling). Likewise `documentTypeLabel`,
+ * `paymentMethod` and `reverseChargeLegend` are kernel-owned Czech strings, not
+ * i18n keys.
+ *
+ * Carries STRICTLY LESS than `invoiceSchema.snapshot` (which is the whole
+ * `ExportableDocument` verbatim): no `buyerEmail`, no discrete address
+ * components, no `snapshot.id`, no per-line `regime`/`khSubjectCode`. It also
+ * carries NO row state (`status`/`paidAt`/`supersededById`) — payment is row
+ * state, never document content (ADR 0112 §5).
+ *
+ * PROVISIONAL (CAR-27 pass 2): the accountant pass has not run. Nothing here
+ * claims legal correctness of the field selection or the money presentation.
+ */
+const invoiceDocumentLineSchema = z.object({
+  index: z.number().int(),
+  description: z.string(),
+  quantity: z.string(),
+  unit: z.string(),
+  unitPriceNet: z.string(),
+  lineBaseAmount: z.string(),
+  vatRatePercent: z.string(),
+  lineVatAmount: z.string(),
+  lineGrossAmount: z.string(),
+});
+
+/** One row of the §29 VAT recapitulation, pre-formatted by the kernel
+ *  (`rateLabel` is already `"21 %"` / `"0 %"` — never recomposed downstream). */
+const invoiceDocumentVatRowSchema = z.object({
+  rateLabel: z.string(),
+  baseAmount: z.string(),
+  vatAmount: z.string(),
+  grossAmount: z.string(),
+});
+
+export const invoiceDocumentSchema = z.object({
+  documentNumber: z.string(),
+  documentTypeLabel: z.string(),
+  issueDate: isoDate,
+  duzpDate: isoDate,
+  dueDate: isoDate.nullable(),
+  variableSymbol: z.string(),
+  paymentMethod: z.string(),
+  currency: z.string(),
+  supplierName: z.string(),
+  supplierAddress: z.string(),
+  supplierIco: z.string(),
+  supplierDic: z.string().nullable(),
+  supplierBankAccount: z.string().nullable(),
+  supplierIban: z.string().nullable(),
+  /** Always `null` today — there is NO data source for it (the org legal
+   *  profile carries no e-mail field). The sheet prints an absence, never a
+   *  masked value (the ADR-0108 precedent). */
+  supplierEmail: z.string().nullable(),
+  buyerName: z.string(),
+  buyerAddress: z.string(),
+  buyerIco: z.string().nullable(),
+  buyerDic: z.string().nullable(),
+  lines: z.array(invoiceDocumentLineSchema),
+  vatRows: z.array(invoiceDocumentVatRowSchema),
+  subtotalBase: z.string(),
+  vatTotal: z.string(),
+  roundingAmount: z.string().nullable(),
+  totalAmount: z.string(),
+  exchangeRateLabel: z.string().nullable(),
+  subtotalBaseCzk: z.string().nullable(),
+  vatTotalCzk: z.string().nullable(),
+  totalCzk: z.string().nullable(),
+  reverseCharge: z.boolean(),
+  /** §29 odst. 2 písm. c) legend, kernel-owned verbatim text. Never composed,
+   *  never translated, never conditioned on anything but this field. */
+  reverseChargeLegend: z.string().nullable(),
+  note: z.string().nullable(),
+  correctsNumber: z.string().nullable(),
+  /** The issuing platform — a build-time constant, not a tenant read. */
+  issuingSystem: z.string(),
+});
+export type InvoiceDocument = z.infer<typeof invoiceDocumentSchema>;
+
 export const listInvoicesQuerySchema = cursorQuerySchema.extend({
   status: invoiceStatusSchema.optional(),
 });

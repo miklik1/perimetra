@@ -24,6 +24,7 @@ export {
 export { authRoutes } from "./handlers/auth";
 export { projectRoutes } from "./handlers/projects";
 export { quoteRoutes } from "./handlers/quotes";
+export { invoiceRoutes } from "./handlers/invoices";
 export { customerRoutes } from "./handlers/customers";
 export { lookupRoutes } from "./handlers/lookups";
 export { routeGroups, selectRoutes, allRoutes, createMockConfig } from "./config";
@@ -35,6 +36,7 @@ export {
   type ProjectSiteFixture,
 } from "./fixtures/projects";
 export { listQuoteFixtures, resetQuotes } from "./fixtures/quotes";
+export { listInvoiceFixtures, resetInvoices } from "./fixtures/invoices";
 export { listCustomerFixtures, resetCustomers } from "./fixtures/customers";
 export { resetSessions } from "./fixtures/session";
 // @gen:exports — `pnpm gen api-resource` adds the resource mock route export here.
