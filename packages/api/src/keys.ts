@@ -27,6 +27,10 @@ export const keys = {
     // GET /v1/me/nav-counts — the app-shell badge counts (1c-3). A single-entry
     // tier so `keys.nav.all` invalidates it wholesale off a realtime event.
     counts: () => [...keys.nav.all, "counts"] as const,
+    // GET /v1/me/dashboard-summary — the owner "Přehled" dashboard aggregate
+    // (ADR 0125). Sits under `keys.nav.all` alongside `counts` so the same
+    // `org:<id>` realtime invalidation refreshes both.
+    dashboardSummary: () => [...keys.nav.all, "dashboard-summary"] as const,
   },
   // @gen:exports — `pnpm gen api-resource` adds the resource key tier here.
 } as const;

@@ -44,13 +44,36 @@ const en: MessagesInput = {
     legalProfile: "Legal profile",
     admin: "Pricing & versions",
   },
-  home: {
-    title: "Web",
-    users: "{count, plural, =0 {No users} one {# user} other {# users}}",
-    goToUsers: "Go to users",
-    accountLink: "Account (protected)",
-    helloAction: "Say hello",
-    helloToast: "Hello from web!",
+  dashboard: {
+    checkingSession: "Checking session…",
+    greeting: {
+      morning: "Good morning",
+      afternoon: "Good afternoon",
+      evening: "Good evening",
+    },
+    workshopSuffix: "workshop overview",
+    kpi: {
+      sectionLabel: "Key metrics",
+      activeOrders: "Active orders",
+      openQuotes: "Open quotes",
+      acceptedQuotes: "Accepted quotes",
+      expiringSoon: "Expiring soon",
+    },
+    funnel: {
+      title: "Sales funnel",
+      quotes: "Quotes",
+      orders: "Ordered",
+    },
+    expiring: {
+      title: "Expiring soon",
+      empty: "Nothing in the near term.",
+    },
+    activity: {
+      title: "Recent activity",
+      empty: "No activity yet.",
+      orderPrefix: "Order",
+      quotePrefix: "Quote",
+    },
   },
   theme: {
     label: "Theme",

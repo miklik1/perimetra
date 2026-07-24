@@ -1,4 +1,9 @@
-import { navCountsResponseSchema, type NavCountsResponse } from "@repo/validators";
+import {
+  dashboardSummaryResponseSchema,
+  navCountsResponseSchema,
+  type DashboardSummaryResponse,
+  type NavCountsResponse,
+} from "@repo/validators";
 
 import { defineQuery } from "../builders/define-endpoints";
 import { type ApiClient } from "../client/create-api-client";
@@ -23,6 +28,16 @@ export function createNavQueries(client: ApiClient) {
         queryKey: keys.nav.counts(),
         path: "/v1/me/nav-counts",
         schema: (data) => navCountsResponseSchema.parse(data),
+      }),
+
+    // GET /v1/me/dashboard-summary — the owner "Přehled" dashboard aggregate
+    // (ADR 0125). Role-filtered via OPTIONAL keys like `navCounts`: an absent
+    // key means "not shown" (workshop drops funnel/expiring/money), never 0.
+    dashboardSummary: () =>
+      defineQuery<DashboardSummaryResponse>(client, {
+        queryKey: keys.nav.dashboardSummary(),
+        path: "/v1/me/dashboard-summary",
+        schema: (data) => dashboardSummaryResponseSchema.parse(data),
       }),
   };
 }

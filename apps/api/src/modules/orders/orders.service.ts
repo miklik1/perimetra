@@ -12,7 +12,7 @@
 import { Transactional } from "@nestjs-cls/transactional";
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 
-import { type OrderRow } from "@repo/db/schema/orders";
+import { type OrderRow, type OrderStatus } from "@repo/db/schema/orders";
 import {
   type CreateOrderInput,
   type ListOrdersQuery,
@@ -36,6 +36,16 @@ import {
   ORDER_CONFIRMED,
   ORDER_PRODUCTION_STARTED,
 } from "./orders.tokens.js";
+
+/** One recent order for the owner dashboard activity feed (ADR 0125). Exported
+ *  for the nav-module aggregator (`DashboardSummaryService`). `updatedAt` stays a
+ *  `Date` so the aggregator can merge-sort orders + quotes before serializing. */
+export interface RecentOrderActivity {
+  id: string;
+  number: string;
+  status: OrderStatus;
+  updatedAt: Date;
+}
 
 /** DB row → response contract (Dates become ISO strings). */
 function toOrder(row: OrderRow): OrderDetail {
@@ -86,6 +96,19 @@ export class OrdersService {
    *  nav-counts pill source (1c-3). Org-scoped; visible to every role. */
   async countActive(scope: RequestScope): Promise<number> {
     return this.orders.countActive(scope);
+  }
+
+  /** Top-N recent orders for the owner dashboard activity feed (ADR 0125). Org-
+   *  visible to every role (an order is never price-blind — it carries no money).
+   *  Returns `Date`s so the aggregator merge-sorts across surfaces then serializes. */
+  async listRecent(scope: RequestScope, limit: number): Promise<RecentOrderActivity[]> {
+    const rows = await this.orders.listRecent(scope, limit);
+    return rows.map((r) => ({
+      id: r.id,
+      number: r.orderNumber,
+      status: r.status,
+      updatedAt: r.updatedAt,
+    }));
   }
 
   /** 404 covers both "doesn't exist" and "not yours" — no existence oracle. */

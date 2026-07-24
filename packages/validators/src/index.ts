@@ -4,6 +4,9 @@ export * from "./auth";
 // mirror and the `@repo/api` me query.
 export * from "./roles";
 export * from "./nav-counts";
+// Owner dashboard "Přehled" aggregate (ADR 0125) — sibling of nav-counts; a
+// role-filtered read over the quotes + orders services.
+export * from "./dashboard-summary";
 export * from "./api-error";
 // Generic primitives only — the CZ set stays behind the explicit
 // `@repo/validators/primitives/cz` subpath (delete one file to de-CZ a fork).

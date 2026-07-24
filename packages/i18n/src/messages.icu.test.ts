@@ -43,7 +43,7 @@ describe("ICU argument type-safety", () => {
 
     // Wrong-typed arg ({count} is a plural number) is a type error.
     // @ts-expect-error — `count` must be a number, not a string.
-    t("home.users", { count: "many" });
+    t("nav.badge", { count: "many" });
 
     // Unknown message key is a type error.
     // @ts-expect-error — `nope` is not a key in the catalog.

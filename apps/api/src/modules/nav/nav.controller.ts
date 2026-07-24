@@ -17,12 +17,16 @@ import { type OrgRole } from "../../common/rbac/org-role.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { RolesGuard } from "../auth/roles.guard.js";
+import { DashboardSummaryService, type DashboardSummary } from "./dashboard-summary.service.js";
 import { NavCountsService, type NavCounts } from "./nav-counts.service.js";
 
 @Controller("me")
 @UseGuards(RolesGuard)
 export class NavController {
-  constructor(private readonly counts: NavCountsService) {}
+  constructor(
+    private readonly counts: NavCountsService,
+    private readonly dashboard: DashboardSummaryService,
+  ) {}
 
   @Get("nav-counts")
   async getNavCounts(
@@ -30,5 +34,16 @@ export class NavController {
     @CurrentRole() role: OrgRole,
   ): Promise<NavCounts> {
     return this.counts.forCaller(scope, role);
+  }
+
+  /** The owner "Přehled" dashboard aggregate (ADR 0125) — role-filtered exactly
+   *  like `nav-counts` (workshop gets the price-blind subset). No `@RequireRole`:
+   *  workshop still gets a dashboard, just the sparse one. */
+  @Get("dashboard-summary")
+  async getDashboardSummary(
+    @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
+  ): Promise<DashboardSummary> {
+    return this.dashboard.forCaller(scope, role);
   }
 }

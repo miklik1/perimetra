@@ -1,64 +1,42 @@
-import { createUsersQueries, dehydrate, getQueryClient, HydrationBoundary } from "@repo/api";
-import { env, TIER } from "@repo/config/env/web";
-import { getTranslations } from "@repo/i18n/web/server";
-import { Link } from "@repo/navigation";
+import {
+  createNavQueries,
+  dehydrate,
+  getQueryClient,
+  HydrationBoundary,
+  isUnauthorized,
+} from "@repo/api";
 
-import { createPublicServerApiClient } from "../lib/server-api";
-import { CreateUserForm } from "./create-user-form";
-import { LocaleSwitcher } from "./locale-switcher";
-import { ThemeToggle } from "./theme-toggle";
-import { UsersInfiniteList } from "./users-infinite-list";
-import { UsersList } from "./users-list";
+import { createServerApiClient } from "../lib/server-api";
+import { DashboardClient } from "./dashboard-client";
 
-// Whether the home demo has a data source that returns the expected `User`
-// shape: the dev mock (ADR 0018) or a real, configured backend. When NEITHER is
-// set, the demo `baseUrl` falls back to the public jsonplaceholder host, whose
-// `/users` shape fails `userSchema` ON PURPOSE — the documented error-state
-// exemplar (see users-list.tsx). We skip the SERVER prefetch in that case so a
-// production `next build` doesn't log the expected ZodError during static
-// generation (keeps the build log green); the client `useQuery` then surfaces
-// the same — now translated — error state at runtime in the browser. With a
-// data source present, the RSC prefetch runs and the list hydrates with no
-// client refetch, proving the ADR-0007 consumption pattern end-to-end.
-// The mock branch is gated on `TIER !== "prod"` (from @repo/config/env/web), NOT
-// `NODE_ENV` — Vercel builds a preview deploy with NODE_ENV=production, so a
-// NODE_ENV gate here would silently drop the prefetch on preview even while the
-// (tier-gated) BFF is correctly serving mocks (vault finding "Multi-tier Vercel
-// (Next) deploy …"; tier derives from VERCEL_TARGET_ENV).
-const hasDataSource =
-  (env.NEXT_PUBLIC_ENABLE_MSW === "true" && TIER !== "prod") || env.API_URL !== undefined;
-
-// RSC home page. Uses the PUBLIC server client (no cookie read) so this public
-// page stays statically renderable — only authed RSCs (/account) pay the
-// dynamic cost of reading the access cookie. The feature-flag demo gate is
-// evaluated CLIENT-side (inside <UsersInfiniteList> via `useFlag`) rather than
-// here with the async server `getFlag`, so a cosmetic flag never silently
-// de-statics this whole route — the page shell stays static and the flag
-// resolves from the no-flash bootstrap the layout already threads to the client.
-export default async function Home() {
-  const t = await getTranslations("home");
+/**
+ * The owner "Přehled" dashboard (ADR 0125, Phase 2 Wave D) — the bare `/` route,
+ * now the real authenticated home (this retires the fullstack-skeleton root
+ * demo). It follows the `/orders` prefetch+hydrate shape: this RSC fetches the
+ * dashboard summary AS THE USER (session cookie forwarded via
+ * `createServerApiClient`) and dehydrates it, so the client leaf renders from
+ * hydrated cache with no refetch flash. The app shell (ADR 0118) frames `/`
+ * automatically when authed — `/` is NOT chromeless — and renders the page bare
+ * when not, so the client `<AuthGuard>` fallback shows and redirects.
+ *
+ * An UNAUTHENTICATED visitor to `/` must still render (the client AuthGuard owns
+ * the redirect), so the authed prefetch SWALLOWS a 401 — same pattern as
+ * `/admin`. `/` is deliberately NOT in the proxy PROTECTED_PREFIXES: a `/`
+ * prefix would match every route, so access here is owned by the AuthGuard
+ * subtree + the org-scoped endpoint itself.
+ */
+export default async function DashboardPage() {
   const qc = getQueryClient();
-  if (hasDataSource) {
-    const usersQueries = createUsersQueries(createPublicServerApiClient());
-    await qc.prefetchQuery(usersQueries.list());
+  try {
+    const navQueries = createNavQueries(await createServerApiClient());
+    await qc.prefetchQuery(navQueries.dashboardSummary());
+  } catch (error) {
+    if (!isUnauthorized(error)) throw error;
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
-      <ThemeToggle />
-      <LocaleSwitcher />
-      <Link to={{ route: "users" }} className="underline">
-        {t("goToUsers")}
-      </Link>
-      <Link to={{ route: "account" }} className="underline">
-        {t("accountLink")}
-      </Link>
-      <CreateUserForm />
-      <HydrationBoundary state={dehydrate(qc)}>
-        <UsersList />
-      </HydrationBoundary>
-      <UsersInfiniteList />
-    </main>
+    <HydrationBoundary state={dehydrate(qc)}>
+      <DashboardClient />
+    </HydrationBoundary>
   );
 }

@@ -37,6 +37,16 @@ export interface OrdersPageRows {
   nextCursor: string | null;
 }
 
+/** A narrow recent-activity projection (dashboard summary, ADR 0125) — only the
+ *  fields the "Přehled" activity feed needs. An order carries no money of its
+ *  own, so this is inherently price-safe (no strip needed for any role). */
+export interface RecentOrderRow {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  updatedAt: Date;
+}
+
 export interface InsertOrderData {
   quoteId: string;
   orderNumber: string;
@@ -88,6 +98,23 @@ export class OrdersRepository {
       .from(order)
       .where(and(this.scoped(scope), inArray(order.status, ACTIVE_ORDER_STATUSES)));
     return row?.value ?? 0;
+  }
+
+  /** Top-N most-recently-touched orders (dashboard activity feed, ADR 0125) —
+   *  org-scoped, every role (orders are org-visible). A fixed-N read, not
+   *  paginated; `id` is the deterministic tiebreaker on equal `updatedAt`. */
+  async listRecent(scope: RequestScope, limit: number): Promise<RecentOrderRow[]> {
+    return this.txHost.tx
+      .select({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        updatedAt: order.updatedAt,
+      })
+      .from(order)
+      .where(this.scoped(scope))
+      .orderBy(desc(order.updatedAt), desc(order.id))
+      .limit(limit);
   }
 
   async findById(scope: RequestScope, orderId: string): Promise<OrderRow | null> {

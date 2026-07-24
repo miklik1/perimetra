@@ -43,14 +43,36 @@ const cs = {
     legalProfile: "Právní profil",
     admin: "Ceníky a verze",
   },
-  home: {
-    title: "Web",
-    users:
-      "{count, plural, =0 {Žádní uživatelé} one {# uživatel} few {# uživatelé} other {# uživatelů}}",
-    goToUsers: "Přejít na uživatele",
-    accountLink: "Účet (chráněný)",
-    helloAction: "Pozdravit",
-    helloToast: "Ahoj z webu!",
+  dashboard: {
+    checkingSession: "Ověřování relace…",
+    greeting: {
+      morning: "Dobré ráno",
+      afternoon: "Dobré odpoledne",
+      evening: "Dobrý večer",
+    },
+    workshopSuffix: "přehled dílny",
+    kpi: {
+      sectionLabel: "Klíčové ukazatele",
+      activeOrders: "Aktivní zakázky",
+      openQuotes: "Otevřené nabídky",
+      acceptedQuotes: "Přijaté nabídky",
+      expiringSoon: "Brzy vyprší",
+    },
+    funnel: {
+      title: "Prodejní trychtýř",
+      quotes: "Nabídky",
+      orders: "Objednáno",
+    },
+    expiring: {
+      title: "Platnost brzy končí",
+      empty: "Nic v nejbližší době.",
+    },
+    activity: {
+      title: "Poslední aktivita",
+      empty: "Zatím žádná aktivita.",
+      orderPrefix: "Zakázka",
+      quotePrefix: "Nabídka",
+    },
   },
   theme: {
     label: "Motiv",

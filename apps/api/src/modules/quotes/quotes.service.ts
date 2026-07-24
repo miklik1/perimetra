@@ -20,7 +20,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 
-import { type QuoteRow } from "@repo/db/schema/quotes";
+import { type QuoteRow, type QuoteStatus } from "@repo/db/schema/quotes";
 import {
   buildScope,
   deriveSite,
@@ -446,6 +446,29 @@ function toDetail(row: QuoteRow, role: OrgRole): QuoteDetail {
   return { ...toSummary(row, role), stamps: row.stamps as QuoteStamps, snapshot };
 }
 
+/** One recent quote for the owner dashboard activity feed (ADR 0125). Exported
+ *  for the nav-module aggregator (`DashboardSummaryService`). `status` is the
+ *  EFFECTIVE status (`expired` resolved from `validUntil`, ADR 0083); `updatedAt`
+ *  stays a `Date` so the aggregator merge-sorts orders + quotes before serializing. */
+export interface RecentQuoteActivity {
+  id: string;
+  number: string;
+  status: QuoteStatus;
+  updatedAt: Date;
+}
+
+/** One expiring-quotes-widget row for the owner dashboard (ADR 0125). Carries the
+ *  decimal-string `total` (I10) — the aggregator builds this ONLY for a
+ *  non-price-blind caller (workshop never receives the widget), so the money is
+ *  never shipped to a price-blind role. `status` is the effective status. */
+export interface ExpiringQuoteSummary {
+  id: string;
+  number: string;
+  validUntil: Date | null;
+  status: QuoteStatus;
+  total: string;
+}
+
 @Injectable()
 export class QuotesService {
   constructor(
@@ -472,6 +495,80 @@ export class QuotesService {
    */
   async countOpen(scope: RequestScope, role: OrgRole): Promise<number> {
     return this.quotes.countOpen(scope, scopeOpts(role));
+  }
+
+  /**
+   * Count the caller's quotes in any of `statuses` (dashboard summary, ADR 0125)
+   * — the shared generic count behind the dashboard KPIs (`accepted` today).
+   * Uses the SAME ownership narrowing as `list`/`countOpen` (`sales` → own,
+   * admin → whole org), so the KPI can never disagree with the list.
+   */
+  async countByStatuses(
+    scope: RequestScope,
+    role: OrgRole,
+    statuses: readonly QuoteStatus[],
+  ): Promise<number> {
+    return this.quotes.countByStatuses(scope, scopeOpts(role), statuses);
+  }
+
+  /**
+   * Count the caller's `issued` quotes lapsing within the next `horizonDays`
+   * (dashboard "expiring soon" KPI, ADR 0125). The wall clock lives HERE (app
+   * layer); the window is `(now, now + horizonDays]`. Owner-narrowed for sales.
+   */
+  async countExpiringSoon(
+    scope: RequestScope,
+    role: OrgRole,
+    horizonDays: number,
+  ): Promise<number> {
+    const now = new Date();
+    const until = new Date(now.getTime() + horizonDays * 24 * 60 * 60 * 1000);
+    return this.quotes.countExpiringWithin(scope, scopeOpts(role), now, until);
+  }
+
+  /**
+   * Top-N recent quotes for the owner dashboard activity feed (ADR 0125) —
+   * owner-narrowed for sales (ADR 0082). Resolves the effective status
+   * (`expired` from `validUntil`, ADR 0083) HERE so the aggregator ships no raw
+   * lifecycle state; returns `Date`s so it can merge-sort with orders.
+   */
+  async listRecent(
+    scope: RequestScope,
+    role: OrgRole,
+    limit: number,
+  ): Promise<RecentQuoteActivity[]> {
+    const now = new Date();
+    const rows = await this.quotes.listRecent(scope, scopeOpts(role), limit);
+    return rows.map((r) => ({
+      id: r.id,
+      number: r.documentNumber,
+      status: effectiveStatus(r.status, r.validUntil, now),
+      updatedAt: r.updatedAt,
+    }));
+  }
+
+  /**
+   * The soonest-to-lapse `issued` quotes with a still-future `validUntil`
+   * (dashboard expiring-quotes widget, ADR 0125) — `validUntil` ASC, top-N,
+   * owner-narrowed for sales. The wall clock lives HERE; a lapsed quote is
+   * excluded at the repo (`gt(now)`), so every row is effectively `issued`.
+   * Carries `total` (money) — the aggregator only calls this for a non-price-blind
+   * caller, so the workshop never reaches this money.
+   */
+  async listExpiring(
+    scope: RequestScope,
+    role: OrgRole,
+    limit: number,
+  ): Promise<ExpiringQuoteSummary[]> {
+    const now = new Date();
+    const rows = await this.quotes.listExpiring(scope, scopeOpts(role), now, limit);
+    return rows.map((r) => ({
+      id: r.id,
+      number: r.documentNumber,
+      validUntil: r.validUntil,
+      status: effectiveStatus(r.status, r.validUntil, now),
+      total: r.totalMoney,
+    }));
   }
 
   async get(scope: RequestScope, role: OrgRole, quoteId: string): Promise<QuoteDetail> {

@@ -2582,6 +2582,20 @@
           "Nav"
         ]
       }
+    },
+    "/v1/me/dashboard-summary": {
+      "get": {
+        "operationId": "NavController_getDashboardSummary_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Nav"
+        ]
+      }
     }
   },
   "info": {

@@ -5,7 +5,7 @@ import { cs, en } from "@repo/i18n";
 import { I18nProvider, useTranslations } from "@repo/i18n/web";
 
 // A minimal "use client" leaf that reads a translation, exercising the same
-// `useTranslations` path the app's LocaleSwitcher uses.
+// `useTranslations` path every client surface uses.
 function Label() {
   const t = useTranslations("locale");
   return <span>{t("cs")}</span>;
