@@ -179,6 +179,13 @@ describe("QuoteDetailView", () => {
     expect(screen.getAllByText("2026/0001").length).toBeGreaterThan(0);
     expect(screen.getByText("21 %")).toBeInTheDocument();
     expect(screen.getByText("Standardní DPH")).toBeInTheDocument();
+    // The panel is titled as what it IS — a VAT breakdown on an offer — and
+    // NEVER as a §29 daňový doklad (ADR 0126): a nabídka has its own number
+    // series, no DUZP, no payment block, and its VAT is derived bottom-up while
+    // the invoice kernel is §37 top-down. Both halves asserted, because the
+    // regression that matters is the old label creeping back.
+    expect(screen.getByText("Rozpis DPH")).toBeInTheDocument();
+    expect(screen.queryByText("Daňový doklad")).not.toBeInTheDocument();
     // The gross (157168.72) shows on the rate line AND the totals row → >0.
     expect(
       screen.getAllByText((t) => t.includes("157") && t.includes("168")).length,
@@ -303,8 +310,8 @@ describe("QuoteDetailView — aggregated site BOM (§3.2 gap-fill)", () => {
     expect(screen.getByText("AL-PRF-40")).toBeInTheDocument();
     // The Cena column header itself is absent — not just its cells.
     expect(screen.queryByText("Cena bez DPH")).not.toBeInTheDocument();
-    // No §92e/DPH tax document either (blindSnapshot drops `tax`).
-    expect(screen.queryByText("Daňový doklad")).not.toBeInTheDocument();
+    // No §92e/DPH breakdown either (blindSnapshot drops `tax`).
+    expect(screen.queryByText("Rozpis DPH")).not.toBeInTheDocument();
     // Belt-and-suspenders: no currency symbol anywhere on the page.
     expect(container.textContent).not.toMatch(/Kč/);
   });

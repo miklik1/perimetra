@@ -1,9 +1,10 @@
 /**
  * OrdersService unit tests (ADR 0109 / ADR-O1) — the orchestration: the
- * accepted-quote guard, gap-free number allocation, the IDs-only outbox event +
- * audit row in one tx, the state-machine guards, the `order_quote_active_uq`
- * race → 409, and the production re-home delegating to `QuotesService`. Live
- * DB behavior (the partial-unique race, gap-free numbering) is proven in
+ * accepted-quote guard, the one-live-order-per-DEAL chain guard (ADR 0126),
+ * gap-free number allocation, the IDs-only outbox event + audit row in one tx,
+ * the state-machine guards, the `order_quote_active_uq` race → 409, and the
+ * production re-home delegating to `QuotesService`. Live DB behavior (the
+ * partial-unique race, gap-free numbering, the real revision chain) is proven in
  * `apps/api/test/orders.itest.ts`.
  */
 import { ConflictException, NotFoundException } from "@nestjs/common";
@@ -11,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type OrderRow } from "@repo/db/schema/orders";
 
+import { numberingYear } from "../numbering/numbering-year.js";
 import { OrdersService } from "./orders.service.js";
 
 // `@Transactional()` resolves a live TransactionHost at CALL time — neutralize
@@ -23,7 +25,11 @@ vi.mock("@nestjs-cls/transactional", async (importOriginal) => ({
 const SCOPE = { userId: "user-1", organizationId: "org-1" };
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const QUOTE_ID = "01890a5d-ac96-774b-bcce-b302099a0aaa";
+const REVISION_ID = "01890a5d-ac96-774b-bcce-b302099a0bbb";
 const ORDER_ID = "01890a5d-ac96-774b-bcce-b302099a0001";
+/** The series year the service must use — Prague-pinned, not the server clock
+ *  (ADR 0126). Derived, not hardcoded, so the suite does not rot on 1 January. */
+const YEAR = numberingYear();
 
 function makeRow(overrides: Partial<OrderRow> = {}): OrderRow {
   return {
@@ -31,7 +37,7 @@ function makeRow(overrides: Partial<OrderRow> = {}): OrderRow {
     ownerId: SCOPE.userId,
     organizationId: SCOPE.organizationId,
     quoteId: QUOTE_ID,
-    orderNumber: "Z2026/0001",
+    orderNumber: `Z${YEAR}/0001`,
     status: "confirmed",
     cancelReason: null,
     createdAt: NOW,
@@ -45,6 +51,7 @@ function makeService() {
     list: vi.fn(),
     findById: vi.fn(),
     findByIdSystem: vi.fn(),
+    findLiveByQuoteIds: vi.fn().mockResolvedValue(null),
     insert: vi.fn(),
     setStatus: vi.fn(),
     repoint: vi.fn(),
@@ -54,6 +61,8 @@ function makeService() {
   const quotes = {
     assertAcceptedForOrder: vi.fn().mockResolvedValue(undefined),
     assertRepointTarget: vi.fn().mockResolvedValue(undefined),
+    // Default: a lone quote — the chain is just itself, so the sibling set is empty.
+    chainQuoteIds: vi.fn().mockResolvedValue([QUOTE_ID]),
     getProductionByQuoteId: vi.fn(),
   };
   const numbering = { allocate: vi.fn().mockResolvedValue(1) };
@@ -78,10 +87,10 @@ describe("OrdersService.create", () => {
     const result = await service.create(SCOPE, { quoteId: QUOTE_ID });
 
     expect(quotes.assertAcceptedForOrder).toHaveBeenCalledWith(SCOPE, QUOTE_ID);
-    expect(numbering.allocate).toHaveBeenCalledWith(SCOPE, "order", 2026);
+    expect(numbering.allocate).toHaveBeenCalledWith(SCOPE, "order", YEAR);
     expect(repo.insert).toHaveBeenCalledWith(SCOPE, {
       quoteId: QUOTE_ID,
-      orderNumber: "Z2026/0001",
+      orderNumber: `Z${YEAR}/0001`,
       status: "confirmed",
     });
     expect(outbox.emit).toHaveBeenCalledWith({
@@ -93,8 +102,41 @@ describe("OrdersService.create", () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "order.confirmed", entityId: row.id }),
     );
-    expect(result.orderNumber).toBe("Z2026/0001");
+    expect(result.orderNumber).toBe(`Z${YEAR}/0001`);
     expect(result).not.toHaveProperty("ownerId");
+  });
+
+  it("checks the DEAL (the quote's revision chain) for a live order, excluding the quote itself", async () => {
+    const { service, repo, quotes } = makeService();
+    repo.insert.mockResolvedValue(makeRow());
+    quotes.chainQuoteIds.mockResolvedValue([QUOTE_ID, REVISION_ID]);
+
+    await service.create(SCOPE, { quoteId: QUOTE_ID });
+
+    expect(quotes.chainQuoteIds).toHaveBeenCalledWith(SCOPE, QUOTE_ID);
+    // The quote itself is deliberately excluded — a same-row duplicate stays the
+    // `order_quote_active_uq` index's job (and its concurrency backstop).
+    expect(repo.findLiveByQuoteIds).toHaveBeenCalledWith(SCOPE, [REVISION_ID]);
+  });
+
+  it("409s order_exists_for_chain when a sibling revision already has a live order", async () => {
+    const { service, repo, quotes, numbering } = makeService();
+    quotes.chainQuoteIds.mockResolvedValue([QUOTE_ID, REVISION_ID]);
+    repo.findLiveByQuoteIds.mockResolvedValue(makeRow({ quoteId: REVISION_ID }));
+
+    // Names the incumbent so the UI can offer RE-POINT instead of a second order
+    // (ADR-O1). Asserted on the exception itself: `GlobalExceptionFilter` does
+    // not yet forward `details` to the wire (flagged in ADR 0126), so the itest
+    // can only check the code.
+    await expect(service.create(SCOPE, { quoteId: QUOTE_ID })).rejects.toMatchObject({
+      response: {
+        code: "order_exists_for_chain",
+        details: { orderId: ORDER_ID, orderNumber: `Z${YEAR}/0001`, quoteId: REVISION_ID },
+      },
+    });
+    // Refused BEFORE a second gap-free number is burned.
+    expect(numbering.allocate).not.toHaveBeenCalled();
+    expect(repo.insert).not.toHaveBeenCalled();
   });
 
   it("maps the order_quote_active_uq race to 409 order_exists", async () => {

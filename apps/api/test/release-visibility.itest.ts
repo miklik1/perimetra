@@ -32,6 +32,7 @@ import {
 import { DB } from "../src/common/db/db.module.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   promotePlatformAdmin,
@@ -48,8 +49,11 @@ const priceTableBody = {
   cost: siteCosts,
 };
 
-/** The golden three-instance site (gate + two fences), roster by natural key. */
-const issueBody = {
+/** The golden three-instance site (gate + two fences), roster by natural key —
+ *  MINUS the buyer, which `beforeAll` folds in (mandatory since ADR 0126). The
+ *  assignment gate fires BEFORE the buyer guard in `issue`, so the two
+ *  `release_not_assigned` 403s below still prove exactly what they always did. */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -73,6 +77,8 @@ describe("per-tenant release visibility (HTTP, real stack)", () => {
   let gateId: string; // sliding-gate@1 surrogate id
   let fenceId: string; // fence-run@1 surrogate id
   let quoteId: string; // orgA's golden quote (stamped on both releases)
+  /** `baseIssueBody` + orgA's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const postAs = (u: TestUser, url: string, payload: Record<string, unknown> = {}) =>
     inject(app, { method: "POST", url, headers: { cookie: u.cookie }, payload });
@@ -108,8 +114,9 @@ describe("per-tenant release visibility (HTTP, real stack)", () => {
 
     // orgA needs a price table to issue (per-org, ADR 0055).
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-    // Issuing requires a legal profile (ADR 0088).
+    // Issuing requires a legal profile (ADR 0088) and an odběratel (ADR 0126).
     await setupLegalProfile(app, userA);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, userA) };
   });
 
   afterAll(async () => {

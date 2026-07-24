@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
+import { ApiError, isValidation } from "@repo/api";
 import { useApiClient, useInfiniteQuery, useMutation, useQueryClient } from "@repo/api/react";
 import type { Issue } from "@repo/engine";
 import { useTranslations } from "@repo/i18n/web";
-import { Button, Panel } from "@repo/ui";
+import { Alert, Button, Panel } from "@repo/ui";
 import { lookupIcoSchema, type IssueQuoteInput } from "@repo/validators";
 
 import { createCustomersQueries, customerKeys } from "../../lib/customers-queries";
@@ -20,10 +21,64 @@ const inputClass =
   "border-border bg-background focus-visible:ring-ring rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 w-full";
 
 /**
+ * The typed 422 codes `POST /v1/quotes` refuses an ISSUE with, mapped to their
+ * copy under `quotes.issue.rejected.*`. Every one of them is a precondition the
+ * rep can actually fix, so each gets a title + a remedy instead of the generic
+ * "validation" toast that told them only that something was wrong.
+ *
+ * `site_invalid` is deliberately ABSENT: it is the one rejection carrying typed
+ * I5 issues, and `siteInvalidIssues` + `IssueList` already render those
+ * item-by-item (CAR-162). Two shapes, two renderers, one box.
+ *
+ * This is the SAME mechanism `lib/error-messages.ts` uses — narrow the caught
+ * value with the `@repo/api` taxonomy (ADR 0014), read the typed body `code`,
+ * resolve an i18n KEY, never a string. It sits here rather than beside
+ * `siteInvalidIssues` only because these codes are this one endpoint's
+ * vocabulary; if a second surface ever issues a quote, hoist it there rather
+ * than copying it.
+ */
+const ISSUE_REJECTION_KEY = {
+  customer_required: "customerRequired",
+  legal_profile_required: "legalProfileRequired",
+  supplier_not_vat_payer: "supplierNotVatPayer",
+  margin_below_floor: "marginBelowFloor",
+  margin_floor_without_cost: "marginFloorWithoutCost",
+} as const;
+
+type IssueRejectionCode = keyof typeof ISSUE_REJECTION_KEY;
+
+/**
+ * Exported for its unit test, not for reuse: `@repo/api-mocks`' `POST /v1/quotes`
+ * can only refuse with its own generic `INVALID_INPUT`, so there is no way to
+ * drive these five codes through a rendered panel. Testing the recogniser
+ * directly is what keeps the map honest when a backend code is renamed.
+ */
+export function issueRejectionCode(error: unknown): IssueRejectionCode | undefined {
+  if (!(error instanceof ApiError) || !isValidation(error)) return undefined;
+  const code = (error.body as { code?: unknown } | null | undefined)?.code;
+  return typeof code === "string" && code in ISSUE_REJECTION_KEY
+    ? (code as IssueRejectionCode)
+    : undefined;
+}
+
+/** How the api refused the last issue attempt — the two shapes are alternatives
+ *  (a rejection is either the engine's typed I5 issue list or a single named
+ *  precondition), so they share one state and one banner. */
+type IssueRejection =
+  | { kind: "issues"; issues: Issue[] }
+  | { kind: "code"; code: IssueRejectionCode };
+
+/**
  * Issue-a-quote affordance on the site canvas (ADR 0083) — configure → attach
  * customer → issue. The buyer's VAT status auto-fills the §92e decision
  * server-side (ADR 0080/0082); the panel only sends the customer + the
  * construction/assembly scope. On success it navigates to the frozen quote.
+ *
+ * The odběratel is MANDATORY (ADR 0126 — `issue` 422s `customer_required`
+ * without one), and this panel says so BEFORE the round trip: the picker offers
+ * no "no customer" option and the Issue button is disabled with the reason
+ * spelled out beneath it. The server guard stays the authority (a stale tab, a
+ * deleted customer); the UI just stops pretending the state is reachable.
  */
 export function IssueQuotePanel({
   projectId,
@@ -41,11 +96,15 @@ export function IssueQuotePanel({
   const customersQueries = createCustomersQueries(apiClient);
   const quotesQueries = createQuotesQueries(apiClient);
 
+  // The buyer-required hint is both a visible reason and the picker's
+  // `aria-describedby` target, so it needs a real, collision-free id.
+  const customerHintId = useId();
+
   const [customerId, setCustomerId] = useState("");
   const [construction, setConstruction] = useState(false);
-  // The engine's typed I5 issues from a 422 `site_invalid` at issue (CAR-162) —
-  // surfaced human-readable in the panel so the rep knows exactly what to fix.
-  const [issueErrors, setIssueErrors] = useState<Issue[] | null>(null);
+  // How the api last refused (CAR-162 + ADR 0126) — surfaced human-readable in
+  // the panel so the rep knows exactly what to fix, never a bare toast.
+  const [rejection, setRejection] = useState<IssueRejection | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState("");
   const [ico, setIco] = useState("");
@@ -83,21 +142,31 @@ export function IssueQuotePanel({
   const issue = useMutation({
     ...quotesQueries.issue(),
     onSuccess: (quote) => {
-      setIssueErrors(null);
+      setRejection(null);
       toast.success(t("issue.issued"));
       router.push(`/quotes/${quote.id}`);
     },
     onError: (error) => {
       // An engine rejection (422 `site_invalid`) carries typed I5 issues —
       // render them in-panel (Czech, via IssueList), never a bare toast that
-      // hides what to fix. Any other error keeps the generic mapped toast.
+      // hides what to fix. A named precondition (422 `customer_required`,
+      // `legal_profile_required`, `supplier_not_vat_payer`, the two margin-floor
+      // codes) gets the same treatment: it names a thing the rep can go and fix,
+      // so it stays on screen with its remedy. Only an error we can't name at
+      // all — network, 500, an unrecognised code — falls through to the generic
+      // mapped toast.
       const issues = siteInvalidIssues(error);
       if (issues) {
-        setIssueErrors(issues);
-      } else {
-        setIssueErrors(null);
-        toast.error(tErrors(errorMessageKey(error)));
+        setRejection({ kind: "issues", issues });
+        return;
       }
+      const code = issueRejectionCode(error);
+      if (code) {
+        setRejection({ kind: "code", code });
+        return;
+      }
+      setRejection(null);
+      toast.error(tErrors(errorMessageKey(error)));
     },
   });
 
@@ -115,13 +184,17 @@ export function IssueQuotePanel({
   };
 
   const submitIssue = () => {
-    setIssueErrors(null);
+    // Guarded by the disabled button, but re-checked here so the invariant holds
+    // for any caller: the api refuses a buyerless issue (422 `customer_required`)
+    // and there is nothing to gain from making the round trip to be told so.
+    if (!customerId) return;
+    setRejection(null);
     issue.mutate({
       input: {
         projectId,
         site: payload.site,
         instances: payload.instances,
-        ...(customerId ? { customerId } : {}),
+        customerId,
         ...(construction ? { tax: { constructionAssembly: true } } : {}),
       },
       idempotencyKey: crypto.randomUUID(),
@@ -139,8 +212,20 @@ export function IssueQuotePanel({
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
             className={inputClass}
+            required={true}
+            aria-describedby={customerId ? undefined : customerHintId}
           >
-            <option value="">{t("issue.noCustomer")}</option>
+            {/* A DISABLED placeholder, not a choice. The old "Bez odběratele"
+                option offered the one state the api refuses, so the picker was
+                advertising a dead end; a select still needs something to show
+                while nothing is picked, and a disabled row is a prompt the rep
+                cannot select back into. Auto-selecting the first customer was
+                rejected outright — silently addressing an irreversible,
+                gap-free-numbered document to whoever happens to sort first is a
+                far worse failure than an extra click. */}
+            <option value="" disabled={true}>
+              {t("issue.selectCustomer")}
+            </option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -222,16 +307,48 @@ export function IssueQuotePanel({
           {t("issue.constructionAssembly")}
         </label>
 
-        {issueErrors && (
-          <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-            <p className="text-destructive text-sm font-medium">{t("issue.invalidTitle")}</p>
-            <IssueList issues={issueErrors} />
-          </div>
+        {/* One banner for both rejection shapes — the kit's `Alert` (destructive
+            tone derives `role="alert"`, so it announces), replacing the hand-
+            rolled destructive box this panel used to draw. */}
+        {rejection && (
+          <Alert tone="destructive">
+            <Alert.Icon />
+            <Alert.Title>
+              {rejection.kind === "issues"
+                ? t("issue.invalidTitle")
+                : t(`issue.rejected.${ISSUE_REJECTION_KEY[rejection.code]}Title`)}
+            </Alert.Title>
+            {rejection.kind === "issues" ? (
+              // `IssueList` is a list, not a paragraph — it goes in the
+              // description COLUMN (col-start-2) rather than through
+              // `Alert.Description`, which renders a `<p>`.
+              <div className="col-start-2 row-start-2 mt-1">
+                <IssueList issues={rejection.issues} />
+              </div>
+            ) : (
+              <Alert.Description>
+                {t(`issue.rejected.${ISSUE_REJECTION_KEY[rejection.code]}Body`)}
+              </Alert.Description>
+            )}
+          </Alert>
         )}
 
-        <Button type="button" variant="copper" onClick={submitIssue} disabled={issue.isPending}>
+        {/* The refusal is stated BEFORE the click, not after the round trip: the
+            button is disabled and the reason sits right under it, wired as the
+            picker's `aria-describedby` so it is announced with the field too. */}
+        <Button
+          type="button"
+          variant="copper"
+          onClick={submitIssue}
+          disabled={issue.isPending || !customerId}
+        >
           {issue.isPending ? t("issue.issuing") : t("issue.button")}
         </Button>
+        {!customerId && (
+          <p id={customerHintId} className="text-muted-foreground text-xs">
+            {t("issue.customerRequired")}
+          </p>
+        )}
       </div>
     </Panel>
   );

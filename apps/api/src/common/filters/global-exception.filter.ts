@@ -70,6 +70,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         envelope: {
           message,
           ...(typeof body.code === "string" ? { code: body.code } : {}),
+          // The envelope's `details` slot — the typed context a code-carrying
+          // rejection needs to be ACTIONABLE (which revision superseded this
+          // quote, which engine issues invalidated the site). It was declared in
+          // `apiErrorEnvelopeSchema` from the start but never forwarded here, so
+          // until now every throw's context was silently dropped on the wire:
+          // the client saw `{message, code}` and nothing else. A plain object
+          // only — an array or scalar would break the declared shape, and a
+          // service that puts context anywhere but `details` still loses it (by
+          // design: one slot, not an open passthrough of the thrown body).
+          ...(this.isDetails(body.details) ? { details: body.details } : {}),
           ...(this.isFieldErrors(body.errors) ? { errors: body.errors } : {}),
         },
       };
@@ -79,6 +89,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       envelope: { message: "Internal server error", code: "internal" },
     };
+  }
+
+  private isDetails(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   private isFieldErrors(value: unknown): value is Record<string, string[]> {

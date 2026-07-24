@@ -12,19 +12,28 @@
  *  - Payment is row state: mark-paid is admin-only + idempotent (409 repeat);
  *    a double-issue on one order is a structural 409 (`invoice_order_active_uq`).
  *  - Workshop is price-blind by ABSENCE (403 on the whole surface).
+ *  - PER-REP isolation (ADR 0082): a sales rep sees only the invoices it issued;
+ *    another rep's invoice 404s on list/detail/verify (the buyer's §29 identity
+ *    lives in facts/snapshot, so org scope alone is not a tight enough boundary)
+ *    — while admin still sees everything and I3 re-derivation is untouched.
  */
 import { type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { eq } from "drizzle-orm";
+import { uuidv7 } from "uuidv7";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Db } from "@repo/db";
 import { member } from "@repo/db/schema/auth";
+import { invoice } from "@repo/db/schema/invoices";
+import { quote } from "@repo/db/schema/quotes";
 import { siteFenceConfig, siteGateConfig, sitePrices, steppedSite } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
+import { numberingYear } from "../src/modules/numbering/numbering-year.js";
 import {
   createApiApp,
   inject,
+  orgIdOf,
   seedGoldenCorpusFor,
   signUpUser,
   TEST_LEGAL_PROFILE,
@@ -50,6 +59,7 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
   let app: NestFastifyApplication;
   let db: Db;
   let tenant: TestUser;
+  let orgId: string;
 
   const post = (user: TestUser, url: string, payload?: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: user.cookie }, payload: payload ?? {} });
@@ -96,6 +106,7 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     app = await createApiApp();
     db = app.get<Db>(DB);
     tenant = await signUpUser(app, "invoice-tenant");
+    orgId = await orgIdOf(db, tenant.id);
     await seedGoldenCorpusFor(app, db, tenant);
     await put(tenant, "/v1/org/legal-profile", { ...TEST_LEGAL_PROFILE, iban: TEST_IBAN });
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
@@ -119,7 +130,7 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
       variableSymbol: string;
       total: string;
     };
-    const year = new Date().getFullYear();
+    const year = numberingYear();
     expect(invoice.documentNumber).toBe(`FV${year}/0001`);
     expect(invoice.status).toBe("issued");
     expect(invoice.currency).toBe("CZK");
@@ -151,7 +162,7 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     const invoice = (await post(tenant, "/v1/invoices", { orderId })).json() as {
       documentNumber: string;
     };
-    expect(invoice.documentNumber).toBe(`FV${new Date().getFullYear()}/0002`);
+    expect(invoice.documentNumber).toBe(`FV${numberingYear()}/0002`);
   });
 
   it("a double-issue on one order is a 409 invoice_exists", async () => {
@@ -179,8 +190,16 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     expect(verify.reproduced).toBe(true);
   });
 
-  it("422 customer_required when the quote had no attached customer", async () => {
-    const { orderId } = await orderFor(tenant); // no customerId
+  it("422 customer_required when the quote carries no attached customer", async () => {
+    // A customer-less quote can no longer be ISSUED (the buyer is mandatory at
+    // quote issue), so the precondition is built by detaching the customer from
+    // an already-issued quote — which is exactly the shape this guard exists for:
+    // a legacy or detached row must still fail CLOSED at the §29 boundary rather
+    // than print a document with no odběratel.
+    const customerId = await createCustomer(tenant);
+    const { orderId, quoteId } = await orderFor(tenant, { customerId });
+    await db.update(quote).set({ customerId: null }).where(eq(quote.id, quoteId));
+
     const res = await post(tenant, "/v1/invoices", { orderId });
     expect(res.statusCode).toBe(422);
     expect(res.json().code).toBe("customer_required");
@@ -220,5 +239,93 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
     const res = await post(noIban, "/v1/invoices", { orderId });
     expect(res.statusCode).toBe(422);
     expect(res.json().code).toBe("iban_required");
+  });
+
+  /**
+   * The ADR-0082 flank (mirrors the customers cross-rep isolation test). A rep
+   * that is correctly 404'd from a colleague's CUSTOMER and QUOTE must not be
+   * able to read the same buyer PII off the colleague's INVOICE — `facts`/
+   * `snapshot` carry the buyer's name, IČO, DIČ, e-mail and address verbatim.
+   */
+  it("a sales rep sees only the invoices they issued; admin sees the whole org", async () => {
+    // Ours, issued through the real HTTP path (owner = tenant).
+    const customerId = await createCustomer(tenant);
+    const { orderId } = await orderFor(tenant, { customerId });
+    const mine = (await post(tenant, "/v1/invoices", { orderId })).json() as { id: string };
+
+    // A colleague's invoice in the SAME org. Issued rows can only be created by
+    // their issuer, and the FK needs a real user row — so borrow a second
+    // sign-up's id and insert directly (the customers itest does the same),
+    // cloning a genuine frozen pair so the admin-side verify below stays honest.
+    const other = await signUpUser(app, "invoice-other-rep");
+    const { orderId: otherOrderId } = await orderFor(tenant, { customerId });
+    const [source] = await db
+      .select({ facts: invoice.facts, snapshot: invoice.snapshot })
+      .from(invoice)
+      .where(eq(invoice.id, mine.id))
+      .limit(1);
+    const otherInvoiceId = uuidv7();
+    await db.insert(invoice).values({
+      id: otherInvoiceId,
+      ownerId: other.id,
+      organizationId: orgId,
+      orderId: otherOrderId,
+      documentNumber: `FV${numberingYear()}/9001`,
+      status: "issued",
+      currency: "CZK",
+      issuedOn: "2026-07-16",
+      duzp: "2026-07-16",
+      dueOn: "2026-07-30",
+      variableSymbol: "20269001",
+      totalMoney: "121000.00",
+      facts: source!.facts,
+      snapshot: source!.snapshot,
+    });
+
+    await setRole(tenant.id, "sales");
+    const salesList = (await get(tenant, "/v1/invoices?limit=100")).json() as {
+      items: { id: string }[];
+    };
+    const salesIds = salesList.items.map((i) => i.id);
+    expect(salesIds).toContain(mine.id);
+    expect(salesIds).not.toContain(otherInvoiceId);
+
+    // 404, NOT 403 — a 403 would confirm the document exists (an oracle), and
+    // `verify` is narrowed for exactly the same reason.
+    expect((await get(tenant, `/v1/invoices/${otherInvoiceId}`)).statusCode).toBe(404);
+    expect((await post(tenant, `/v1/invoices/${otherInvoiceId}/verify`)).statusCode).toBe(404);
+
+    // ...while the rep's OWN invoice is untouched: readable and still byte-
+    // identical on re-derivation (this is a visibility change, never an I3 one).
+    expect((await get(tenant, `/v1/invoices/${mine.id}`)).statusCode).toBe(200);
+    expect((await post(tenant, `/v1/invoices/${mine.id}/verify`)).json()).toEqual({
+      invoiceId: mine.id,
+      reproduced: true,
+      mismatches: [],
+    });
+
+    await setRole(tenant.id, "admin");
+    const adminList = (await get(tenant, "/v1/invoices?limit=100")).json() as {
+      items: { id: string }[];
+    };
+    expect(adminList.items.map((i) => i.id)).toEqual(
+      expect.arrayContaining([mine.id, otherInvoiceId]),
+    );
+
+    // Admin reaches the colleague's document AND its frozen buyer identity —
+    // proving the narrowing above withheld real PII, not an empty projection.
+    const adminDetail = (await get(tenant, `/v1/invoices/${otherInvoiceId}`)).json() as {
+      snapshot: { buyerName: string; buyerIco: string | null; buyerDic: string | null };
+    };
+    expect(adminDetail.snapshot.buyerName).toBe("Odběratel a.s.");
+    expect(adminDetail.snapshot.buyerIco).toBe("45274649");
+    expect(adminDetail.snapshot.buyerDic).toBe("CZ45274649");
+
+    // And it still re-derives byte-identically for the caller who may see it.
+    expect((await post(tenant, `/v1/invoices/${otherInvoiceId}/verify`)).json()).toEqual({
+      invoiceId: otherInvoiceId,
+      reproduced: true,
+      mismatches: [],
+    });
   });
 });

@@ -7,6 +7,7 @@ import { roundHalfAwayFromZero } from "@cardo/tax-cz";
 import { describe, expect, it } from "vitest";
 
 import { type TaxBreakdown } from "@repo/model";
+import { roundingPolicySchema } from "@repo/validators/price-tables";
 
 import {
   buildInvoiceDocument,
@@ -82,6 +83,32 @@ function baseInput(tax: TaxBreakdown): InvoiceMapperInput {
   };
 }
 
+/**
+ * Exact reference implementation — BigInt only, no float anywhere. `korunaToHalere`
+ * must agree with this for every value that can reach it (see the "float boundary"
+ * suite below); any divergence IS the IEEE-754 hop misbehaving.
+ */
+function exactKorunaToHalere(koruna: string): number {
+  const neg = koruna.startsWith("-");
+  const body = neg ? koruna.slice(1) : koruna;
+  const dot = body.indexOf(".");
+  const digits = dot === -1 ? body : body.slice(0, dot) + body.slice(dot + 1);
+  const scale = dot === -1 ? 0 : body.length - dot - 1;
+  const coeff = BigInt(digits);
+  // value × 100 = coeff / 10^(scale − 2); round the remainder half AWAY FROM ZERO
+  // (the magnitude is unsigned here, so "away from zero" is just "up").
+  const shift = scale - 2;
+  let whole: bigint;
+  if (shift <= 0) {
+    whole = coeff * 10n ** BigInt(-shift);
+  } else {
+    const divisor = 10n ** BigInt(shift);
+    const q = coeff / divisor;
+    whole = (coeff % divisor) * 2n >= divisor ? q + 1n : q;
+  }
+  return neg ? -Number(whole) : Number(whole);
+}
+
 describe("korunaToHalere", () => {
   it("scales exact-decimal ×100 and rounds half away from zero", () => {
     expect(korunaToHalere("121000")).toBe(12100000);
@@ -91,11 +118,65 @@ describe("korunaToHalere", () => {
     expect(korunaToHalere("0")).toBe(0);
   });
 
-  it("agrees with the kernel's own rounding on the scaled value", () => {
-    for (const m of ["0.005", "12989150.4", "50.505", "999999.995"]) {
-      // The exact ×100 avoids float noise; the DECISION is the kernel's.
-      expect(korunaToHalere(m)).toBe(roundHalfAwayFromZero(Number(m) * 100));
+  it("delegates the rounding DECISION to the kernel's half-away-from-zero rule", () => {
+    // The seam deliberately owns no rounding rule of its own (ADR 0112 §2 — the
+    // kernel's `buildInvoice` contract requires exactly this delegation). 2.5 is
+    // the tell: banker's rounding would say 2, matematické zaokrouhlení says 3.
+    expect(roundHalfAwayFromZero(2.5)).toBe(3);
+    expect(roundHalfAwayFromZero(-2.5)).toBe(-3);
+    expect(korunaToHalere("0.025")).toBe(3); // 2.5 haléře, through the same rule
+    expect(korunaToHalere("-0.025")).toBe(-3); // symmetric (credit-note direction)
+  });
+});
+
+/**
+ * The ONE deliberate IEEE-754 boundary in the module (`Number(mulMoney(...))`,
+ * documented on `korunaToHalere`). These pin its PRECONDITION rather than the
+ * happy path — if either half stops holding, the exception stops being bounded:
+ *
+ *  (1) at most 4 decimal places on the input, enforced upstream by the price
+ *      table's `roundingPolicy.scale` cap — after the exact ×100 the value has
+ *      at most 2 decimals, so it is an exact (binary-representable) `.5` tie or
+ *      ≥ 0.01 away from one, far outside a double's error at CZK magnitudes;
+ *  (2) an integer result far below 2^53.
+ */
+describe("korunaToHalere float boundary (the documented bounded exception)", () => {
+  it("the ≤4-decimal precondition is ENFORCED upstream, not merely assumed", () => {
+    // `korunaToHalere` only ever sees `TaxBreakdown` figures, and every one of
+    // them is `roundMoney(..., policy)` at the price table's scale. Raising this
+    // cap widens what reaches the float hop → this test is the tripwire.
+    const base = { mode: "half-up", granularity: "end-of-invoice" } as const;
+    expect(roundingPolicySchema.safeParse({ ...base, scale: 4 }).success).toBe(true);
+    expect(roundingPolicySchema.safeParse({ ...base, scale: 5 }).success).toBe(false);
+  });
+
+  it("matches an exact BigInt reference on EVERY post-scaling fraction (0.00–0.99)", () => {
+    // Worst case allowed by (1): 4 decimals, so ×100 leaves 2 — sweep all 100 of
+    // them (k = 50 is the tie) across magnitudes from zero to far beyond any real
+    // fence invoice. A float mis-decision anywhere would surface as a ±1 haléř.
+    for (const whole of ["0", "1", "129891", "9999999", "999999999"]) {
+      for (let k = 0; k < 100; k++) {
+        const koruna = `${whole}.37${String(k).padStart(2, "0")}`;
+        expect(korunaToHalere(koruna), koruna).toBe(exactKorunaToHalere(koruna));
+      }
     }
+  });
+
+  it("is exact for >2-decimal inputs — the case a scale-3/4 price table produces", () => {
+    // The claim "the input is already 2dp" is FALSE in general (a price table may
+    // legitimately round to 3 or 4 places), so the sub-haléř tail must round, not
+    // drift. Both sides of the tie, at a realistic magnitude.
+    for (const koruna of ["129891.504", "129891.505", "1.0049", "1.005", "1.0051"]) {
+      expect(korunaToHalere(koruna), koruna).toBe(exactKorunaToHalere(koruna));
+    }
+  });
+
+  it("the EXACT ×100 is load-bearing — a naive float multiply mis-rounds the tie", () => {
+    // Why `mulMoney` and not `Number(koruna) * 100`: the naive product lands just
+    // BELOW the tie and rounds down, losing a haléř on a legal document.
+    expect(Number("1.005") * 100).toBeLessThan(100.5);
+    expect(roundHalfAwayFromZero(Number("1.005") * 100)).toBe(100); // the bug avoided
+    expect(korunaToHalere("1.005")).toBe(101); // exact ×100 → a clean, exact tie
   });
 });
 

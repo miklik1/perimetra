@@ -291,12 +291,16 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
         />
       )}
 
-      {/* The tax document */}
+      {/* The DPH breakdown. NOT a daňový doklad — a nabídka has its own number
+          series, no DUZP and no payment block, and its VAT is derived bottom-up
+          per line while the §37 invoice kernel works top-down (they may differ
+          by a haléř). Titled `vatBreakdown` on all three quote surfaces so the
+          rep and the buyer read the same honest label. */}
       {tax && (
         <Panel elevation="raised">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg">{t("taxDocument")}</h2>
+              <h2 className="font-display text-lg">{t("vatBreakdown")}</h2>
               <span className="text-muted-foreground font-data text-xs uppercase tracking-wide">
                 {reverse ? t("tax.reverseCharge") : t("tax.standard")}
               </span>

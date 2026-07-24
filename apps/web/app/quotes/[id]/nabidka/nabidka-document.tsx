@@ -189,10 +189,13 @@ export function NabidkaDocumentView({
           </table>
         </section>
 
-        {/* The §92e/DPH tax document */}
+        {/* The §92e/DPH breakdown. This sheet is the printed/PDF nabídka the
+            buyer receives, so the title matters most here: it is NOT a §29
+            daňový doklad (own number series, no DUZP, no payment block, VAT
+            derived bottom-up rather than the invoice kernel's §37 top-down). */}
         <section className="mb-8">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg">{t("taxDocument")}</h2>
+            <h2 className="font-display text-lg">{t("vatBreakdown")}</h2>
             <span className="text-muted-foreground font-data text-xs uppercase tracking-wide">
               {reverse ? t("tax.reverseCharge") : t("tax.standard")}
             </span>

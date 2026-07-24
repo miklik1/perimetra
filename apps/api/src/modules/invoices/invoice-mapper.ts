@@ -12,6 +12,8 @@
  * integer-haléře native. `korunaToHalere` does the ×100 in EXACT decimal
  * (`mulMoney`, no float noise) and then rounds with the KERNEL's own
  * `roundHalfAwayFromZero` — so the seam never invents a second rounding rule.
+ * That last step is the module's ONE deliberate IEEE-754 boundary; its
+ * precondition and proof of boundedness are spelled out on `korunaToHalere`.
  *
  * Only the per-rate GROSS crosses the seam (ADR 0112 §4): `buildInvoice`
  * re-derives base/VAT top-down (§37), so the printed net/VAT split is the
@@ -91,6 +93,42 @@ export interface InvoiceMapperInput {
  * unit). The ×100 is EXACT (BigInt decimal, no float accumulation), then the
  * kernel's half-away-from-zero rounding drops any sub-haléř remainder — the ONE
  * money-unit reconciliation the consumer owns (ADR 0112 §2). Sign-preserving.
+ *
+ * ## The IEEE-754 hop: a BOUNDED, DELIBERATE exception (documented, not hidden)
+ *
+ * `Number(...)` re-enters float for one step, on the last hop before an amount
+ * becomes a legal invoice line. ADR 0081 pins its own float boundary explicitly;
+ * this is the invoice-side twin, so it is spelled out here rather than left as
+ * an unstated assumption on the caller.
+ *
+ * WHY NOT CLOSE IT: an exact path would have to round in `@repo/model` decimal
+ * space (`roundMoney(scaled, {scale: 0, mode: "half-up"})`). That is a SECOND
+ * spelling of the rounding rule, and the kernel's published seam contract
+ * (`@cardo/tax-cz/export` `buildInvoice`) explicitly requires the consumer to
+ * convert "using `roundHalfAwayFromZero` so the seam never invents a second
+ * rounding rule". `roundHalfAwayFromZero(n: number): number` is number-only —
+ * there is no string/BigInt overload — so exactness here is bought with a
+ * silent drift risk the day the kernel changes its rule (nothing would fail).
+ * A provably-bounded float hop beats an unpinnable duplicate rule.
+ *
+ * WHY IT IS SAFE — the precondition, stated:
+ *
+ *  1. `koruna` carries at most 4 decimal places. Guaranteed upstream, not by
+ *     convention: every figure in a `TaxBreakdown` is `roundMoney(..., policy)`
+ *     at the price table's `roundingPolicy.scale`, and that scale is validated
+ *     `int().min(0).max(4)` in `@repo/validators/price-tables`. So after the
+ *     exact ×100 the value has at most 2 decimals — it is either an EXACT tie
+ *     (a `.5` fraction, binary-exact for any magnitude below 2^52) or at least
+ *     0.01 away from the tie, while a double's representation error at CZK
+ *     magnitudes is ~1e-9 or smaller. The rounding decision therefore cannot
+ *     flip. (It would take a line gross around 9×10^11 CZK — |v| ≥ 0.01·2^53
+ *     haléře — before the error could reach the tie boundary.)
+ *  2. The integer RESULT is exact: |haléře| ≪ 2^53 at any CZK magnitude a
+ *     fence quote can produce.
+ *
+ * Both halves of that precondition are pinned by tests in `invoice-mapper.test.ts`
+ * ("korunaToHalere float boundary"), including one that fails if the price-table
+ * scale cap is ever raised above 4 — i.e. if precondition (1) stops holding.
  */
 export function korunaToHalere(koruna: MoneyString): number {
   return roundHalfAwayFromZero(Number(mulMoney(koruna, "100")));

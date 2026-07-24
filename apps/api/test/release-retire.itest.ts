@@ -43,6 +43,7 @@ import { DB } from "../src/common/db/db.module.js";
 import {
   assignReleases,
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   promotePlatformAdmin,
@@ -73,8 +74,9 @@ const priceTableBody = {
 };
 
 /** A three-instance site: the gate slot on the demo model (which we retire), the
- *  fences on the shared fence model — the I3 baseline quote. */
-const issueBody = {
+ *  fences on the shared fence model — the I3 baseline quote. MINUS the buyer,
+ *  which `beforeAll` folds in (mandatory at issue since ADR 0126). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "retire-demo@1", input: siteGateConfig },
@@ -147,8 +149,10 @@ describe("release retire (HTTP, real stack)", () => {
       "fence-run@1",
     ]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088).
+    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088) and an
+    // odběratel (ADR 0126).
     await setupLegalProfile(app, userA);
+    const issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, userA) };
 
     const [row] = await db.select().from(release).where(eq(release.releaseId, "retire-demo@1"));
     demoV1RowId = row!.id;

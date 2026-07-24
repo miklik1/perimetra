@@ -27,6 +27,7 @@ import {
 import { DB } from "../src/common/db/db.module.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   seedGoldenCorpusFor,
   signUpUser,
@@ -34,8 +35,9 @@ import {
 } from "./setup/app.js";
 
 /** The golden three-instance site, roster by release natural key — the SAME
- *  fixture `quotes.itest.ts`/`roles.itest.ts` issue against. */
-const issueBody = {
+ *  fixture `quotes.itest.ts`/`roles.itest.ts` issue against, MINUS the buyer
+ *  that `beforeAll` folds in (mandatory since ADR 0126). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -98,6 +100,11 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
   let db: Db;
   let tenant: TestUser;
   let quote: QuoteResponse;
+  /** `baseIssueBody` + this org's odběratel (mandatory since ADR 0126). Every
+   *  quote here now carries a real buyer, which makes the non-leak scan below
+   *  SHARPER: the `"customer"` key it forbids is genuinely present on the priced
+   *  detail and must be absent from the production projection. */
+  let issueBody: Record<string, unknown>;
 
   const post = (user: TestUser, url: string, payload: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: user.cookie }, payload });
@@ -113,6 +120,7 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
 
     await seedGoldenCorpusFor(app, db, tenant);
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, tenant) };
     const issued = await post(tenant, "/v1/quotes", issueBody);
     expect(issued.statusCode, JSON.stringify(issued.json())).toBe(201);
     quote = issued.json() as QuoteResponse;

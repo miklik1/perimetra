@@ -254,6 +254,53 @@ export async function setupLegalProfile(
   }
 }
 
+/**
+ * A complete odběratel (ADR 0082). The IČO carries a valid mod-11 check digit and
+ * the DIČ matches it, so the create-customer zod gate accepts them. `vatPayer:
+ * true` is the neutral choice: with a plátce supplier it still resolves to
+ * STANDARD VAT unless the supply is also construction/assembly (§92e needs all
+ * three, ADR 0080), so attaching this buyer never moves a suite's golden total.
+ */
+const TEST_BUYER = {
+  name: "Odběratel Vrata s.r.o.",
+  ico: "27074358",
+  dic: "CZ27074358",
+  vatPayer: true,
+  city: "Brno",
+} as const;
+
+/**
+ * Create a buyer for `orgUser`'s org and return its id. The odběratel is
+ * MANDATORY at quote issue (ADR 0126 — `issue` 422s `customer_required` before a
+ * document number is allocated), so any test that issues needs one.
+ *
+ * NOT folded into `seedGoldenCorpusFor` (unlike the legal profile, ADR 0088):
+ * half the issuing suites set their org up WITHOUT the corpus seeder (they
+ * publish a synthetic model and `assignReleases` by hand), the buyer is a
+ * per-DOCUMENT input rather than one-time org setup, and a test that wants two
+ * buyers — or none, to prove the refusal — must stay able to say so.
+ *
+ * Customers are org- AND owner-scoped (`customers.get` 404s another rep's), so
+ * this must be called with the cookie of the user that will ISSUE — never reuse
+ * one org's buyer id in another org.
+ */
+export async function createBuyerFor(
+  app: NestFastifyApplication,
+  orgUser: TestUser,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await inject(app, {
+    method: "POST",
+    url: "/v1/customers",
+    headers: { cookie: orgUser.cookie },
+    payload: { ...TEST_BUYER, ...overrides },
+  });
+  if (res.statusCode !== 201) {
+    throw new Error(`create buyer failed (${res.statusCode}): ${res.body}`);
+  }
+  return (res.json() as { id: string }).id;
+}
+
 /** Poll until `predicate` resolves true — for worker-processed effects. */
 export async function waitFor(
   predicate: () => Promise<boolean>,

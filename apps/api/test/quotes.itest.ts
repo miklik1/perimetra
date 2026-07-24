@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Db } from "@repo/db";
-import { user as userTable } from "@repo/db/schema/auth";
+import { member, user as userTable } from "@repo/db/schema/auth";
 import { quote as quoteTable } from "@repo/db/schema/quotes";
 import {
   siteCosts,
@@ -22,9 +22,11 @@ import {
 } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
+import { numberingYear } from "../src/modules/numbering/numbering-year.js";
 import {
   createApiApp,
   inject,
+  orgIdOf,
   seedGoldenCorpusFor,
   setupLegalProfile,
   signUpUser,
@@ -104,8 +106,12 @@ describe("quote lifecycle (HTTP, real stack)", () => {
   const post = (user: TestUser, url: string, payload: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: user.cookie }, payload });
 
-  /** The issue body: the golden three-instance site, roster by release natural key. */
-  const issueBody = {
+  /** The issue body MINUS the buyer: the golden three-instance site, roster by
+   *  release natural key. Since ADR 0126 an issue without an odběratel is a 422
+   *  (`customer_required`), so every issuing test builds a body off this base
+   *  plus its OWN org's customer (`bodyFor`) — the bare base is used only to
+   *  prove that refusal. */
+  const baseIssueBody = {
     site: steppedSite,
     instances: [
       { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -113,6 +119,28 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       { instanceId: "fenceB", releaseId: "fence-run@1", input: siteFenceConfig },
     ],
   };
+
+  /** A CZ VAT-payer buyer. `vatPayer: true` matters: with the (payer) supplier
+   *  profile it still resolves to standard VAT unless the supply is also
+   *  construction/assembly (§92e needs all three, ADR 0080). */
+  const BUYER = {
+    name: "Odběratel Vrata s.r.o.",
+    ico: "27074358",
+    dic: "CZ27074358",
+    vatPayer: true,
+    city: "Brno",
+  };
+  /** Customers are org- AND owner-scoped (ADR 0082), so each issuing org needs
+   *  its own buyer — never reuse `tenant`'s across orgs (it would 404). */
+  const createBuyer = async (u: TestUser): Promise<string> =>
+    ((await post(u, "/v1/customers", BUYER)).json() as { id: string }).id;
+  const bodyFor = async (u: TestUser): Promise<Record<string, unknown>> => ({
+    ...baseIssueBody,
+    customerId: await createBuyer(u),
+  });
+
+  /** The shared tenant's issue body (base + the tenant org's buyer). */
+  let issueBody: Record<string, unknown>;
 
   beforeAll(async () => {
     app = await createApiApp();
@@ -124,6 +152,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
     await seedGoldenCorpusFor(app, db, tenant);
     // Active price table (open-ended window covering now) — org-admin publishes.
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    issueBody = await bodyFor(tenant);
   });
 
   afterAll(async () => {
@@ -168,10 +197,12 @@ describe("quote lifecycle (HTTP, real stack)", () => {
     });
 
     it("issues a §92e reverse-charge document — NO VAT line + mandatory legend", async () => {
+      // The buyer's payer status comes from the ATTACHED customer (BUYER is a
+      // plátce); only the construction/assembly scope is a per-request fact.
       const quote = (
         await post(tenant, "/v1/quotes", {
           ...issueBody,
-          tax: { customerVatPayer: true, constructionAssembly: true },
+          tax: { constructionAssembly: true },
         })
       ).json() as QuoteDetail;
       expect(quote.snapshot.tax.mode).toBe("reverse_charge_92e");
@@ -219,7 +250,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // Reversed caller order — without the canonical instance sort, JSONB key
       // reordering on re-derivation would flip the bom/sources/overrideIds array
       // order and false-negative the deep-equal.
-      const reordered = { ...issueBody, instances: [...issueBody.instances].reverse() };
+      const reordered = { ...issueBody, instances: [...baseIssueBody.instances].reverse() };
       const issued = (await post(tenant, "/v1/quotes", reordered)).json() as QuoteDetail;
       const verify = await inject(app, {
         method: "POST",
@@ -236,16 +267,20 @@ describe("quote lifecycle (HTTP, real stack)", () => {
   });
 
   describe("document numbering (gap-free per-org/year series, ADR 0079)", () => {
-    const year = new Date().getFullYear();
+    // The series year is PRAGUE's, not the box's (ADR 0126) — assert against the
+    // same calendar the server numbers by, or this suite goes red for an hour
+    // every New Year's Eve on a UTC runner.
+    const year = numberingYear();
 
     it("assigns sequential, gap-free numbers; a failed issue consumes none", async () => {
       const org = await signUpUser(app, "quote-numbering");
       await seedGoldenCorpusFor(app, db, org);
       expect((await post(org, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+      const body = await bodyFor(org);
 
-      const first = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const first = (await post(org, "/v1/quotes", body)).json() as QuoteDetail;
       expect(first.documentNumber).toBe(`${year}/0001`);
-      const second = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const second = (await post(org, "/v1/quotes", body)).json() as QuoteDetail;
       expect(second.documentNumber).toBe(`${year}/0002`);
 
       // A failed issue (invalid site → 422) must NOT consume a number: allocation
@@ -257,11 +292,9 @@ describe("quote lifecycle (HTTP, real stack)", () => {
           { id: "s2", elevation_mm: 400 },
         ],
       };
-      expect((await post(org, "/v1/quotes", { ...issueBody, site: tooSteep })).statusCode).toBe(
-        422,
-      );
+      expect((await post(org, "/v1/quotes", { ...body, site: tooSteep })).statusCode).toBe(422);
 
-      const third = (await post(org, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const third = (await post(org, "/v1/quotes", body)).json() as QuoteDetail;
       expect(third.documentNumber).toBe(`${year}/0003`);
     });
 
@@ -269,13 +302,13 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       const orgA = await signUpUser(app, "quote-numbering-a");
       await seedGoldenCorpusFor(app, db, orgA);
       expect((await post(orgA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-      const a = (await post(orgA, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const a = (await post(orgA, "/v1/quotes", await bodyFor(orgA))).json() as QuoteDetail;
       expect(a.documentNumber).toBe(`${year}/0001`);
 
       const orgB = await signUpUser(app, "quote-numbering-b");
       await seedGoldenCorpusFor(app, db, orgB);
       expect((await post(orgB, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-      const b = (await post(orgB, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const b = (await post(orgB, "/v1/quotes", await bodyFor(orgB))).json() as QuoteDetail;
       // Independent counter — orgB also starts at 0001 despite orgA's quote.
       expect(b.documentNumber).toBe(`${year}/0001`);
     });
@@ -284,10 +317,11 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       const org = await signUpUser(app, "quote-numbering-concurrent");
       await seedGoldenCorpusFor(app, db, org);
       expect((await post(org, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+      const body = await bodyFor(org);
 
       const [r1, r2] = await Promise.all([
-        post(org, "/v1/quotes", issueBody),
-        post(org, "/v1/quotes", issueBody),
+        post(org, "/v1/quotes", body),
+        post(org, "/v1/quotes", body),
       ]);
       expect(r1.statusCode).toBe(201);
       expect(r2.statusCode).toBe(201);
@@ -323,7 +357,9 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       // Fresh org: assign the corpus (ADR 0062) + its own price table before issuing.
       await seedGoldenCorpusFor(app, db, author);
       expect((await post(author, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-      const issued = (await post(author, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const issued = (
+        await post(author, "/v1/quotes", await bodyFor(author))
+      ).json() as QuoteDetail;
       expect(issued.total).toBe("134723.5");
 
       // owner_id is ON DELETE RESTRICT: deleting the author must fail at the FK,
@@ -546,9 +582,142 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       await seedGoldenCorpusFor(app, db, noProfile, { legalProfile: false });
       expect((await post(noProfile, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
 
-      const res = await post(noProfile, "/v1/quotes", issueBody);
+      // With a buyer attached — otherwise `customer_required` (which runs first)
+      // would mask the profile guard and this test would prove nothing.
+      const res = await post(noProfile, "/v1/quotes", await bodyFor(noProfile));
       expect(res.statusCode).toBe(422);
       expect((res.json() as { code: string }).code).toBe("legal_profile_required");
+    });
+
+    it("refuses to issue a DPH-bearing quote for a non-VAT-payer supplier (422)", async () => {
+      // §108 ZDPH: a neplátce who prints output DPH owes it to the state. Nothing
+      // couples the profile's payer flag to the price table's rate, so the guard
+      // is the only thing standing between a neplátce and a 21 % nabídka —
+      // and the nabídka is CUSTOMER-FACING, so refusing only at invoice time
+      // (ADR 0112) would be weeks too late.
+      const neplatce = await signUpUser(app, "quote-neplatce");
+      await seedGoldenCorpusFor(app, db, neplatce);
+      expect((await post(neplatce, "/v1/price-tables", priceTableBody)).statusCode).toBe(201); // 21 %
+      const flip = await inject(app, {
+        method: "PUT",
+        url: "/v1/org/legal-profile",
+        headers: { cookie: neplatce.cookie },
+        payload: { ...TEST_LEGAL_PROFILE, vatPayer: false, dic: null },
+      });
+      expect(flip.statusCode, flip.body).toBe(200);
+
+      const res = await post(neplatce, "/v1/quotes", await bodyFor(neplatce));
+      expect(res.statusCode, res.body).toBe(422);
+      expect((res.json() as { code: string }).code).toBe("supplier_not_vat_payer");
+    });
+  });
+
+  describe("mandatory buyer at issue (ADR 0126)", () => {
+    it("refuses to issue without an attached customer — 422 customer_required", async () => {
+      // A view may honestly subtract; an ISSUE must refuse. Freezing burns an
+      // irreversible gap-free number, and a document with no odběratel is not a
+      // nabídka. The typed code (not a bare body-validation error) is the point:
+      // the surface routes the rep to "attach a customer".
+      const res = await post(tenant, "/v1/quotes", baseIssueBody);
+      expect(res.statusCode, res.body).toBe(422);
+      expect((res.json() as { code: string }).code).toBe("customer_required");
+    });
+
+    it("refuses a REVISION without a customer too (revise re-runs the whole issue path)", async () => {
+      const original = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const res = await post(tenant, `/v1/quotes/${original.id}/revise`, baseIssueBody);
+      expect(res.statusCode).toBe(422);
+      expect((res.json() as { code: string }).code).toBe("customer_required");
+      // ...and the original is NOT superseded — the whole revise tx rolled back.
+      const reread = (
+        await inject(app, {
+          method: "GET",
+          url: `/v1/quotes/${original.id}`,
+          headers: { cookie: tenant.cookie },
+        })
+      ).json() as QuoteDetail & { supersededById: string | null };
+      expect(reread.supersededById).toBeNull();
+    });
+
+    it("burns NO document number on the refused issue (the guard precedes allocation)", async () => {
+      const org = await signUpUser(app, "quote-customer-gate");
+      await seedGoldenCorpusFor(app, db, org);
+      expect((await post(org, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+
+      expect((await post(org, "/v1/quotes", baseIssueBody)).statusCode).toBe(422);
+      const ok = (await post(org, "/v1/quotes", await bodyFor(org))).json() as QuoteDetail;
+      // 0001, not 0002 — the refusal never reached `numbering.allocate`.
+      expect(ok.documentNumber).toBe(`${numberingYear()}/0001`);
+    });
+  });
+
+  describe("per-rep ownership narrowing (ADR 0082/0126)", () => {
+    it("a sales rep never reaches another rep's quote via list / get / verify", async () => {
+      // ADR 0082 claims per-rep narrowing for quotes but only the customers module
+      // proved it by test; this is the quotes half, so a future refactor of
+      // `scopeOpts` cannot silently widen a rep's view of the pipeline.
+      //
+      // Build the other rep's quote by CLONING a real issued row (a valid
+      // snapshot/stamps pair is what makes `verify` a meaningful probe) under a
+      // different `ownerId` in the SAME org — same technique the customers itest
+      // uses, and the only way to get a second owner without a second session.
+      const mine = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      const [source] = await db
+        .select()
+        .from(quoteTable)
+        .where(eq(quoteTable.id, mine.id))
+        .limit(1);
+      const otherRep = await signUpUser(app, "quote-other-rep");
+      const orgId = await orgIdOf(db, tenant.id);
+      const [theirs] = await db
+        .insert(quoteTable)
+        .values({
+          ownerId: otherRep.id, // the OTHER rep — the only field that matters here
+          organizationId: orgId, // ...in the SAME org, so org scope cannot explain a 404
+          projectId: source!.projectId,
+          customerId: source!.customerId,
+          status: source!.status,
+          documentNumber: `${source!.documentNumber}-OTHER`, // unique per org
+          currency: source!.currency,
+          shareToken: `other-rep-${source!.shareToken}`, // globally unique
+          validUntil: source!.validUntil,
+          totalMoney: source!.totalMoney,
+          priceTableVersion: source!.priceTableVersion,
+          stamps: source!.stamps,
+          snapshot: source!.snapshot,
+        })
+        .returning();
+
+      const get = (url: string) =>
+        inject(app, { method: "GET", url, headers: { cookie: tenant.cookie } });
+      const verify = (id: string) =>
+        inject(app, {
+          method: "POST",
+          url: `/v1/quotes/${id}/verify`,
+          headers: { cookie: tenant.cookie },
+        });
+      const listIds = async (): Promise<string[]> =>
+        ((await get("/v1/quotes?limit=100")).json() as { items: { id: string }[] }).items.map(
+          (i) => i.id,
+        );
+
+      // As admin (org owner) the whole org is visible — the baseline that makes
+      // the narrowing below an OWNERSHIP result, not an org-isolation one.
+      expect((await get(`/v1/quotes/${theirs!.id}`)).statusCode).toBe(200);
+      expect(await listIds()).toContain(theirs!.id);
+
+      await db.update(member).set({ role: "sales" }).where(eq(member.userId, tenant.id));
+      try {
+        expect((await get(`/v1/quotes/${theirs!.id}`)).statusCode).toBe(404); // absence, not 403
+        expect((await verify(theirs!.id)).statusCode).toBe(404);
+        const ids = await listIds();
+        expect(ids).not.toContain(theirs!.id);
+        expect(ids).toContain(mine.id); // ...but the rep still sees their OWN
+        expect((await verify(mine.id)).statusCode).toBe(200);
+      } finally {
+        // Restore the shared tenant's role for any later block.
+        await db.update(member).set({ role: "owner" }).where(eq(member.userId, tenant.id));
+      }
     });
   });
 

@@ -568,7 +568,18 @@ const cs = {
       declined: "Zamítnuto",
       expired: "Vypršelo",
     },
-    taxDocument: "Daňový doklad",
+    // A nabídka is NOT a §29 daňový doklad — different number series, no DUZP,
+    // no payment block, and its DPH is computed bottom-up per line where the
+    // invoice kernel is §37 top-down (the two can legitimately differ by a
+    // haléř). Titling this panel "Daňový doklad" invited the buyer to treat the
+    // offer as the tax document; "Rozpis DPH" says exactly what the table is —
+    // a VAT breakdown — and nothing more. Deliberately NOT "Rekapitulace DPH":
+    // that is the phrase Czech accounting software prints on the daňový doklad
+    // itself, so it carries the very connotation this rename removes. "Rozpis"
+    // is also already this catalog's word for an itemization
+    // (`quotes.bom.title` = "Rozpis položek nabídky"), so the offer reads as one
+    // vocabulary.
+    vatBreakdown: "Rozpis DPH",
     tax: {
       standard: "Standardní DPH",
       reverseCharge: "Přenesená daňová povinnost (§ 92e)",
@@ -626,7 +637,14 @@ const cs = {
       issued: "Nabídka vydána.",
       invalidTitle: "Nabídku nelze vystavit — opravte konfiguraci:",
       customer: "Odběratel",
-      noCustomer: "Bez odběratele",
+      // The picker's placeholder. It replaces the former `noCustomer`
+      // ("Bez odběratele"), which OFFERED the one state the api now refuses
+      // (422 `customer_required`) — a prompt, not a choice.
+      selectCustomer: "— vyberte odběratele —",
+      // Why the Issue button is disabled. Shown before the round trip, so the
+      // rep never has to fail an issue to learn the rule.
+      customerRequired:
+        "Nabídku nelze vydat bez odběratele — vyberte ho výše, nebo vytvořte nového.",
       newCustomer: "Nový odběratel",
       customerName: "Název / jméno",
       ico: "IČO",
@@ -635,6 +653,26 @@ const cs = {
       constructionAssembly: "Stavební/montážní práce (§ 92e)",
       create: "Vytvořit",
       creating: "Vytváření…",
+      // The typed 422 refusals `POST /v1/quotes` can answer an issue with, one
+      // title + one remedy each. `site_invalid` is NOT here: it carries typed I5
+      // issues and is rendered by `IssueList` under `invalidTitle` above.
+      rejected: {
+        customerRequiredTitle: "Nabídku nelze vydat bez odběratele",
+        customerRequiredBody:
+          "Nabídka je obchodní dokument a musí být adresovaná. Vyberte odběratele, nebo ho rovnou vytvořte.",
+        legalProfileRequiredTitle: "Chybí profil firmy",
+        legalProfileRequiredBody:
+          "Doplňte fakturační údaje firmy (IČO, DIČ, adresa) v nastavení — bez identifikace dodavatele nelze nabídku vystavit.",
+        supplierNotVatPayerTitle: "Nejste plátce DPH, ale ceník účtuje DPH",
+        supplierNotVatPayerBody:
+          "Neplátce nesmí vyčíslit DPH na obchodním dokladu (§ 108 ZDPH). Nastavte v ceníku sazbu DPH na 0 %, nebo doplňte registraci k DPH v profilu firmy.",
+        marginBelowFloorTitle: "Marže pod limitem",
+        marginBelowFloorBody:
+          "Marže nabídky nedosahuje limitu nastaveného pro vaši firmu. Odchylku může schválit jen administrátor.",
+        marginFloorWithoutCostTitle: "Ceník neobsahuje nákladové ceny",
+        marginFloorWithoutCostBody:
+          "Je nastaven limit marže, ale aktivní ceník nemá nákladová data — doplňte je, nebo limit marže zrušte.",
+      },
     },
     nabidka: {
       title: "Nabídka",

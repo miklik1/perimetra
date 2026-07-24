@@ -37,14 +37,17 @@ import {
 import { DB } from "../src/common/db/db.module.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   seedGoldenCorpusFor,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
 
-/** The golden three-instance site, roster by release natural key. */
-const issueBody = {
+/** The golden three-instance site, roster by release natural key — MINUS the
+ *  buyer. An odběratel is mandatory at issue since ADR 0126, and customers are
+ *  org-scoped, so each describe's `beforeAll` folds in its OWN org's customer. */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -76,6 +79,8 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
   let db: Db;
   let user: TestUser;
   let quoteId: string;
+  /** `baseIssueBody` + this org's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const post = (u: TestUser, url: string, payload: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: u.cookie }, payload });
@@ -94,8 +99,12 @@ describe("RBAC role matrix (HTTP, real stack)", () => {
     // A platform operator seeds the GLOBAL corpus + assigns it to this org (ADR
     // 0062) — publishing is vendor-only now, so the matrix user can't do it.
     await seedGoldenCorpusFor(app, db, user);
-    // This org's price table (admin publishes it), then issue one quote to read back.
+    // This org's price table (admin publishes it), then issue one quote to read
+    // back. The buyer is created while the matrix user is still `admin`; the
+    // role flips below never touch it (same owner, so `customers.get` resolves
+    // for `sales` too — and workshop never reaches the service).
     expect((await post(user, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, user) };
     const issued = await post(user, "/v1/quotes", issueBody);
     expect(issued.statusCode, JSON.stringify(issued.json())).toBe(201);
     quoteId = (issued.json() as QuoteResponse).id;
@@ -164,6 +173,8 @@ describe("margin-floor guard (per-org floor 99%, ADR 0059)", () => {
   let app: NestFastifyApplication;
   let db: Db;
   let user: TestUser;
+  /** `baseIssueBody` + this org's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const post = (u: TestUser, url: string, payload: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: u.cookie }, payload });
@@ -179,6 +190,10 @@ describe("margin-floor guard (per-org floor 99%, ADR 0059)", () => {
     // — no provider override).
     await seedGoldenCorpusFor(app, db, user);
     expect((await post(user, "/v1/price-tables", marginFloorPriceTableBody)).statusCode).toBe(201);
+    // The margin guard runs BEFORE the buyer guard, so these cases would 422 on
+    // `margin_below_floor` either way — but the override case must actually
+    // ISSUE, and an issue needs an odběratel.
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, user) };
   });
 
   afterAll(async () => {

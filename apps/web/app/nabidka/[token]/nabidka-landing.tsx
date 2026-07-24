@@ -331,9 +331,15 @@ function BomPanel({ doc }: { doc: NabidkaDocumentDto }) {
   );
 }
 
-/** The real §92e/DPH tax breakdown — net / per-rate DPH / gross — mirroring
+/** The real §92e/DPH breakdown — net / per-rate DPH / gross — mirroring
  *  `NabidkaDocumentView`'s reverse-charge handling (a re-implementation, per
- *  the fork, not a shared import). */
+ *  the fork, not a shared import).
+ *
+ *  This is the PUBLIC buyer surface, so the title is the load-bearing part: a
+ *  nabídka is not a §29 daňový doklad (own number series, no DUZP, no payment
+ *  block, VAT derived bottom-up vs the invoice kernel's §37 top-down), and a
+ *  buyer who reads "Daňový doklad" here has been told something false about
+ *  what they are holding. `vatBreakdown` claims only what the table is. */
 function PricePanel({ doc }: { doc: NabidkaDocumentDto }) {
   const t = useTranslations("quotes");
   const locale = useLocale();
@@ -343,7 +349,7 @@ function PricePanel({ doc }: { doc: NabidkaDocumentDto }) {
   return (
     <Panel elevation="raised" className="min-w-0">
       <Panel.Header>
-        <Panel.Title>{t("taxDocument")}</Panel.Title>
+        <Panel.Title>{t("vatBreakdown")}</Panel.Title>
         <span className="text-muted-foreground font-data ml-auto text-xs uppercase tracking-wide">
           {reverse ? t("tax.reverseCharge") : t("tax.standard")}
         </span>

@@ -24,6 +24,7 @@ import { type QuoteProduction } from "@repo/validators/quotes";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { LedgerService } from "../ledger/ledger.service.js";
+import { numberingYear } from "../numbering/numbering-year.js";
 import { NumberingService } from "../numbering/numbering.service.js";
 import { OutboxService } from "../outbox/outbox.service.js";
 import { QuotesService } from "../quotes/quotes.service.js";
@@ -153,14 +154,60 @@ export class OrdersService {
 
   /**
    * Create an order from an accepted quote. Guards the quote is effectively
-   * `accepted` and org-visible, allocates the gap-free order number INSIDE the
-   * tx, and lets `order_quote_active_uq` decide a concurrent-create race.
+   * `accepted`, org-visible and not superseded, guards that the DEAL has no live
+   * order yet, allocates the gap-free order number INSIDE the tx, and lets
+   * `order_quote_active_uq` decide a concurrent-create race.
    */
   @Transactional()
   async create(scope: RequestScope, input: CreateOrderInput): Promise<OrderDetail> {
     await this.quotes.assertAcceptedForOrder(scope, input.quoteId);
 
-    const year = new Date().getFullYear();
+    // One live order per DEAL, not per quote ROW (ADR 0126). `order_quote_active_uq`
+    // is keyed on a single `quote_id`, but `revise()` mints a NEW quote row — so
+    // with only the index, a rep could raise one order against the original
+    // accepted quote and a second against its accepted revision: two live,
+    // separately gap-free-numbered orders for one deal, each looking perfectly
+    // legitimate on its own. Widen the check to the quote's whole supersession
+    // chain (resolved through `QuotesService` — a cross-module service read, never
+    // a schema join, ADR 0032) and refuse with a 409 that NAMES the incumbent
+    // order, because the honest remedy is to RE-POINT that order onto the newer
+    // revision (ADR-O1, CAR-158), not to raise a second one.
+    //
+    // The chain deliberately EXCLUDES the quote itself: a duplicate against the
+    // SAME row stays the storage layer's job (`order_quote_active_uq` → 409
+    // `order_exists` below), which is also the concurrency backstop, so leaving it
+    // there keeps that path exercised and the two failures distinguishable.
+    //
+    // This is an api-layer pre-flight, not an at-rest constraint. Expressing it in
+    // the schema needs a `deal_id` (chain-root) column plus a partial unique index
+    // — a migration, out of scope for this wave — so a strictly SIMULTANEOUS create
+    // against two different rows of the same chain can still slip through. Noted as
+    // the follow-up in ADR 0126.
+    const siblings = (await this.quotes.chainQuoteIds(scope, input.quoteId)).filter(
+      (id) => id !== input.quoteId,
+    );
+    const incumbent = await this.orders.findLiveByQuoteIds(scope, siblings);
+    if (incumbent) {
+      throw new ConflictException({
+        message: `a live order (${incumbent.orderNumber}) already exists for another revision of this quote`,
+        code: "order_exists_for_chain",
+        // The typed context goes under `details` — the slot
+        // `apiErrorEnvelopeSchema` declares (`GlobalExceptionFilter` does not
+        // forward it yet; flagged in ADR 0126). The incumbent's NUMBER is also
+        // folded into the message so the rep can act on the refusal today.
+        details: {
+          orderId: incumbent.id,
+          orderNumber: incumbent.orderNumber,
+          quoteId: incumbent.quoteId,
+        },
+      });
+    }
+
+    // The series year is PRAGUE's, not the server's (`numberingYear`, ADR 0126):
+    // on a UTC box `new Date().getFullYear()` would keep numbering into the old
+    // year for the first hour of the Czech New Year, so the order series could
+    // disagree with the quote series about the year of the very same deal.
+    const year = numberingYear();
     const orderNumber = formatOrderNumber(
       year,
       await this.numbering.allocate(scope, "order", year),

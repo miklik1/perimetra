@@ -22,13 +22,17 @@ import {
 import { DB } from "../src/common/db/db.module.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   seedGoldenCorpusFor,
   signUpUser,
   type TestUser,
 } from "./setup/app.js";
 
-const issueBody = {
+/** The issue body MINUS the buyer — an odběratel is mandatory at issue (and at
+ *  REVISE, which re-runs the whole issue path) since ADR 0126, so `beforeAll`
+ *  folds this org's own customer in (`issueBody`). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -59,6 +63,8 @@ describe("quote revision / supersession (HTTP, real stack) — CAR-158 / ADR 010
   let app: NestFastifyApplication;
   let db: Db;
   let tenant: TestUser;
+  /** `baseIssueBody` + this org's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const post = (user: TestUser, url: string, payload?: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: user.cookie }, payload: payload ?? {} });
@@ -71,6 +77,7 @@ describe("quote revision / supersession (HTTP, real stack) — CAR-158 / ADR 010
     tenant = await signUpUser(app, "revise-tenant");
     await seedGoldenCorpusFor(app, db, tenant);
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, tenant) };
   });
 
   afterAll(async () => {

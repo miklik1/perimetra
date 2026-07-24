@@ -40,6 +40,7 @@ import { DB } from "../src/common/db/db.module.js";
 import {
   assignReleases,
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   promotePlatformAdmin,
@@ -60,8 +61,9 @@ const priceTableBody = {
   cost: siteCosts,
 };
 
-/** The golden three-instance site, roster on the v1 ids (the I3 baseline). */
-const issueBody = {
+/** The golden three-instance site, roster on the v1 ids (the I3 baseline) —
+ *  MINUS the buyer, which `beforeAll` folds in (mandatory since ADR 0126). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -136,8 +138,10 @@ describe("vendor broadcast upgrade-offer fan-out (HTTP, real stack)", () => {
     // orgA: on gate@1 + fence@1 (+ a price table → can issue the I3 baseline).
     await assignReleases(app, platform, orgA, ["sliding-gate@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088).
+    // orgA issues the I3 baseline → it needs a legal profile (ADR 0088) and an
+    // odběratel (ADR 0126).
     await setupLegalProfile(app, userA);
+    const issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, userA) };
 
     // orgB: assigned gate@1 then gate@2, and has OPTED IN to gate@2 (pinned @2).
     await assignReleases(app, platform, orgB, ["sliding-gate@1", "sliding-gate@2"]);

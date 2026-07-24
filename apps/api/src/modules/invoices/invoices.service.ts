@@ -15,6 +15,12 @@
  * supplier from the org legal profile (with the IBAN 422 gate) and the buyer from
  * the live customer (fail-closed 422 if GDPR-anonymized). Only the tax/money
  * (the quote's frozen per-rate `TaxBreakdown`) comes from the frozen quote.
+ *
+ * READ SCOPE (ADR 0082, retrofitted): every read runs through `scopeOpts(role)`
+ * — org scope always, plus per-rep ownership for a non-admin. This is a pure
+ * VISIBILITY narrowing: nothing about what is frozen or how it re-derives
+ * changed, so for any row a caller may see, `verifyReproducibility` behaves
+ * exactly as before (I3 is a property of the row, not of who is looking).
  */
 import {
   checkSection29Issuable,
@@ -44,6 +50,7 @@ import {
   type MarkInvoicePaidInput,
 } from "@repo/validators/invoices";
 
+import { type OrgRole } from "../../common/rbac/org-role.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { CustomersService } from "../customers/customers.service.js";
@@ -54,8 +61,22 @@ import { OutboxService } from "../outbox/outbox.service.js";
 import { QuotesService } from "../quotes/quotes.service.js";
 import { formatInvoiceNumber } from "./document-number.js";
 import { buildInvoiceDocument, reproduceInvoice } from "./invoice-mapper.js";
-import { InvoicesRepository } from "./invoices.repository.js";
+import { InvoicesRepository, type InvoiceScopeOpts } from "./invoices.repository.js";
 import { INVOICE_ISSUED, INVOICE_PAID } from "./invoices.tokens.js";
+
+/**
+ * admin sees the whole org; every other rep is narrowed to the invoices it
+ * issued (ADR 0082, mirroring customers). Spelled `!== "admin"` rather than
+ * quotes' `=== "sales"` deliberately: the whole invoice surface is
+ * `@RequireRole("admin","sales")`, so `workshop` never reaches this service at
+ * all (403 by absence — an invoice is price-BEARING) and the two spellings are
+ * equivalent today. `!== "admin"` is the fail-CLOSED direction: if a future role
+ * is ever added to the `@RequireRole` list it starts narrowed, and a too-small
+ * list is a visible bug where a too-large one is a silent PII leak.
+ */
+function scopeOpts(role: OrgRole): InvoiceScopeOpts {
+  return { restrictToOwner: role !== "admin" };
+}
 
 /** Add whole days to a `YYYY-MM-DD` date (UTC — no TZ drift on the calendar day). */
 function addDaysIso(iso: string, days: number): string {
@@ -102,14 +123,16 @@ export class InvoicesService {
     private readonly numbering: NumberingService,
   ) {}
 
-  async list(scope: RequestScope, query: ListInvoicesQuery): Promise<InvoicesPage> {
-    const { items, nextCursor } = await this.invoices.list(scope, query);
+  async list(scope: RequestScope, role: OrgRole, query: ListInvoicesQuery): Promise<InvoicesPage> {
+    const { items, nextCursor } = await this.invoices.list(scope, scopeOpts(role), query);
     return { items: items.map(toSummary), nextCursor };
   }
 
-  /** 404 covers both "doesn't exist" and "not yours" — no existence oracle. */
-  async get(scope: RequestScope, invoiceId: string): Promise<Invoice> {
-    const row = await this.invoices.findById(scope, invoiceId);
+  /** 404 covers "doesn't exist", "not this org" AND "another rep's" — one shape
+   *  for all three, so the response is never an existence oracle (a 403 would
+   *  confirm the invoice exists, which is itself a disclosure). */
+  async get(scope: RequestScope, role: OrgRole, invoiceId: string): Promise<Invoice> {
+    const row = await this.invoices.findById(scope, scopeOpts(role), invoiceId);
     if (!row) throw new NotFoundException("Invoice not found");
     return toDetail(row);
   }
@@ -119,6 +142,20 @@ export class InvoicesService {
    * number is burned (an issued tax document is irreversible). The order → quote
    * basis and the live supplier/customer identity are read through the owning
    * services (cross-module, never a schema join — ADR 0032).
+   *
+   * NOT owner-narrowed, deliberately (the three basis reads below):
+   * `orders.assertIssuableForInvoice` and `quotes.getInvoiceBasis` are org-scoped
+   * seams (an ORDER is org-visible to every role by design — it carries no money
+   * and no PII beyond its number, ADR-O1), and `customers.getIdentityForInvoice`
+   * is org-scoped-including-erased on purpose so the §29 anonymized guard fails
+   * CLOSED instead of mis-reading a 404 (ADR 0112 §7). Invoicing is an ORG act,
+   * not a personal one — a stand-in rep must be able to invoice a colleague's
+   * completed order. The freeze then stamps `ownerId = scope.userId` (ADR 0055),
+   * so the issuer is the row's owner and the narrowing applies from here on.
+   * Consequence worth naming: a rep who invoices a colleague's order becomes the
+   * only non-admin who can re-open that invoice. That is an availability quirk
+   * (admin always sees everything), never a disclosure — the issuer already
+   * received the whole document in this response.
    */
   @Transactional()
   async issue(scope: RequestScope, input: IssueInvoiceInput): Promise<Invoice> {
@@ -314,16 +351,30 @@ export class InvoicesService {
     return toDetail(row);
   }
 
-  /** Mark an issued invoice paid (admin-only) — audited, idempotent (409 repeat). */
+  /**
+   * Mark an issued invoice paid (admin-only) — audited, idempotent (409 repeat).
+   * The role still threads through `scopeOpts` even though `@RequireRole("admin")`
+   * makes it a no-op today: the narrowing then rides the ROUTE's role list rather
+   * than a hand-maintained assumption, so opening the route to `sales` later
+   * cannot silently widen the read.
+   */
   @Transactional()
   async markPaid(
     scope: RequestScope,
+    role: OrgRole,
     invoiceId: string,
     input: MarkInvoicePaidInput,
   ): Promise<Invoice> {
-    const before = await this.invoices.findById(scope, invoiceId);
+    const opts = scopeOpts(role);
+    const before = await this.invoices.findById(scope, opts, invoiceId);
     if (!before) throw new NotFoundException("Invoice not found");
-    const row = await this.invoices.markPaid(scope, invoiceId, new Date(), input.note ?? null);
+    const row = await this.invoices.markPaid(
+      scope,
+      opts,
+      invoiceId,
+      new Date(),
+      input.note ?? null,
+    );
     if (!row) {
       throw new ConflictException({ message: "invoice is already paid", code: "already_paid" });
     }
@@ -340,10 +391,11 @@ export class InvoicesService {
 
   /** Reverse a mark-paid (admin-only) — audited, idempotent (409 when not paid). */
   @Transactional()
-  async unmarkPaid(scope: RequestScope, invoiceId: string): Promise<Invoice> {
-    const before = await this.invoices.findById(scope, invoiceId);
+  async unmarkPaid(scope: RequestScope, role: OrgRole, invoiceId: string): Promise<Invoice> {
+    const opts = scopeOpts(role);
+    const before = await this.invoices.findById(scope, opts, invoiceId);
     if (!before) throw new NotFoundException("Invoice not found");
-    const row = await this.invoices.unmarkPaid(scope, invoiceId);
+    const row = await this.invoices.unmarkPaid(scope, opts, invoiceId);
     if (!row) {
       throw new ConflictException({ message: "invoice is not paid", code: "not_paid" });
     }
@@ -361,12 +413,19 @@ export class InvoicesService {
    * I3 reproducibility (ADR 0112 §6): re-run `buildInvoice` over the frozen
    * `facts` and deep-equal the frozen `snapshot` — with ZERO engine involvement
    * (the quote already proves the engine half). Names the diverging key(s).
+   *
+   * Owner-narrowed like every other read, and for the same reason: a 200 here vs
+   * a 404 is an existence oracle over another rep's document. The re-derivation
+   * ITSELF is untouched — same frozen `facts`, same pure `buildInvoice`, same
+   * byte comparison — so for every row a caller may see the answer is identical
+   * to before this narrowing (I3 is a property of the row, not of the reader).
    */
   async verifyReproducibility(
     scope: RequestScope,
+    role: OrgRole,
     invoiceId: string,
   ): Promise<InvoiceReproduction> {
-    const row = await this.invoices.findById(scope, invoiceId);
+    const row = await this.invoices.findById(scope, scopeOpts(role), invoiceId);
     if (!row) throw new NotFoundException("Invoice not found");
     const { reproduced, mismatches } = reproduceInvoice(row.facts, row.snapshot);
     return { invoiceId, reproduced, mismatches };

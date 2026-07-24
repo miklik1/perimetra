@@ -540,7 +540,9 @@ const en: MessagesInput = {
       declined: "Declined",
       expired: "Expired",
     },
-    taxDocument: "Tax document",
+    // See the cs catalog for why this is not "Tax document": a quote is not a
+    // §29 daňový doklad and must not be titled like one.
+    vatBreakdown: "VAT breakdown",
     tax: {
       standard: "Standard VAT",
       reverseCharge: "Reverse charge (§ 92e)",
@@ -599,7 +601,9 @@ const en: MessagesInput = {
       issued: "Quote issued.",
       invalidTitle: "The quote can't be issued — fix the configuration:",
       customer: "Customer",
-      noCustomer: "No customer",
+      selectCustomer: "— select a customer —",
+      customerRequired:
+        "A quote can't be issued without a customer — pick one above, or create a new one.",
       newCustomer: "New customer",
       customerName: "Name",
       ico: "IČO",
@@ -608,6 +612,23 @@ const en: MessagesInput = {
       constructionAssembly: "Construction/assembly work (§ 92e)",
       create: "Create",
       creating: "Creating…",
+      rejected: {
+        customerRequiredTitle: "A quote can't be issued without a customer",
+        customerRequiredBody:
+          "A quote is a commercial document and must be addressed to someone. Pick a customer, or create one.",
+        legalProfileRequiredTitle: "Company profile incomplete",
+        legalProfileRequiredBody:
+          "Fill in your company's billing details (IČO, DIČ, address) in settings — a quote can't be issued without the supplier identity.",
+        supplierNotVatPayerTitle: "You are not a VAT payer, but the price table charges VAT",
+        supplierNotVatPayerBody:
+          "A non-payer must not state VAT on a commercial document (§ 108 ZDPH). Set the price table's VAT rate to 0 %, or register for VAT in the company profile.",
+        marginBelowFloorTitle: "Margin below floor",
+        marginBelowFloorBody:
+          "The quote's margin is below your organization's floor. Only an admin can approve the deviation.",
+        marginFloorWithoutCostTitle: "The price table has no cost data",
+        marginFloorWithoutCostBody:
+          "A margin floor is set but the active price table carries no costs — add them, or remove the floor.",
+      },
     },
     nabidka: {
       title: "Quote",

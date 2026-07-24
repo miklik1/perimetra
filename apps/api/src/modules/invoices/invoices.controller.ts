@@ -5,6 +5,10 @@
  * - Every route is `@RequireRole(...)`-gated to admin/sales — an invoice is
  *   PRICE-BEARING, so workshop is price-blind by ABSENCE (403), not by a
  *   stripped projection. Payment transitions are admin-only.
+ * - Every READ also passes `@CurrentRole()` down so the service can apply the
+ *   per-rep ownership narrowing (ADR 0082) on top of the org scope — an invoice
+ *   carries the buyer's full §29 identity in its frozen payloads, so "same org"
+ *   is not a tight enough boundary for it.
  * - `@ZodSerializerDto` validates + STRIPS every response (spec §8).
  * - `@Idempotent()` on the issue POST — a replay returns the cached response
  *   rather than burning a second číselná-řada number.
@@ -31,6 +35,8 @@ import {
 
 import { ZodSerializerDto } from "../../common/api/zod.js";
 import { Idempotent } from "../../common/idempotency/idempotent.decorator.js";
+import { CurrentRole } from "../../common/rbac/current-role.decorator.js";
+import { type OrgRole } from "../../common/rbac/org-role.js";
 import { RequireRole } from "../../common/rbac/require-role.decorator.js";
 import { CurrentScope } from "../../common/tenancy/current-scope.decorator.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
@@ -55,9 +61,10 @@ export class InvoicesController {
   @ZodSerializerDto(InvoicesPageDto)
   list(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Query() query: ListInvoicesQueryDto,
   ): Promise<InvoicesPage> {
-    return this.invoices.list(scope, query);
+    return this.invoices.list(scope, role, query);
   }
 
   /** Issue a §29 daňový doklad from an order — admin + sales. */
@@ -74,9 +81,10 @@ export class InvoicesController {
   @ZodSerializerDto(InvoiceDto)
   get(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<Invoice> {
-    return this.invoices.get(scope, id);
+    return this.invoices.get(scope, role, id);
   }
 
   /** Mark an issued invoice paid — admin only, idempotent (409 on repeat). */
@@ -86,10 +94,11 @@ export class InvoicesController {
   @ZodSerializerDto(InvoiceDto)
   markPaid(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() body: MarkInvoicePaidDto,
   ): Promise<Invoice> {
-    return this.invoices.markPaid(scope, id, body);
+    return this.invoices.markPaid(scope, role, id, body);
   }
 
   /** Reverse a mark-paid — admin only, idempotent (409 when not paid). */
@@ -99,9 +108,10 @@ export class InvoicesController {
   @ZodSerializerDto(InvoiceDto)
   unmarkPaid(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<Invoice> {
-    return this.invoices.unmarkPaid(scope, id);
+    return this.invoices.unmarkPaid(scope, role, id);
   }
 
   /** I3 reproducibility check — re-derive the frozen snapshot (ADR 0112 §6). */
@@ -111,8 +121,9 @@ export class InvoicesController {
   @ZodSerializerDto(InvoiceReproductionDto)
   verify(
     @CurrentScope() scope: RequestScope,
+    @CurrentRole() role: OrgRole,
     @Param("id", ParseUUIDPipe) id: string,
   ): Promise<InvoiceReproduction> {
-    return this.invoices.verifyReproducibility(scope, id);
+    return this.invoices.verifyReproducibility(scope, role, id);
   }
 }

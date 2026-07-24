@@ -35,9 +35,22 @@ export type QuoteInstanceInput = z.infer<typeof quoteInstanceInputSchema>;
 export const issueQuoteSchema = z.object({
   /** Nullable until project persistence lands. */
   projectId: z.uuid().optional(),
-  /** The attached buyer (odběratel, ADR 0082). When present, the §92e VAT-status
-   *  is auto-filled from the customer (the request `tax.customerVatPayer` is
-   *  ignored in favour of the customer's own flag). */
+  /**
+   * The attached buyer (odběratel, ADR 0082). **Optional in the SCHEMA, REQUIRED
+   * by the service** — `issue`/`revise` 422 `customer_required` without it (ADR
+   * 0126): a commercial document with no odběratel is not a nabídka, and issuing
+   * burns an irreversible gap-free number.
+   *
+   * Deliberately not `z.uuid()` non-optional here. A required schema field fails
+   * as a body-validation error carrying no typed `code`, and the surface needs
+   * the code to route the rep to the attach-a-customer action; the invoice
+   * module set that precedent with the same `customer_required` 422
+   * (invoices.service). Keeping the field optional also keeps the ONE shape
+   * reusable for N-1 clients while the guard fails them closed server-side.
+   *
+   * The §92e VAT status is auto-filled from the attached customer — the request's
+   * `tax.customerVatPayer` never participates (see `tax` below).
+   */
   customerId: z.uuid().optional(),
   /** The Site graph (terrain/placements/connections) — engine-validated. */
   site: z.unknown(),
@@ -55,9 +68,15 @@ export const issueQuoteSchema = z.object({
   /**
    * Tax facts for the §92e/DPH decision (ADR 0080). §92e reverse charge is a
    * per-TRANSACTION call: it applies only when the buyer is a CZ VAT payer AND
-   * the supply is construction/assembly. Absent → standard VAT. The buyer's VAT
-   * status is auto-filled from the attached customer once that entity lands
-   * (ADR 0082); supplied explicitly here until then.
+   * the supply is construction/assembly. Absent → standard VAT.
+   *
+   * `constructionAssembly` is the only live field. `customerVatPayer` is
+   * VESTIGIAL and IGNORED by the server: it existed to carry the buyer's payer
+   * status before the customer entity landed (ADR 0082), and since the buyer
+   * became mandatory (ADR 0126) the attached customer's own flag is always
+   * authoritative. Kept on the wire only so an N-1 client that still sends it
+   * gets the same answer instead of a validation error; drop it on the next
+   * breaking pass of this contract.
    */
   tax: z
     .object({

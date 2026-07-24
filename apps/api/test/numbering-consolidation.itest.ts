@@ -34,8 +34,10 @@ import {
 } from "@repo/fixtures";
 
 import { DB } from "../src/common/db/db.module.js";
+import { numberingYear } from "../src/modules/numbering/numbering-year.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   seedGoldenCorpusFor,
@@ -43,7 +45,9 @@ import {
   type TestUser,
 } from "./setup/app.js";
 
-const issueBody = {
+/** The issue body MINUS the buyer — an odběratel is mandatory at issue since
+ *  ADR 0126, so `beforeAll` folds this org's own customer in (`issueBody`). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -74,6 +78,8 @@ describe("numbering consolidation (HTTP + migration, real stack) — O2-a / ADR 
   let db: Db;
   let tenant: TestUser;
   let orgId: string;
+  /** `baseIssueBody` + this org's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const post = (user: TestUser, url: string, payload?: Record<string, unknown>) =>
     inject(app, { method: "POST", url, headers: { cookie: user.cookie }, payload: payload ?? {} });
@@ -85,6 +91,7 @@ describe("numbering consolidation (HTTP + migration, real stack) — O2-a / ADR 
     orgId = await orgIdOf(db, tenant.id);
     await seedGoldenCorpusFor(app, db, tenant);
     expect((await post(tenant, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, tenant) };
   });
 
   afterAll(async () => {
@@ -92,7 +99,7 @@ describe("numbering consolidation (HTTP + migration, real stack) — O2-a / ADR 
   });
 
   it("issues byte-identical, gap-free quote numbers from the shared 'quote' series", async () => {
-    const year = new Date().getFullYear();
+    const year = numberingYear();
     const numbers: string[] = [];
     for (let i = 0; i < 3; i++) {
       const res = await post(tenant, "/v1/quotes", issueBody);

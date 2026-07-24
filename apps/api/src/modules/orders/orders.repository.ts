@@ -10,7 +10,7 @@
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
 import { Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt, ne } from "drizzle-orm";
 
 import { type Db } from "@repo/db";
 import { order, type OrderRow, type OrderStatus } from "@repo/db/schema/orders";
@@ -122,6 +122,34 @@ export class OrdersRepository {
       .select()
       .from(order)
       .where(and(this.scoped(scope), eq(order.id, orderId)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * The org's LIVE order on any of `quoteIds`, if one exists (ADR 0126) — the
+   * per-DEAL half of "one live order per quote". `revise()` mints a NEW quote
+   * row, so the partial-unique `order_quote_active_uq` (keyed on a single
+   * `quote_id`) structurally cannot see that v1 and v2 are the same deal; the
+   * service feeds this the quote's whole supersession chain.
+   *
+   * "Live" is `status <> 'cancelled'`, matching `order_quote_active_uq`'s own
+   * predicate EXACTLY — a completed order still occupies its deal (it was built);
+   * only a cancellation frees it. Deliberately WIDER than `ACTIVE_ORDER_STATUSES`
+   * (the nav pill's in-flight set), which excludes `completed`: the pill counts
+   * work, this guards uniqueness.
+   *
+   * Returns the offending row (not a boolean) so the 409 can NAME the incumbent
+   * order and point the rep at re-point instead of a second order.
+   */
+  async findLiveByQuoteIds(scope: RequestScope, quoteIds: string[]): Promise<OrderRow | null> {
+    if (quoteIds.length === 0) return null;
+    const [row] = await this.txHost.tx
+      .select()
+      .from(order)
+      .where(
+        and(this.scoped(scope), inArray(order.quoteId, quoteIds), ne(order.status, "cancelled")),
+      )
       .limit(1);
     return row ?? null;
   }

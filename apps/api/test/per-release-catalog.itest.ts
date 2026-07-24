@@ -32,6 +32,7 @@ import { DB } from "../src/common/db/db.module.js";
 import {
   assignReleases,
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   promotePlatformAdmin,
@@ -59,8 +60,9 @@ const priceTableBody = {
 };
 
 /** The golden stepped site, but the gate resolves against catalog@1 and the two
- *  fences against catalog@2 — mixed versions in one quote. */
-const issueBody = {
+ *  fences against catalog@2 — mixed versions in one quote. MINUS the buyer,
+ *  which `beforeAll` folds in (mandatory at issue since ADR 0126). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate-c1@1", input: siteGateConfig },
@@ -82,6 +84,8 @@ describe("per-release catalog — mixed versions in one quote (HTTP, real stack)
   let userA: TestUser;
   let orgA: string;
   let quoteId: string;
+  /** `baseIssueBody` + orgA's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const postAs = (u: TestUser, url: string, payload: Record<string, unknown> = {}) =>
     inject(app, { method: "POST", url, headers: { cookie: u.cookie }, payload });
@@ -112,8 +116,9 @@ describe("per-release catalog — mixed versions in one quote (HTTP, real stack)
     // orgA gets BOTH (different catalogs) + a price table → can issue a mixed quote.
     await assignReleases(app, platform, orgA, ["sliding-gate-c1@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-    // Issuing now requires a legal profile (ADR 0088).
+    // Issuing now requires a legal profile (ADR 0088) and an odběratel (ADR 0126).
     await setupLegalProfile(app, userA);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, userA) };
   });
 
   afterAll(async () => {

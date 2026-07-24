@@ -52,20 +52,23 @@ export function errorMessageKey(error: unknown): ErrorMessageKey {
 
 /**
  * The typed I5 engine issues carried by a 422 `site_invalid` rejection at the
- * selling moment (CAR-162). The engine's rejection body is
- * `{ code: "site_invalid", issues: Issue[] }`; sibling 422s (`margin_below_floor`,
- * `margin_floor_without_cost`) carry NO `issues`, so those return `undefined`
+ * selling moment (CAR-162). The rejection body is the API error envelope
+ * `{ code: "site_invalid", details: { issues: Issue[] } }` — `details` is the
+ * envelope's one slot for typed context (ADR 0126: the api used to throw
+ * `issues` at the TOP level, which the global exception filter dropped, so this
+ * branch never fired in a browser). Sibling 422s (`margin_below_floor`,
+ * `margin_floor_without_cost`) carry no issues, so those return `undefined`
  * here and fall through to the generic `errorMessageKey` toast. Returns the
  * issues so the caller can render them human-readable (Czech) via `formatIssue`
  * / `IssueList` — no blank screen, no swallowed error.
  */
 export function siteInvalidIssues(error: unknown): Issue[] | undefined {
   if (!(error instanceof ApiError) || !isValidation(error)) return undefined;
-  const body = error.body as { code?: unknown; issues?: unknown } | null | undefined;
-  if (body?.code !== "site_invalid" || !Array.isArray(body.issues) || body.issues.length === 0) {
-    return undefined;
-  }
-  return body.issues as Issue[];
+  const body = error.body as { code?: unknown; details?: unknown } | null | undefined;
+  if (body?.code !== "site_invalid") return undefined;
+  const details = body.details as { issues?: unknown } | null | undefined;
+  if (!Array.isArray(details?.issues) || details.issues.length === 0) return undefined;
+  return details.issues as Issue[];
 }
 
 /**

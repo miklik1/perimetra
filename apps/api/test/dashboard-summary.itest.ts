@@ -25,6 +25,7 @@ import { siteFenceConfig, siteGateConfig, sitePrices, steppedSite } from "@repo/
 import { DB } from "../src/common/db/db.module.js";
 import {
   createApiApp,
+  createBuyerFor,
   inject,
   seedGoldenCorpusFor,
   signUpUser,
@@ -32,9 +33,10 @@ import {
 } from "./setup/app.js";
 
 /** The golden three-instance site with a future validity window so the issued
- *  quote surfaces in the expiring-quotes widget + the "expiring soon" KPI. */
+ *  quote surfaces in the expiring-quotes widget + the "expiring soon" KPI —
+ *  MINUS the buyer, which `beforeAll` folds in (mandatory since ADR 0126). */
 const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-const issueBody = {
+const baseIssueBody = {
   site: steppedSite,
   validUntil,
   instances: [
@@ -81,6 +83,7 @@ describe("owner dashboard summary (HTTP, real stack) — ADR 0125", () => {
     user = await signUpUser(app, "dash-admin"); // owner → admin (org role)
     await seedGoldenCorpusFor(app, db, user);
     expect((await post(user, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
+    const issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, user) };
     const issued = await post(user, "/v1/quotes", issueBody);
     expect(issued.statusCode, JSON.stringify(issued.json())).toBe(201);
   });

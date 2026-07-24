@@ -1,15 +1,17 @@
 /**
  * Service unit test (mocked deps, REAL mapper/kernel) — proves the issue
  * orchestration (order→quote basis, live identity, §29 gate, gap-free number,
- * freeze, IDs-only outbox + audit in one tx), the fail-closed 422 guards, and
- * the idempotent mark-paid FSM.
+ * freeze, IDs-only outbox + audit in one tx), the fail-closed 422 guards, the
+ * idempotent mark-paid FSM, and the role→scope mapping (ADR 0082) every read
+ * hands the repository.
  */
-import { ConflictException, UnprocessableEntityException } from "@nestjs/common";
+import { ConflictException, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { type InvoiceRow } from "@repo/db/schema/invoices";
 import { type TaxBreakdown } from "@repo/model";
 
+import { buildInvoiceDocument } from "./invoice-mapper.js";
 import { InvoicesService } from "./invoices.service.js";
 
 vi.mock("@nestjs-cls/transactional", async (importOriginal) => ({
@@ -70,6 +72,46 @@ function customer(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+/** A REAL frozen pair (facts + snapshot) through the actual mapper/kernel, so a
+ *  row built from it genuinely re-derives — `makeRow`'s `{id:"x"}` placeholders
+ *  cannot reach `buildInvoice`. */
+const REPRODUCIBLE = buildInvoiceDocument({
+  invoiceId: "01890a5d-ac96-774b-bcce-b302099a0001",
+  documentNumber: "FV2026/0001",
+  issuedOn: "2026-07-16",
+  duzp: "2026-07-16",
+  dueOn: "2026-07-30",
+  currency: "CZK",
+  tax: standardTax(),
+  mode: "standard_vat",
+  ratePctOverride: null,
+  supplier: {
+    name: "Ploty s.r.o.",
+    ico: "12345678",
+    dic: "CZ12345678",
+    addressLine: "Hlavní 123",
+    city: "Praha",
+    postalCode: "11000",
+    country: "CZ",
+    bankAccount: "19-2000145399/0800",
+    iban: "CZ6508000000192000145399",
+  },
+  buyer: {
+    name: "Odběratel a.s.",
+    ico: "87654321",
+    dic: "CZ87654321",
+    email: "kup@example.cz",
+    addressLine: "Vedlejší 5",
+    city: "Brno",
+    postalCode: "60200",
+    country: "CZ",
+  },
+  paymentMethod: "bank_transfer",
+  variableSymbol: "20260001",
+  basisLabel: "2026/0042",
+  note: null,
+});
 
 function makeRow(overrides: Partial<InvoiceRow> = {}): InvoiceRow {
   return {
@@ -266,7 +308,7 @@ describe("InvoicesService payment FSM", () => {
     const deps = makeService();
     deps.invoices.findById.mockResolvedValue(makeRow({ status: "paid" }));
     deps.invoices.markPaid.mockResolvedValue(null); // conditional update matched nothing
-    await expect(deps.service.markPaid(SCOPE, "inv-1", {})).rejects.toMatchObject({
+    await expect(deps.service.markPaid(SCOPE, "admin", "inv-1", {})).rejects.toMatchObject({
       response: { code: "already_paid" },
     });
   });
@@ -275,10 +317,70 @@ describe("InvoicesService payment FSM", () => {
     const deps = makeService();
     deps.invoices.findById.mockResolvedValue(makeRow());
     deps.invoices.markPaid.mockResolvedValue(makeRow({ status: "paid", paidAt: NOW }));
-    const result = await deps.service.markPaid(SCOPE, "inv-1", { note: "VS 20260001" });
+    const result = await deps.service.markPaid(SCOPE, "admin", "inv-1", { note: "VS 20260001" });
     expect(result.status).toBe("paid");
     expect(deps.outbox.emit).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "invoice.paid" }),
     );
+  });
+});
+
+/**
+ * Role → read scope (ADR 0082). The narrowing is what keeps the buyer's §29
+ * identity (frozen inside facts/snapshot) off a rep who is already 404'd from
+ * the same buyer's customer row and quote. `sales` is narrowed, `admin` is not,
+ * and EVERY read path — including `verify` — goes through the same mapping so a
+ * 200/404 can never become an existence oracle over a colleague's document.
+ */
+describe("InvoicesService read scope (ADR 0082)", () => {
+  it("maps sales → own-rows-only and admin → whole-org on every read", async () => {
+    for (const [role, restrictToOwner] of [
+      ["sales", true],
+      ["workshop", true], // unreachable (403 at the controller) — fail-closed anyway
+      ["admin", false],
+    ] as const) {
+      const deps = makeService();
+      deps.invoices.list.mockResolvedValue({ items: [], nextCursor: null });
+      deps.invoices.findById.mockResolvedValue(makeRow(REPRODUCIBLE));
+
+      await deps.service.list(SCOPE, role, { limit: 20, sort: "createdAt:desc" });
+      await deps.service.get(SCOPE, role, "inv-1");
+      await deps.service.verifyReproducibility(SCOPE, role, "inv-1");
+
+      expect(deps.invoices.list).toHaveBeenCalledWith(
+        SCOPE,
+        { restrictToOwner },
+        expect.anything(),
+      );
+      for (const call of deps.invoices.findById.mock.calls) {
+        expect(call[1]).toEqual({ restrictToOwner });
+      }
+    }
+  });
+
+  it("another rep's invoice 404s — never 403 (non-existence, not permission)", async () => {
+    const deps = makeService();
+    deps.invoices.findById.mockResolvedValue(null); // the owner filter excluded it
+    await expect(deps.service.get(SCOPE, "sales", "inv-other")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      deps.service.verifyReproducibility(SCOPE, "sales", "inv-other"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("verify re-derives UNCHANGED for a row the caller may see (I3 is not a visibility rule)", async () => {
+    // The narrowing gates WHICH rows are readable; it never touches the frozen
+    // facts, the pure rebuild, or the byte comparison. Same row → same verdict.
+    const deps = makeService();
+    deps.invoices.findById.mockResolvedValue(makeRow(REPRODUCIBLE));
+
+    for (const role of ["admin", "sales"] as const) {
+      await expect(deps.service.verifyReproducibility(SCOPE, role, "inv-1")).resolves.toEqual({
+        invoiceId: "inv-1",
+        reproduced: true,
+        mismatches: [],
+      });
+    }
   });
 });

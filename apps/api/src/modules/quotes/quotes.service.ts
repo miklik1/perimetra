@@ -87,6 +87,7 @@ import { CatalogVersionsService } from "../catalog-versions/catalog-versions.ser
 import { CustomersService } from "../customers/customers.service.js";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { LegalProfilesService } from "../legal-profiles/legal-profiles.service.js";
+import { numberingYear } from "../numbering/numbering-year.js";
 import { NumberingService } from "../numbering/numbering.service.js";
 import { PriceTablesService } from "../price-tables/price-tables.service.js";
 import { ReleasesService } from "../releases/releases.service.js";
@@ -200,7 +201,9 @@ interface QuoteSnapshot {
   tax: TaxBreakdown;
   /** The buyer identity frozen at issue (ADR 0086/0071) — a captured fact, NOT
    *  re-derived (so absent from the I3 `checks`) and NOT erased when the live
-   *  customer is anonymized. Absent for an unattached (walk-in) quote. */
+   *  customer is anonymized. Present on every quote issued after the mandatory-
+   *  buyer guard (`issue` 422s `customer_required` without one, ADR 0126);
+   *  optional only so a legacy unattached (walk-in) quote still casts. */
   customer?: FrozenCustomerIdentity;
   /** The supplier (dodavatel) identity frozen at issue (ADR 0088) — the same
    *  captured-fact pattern as `customer`. Present on every quote issued after the
@@ -602,13 +605,34 @@ export class QuotesService {
 
   /**
    * Cross-module seam for the orders module (ADR 0109 / ADR-O1): assert the
-   * quote a new order references is effectively `accepted`. Org-scoped but NOT
-   * owner-narrowed — order creation is gated by org membership + role, not quote
-   * ownership. 404 (absent/other-org) / 409 `quote_not_accepted`.
+   * quote a new order references is effectively `accepted` AND still the live
+   * head of its revision chain. Org-scoped but NOT owner-narrowed — order
+   * creation is gated by org membership + role, not quote ownership. 404
+   * (absent/other-org) / 409 `quote_superseded` / 409 `quote_not_accepted`.
    */
   async assertAcceptedForOrder(scope: RequestScope, quoteId: string): Promise<void> {
     const row = await this.quotes.findById(scope, { restrictToOwner: false }, quoteId);
     if (!row) throw new NotFoundException("Quote not found");
+    // Supersession is a SEPARATE pointer — `revise()` never moves the status, so
+    // a superseded quote is still `accepted` and would otherwise sail through the
+    // check below. Guard it explicitly (the same order the buyer-resolution path
+    // uses in `resolveByShareToken`): the newer revision is the live terms, and
+    // ordering the stale one is how a rep ends up building what the buyer no
+    // longer agreed to. Carries `supersededById` so the surface can send them
+    // straight AT the revision instead of merely refusing — under `details`,
+    // which is the slot `apiErrorEnvelopeSchema` declares for typed error
+    // context. NB `GlobalExceptionFilter` currently forwards only
+    // `message`/`code`/`errors`, so this rides along for logs/Sentry until that
+    // one-line gap is closed (flagged in ADR 0126); the sibling throws in this
+    // file put their context TOP-LEVEL, which the envelope does not declare at
+    // all — `details` is the shape to copy, not those.
+    if (row.supersededById) {
+      throw new ConflictException({
+        message: "quote has been superseded by a newer revision",
+        code: "quote_superseded",
+        details: { supersededById: row.supersededById },
+      });
+    }
     const effective = effectiveStatus(row.status, row.validUntil, new Date());
     if (effective !== "accepted") {
       throw new ConflictException({
@@ -617,6 +641,47 @@ export class QuotesService {
         status: effective,
       });
     }
+  }
+
+  /**
+   * Cross-module seam for the orders module (ADR 0126): every quote id in
+   * `quoteId`'s supersession chain — the whole DEAL, from the root revision to
+   * the live head.
+   *
+   * `order_quote_active_uq` is keyed on a single `quote_id`, but `revise()` mints
+   * a NEW quote row, so the index structurally cannot tell that v1 and v2 are the
+   * same deal. The orders module intersects this set with its own live orders to
+   * enforce the per-DEAL half of "one live order per quote" (see
+   * `OrdersService.create`). It lives here because the chain is quote knowledge;
+   * the module DAG is one-way (orders → quotes), so the reverse read is not
+   * available to `revise()` — the guard belongs where the harm materializes.
+   *
+   * Walks BACKWARD via `revisionOfId` to the root, then FORWARD via
+   * `supersededById` to the head. Both pointers are set-once and `supersededById`
+   * is unique, so chains are linear; both walks still carry a seen-set cycle
+   * guard (belt & braces against a corrupted pointer, like `assertRepointTarget`).
+   * Org-scoped, not owner-narrowed — the caller already gated on org access.
+   */
+  async chainQuoteIds(scope: RequestScope, quoteId: string): Promise<string[]> {
+    const opts = { restrictToOwner: false };
+    // Always report at least the quote itself: an invisible/absent quote already
+    // 404'd at `assertAcceptedForOrder`, and a narrower answer here could only
+    // ever WEAKEN the caller's guard.
+    const chain = new Set<string>([quoteId]);
+    const from = await this.quotes.findById(scope, opts, quoteId);
+    if (!from) return [...chain];
+
+    let cursor = from.revisionOfId;
+    while (cursor && !chain.has(cursor)) {
+      chain.add(cursor);
+      cursor = (await this.quotes.findById(scope, opts, cursor))?.revisionOfId ?? null;
+    }
+    cursor = from.supersededById;
+    while (cursor && !chain.has(cursor)) {
+      chain.add(cursor);
+      cursor = (await this.quotes.findById(scope, opts, cursor))?.supersededById ?? null;
+    }
+    return [...chain];
   }
 
   /**
@@ -734,6 +799,17 @@ export class QuotesService {
    * inserted new quote + its allocated number roll back with the tx — no gap, no
    * orphan). The new number continues the same gap-free series; the old buyer
    * link keeps rendering the old document but REFUSES resolution (quotes-public).
+   *
+   * Revising an ACCEPTED quote that already has a live order stays legal, and
+   * deliberately so: it is the FIRST STEP of the re-point path (ADR-O1, CAR-158)
+   * — the order can only move onto a revision that exists, so banning the revise
+   * would make re-point unreachable. What must not happen is the deal
+   * MULTIPLYING: the revision must not become independently orderable while the
+   * incumbent order lives. That guard is enforced at order creation
+   * (`OrdersService.create`, via `chainQuoteIds` above), not here, because the
+   * module DAG is one-way (orders → quotes) — quotes cannot read orders without
+   * inverting it — and because order creation is where the second gap-free number
+   * would actually be burned. Revising is not the harm; a second live order is.
    */
   @Transactional()
   async revise(
@@ -860,7 +936,12 @@ export class QuotesService {
       throw new UnprocessableEntityException({
         message: "site did not derive to a valid result",
         code: "site_invalid",
-        issues: result.issues,
+        // The typed I5 issues ride the envelope's `details` slot, not the top
+        // level: the filter serializes `{message, code, details, errors}` and
+        // drops everything else, so a top-level `issues` array never reached
+        // the browser — the whole `IssueList` branch the issue panel is built
+        // around was unreachable (found by the ADR 0126 review pass).
+        details: { issues: result.issues },
       });
     }
 
@@ -893,11 +974,33 @@ export class QuotesService {
       }
     }
 
-    // Attach the buyer (ADR 0082) — ownership-validated via the customers service
-    // (404 on another rep's / a missing customer; the rep must own it or be admin).
-    const attachedCustomer = input.customerId
-      ? await this.customers.get(scope, role, input.customerId)
-      : null;
+    // The buyer (odběratel) is MANDATORY at issue (ADR 0126). A VIEW may honestly
+    // subtract — the print surface degrading to a "no customer" placeholder is a
+    // fair way to render an incomplete draft — but an ISSUE must refuse: freezing
+    // a snapshot burns an irreversible gap-free number on a commercial document,
+    // and a document with no odběratel is not a nabídka, it is a price list. The
+    // "I just want to price it" workflow is already served, in full, by the
+    // configurator BEFORE issue; nothing is lost by refusing here. The invoice
+    // module already refuses this exact state downstream (`customer_required`,
+    // invoices.service) — this is the same refusal pulled forward to the first
+    // document in the chain, deliberately under the SAME code so one remedy
+    // ("attach a customer") covers the whole chain.
+    //
+    // A SERVICE guard, not a required zod field: a required `customerId` would
+    // fail as an untyped body-validation error, and the surface needs the typed
+    // code to route the rep to the attach-a-customer action. Same precedent as
+    // `legal_profile_required` a few lines below. Both run BEFORE the number is
+    // allocated (see the numbering module's CONTEXT.md: a guard that can reject an
+    // issue must precede allocation, or a rejected issue burns a number).
+    if (!input.customerId) {
+      throw new UnprocessableEntityException({
+        message: "the quote has no attached customer — a nabídka needs an odběratel",
+        code: "customer_required",
+      });
+    }
+    // Ownership-validated via the customers service (404 on another rep's / a
+    // missing customer; the rep must own it or be admin).
+    const attachedCustomer = await this.customers.get(scope, role, input.customerId);
 
     // The supplier (dodavatel) — the org's own legal identity (ADR 0088). A
     // complete daňový doklad (§29 ZDPH) legally requires the supplier block, so a
@@ -915,16 +1018,43 @@ export class QuotesService {
 
     // §92e/DPH (ADR 0080) — the tax mode is a per-transaction decision. The
     // supplier's VAT-payer status comes from its legal profile (ADR 0088 — a
-    // non-VAT-payer supplier can never reverse-charge); the buyer's is auto-filled
-    // from the attached customer when present (else the request flag), and the
-    // construction/assembly scope from the request. The structured breakdown is
-    // frozen below and re-derived at verify from the frozen mode (I3).
+    // non-VAT-payer supplier can never reverse-charge); the buyer's comes from the
+    // attached customer, which is now always present (the guard above), so the
+    // request's `tax.customerVatPayer` no longer participates — the customer
+    // entity is the single source of the buyer's payer status. Only the
+    // construction/assembly scope is still a per-request fact. The structured
+    // breakdown is frozen below and re-derived at verify from the frozen mode (I3).
     const taxMode = resolveTaxMode({
       supplierVatPayer: supplierProfile.vatPayer,
-      customerVatPayer: attachedCustomer?.vatPayer ?? input.tax?.customerVatPayer ?? false,
+      customerVatPayer: attachedCustomer.vatPayer,
       constructionAssembly: input.tax?.constructionAssembly ?? false,
     });
     const tax = computeQuoteTax(result, priceTable, taxMode);
+
+    // A neplátce (non-VAT-payer) MUST NOT put output DPH on a commercial
+    // document — §108 ZDPH turns charged VAT into a liability to the state
+    // whether or not the issuer was entitled to charge it. Nothing upstream
+    // couples the supplier's payer status to the price table's `dphRate`: a
+    // non-payer org whose table says 21 % derives a perfectly valid
+    // `standard_vat` breakdown with real VAT lines. The invoice module already
+    // carries this backstop (`supplier_not_vat_payer`, invoices.service) — but by
+    // then the illegal figure has been out the door for weeks, because the NABÍDKA
+    // is the customer-facing offer. So the same refusal runs here, at the first
+    // document, under the SAME code string: one remedy (register for VAT, or zero
+    // the table's DPH rate), one thing for the UI to explain. Reverse charge is
+    // unreachable for a non-payer by construction (`resolveTaxMode` requires
+    // `supplierVatPayer`), so a taxed standard-VAT rate is the only hazard.
+    if (
+      !supplierProfile.vatPayer &&
+      taxMode === "standard_vat" &&
+      tax.lines.some((line) => Number(line.ratePct) > 0)
+    ) {
+      throw new UnprocessableEntityException({
+        message:
+          "the supplier is not a VAT payer but the price table charges DPH — register for VAT or set the price table's DPH rate to 0 before issuing",
+        code: "supplier_not_vat_payer",
+      });
+    }
 
     const kerfMm = input.kerfMm ?? 0;
     const priceLayer = priceTable.table as PriceLayer;
@@ -967,19 +1097,19 @@ export class QuotesService {
       },
       // Freeze the buyer identity onto the document (ADR 0086/0071) — captured
       // from the live customer here, retained even after Art.17 anonymizes it.
-      ...(attachedCustomer && {
-        customer: {
-          customerId: attachedCustomer.id,
-          name: attachedCustomer.name,
-          ico: attachedCustomer.ico,
-          dic: attachedCustomer.dic,
-          vatPayer: attachedCustomer.vatPayer,
-          addressLine: attachedCustomer.addressLine,
-          city: attachedCustomer.city,
-          postalCode: attachedCustomer.postalCode,
-          country: attachedCustomer.country,
-        },
-      }),
+      // Unconditional since the buyer became mandatory (ADR 0126): every quote
+      // issued from now on carries an odběratel block.
+      customer: {
+        customerId: attachedCustomer.id,
+        name: attachedCustomer.name,
+        ico: attachedCustomer.ico,
+        dic: attachedCustomer.dic,
+        vatPayer: attachedCustomer.vatPayer,
+        addressLine: attachedCustomer.addressLine,
+        city: attachedCustomer.city,
+        postalCode: attachedCustomer.postalCode,
+        country: attachedCustomer.country,
+      },
     };
     const stamps = result.stamps;
 
@@ -989,8 +1119,13 @@ export class QuotesService {
     // lives in the shared `document_number_sequence` under the 'quote' series
     // (ADR 0112 §3, O2-a) — one allocator for quote/order/invoice; the human
     // string stays the Perimetra-local `formatQuoteNumber` (byte-identical). The
-    // wall clock lives in the app layer (like shareToken), never the engine.
-    const year = new Date().getFullYear();
+    // wall clock lives in the app layer (like shareToken), never the engine — and
+    // it is PRAGUE's clock, not the server's (`numberingYear`, ADR 0126): for the
+    // first hour of the Czech New Year (Prague 00:00–01:00 on 1 January, still 31
+    // December in UTC) a UTC box would otherwise number this quote into the
+    // CLOSED old-year series while the invoice raised from it — whose year is the
+    // DUZP's — lands in the new one.
+    const year = numberingYear();
     const documentNumber = formatQuoteNumber(
       year,
       await this.numbering.allocate(scope, "quote", year),
@@ -998,7 +1133,7 @@ export class QuotesService {
 
     const row = await this.quotes.insert(scope, {
       projectId: input.projectId ?? null,
-      customerId: attachedCustomer?.id ?? null,
+      customerId: attachedCustomer.id,
       status: "issued",
       revisionOfId,
       documentNumber,

@@ -8,8 +8,9 @@
  * The only post-issue mutations are the payment-status transitions
  * (`markPaid`/`unmarkPaid` — row state, never document content) and the
  * supersede pointer (future correction chain). Every method is org-scoped via
- * `scoped()` (ADR 0041/0055); `findByIdSystem` is the sole scope-less surface
- * (worker handlers re-fetching from an IDs-only payload, ADR 0037).
+ * `scoped()` (ADR 0041/0055) with the per-rep ownership narrowing (ADR 0082)
+ * layered on top; `findByIdSystem` is the sole scope-less surface (worker
+ * handlers re-fetching from an IDs-only payload, ADR 0037).
  */
 import { TransactionHost } from "@nestjs-cls/transactional";
 import { type TransactionalAdapterDrizzleOrm } from "@nestjs-cls/transactional-adapter-drizzle-orm";
@@ -33,6 +34,12 @@ export interface InvoicesPageRows {
   nextCursor: string | null;
 }
 
+/** Per-rep ownership narrowing (ADR 0082) — layered ON TOP of the org scope,
+ *  never replacing it. admin sees the whole org; a rep is narrowed to own rows. */
+export interface InvoiceScopeOpts {
+  restrictToOwner: boolean;
+}
+
 /** The frozen columns written at issue (facts/snapshot are the immutable JSONB). */
 export interface InsertInvoiceData {
   id: string;
@@ -53,20 +60,38 @@ export interface InsertInvoiceData {
 export class InvoicesRepository {
   constructor(private readonly txHost: TransactionHost<TransactionalAdapterDrizzleOrm<Db>>) {}
 
-  /** THE access filter (ADR 0041/0055): org scope. No `deleted_at` — an invoice
-   *  is never soft-deleted (it is superseded, not tombstoned). */
-  private scoped(scope: RequestScope) {
-    return eq(invoice.organizationId, scope.organizationId);
+  /**
+   * THE access filter: org scope (ADR 0041/0055) ALWAYS, plus the per-rep
+   * ownership narrowing (ADR 0082) layered on top — a rep sees only the invoices
+   * it issued (`ownerId`), admin the whole org. The owner filter NEVER replaces
+   * the org filter. No `deleted_at` — an invoice is never soft-deleted (it is
+   * superseded, not tombstoned).
+   *
+   * Why the narrowing matters HERE specifically: `facts`/`snapshot` carry the
+   * buyer's full §29 identity (name, IČO, DIČ, e-mail, address) frozen at issue.
+   * Without the owner filter a `sales` rep who is correctly 404'd from another
+   * rep's CUSTOMER and QUOTE could read the same PII straight off that rep's
+   * invoice — the narrowing closes that flank, not a new policy.
+   */
+  private scoped(scope: RequestScope, opts: InvoiceScopeOpts) {
+    return and(
+      eq(invoice.organizationId, scope.organizationId),
+      opts.restrictToOwner ? eq(invoice.ownerId, scope.userId) : undefined,
+    );
   }
 
-  async list(scope: RequestScope, params: ListInvoicesParams): Promise<InvoicesPageRows> {
+  async list(
+    scope: RequestScope,
+    opts: InvoiceScopeOpts,
+    params: ListInvoicesParams,
+  ): Promise<InvoicesPageRows> {
     const ascending = params.sort === "createdAt:asc";
     const rows = await this.txHost.tx
       .select()
       .from(invoice)
       .where(
         and(
-          this.scoped(scope),
+          this.scoped(scope, opts),
           params.status ? eq(invoice.status, params.status) : undefined,
           params.cursor
             ? ascending
@@ -83,11 +108,15 @@ export class InvoicesRepository {
     return { items, nextCursor };
   }
 
-  async findById(scope: RequestScope, invoiceId: string): Promise<InvoiceRow | null> {
+  async findById(
+    scope: RequestScope,
+    opts: InvoiceScopeOpts,
+    invoiceId: string,
+  ): Promise<InvoiceRow | null> {
     const [row] = await this.txHost.tx
       .select()
       .from(invoice)
-      .where(and(this.scoped(scope), eq(invoice.id, invoiceId)))
+      .where(and(this.scoped(scope, opts), eq(invoice.id, invoiceId)))
       .limit(1);
     return row ?? null;
   }
@@ -124,6 +153,7 @@ export class InvoicesRepository {
    */
   async markPaid(
     scope: RequestScope,
+    opts: InvoiceScopeOpts,
     invoiceId: string,
     paidAt: Date,
     paidNote: string | null,
@@ -131,17 +161,21 @@ export class InvoicesRepository {
     const [row] = await this.txHost.tx
       .update(invoice)
       .set({ status: "paid", paidAt, paidNote })
-      .where(and(this.scoped(scope), eq(invoice.id, invoiceId), eq(invoice.status, "issued")))
+      .where(and(this.scoped(scope, opts), eq(invoice.id, invoiceId), eq(invoice.status, "issued")))
       .returning();
     return row ?? null;
   }
 
   /** Reverse a mark-paid — CONDITIONAL on `status = 'paid'` (idempotent). */
-  async unmarkPaid(scope: RequestScope, invoiceId: string): Promise<InvoiceRow | null> {
+  async unmarkPaid(
+    scope: RequestScope,
+    opts: InvoiceScopeOpts,
+    invoiceId: string,
+  ): Promise<InvoiceRow | null> {
     const [row] = await this.txHost.tx
       .update(invoice)
       .set({ status: "issued", paidAt: null, paidNote: null })
-      .where(and(this.scoped(scope), eq(invoice.id, invoiceId), eq(invoice.status, "paid")))
+      .where(and(this.scoped(scope, opts), eq(invoice.id, invoiceId), eq(invoice.status, "paid")))
       .returning();
     return row ?? null;
   }

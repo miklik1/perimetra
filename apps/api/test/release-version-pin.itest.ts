@@ -34,6 +34,7 @@ import { DB } from "../src/common/db/db.module.js";
 import {
   assignReleases,
   createApiApp,
+  createBuyerFor,
   inject,
   orgIdOf,
   promotePlatformAdmin,
@@ -58,8 +59,9 @@ const priceTableBody = {
   cost: siteCosts,
 };
 
-/** The golden three-instance site (gate + two fences), roster on the v1 ids. */
-const issueBody = {
+/** The golden three-instance site (gate + two fences), roster on the v1 ids —
+ *  MINUS the buyer, which `beforeAll` folds in (mandatory since ADR 0126). */
+const baseIssueBody = {
   site: steppedSite,
   instances: [
     { instanceId: "gate", releaseId: "sliding-gate@1", input: siteGateConfig },
@@ -88,6 +90,8 @@ describe("release version pin / opt-in upgrade (HTTP, real stack)", () => {
   let userA: TestUser; // orgA admin (owner)
   let orgA: string;
   let quoteId: string; // orgA's golden quote, stamped on sliding-gate@1
+  /** `baseIssueBody` + orgA's odběratel (mandatory since ADR 0126). */
+  let issueBody: Record<string, unknown>;
 
   const postAs = (u: TestUser, url: string, payload: Record<string, unknown> = {}) =>
     inject(app, { method: "POST", url, headers: { cookie: u.cookie }, payload });
@@ -120,8 +124,9 @@ describe("release version pin / opt-in upgrade (HTTP, real stack)", () => {
     // orgA gets the v1 corpus (gate@1 + fence@1) + a price table → can issue.
     await assignReleases(app, platform, orgA, ["sliding-gate@1", "fence-run@1"]);
     expect((await postAs(userA, "/v1/price-tables", priceTableBody)).statusCode).toBe(201);
-    // Issuing requires a legal profile (ADR 0088).
+    // Issuing requires a legal profile (ADR 0088) and an odběratel (ADR 0126).
     await setupLegalProfile(app, userA);
+    issueBody = { ...baseIssueBody, customerId: await createBuyerFor(app, userA) };
   });
 
   afterAll(async () => {
