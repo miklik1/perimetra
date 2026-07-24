@@ -807,14 +807,17 @@ const cs = {
     roundingMode: "Režim zaokrouhlení",
     roundingGranularity: "Zaokrouhlení po",
     priceTableVersion: "Verze ceníku",
+    settingsSection: "Nastavení ceníku",
     componentsSection: "Komponenty",
     componentsSectionHint:
       "Jeden řádek na kód komponenty z katalogu — prodejní cena a náklad vedle sebe.",
+    priceRulesHint: "Ceny bez DPH — dopočítává konfigurátor.",
     componentCode: "Kód komponenty",
     sellPrice: "Prodejní cena",
     costPrice: "Náklad",
     addComponent: "Přidat komponentu",
     componentsEmpty: "Zatím žádné komponenty.",
+    manufacturingSection: "Výroba a montáž",
     manufacturingRate: "Sazba výroby",
     manufacturingMultiplier: "Násobitel výroby",
     installation: "Montáž",
@@ -843,6 +846,9 @@ const cs = {
     dphRateRequired: "Zadejte sazbu DPH.",
     optional: "(volitelné)",
     noneYet: "Zatím nic publikováno.",
+    priceTablesActive: "Nejnovější",
+    priceTablesDescription:
+      "Publikované ceníky jsou neměnné — novější verze nahrazuje předchozí od data platnosti.",
     loadingList: "Načítání…",
     productVersions: "Verze produktů",
     productVersionsDescription:
@@ -852,6 +858,7 @@ const cs = {
     upgrading: "Povyšování…",
     upgraded: "Povýšeno.",
     upgradeError: "Povýšení se nezdařilo.",
+    upgradeAvailable: "K dispozici novější verze",
     noUpgrades: "Všechny vaše produkty jsou na nejnovější dostupné verzi.",
   },
   platform: {

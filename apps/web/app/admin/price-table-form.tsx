@@ -6,11 +6,11 @@ import { Controller, useWatch } from "react-hook-form";
 import { invalidateKeys } from "@repo/api";
 import { useApiClient, useMutation, useQueryClient } from "@repo/api/react";
 import { useTranslations } from "@repo/i18n/web";
-import { Button } from "@repo/ui";
+import { Button, Field, Input, Panel } from "@repo/ui";
 import { ArrayField } from "@repo/ui/forms/array-field";
 import { DisclosureSection } from "@repo/ui/forms/disclosure-section";
 import { EnumSelect } from "@repo/ui/forms/enum-select";
-import { fieldInputClass, FieldShell, fieldTextareaClass } from "@repo/ui/forms/field-shell";
+import { fieldTextareaClass } from "@repo/ui/forms/field-shell";
 import { useZodForm } from "@repo/ui/forms/use-zod-form";
 import { PRICE_TABLE_CURRENCIES, type PriceTableCurrency } from "@repo/validators";
 
@@ -131,249 +131,266 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
     <form
       method="post"
       onSubmit={(e) => void handleSubmit(onSubmit)(e)}
-      className="border-border flex flex-col gap-3 rounded-md border p-4"
+      className="flex flex-col gap-6"
     >
-      <div className="grid grid-cols-2 gap-3">
-        <FieldShell label={t("currency")}>
-          {({ fieldId }) => (
-            <Controller
-              control={control}
-              name="currency"
-              render={({ field }) => (
-                <EnumSelect
-                  id={fieldId}
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={PRICE_TABLE_CURRENCIES.map((c: PriceTableCurrency) => ({ value: c }))}
-                />
-              )}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("dphRate")} error={formState.errors.dphRate?.message}>
-          {({ fieldId }) => (
-            <input
-              id={fieldId}
-              className={fieldInputClass}
-              placeholder="21"
-              {...register("dphRate")}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("effectiveFrom")} error={formState.errors.effectiveFrom?.message}>
-          {({ fieldId }) => (
-            <input
-              id={fieldId}
-              type="datetime-local"
-              className={fieldInputClass}
-              {...register("effectiveFrom")}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("effectiveTo")}>
-          {({ fieldId }) => (
-            <input
-              id={fieldId}
-              type="datetime-local"
-              className={fieldInputClass}
-              {...register("effectiveTo")}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("marginFloorPct")} error={formState.errors.marginFloorPct?.message}>
-          {({ fieldId }) => (
-            <input
-              id={fieldId}
-              className={fieldInputClass}
-              placeholder={t("optional")}
-              {...register("marginFloorPct")}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("roundingMode")}>
-          {({ fieldId }) => (
-            <Controller
-              control={control}
-              name="roundingMode"
-              render={({ field }) => (
-                <EnumSelect
-                  id={fieldId}
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={[{ value: "half-up" }, { value: "half-even" }]}
-                />
-              )}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("roundingGranularity")}>
-          {({ fieldId }) => (
-            <Controller
-              control={control}
-              name="roundingGranularity"
-              render={({ field }) => (
-                <EnumSelect
-                  id={fieldId}
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={[{ value: "end-of-invoice" }, { value: "per-line" }]}
-                />
-              )}
-            />
-          )}
-        </FieldShell>
-
-        <FieldShell label={t("priceTableVersion")} error={formState.errors.version?.message}>
-          {({ fieldId }) => (
-            <input id={fieldId} className={fieldInputClass} {...register("version")} />
-          )}
-        </FieldShell>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold">{t("componentsSection")}</h3>
-        <p className="text-muted-foreground text-xs">{t("componentsSectionHint")}</p>
-        <ArrayField
-          control={control}
-          name="components"
-          addLabel={t("addComponent")}
-          emptyLabel={t("componentsEmpty")}
-          reorderable={false}
-          makeDefault={blankComponentRow}
-        >
-          {({ index }) => (
-            <div className="grid grid-cols-3 gap-2">
-              <FieldShell
-                label={t("componentCode")}
-                error={formState.errors.components?.[index]?.code?.message}
-              >
-                {({ fieldId }) => (
-                  <input
-                    id={fieldId}
-                    className={fieldInputClass}
-                    list={COMPONENT_CODES_DATALIST_ID}
-                    {...register(`components.${index}.code`)}
-                  />
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("settingsSection")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field>
+              <Field.Label>{t("currency")}</Field.Label>
+              <Controller
+                control={control}
+                name="currency"
+                render={({ field }) => (
+                  <Field.Control>
+                    <EnumSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={PRICE_TABLE_CURRENCIES.map((c: PriceTableCurrency) => ({
+                        value: c,
+                      }))}
+                    />
+                  </Field.Control>
                 )}
-              </FieldShell>
-              <FieldShell
-                label={t("sellPrice")}
-                error={formState.errors.components?.[index]?.price?.message}
-              >
-                {({ fieldId }) => (
-                  <input
-                    id={fieldId}
-                    className={fieldInputClass}
-                    inputMode="decimal"
-                    placeholder={t("optional")}
-                    {...register(`components.${index}.price`)}
-                  />
+              />
+            </Field>
+
+            <Field>
+              <Field.Label>{t("dphRate")}</Field.Label>
+              <Field.Control>
+                <Input placeholder="21" {...register("dphRate")} />
+              </Field.Control>
+              {formState.errors.dphRate && (
+                <Field.Error>{formState.errors.dphRate.message}</Field.Error>
+              )}
+            </Field>
+
+            <Field>
+              <Field.Label>{t("effectiveFrom")}</Field.Label>
+              <Field.Control>
+                <Input type="datetime-local" {...register("effectiveFrom")} />
+              </Field.Control>
+              {formState.errors.effectiveFrom && (
+                <Field.Error>{formState.errors.effectiveFrom.message}</Field.Error>
+              )}
+            </Field>
+
+            <Field>
+              <Field.Label>{t("effectiveTo")}</Field.Label>
+              <Field.Control>
+                <Input type="datetime-local" {...register("effectiveTo")} />
+              </Field.Control>
+            </Field>
+
+            <Field>
+              <Field.Label>{t("marginFloorPct")}</Field.Label>
+              <Field.Control>
+                <Input placeholder={t("optional")} {...register("marginFloorPct")} />
+              </Field.Control>
+              {formState.errors.marginFloorPct && (
+                <Field.Error>{formState.errors.marginFloorPct.message}</Field.Error>
+              )}
+            </Field>
+
+            <Field>
+              <Field.Label>{t("roundingMode")}</Field.Label>
+              <Controller
+                control={control}
+                name="roundingMode"
+                render={({ field }) => (
+                  <Field.Control>
+                    <EnumSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={[{ value: "half-up" }, { value: "half-even" }]}
+                    />
+                  </Field.Control>
                 )}
-              </FieldShell>
-              <FieldShell
-                label={t("costPrice")}
-                error={formState.errors.components?.[index]?.cost?.message}
-              >
-                {({ fieldId }) => (
-                  <input
-                    id={fieldId}
-                    className={fieldInputClass}
-                    inputMode="decimal"
-                    placeholder={t("optional")}
-                    {...register(`components.${index}.cost`)}
-                  />
+              />
+            </Field>
+
+            <Field>
+              <Field.Label>{t("roundingGranularity")}</Field.Label>
+              <Controller
+                control={control}
+                name="roundingGranularity"
+                render={({ field }) => (
+                  <Field.Control>
+                    <EnumSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={[{ value: "end-of-invoice" }, { value: "per-line" }]}
+                    />
+                  </Field.Control>
                 )}
-              </FieldShell>
+              />
+            </Field>
+
+            <Field>
+              <Field.Label>{t("priceTableVersion")}</Field.Label>
+              <Field.Control>
+                <Input {...register("version")} />
+              </Field.Control>
+              {formState.errors.version && (
+                <Field.Error>{formState.errors.version.message}</Field.Error>
+              )}
+            </Field>
+          </div>
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("componentsSection")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <p className="text-muted-foreground text-xs">{t("priceRulesHint")}</p>
+          <ArrayField
+            control={control}
+            name="components"
+            addLabel={t("addComponent")}
+            emptyLabel={t("componentsEmpty")}
+            reorderable={false}
+            makeDefault={blankComponentRow}
+          >
+            {({ index }) => (
+              <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+                <Field>
+                  <Field.Label>{t("componentCode")}</Field.Label>
+                  <Field.Control>
+                    <Input
+                      list={COMPONENT_CODES_DATALIST_ID}
+                      {...register(`components.${index}.code`)}
+                    />
+                  </Field.Control>
+                  {formState.errors.components?.[index]?.code && (
+                    <Field.Error>{formState.errors.components?.[index]?.code?.message}</Field.Error>
+                  )}
+                </Field>
+                <Field>
+                  <Field.Label>{t("sellPrice")}</Field.Label>
+                  <Field.Control>
+                    <Input
+                      inputMode="decimal"
+                      placeholder={t("optional")}
+                      {...register(`components.${index}.price`)}
+                    />
+                  </Field.Control>
+                  {formState.errors.components?.[index]?.price && (
+                    <Field.Error>
+                      {formState.errors.components?.[index]?.price?.message}
+                    </Field.Error>
+                  )}
+                </Field>
+                <Field>
+                  <Field.Label>{t("costPrice")}</Field.Label>
+                  <Field.Control>
+                    <Input
+                      inputMode="decimal"
+                      placeholder={t("optional")}
+                      {...register(`components.${index}.cost`)}
+                    />
+                  </Field.Control>
+                  {formState.errors.components?.[index]?.cost && (
+                    <Field.Error>{formState.errors.components?.[index]?.cost?.message}</Field.Error>
+                  )}
+                </Field>
+              </div>
+            )}
+          </ArrayField>
+          {componentCodes.length > 0 && (
+            <datalist id={COMPONENT_CODES_DATALIST_ID}>
+              {componentCodes.map((code) => (
+                <option key={code} value={code} />
+              ))}
+            </datalist>
+          )}
+        </Panel.Body>
+      </Panel>
+
+      <Panel elevation="flat">
+        <Panel.Header>
+          <Panel.Title>{t("manufacturingSection")}</Panel.Title>
+        </Panel.Header>
+        <Panel.Body>
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field>
+              <Field.Label>{t("manufacturingRate")}</Field.Label>
+              <Field.Control>
+                <Input {...register("manufacturingRate")} />
+              </Field.Control>
+              {formState.errors.manufacturingRate && (
+                <Field.Error>{formState.errors.manufacturingRate.message}</Field.Error>
+              )}
+            </Field>
+            <Field>
+              <Field.Label>{t("manufacturingMultiplier")}</Field.Label>
+              <Field.Control>
+                <Input {...register("manufacturingMultiplier")} />
+              </Field.Control>
+              {formState.errors.manufacturingMultiplier && (
+                <Field.Error>{formState.errors.manufacturingMultiplier.message}</Field.Error>
+              )}
+            </Field>
+            <Field>
+              <Field.Label>{t("installation")}</Field.Label>
+              <Field.Control>
+                <Input {...register("installation")} />
+              </Field.Control>
+              {formState.errors.installation && (
+                <Field.Error>{formState.errors.installation.message}</Field.Error>
+              )}
+            </Field>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              className="border-border accent-copper size-4 rounded border"
+              {...register("hasCost")}
+            />
+            {t("hasCost")}
+          </label>
+
+          {hasCost && (
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field>
+                <Field.Label>{t("costManufacturingRate")}</Field.Label>
+                <Field.Control>
+                  <Input {...register("costManufacturingRate")} />
+                </Field.Control>
+                {formState.errors.costManufacturingRate && (
+                  <Field.Error>{formState.errors.costManufacturingRate.message}</Field.Error>
+                )}
+              </Field>
+              <Field>
+                <Field.Label>{t("costManufacturingMultiplier")}</Field.Label>
+                <Field.Control>
+                  <Input {...register("costManufacturingMultiplier")} />
+                </Field.Control>
+                {formState.errors.costManufacturingMultiplier && (
+                  <Field.Error>{formState.errors.costManufacturingMultiplier.message}</Field.Error>
+                )}
+              </Field>
+              <Field>
+                <Field.Label>{t("costInstallation")}</Field.Label>
+                <Field.Control>
+                  <Input {...register("costInstallation")} />
+                </Field.Control>
+                {formState.errors.costInstallation && (
+                  <Field.Error>{formState.errors.costInstallation.message}</Field.Error>
+                )}
+              </Field>
             </div>
           )}
-        </ArrayField>
-        {componentCodes.length > 0 && (
-          <datalist id={COMPONENT_CODES_DATALIST_ID}>
-            {componentCodes.map((code) => (
-              <option key={code} value={code} />
-            ))}
-          </datalist>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <FieldShell
-          label={t("manufacturingRate")}
-          error={formState.errors.manufacturingRate?.message}
-        >
-          {({ fieldId }) => (
-            <input id={fieldId} className={fieldInputClass} {...register("manufacturingRate")} />
-          )}
-        </FieldShell>
-        <FieldShell
-          label={t("manufacturingMultiplier")}
-          error={formState.errors.manufacturingMultiplier?.message}
-        >
-          {({ fieldId }) => (
-            <input
-              id={fieldId}
-              className={fieldInputClass}
-              {...register("manufacturingMultiplier")}
-            />
-          )}
-        </FieldShell>
-        <FieldShell label={t("installation")} error={formState.errors.installation?.message}>
-          {({ fieldId }) => (
-            <input id={fieldId} className={fieldInputClass} {...register("installation")} />
-          )}
-        </FieldShell>
-      </div>
-
-      <label className="flex items-center gap-2 text-sm font-medium">
-        <input type="checkbox" {...register("hasCost")} />
-        {t("hasCost")}
-      </label>
-
-      {hasCost && (
-        <div className="grid grid-cols-3 gap-2">
-          <FieldShell
-            label={t("costManufacturingRate")}
-            error={formState.errors.costManufacturingRate?.message}
-          >
-            {({ fieldId }) => (
-              <input
-                id={fieldId}
-                className={fieldInputClass}
-                {...register("costManufacturingRate")}
-              />
-            )}
-          </FieldShell>
-          <FieldShell
-            label={t("costManufacturingMultiplier")}
-            error={formState.errors.costManufacturingMultiplier?.message}
-          >
-            {({ fieldId }) => (
-              <input
-                id={fieldId}
-                className={fieldInputClass}
-                {...register("costManufacturingMultiplier")}
-              />
-            )}
-          </FieldShell>
-          <FieldShell
-            label={t("costInstallation")}
-            error={formState.errors.costInstallation?.message}
-          >
-            {({ fieldId }) => (
-              <input id={fieldId} className={fieldInputClass} {...register("costInstallation")} />
-            )}
-          </FieldShell>
-        </div>
-      )}
+        </Panel.Body>
+      </Panel>
 
       <DisclosureSection title={t("bulkJsonSection")}>
-        <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-2">
           <p className="text-muted-foreground text-xs">{t("bulkJsonDescription")}</p>
           <textarea
             value={islandText}
@@ -405,7 +422,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
         </p>
       )}
 
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" variant="copper" disabled={mutation.isPending}>
         {mutation.isPending ? t("publishing") : t("publish")}
       </Button>
 
