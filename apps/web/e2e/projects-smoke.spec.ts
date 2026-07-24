@@ -37,16 +37,21 @@ test("signup → create project → archive → account shows the user @smoke", 
   await page.getByRole("button", { name: "Vytvořit projekt" }).click();
 
   // The list invalidates and refetches from the real API — the new row appears.
-  const row = page.locator("li").filter({ hasText: projectName });
+  // The list is the o-LIST `<table>` since the Phase-2 reskin (ADR 0121): rows
+  // are `<tr>`, so match on the ARIA row role rather than a DOM tag.
+  const row = page.getByRole("row").filter({ hasText: projectName });
   await expect(row).toBeVisible();
 
   // -- Archive: POST /v1/projects/:id/archive flips the status. --------------
-  await row.getByRole("button", { name: "Archivovat" }).click();
-  // The row swaps the archive button for the status label (optimistically, then
+  // Each row's controls carry a name-qualified aria-label ("Archivovat <name>")
+  // so they stay distinguishable across rows.
+  const archiveButton = row.getByRole("button", { name: `Archivovat ${projectName}` });
+  await archiveButton.click();
+  // The row swaps the archive button for the status badge (optimistically, then
   // confirmed by the server revalidation); scope to the row — a toast says
-  // "Archivováno" too.
+  // "Archivováno." too.
   await expect(row.getByText("Archivováno")).toBeVisible();
-  await expect(row.getByRole("button", { name: "Archivovat" })).toHaveCount(0);
+  await expect(archiveButton).toHaveCount(0);
 
   // -- /account: the session's user, straight from GET /v1/me. ---------------
   await page.goto("/account");

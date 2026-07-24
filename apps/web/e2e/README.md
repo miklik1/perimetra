@@ -14,7 +14,43 @@ pnpm --filter web test:e2e:ui         # mock mode, Playwright UI
 pnpm --filter web test:e2e:smoke      # real-stack smoke (needs the compose stack)
 ```
 
-CI runs the mock suite in a dedicated `e2e-web` job.
+CI runs the mock suite in a dedicated `e2e-web` job and the smoke suite in
+`smoke-e2e` (which composes postgres/redis/…, migrates, and starts api + worker —
+but never runs the seed, so a smoke spec must create whatever data it asserts on).
+
+## Authed surfaces: the shared single-sign-in fixture
+
+Most of the app is authed-only — `/` (the ADR 0125 dashboard), `/orders`,
+`/quotes`, `/projects`. Two things follow from that:
+
+- **An authed surface belongs in the real-stack smoke suite, not mock mode.**
+  Mock mode has no `nav` route group, so the dashboard aggregate
+  (`/v1/me/dashboard-summary`) is an unmatched route there; asserting the surface
+  against mocks would test the fixtures, not the app.
+- **Signing in per spec walks into the rate limit.** The API caps the credential
+  endpoints at `AUTH_RATE_LIMIT_MAX` requests per minute per IP (ADR 0044 — only
+  `/get-session` gets the generous tier).
+
+So `e2e/fixtures/auth.ts` signs up **once per worker process** and reuses the
+resulting `storageState` — the same single-sign-in harness the
+`scripts/verify/capture-*.mjs` eyes-on scripts use. Import `test`/`expect` from
+it instead of `@playwright/test` and take the `authedPage` fixture:
+
+```ts
+import { expect, test } from "./fixtures/auth";
+
+test("… @smoke", async ({ authedPage, authedSession }) => {
+  await authedPage.goto("/");
+  // authedSession.{email,name,firstName} are generated at run time — assert
+  // against them to anchor the spec to the real stack (see the trap below).
+});
+```
+
+A signup (not a sign-in) is what the fixture does deliberately: the smoke
+database is empty, and Better Auth's `databaseHooks` provision one org with an
+OWNER membership per new user (ADR 0055), which is the role the org-scoped
+endpoints gate on. A spec that needs the _anonymous_ branch just takes the plain
+`page` fixture in the same file.
 
 ## The multi-seat port-ownership trap (read before trusting a green run)
 

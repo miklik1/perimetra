@@ -10,8 +10,16 @@ export default [
     // `e2e-web` CI job), so `turbo/no-undeclared-env-vars` — which wants every
     // env var declared in turbo.json — does not apply. `process.env.CI` is the
     // standard CI-detection var Playwright reads to switch retries/reporters.
+    //
+    // `react-hooks/rules-of-hooks` is off for the same "not this world" reason:
+    // a Playwright fixture is `async ({ deps }, use) => { await use(value) }`,
+    // and the rule reads that `use(...)` call as React 19's `use` hook being
+    // called outside a component. There is no React in this directory, so the
+    // rule can only produce false positives — and renaming the callback to
+    // dodge it would trade Playwright's documented fixture idiom for a lint
+    // artifact.
     files: ["playwright.config.ts", "playwright.smoke.config.ts", "e2e/**/*.ts"],
-    rules: { "turbo/no-undeclared-env-vars": "off" },
+    rules: { "turbo/no-undeclared-env-vars": "off", "react-hooks/rules-of-hooks": "off" },
   },
   {
     // React Three Fiber's JSX (<group position…>, <meshStandardMaterial…>) is

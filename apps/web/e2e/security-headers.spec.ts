@@ -27,6 +27,10 @@ test("home response carries the security headers and a nonce CSP", async ({ page
   expect(csp).toMatch(/script-src [^;]*'nonce-[^']+'/);
 
   // The page actually rendered under the strict CSP — the inline theme script
-  // ran (it carries the nonce) and the heading is visible.
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // ran (it carries the nonce) and a heading is visible. `/` is the authed
+  // dashboard since ADR 0125, and this suite is anonymous, so its client
+  // AuthGuard bounces to /login; assert THAT heading by name rather than any
+  // `level=1`, which would go green on either page and hide a regression.
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Přihlásit se" })).toBeVisible();
 });
