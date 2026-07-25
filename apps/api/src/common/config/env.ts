@@ -77,7 +77,15 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  EMAIL_FROM: z.string().min(1).default("Skeleton <no-reply@localhost>"),
+  /**
+   * Envelope sender for every outgoing mail. The default drops the stamped
+   * skeleton brand (ADR 0129: the first BUYER-facing mail must not go out
+   * signed "Skeleton") and keeps the dev-safe loopback address so Mailpit still
+   * works out of the box. PRODUCTION MUST override this with a real sender on a
+   * domain that publishes SPF and DKIM — an unauthenticated From on a buyer
+   * mail is a deliverability and impersonation problem, not a cosmetic one.
+   */
+  EMAIL_FROM: z.string().min(1).default("Perimetra <no-reply@localhost>"),
 
   // ---- storage (spec §7.5) — dev defaults match MinIO in compose -------
   /** Must be the BROWSER-reachable host — presigned URLs embed it. */

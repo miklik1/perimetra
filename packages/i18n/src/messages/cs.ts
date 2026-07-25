@@ -961,6 +961,46 @@ const cs = {
       note: "Poznámka",
     },
   },
+  // Wave A2 (ADR 0129) — the rep-side "send this document to the buyer" action.
+  // "Odesláno" means HANDED TO THE MAIL SERVER, never "doručeno": there is no
+  // bounce feedback loop, so the surface must not claim delivery it cannot know.
+  deliveries: {
+    send: "Odeslat e-mailem",
+    sendAgain: "Odeslat znovu",
+    sending: "Odesílání…",
+    confirmTitle: "Odeslat dokument odběrateli?",
+    confirmBody:
+      "Dokument odejde na e-mail odběratele evidovaný u tohoto obchodního případu. Odeslaný e-mail už nelze vzít zpět.",
+    confirmSubmit: "Odeslat",
+    confirmCancel: "Zpět",
+    queuedToast: "Odeslání zařazeno — e-mail odejde během chvíle.",
+    quoteBody:
+      "Odběrateli přijde e-mail s odkazem na tuto nabídku. Nabídku si otevře, prohlédne a může ji rovnou přijmout nebo odmítnout.",
+    invoicePanelTitle: "Odeslání odběrateli",
+    invoiceBody:
+      "Odběrateli přijde oznámení o vystavení faktury s údaji k úhradě (číslo, variabilní symbol, částka, splatnost, IBAN). E-mail není daňový doklad — samotný doklad odběrateli předáte vy.",
+    lastSent: "Naposledy odesláno {date}",
+    neverSent: "Zatím neodesláno.",
+    statusQueued: "Odeslání zařazeno…",
+    statusSending: "Odesílání…",
+    statusSent: "Odesláno {date}",
+    statusFailed: "Odeslání se nezdařilo. Zkuste to prosím znovu.",
+    rejected: {
+      documentSupersededTitle: "Dokument byl nahrazen",
+      documentSupersededBody:
+        "Tento dokument nahradila novější verze — odešlete odběrateli tu novější.",
+      customerRequiredTitle: "Dokument nemá odběratele",
+      customerRequiredBody: "Bez odběratele není komu dokument odeslat. Doplňte odběratele.",
+      customerAnonymizedTitle: "Odběratel byl anonymizován",
+      customerAnonymizedBody:
+        "Údaje odběratele byly na jeho žádost odstraněny — nový e-mail mu už odeslat nelze.",
+      recipientEmailMissingTitle: "Odběratel nemá e-mail",
+      recipientEmailMissingBody:
+        "U odběratele není evidovaná e-mailová adresa. Doplňte ji v kartě odběratele a zkuste to znovu.",
+      sendInProgressTitle: "Odeslání už probíhá",
+      sendInProgressBody: "Předchozí odeslání ještě neskončilo. Počkejte chvíli a zkuste to znovu.",
+    },
+  },
   errors: {
     title: "Něco se pokazilo",
     retry: "Zkusit znovu",
@@ -1268,6 +1308,33 @@ const cs = {
       body: "{inviter} vás zve do organizace {org} na Perimetře. Pozvánku přijmete kliknutím níže.",
       button: "Přijmout pozvánku",
       ignore: "Pokud jste tuto pozvánku nečekali, tento e-mail ignorujte.",
+    },
+    // Wave A2 (ADR 0129) — the buyer-facing document mails. The QUOTE mail
+    // genuinely DELIVERS the document (it links the ADR-0089 public landing).
+    // The INVOICE mail is a NOTIFICATION and says so: PROVISIONAL (CAR-27 pass
+    // 2), it must never present itself as the daňový doklad, carry a link, or
+    // claim legal correctness — that is the ADR-0126 mislabel class.
+    quoteIssued: {
+      subject: "Vaše cenová nabídka {number}",
+      heading: "Cenová nabídka {number}",
+      body: "Připravili jsme pro vás cenovou nabídku {number}. Otevřete ji tlačítkem níže — najdete v ní rozpis položek i celkovou cenu a můžete ji rovnou přijmout, nebo odmítnout.",
+      button: "Zobrazit nabídku",
+      footer:
+        "Pokud jste tuto nabídku nečekali, obraťte se prosím na svého obchodního zástupce. Na tuto adresu neodpovídejte — schránka není sledována.",
+    },
+    invoiceIssued: {
+      subject: "Vystavili jsme fakturu {number}",
+      heading: "Faktura {number} byla vystavena",
+      body: "Dobrý den, vystavili jsme fakturu {number}. Níže najdete údaje potřebné k úhradě.",
+      labelNumber: "Číslo dokladu",
+      labelVariableSymbol: "Variabilní symbol",
+      labelAmount: "Částka k úhradě",
+      labelDueDate: "Splatnost",
+      labelIban: "IBAN",
+      notice:
+        "Tento e-mail je oznámení o vystavení faktury, není to daňový doklad. Samotný doklad vám předá váš obchodní zástupce.",
+      footer:
+        "Pokud jste tuto fakturu nečekali, obraťte se prosím na svého obchodního zástupce. Na tuto adresu neodpovídejte — schránka není sledována.",
     },
   },
 } as const;

@@ -195,8 +195,15 @@ const EMBEDDED_PROTOCOL_RELATIVE_URL_QUERY = new RegExp(
 // touch `rcVersion` or any `rc` substring — a release-candidate field would have
 // to be named exactly `rc`, and over-redacting that is the cheap side of the
 // trade.
+//
+// `recipient[-_]?email` is a `pii()` column mirror (ADR 0129,
+// `document_delivery.recipient_email` — the buyer address a sent document went
+// to). It needs its own arm because the list is ANCHORED: the bare `email` arm
+// cannot match `recipient_email` or `recipientEmail`, so without this the
+// registry-derived `scrub.pii-contract.test.ts` fails and — worse — a buyer
+// address keyed under that name would ship to Sentry in the clear.
 const SENSITIVE_KEYS =
-  /^(authorization|cookie|cookies|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|rodne[-_]?cislo|birth[-_]?number|rc|phone([-_]?number)?|tel|iban|bank[-_]?account|ssn|national[-_]?id|session[-_]?id|name|image|ip[-_]?address|user[-_]?agent|identifier|ico|dic|address[-_]?line|city|postal[-_]?code)$/i;
+  /^(authorization|cookie|cookies|set-cookie|password|secret|token|access[-_]?token|refresh[-_]?token|api[-_]?key|email|recipient[-_]?email|rodne[-_]?cislo|birth[-_]?number|rc|phone([-_]?number)?|tel|iban|bank[-_]?account|ssn|national[-_]?id|session[-_]?id|name|image|ip[-_]?address|user[-_]?agent|identifier|ico|dic|address[-_]?line|city|postal[-_]?code)$/i;
 
 // The SDK-ATTRIBUTE forms of concepts `SENSITIVE_KEYS` already owns (ADR 1017).
 // Kept SEPARATE from that list deliberately: `SENSITIVE_KEYS` is the hand-mirror

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { useApiClient, useMutation } from "@repo/api/react";
 import { useLocale, useTranslations } from "@repo/i18n/web";
@@ -10,6 +10,10 @@ import { Badge, Button, DisplayLabel, Icon, KeyValueList, Panel } from "@repo/ui
 import { formatDate } from "@repo/utils";
 import { type QuoteDetail } from "@repo/validators";
 
+import {
+  SendDocumentAction,
+  useCanSendDocuments,
+} from "../../../components/send-document/send-document-action";
 import { errorMessageKey } from "../../../lib/error-messages";
 import { formatMoney } from "../../../lib/format-money";
 import { createQuotesQueries } from "../../../lib/quotes-queries";
@@ -88,17 +92,25 @@ const DOC_TABLE_SUM_ROW = "border-primary bg-spotlight-subtle border-t-2";
  * `typeof window` branch would still mismatch the hydration pass. Rendering
  * nothing until the effect fills `origin` keeps server and first-client-render
  * markup identical.
+ *
+ * `children` is the panel's one extension point: everything else about getting
+ * this offer to the buyer belongs HERE, next to the link itself, rather than in
+ * a second panel about the same thing. A slot, not a prop per action — the
+ * panel owns the buyer-link semantics and stays ignorant of what is slotted in
+ * (ADR 0129 puts the e-mail send there; the copy affordance below is unchanged).
  */
 function BuyerLinkPanel({
   status,
   shareToken,
   validUntil,
   locale,
+  children,
 }: {
   status: QuoteDetail["status"];
   shareToken: string;
   validUntil: string | null;
   locale: string;
+  children?: ReactNode;
 }) {
   const t = useTranslations("quotes");
   const [origin, setOrigin] = useState<string | null>(null);
@@ -124,7 +136,7 @@ function BuyerLinkPanel({
 
   return (
     <Panel elevation="flat">
-      <div className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         <h2 className="font-display text-lg">{t("buyerLink.title")}</h2>
         <p className="text-muted-foreground text-sm">
           {validUntil
@@ -146,6 +158,20 @@ function BuyerLinkPanel({
             </Button>
           </div>
         )}
+        {/* The slot sits BELOW the copy row rather than inside it: what goes
+            here is a multi-part block (a status line, a confirm step, a typed
+            refusal banner), and nesting that in an `items-center` row would
+            centre a growing column against a one-line chip. A hairline keeps it
+            a distinct act within the same panel.
+
+            Guarded on TRUTHINESS, not on `!== undefined`: the chrome belongs to
+            the child, so a caller that resolves the slot away must not leave a
+            divider hanging over 44px of nothing. The call site does the deciding
+            (it knows the role); this only refuses to draw a line under an absent
+            child. */}
+        {children ? (
+          <div className="border-border flex min-w-0 flex-col gap-3 border-t pt-3">{children}</div>
+        ) : null}
       </div>
     </Panel>
   );
@@ -191,6 +217,8 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
   const t = useTranslations("quotes");
   const tErrors = useTranslations("errors");
   const tConfig = useTranslations("configurator");
+  const tDeliveries = useTranslations("deliveries");
+  const canSendDocuments = useCanSendDocuments();
   const locale = useLocale();
   const quotesQueries = createQuotesQueries(useApiClient());
   const verifyMutation = useMutation(quotesQueries.verify());
@@ -290,7 +318,23 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
         shareToken={quote.shareToken}
         validUntil={quote.validUntil}
         locale={locale}
-      />
+      >
+        {/* Delivery (ADR 0129) — the same buyer link, sent FOR the rep instead
+            of pasted by hand. The explainer rides the action's own slot so it
+            is never shown to a viewer who has no way to send (workshop, or a
+            session whose role has not resolved): a sentence promising the buyer
+            an e-mail must not appear beside a missing button.
+
+            The role is asked HERE too, not only inside the action: the panel
+            draws a hairline around whatever it is handed, and an action that
+            resolves to `null` is invisible to it. Asking first is what keeps a
+            non-sender from seeing a rule with nothing under it. */}
+        {canSendDocuments && (
+          <SendDocumentAction documentType="quote" documentId={quote.id}>
+            {tDeliveries("quoteBody")}
+          </SendDocumentAction>
+        )}
+      </BuyerLinkPanel>
 
       {/* The DPH breakdown. NOT a daňový doklad — a nabídka has its own number
           series, no DUZP and no payment block, and its VAT is derived bottom-up

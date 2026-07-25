@@ -158,6 +158,29 @@ export class CustomersService {
     };
   }
 
+  /**
+   * Cross-module seam for document DELIVERY (ADR 0129): the buyer's CURRENT
+   * contact address, org-scoped and INCLUDING an anonymized row so the caller
+   * fails CLOSED on an erased buyer (`anonymized: true`) rather than mis-reading
+   * a 404 — the `getIdentityForInvoice` posture (ADR 0112 §7). Deliberately the
+   * MINIMAL projection: id + address + the erased flag, nothing else. A delivery
+   * needs a RECIPIENT, not an identity, and the smaller the projection the
+   * smaller the surface that can leak. Returns null only when the id names no
+   * row in this org.
+   *
+   * Org-scoped, NOT rep-narrowed — delivery is an ORG act, like invoicing. The
+   * ACCESS gate is the document read the caller already did, which IS
+   * rep-narrowed (ADR 0082).
+   */
+  async getDeliveryRecipient(
+    scope: RequestScope,
+    customerId: string,
+  ): Promise<{ id: string; email: string | null; anonymized: boolean } | null> {
+    const row = await this.customers.findByIdIncludingErased(scope, customerId);
+    if (!row) return null;
+    return { id: row.id, email: row.email, anonymized: row.deletedAt !== null };
+  }
+
   @Transactional()
   async create(scope: RequestScope, input: CreateCustomerInput): Promise<Customer> {
     const row = await this.customers.insert(scope, insertData(input));

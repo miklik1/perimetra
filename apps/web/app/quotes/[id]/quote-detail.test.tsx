@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiProvider } from "@repo/api/react";
 import { cs } from "@repo/i18n";
@@ -8,6 +8,13 @@ import { formatDate } from "@repo/utils";
 import { QUOTE_STATUSES, type QuoteDetail } from "@repo/validators";
 
 import { QuoteDetailView } from "./quote-detail";
+
+// The ADR-0129 send affordance inside the buyer-link panel rides `useRole()`,
+// which normally resolves asynchronously off the `/v1/me` probe. Mocking the
+// hook makes the gate synchronous so these renders are deterministic — the
+// `invoice-detail.test.tsx` idiom. Nothing else on this surface reads it.
+let mockRole: string | null = "admin";
+vi.mock("../../../lib/use-role", () => ({ useRole: () => mockRole }));
 
 // A standard-VAT quote whose id matches a seeded MSW quote, so the verify
 // action resolves to reproduced:true.
@@ -260,6 +267,56 @@ describe("QuoteDetailView — buyer link (CAR-16)", () => {
 
     expect(screen.getByText(expectedUrl)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/Platnost nabídky vypršela/);
+  });
+});
+
+describe("QuoteDetailView — delivery (ADR 0129)", () => {
+  afterEach(() => {
+    mockRole = "admin";
+  });
+
+  it("the send action rides the buyer-link panel and leaves the copy affordance intact", async () => {
+    renderView(STANDARD);
+    // One panel about getting this offer to the buyer, not two: the manual copy
+    // affordance and the automated send sit together, under the same heading.
+    const panel = screen.getByText("Kopírovat odkaz").closest("[data-slot='panel']");
+    expect(panel).not.toBeNull();
+    expect(await screen.findByRole("button", { name: "Odeslat e-mailem" })).toBeInTheDocument();
+    expect(panel).toContainElement(screen.getByRole("button", { name: "Odeslat e-mailem" }));
+    // The explainer promises exactly what the mail does — a LINK to this
+    // nabídka, which the ADR-0089 landing genuinely delivers.
+    expect(panel).toHaveTextContent("Odběrateli přijde e-mail s odkazem na tuto nabídku.");
+    // The positive control for the workshop assertion below: the separator IS
+    // drawn when there is something under it, so that test cannot pass merely
+    // because the class was renamed.
+    expect(panel?.querySelector(".border-t")).not.toBeNull();
+  });
+
+  // Every status a quote can hold has a shareable offer behind it, so every one
+  // of them is sendable — the send action inherits the buyer link's rule rather
+  // than inventing a second one client-side. A superseded document is refused by
+  // the SERVER with a typed 409, never pre-empted here.
+  it.each(QUOTE_STATUSES)("%s: carries the send action", async (status) => {
+    renderView({ ...STANDARD, status });
+    expect(await screen.findByRole("button", { name: "Odeslat e-mailem" })).toBeInTheDocument();
+  });
+
+  it("workshop: no send affordance and no promise of one", () => {
+    mockRole = "workshop";
+    renderView(WORKSHOP_BLIND);
+    expect(screen.queryByRole("button", { name: "Odeslat e-mailem" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Odběrateli přijde e-mail/)).not.toBeInTheDocument();
+    // The buyer link itself stays — it is not a commercial-document transmission.
+    expect(screen.getByRole("button", { name: "Kopírovat odkaz" })).toBeInTheDocument();
+    // …and NO chrome is drawn around the absent action: the panel must not emit
+    // its hairline divider (plus ~44px of padding) over nothing. Asserting the
+    // button is gone does not catch this — a wrapper whose only child rendered
+    // `null` is still in the DOM.
+    const panel = screen
+      .getByRole("button", { name: "Kopírovat odkaz" })
+      .closest("[data-slot='panel']");
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector(".border-t")).toBeNull();
   });
 });
 

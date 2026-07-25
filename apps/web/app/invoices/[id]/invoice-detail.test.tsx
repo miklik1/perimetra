@@ -167,6 +167,39 @@ describe("InvoiceDetailView — lineage", () => {
   });
 });
 
+describe("InvoiceDetailView — delivery (ADR 0129)", () => {
+  it("the delivery panel sits between the lineage notice and payment — a document act before a money act", () => {
+    const { container } = renderView(SUPERSEDED);
+    const headings = [...container.querySelectorAll("h2")].map((node) => node.textContent);
+    expect(headings).toEqual([
+      "Nahrazeno novějším dokladem",
+      "Odeslání odběrateli",
+      "Úhrada",
+      "Ověřitelný doklad",
+    ]);
+  });
+
+  it("states to the REP exactly what the mail is and is NOT (the ADR-0126 rule, inverted)", () => {
+    renderView(ISSUED);
+    // The mail is a NOTIFICATION carrying the payment identification. A subject
+    // or body that presented it as the daňový doklad would be the same mislabel
+    // class as a "Daňový doklad" heading on a nabídka — so the rep is told, on
+    // the surface that sends it, that handing over the document is still theirs.
+    const panel = screen.getByText("Odeslání odběrateli").closest("[data-slot='panel']");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveTextContent("E-mail není daňový doklad");
+    expect(panel).toHaveTextContent("samotný doklad odběrateli předáte vy");
+    expect(screen.getByRole("button", { name: "Odeslat e-mailem" })).toBeInTheDocument();
+  });
+
+  it("unresolved role: the explainer stands (it is true either way), the affordance does not", () => {
+    mockRole = null;
+    renderView(ISSUED);
+    expect(screen.getByText("Odeslání odběrateli")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Odeslat e-mailem" })).not.toBeInTheDocument();
+  });
+});
+
 describe("InvoiceDetailView — I3 trust", () => {
   it("verifies reproducibility and reports it with the success TOKEN, not a raw color", async () => {
     renderView(ISSUED);

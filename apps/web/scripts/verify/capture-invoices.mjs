@@ -32,6 +32,7 @@ const BASE = process.env.BASE ?? "http://localhost:3002";
 const EMAIL = process.env.EMAIL;
 const PASSWORD = process.env.PASSWORD ?? "perimetra-dev-2026";
 const INVOICE_ID = process.env.INVOICE_ID;
+const QUOTE_ID = process.env.QUOTE_ID;
 const OUT_DIR = process.env.OUT_DIR ?? "apps/web/.verify/a1-invoices";
 
 if (!EMAIL || !INVOICE_ID) {
@@ -55,6 +56,10 @@ const SURFACES = [
   { key: "list", path: "/invoices", signal: "h1" },
   { key: "detail", path: `/invoices/${INVOICE_ID}`, signal: "h1" },
   { key: "faktura", path: `/invoices/${INVOICE_ID}/faktura`, signal: "table" },
+  // ADR 0129 (Wave A2): the send-to-buyer action lands on BOTH document detail
+  // surfaces, so the quote detail is captured here too rather than in a second
+  // harness — QUOTE_ID is optional so the invoice-only run still works.
+  ...(QUOTE_ID ? [{ key: "quote-detail", path: `/quotes/${QUOTE_ID}`, signal: "h1" }] : []),
 ];
 
 const browser = await chromium.launch({ headless: true });

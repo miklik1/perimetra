@@ -10,6 +10,7 @@ import { Button, DisplayLabel, Field, Icon, Input, KeyValueList, Panel } from "@
 import { formatCalendarDate, formatDate } from "@repo/utils";
 import { type Invoice } from "@repo/validators";
 
+import { SendDocumentAction } from "../../../components/send-document/send-document-action";
 import { errorMessageKey } from "../../../lib/error-messages";
 import { formatMoney } from "../../../lib/format-money";
 import { createInvoicesQueries, invoiceKeys } from "../../../lib/invoices-queries";
@@ -61,6 +62,42 @@ function SupersededPanel({ href }: { href: string }) {
             {t("lineage.viewSuperseding")}
           </Link>
         </div>
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * Delivery (ADR 0129, Wave A2) — mailing the buyer that this invoice exists.
+ *
+ * The panel's body copy is the load-bearing part, and it states to the REP
+ * exactly what the mail is and is not: the buyer receives a NOTIFICATION with
+ * the payment identification inline (number, VS, amount, due date, IBAN) and no
+ * link at all — the daňový doklad itself is still handed over by the rep. That
+ * is the ADR-0126 rule read the other way round for an outward message: a mail
+ * that presented itself as the tax document while carrying a summary would be
+ * the same mislabel class as a "Daňový doklad" heading on a nabídka.
+ *
+ * It sits between the lineage notice and `PaymentPanel` because delivery is a
+ * DOCUMENT act (what happened to the doklad) while payment is ROW state (what
+ * happened to the money).
+ *
+ * The copy renders for every viewer, including one who cannot send: it is a
+ * true statement about the document either way. Only the affordance is gated,
+ * and that gate lives inside `SendDocumentAction` — one role rule, one place.
+ *
+ * PROVISIONAL (CAR-27 pass 2): the accountant pass has not run. Nothing here
+ * claims legal correctness of the mail, of its characterisation, or of sending
+ * a document to a buyer as a processing act.
+ */
+function DeliveryPanel({ invoiceId }: { invoiceId: string }) {
+  const t = useTranslations("deliveries");
+  return (
+    <Panel elevation="flat">
+      <div className="flex min-w-0 flex-col gap-3">
+        <h2 className="font-display text-lg">{t("invoicePanelTitle")}</h2>
+        <p className="text-muted-foreground text-sm">{t("invoiceBody")}</p>
+        <SendDocumentAction documentType="invoice" documentId={invoiceId} />
       </div>
     </Panel>
   );
@@ -300,6 +337,7 @@ export function InvoiceDetailView({ invoice }: { invoice: Invoice }) {
         <SupersededPanel href={`/invoices/${invoice.supersededById}`} />
       )}
 
+      <DeliveryPanel invoiceId={invoice.id} />
       <PaymentPanel invoice={invoice} />
       <TrustPanel invoiceId={invoice.id} />
     </div>

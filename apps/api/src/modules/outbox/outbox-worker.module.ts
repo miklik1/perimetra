@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 
+import { DeliveriesWorkerModule } from "../deliveries/deliveries-worker.module.js";
+import { DeliveriesEventsHandler } from "../deliveries/deliveries.events.js";
 import { InvoicesWorkerModule } from "../invoices/invoices-worker.module.js";
 import { InvoicesEventsHandler } from "../invoices/invoices.events.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -31,6 +33,7 @@ import { OutboxRelayService } from "./outbox-relay.service.js";
     ProjectsWorkerModule,
     OrdersWorkerModule,
     InvoicesWorkerModule,
+    DeliveriesWorkerModule,
     // @gen:worker-modules — `pnpm gen module` injects the domain worker module here.
   ],
   providers: [
@@ -44,6 +47,7 @@ import { OutboxRelayService } from "./outbox-relay.service.js";
         ProjectsEventsHandler,
         OrdersEventsHandler,
         InvoicesEventsHandler,
+        DeliveriesEventsHandler,
         // @gen:domain-event-handlers — `pnpm gen module` injects the handler class here.
       ],
     },

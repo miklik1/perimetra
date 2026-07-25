@@ -267,7 +267,17 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
       response = await dispatch(request);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Network request failed";
-      logger.error("apiFetch network error", { url, cause });
+      // An ABORT is not an error: React Query cancels in-flight queries on
+      // unmount, so every ordinary navigation away from a page with a pending
+      // request would otherwise log `apiFetch network error … AbortError:
+      // signal is aborted without reason`. Proven on the ADR-0129 delivery-state
+      // query during the eyes-on pass — 12 console errors across a normal
+      // navigation sweep. Logging expected cancellation as an error is how a
+      // console gets loud enough that people stop reading it. Still THROWN, so
+      // callers and React Query keep their existing control flow unchanged.
+      if (!(cause instanceof Error && cause.name === "AbortError")) {
+        logger.error("apiFetch network error", { url, cause });
+      }
       throw new ApiError({ kind: "network", status: 0, message });
     }
 

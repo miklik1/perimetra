@@ -20,6 +20,13 @@ import { InvoicesService } from "./invoices.service.js";
  * shared gap-free `"invoice"` allocator). The event handler lives in
  * `InvoicesWorkerModule` — the HTTP deployable never consumes queues (ADR 0031).
  * `AuditService` arrives via the `@Global()` AuditModule.
+ *
+ * `InvoicesService` is EXPORTED (ADR 0129) so `DeliveriesModule` can read an
+ * invoice + its frozen §29 document through the owning service rather than
+ * joining `@repo/db/schema/invoices` from outside this module (ADR 0032). The
+ * export widens nothing: every method still takes `(scope, role, …)` and applies
+ * the org scope + the ADR-0082 owner narrowing itself, and the repository stays
+ * private to this module.
  */
 @Module({
   imports: [
@@ -33,5 +40,6 @@ import { InvoicesService } from "./invoices.service.js";
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService, InvoicesRepository],
+  exports: [InvoicesService],
 })
 export class InvoicesModule {}

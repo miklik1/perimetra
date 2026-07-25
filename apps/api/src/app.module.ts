@@ -19,6 +19,7 @@ import { AuthModule } from "./modules/auth/auth.module.js";
 import { SessionGuard } from "./modules/auth/session.guard.js";
 import { CatalogVersionsModule } from "./modules/catalog-versions/catalog-versions.module.js";
 import { CustomersModule } from "./modules/customers/customers.module.js";
+import { DeliveriesModule } from "./modules/deliveries/deliveries.module.js";
 import { EmailModule } from "./modules/email/email.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { InvoicesModule } from "./modules/invoices/invoices.module.js";
@@ -122,6 +123,7 @@ import { OtelMetricsModule } from "./otel/metrics.module.js";
     InvoicesModule,
     // Nav-count aggregate (1c-3): GET /v1/me/nav-counts for the app-shell pills.
     NavModule,
+    DeliveriesModule,
     // @gen:api-modules — `pnpm gen module` injects the module here.
   ],
   providers: [

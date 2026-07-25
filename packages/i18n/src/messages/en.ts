@@ -910,6 +910,43 @@ const en: MessagesInput = {
       note: "Note",
     },
   },
+  deliveries: {
+    send: "Send by e-mail",
+    sendAgain: "Send again",
+    sending: "Sending…",
+    confirmTitle: "Send the document to the customer?",
+    confirmBody:
+      "The document will go to the customer's e-mail address on record for this deal. A sent e-mail cannot be taken back.",
+    confirmSubmit: "Send",
+    confirmCancel: "Back",
+    queuedToast: "Send queued — the e-mail will go out shortly.",
+    quoteBody:
+      "The customer receives an e-mail linking to this quotation. They can open it, review it and accept or decline it right there.",
+    invoicePanelTitle: "Send to the customer",
+    invoiceBody:
+      "The customer receives a notification that the invoice has been issued, with the payment details (number, variable symbol, amount, due date, IBAN). The e-mail is not the tax document — you still hand them the document itself.",
+    lastSent: "Last sent {date}",
+    neverSent: "Not sent yet.",
+    statusQueued: "Send queued…",
+    statusSending: "Sending…",
+    statusSent: "Sent {date}",
+    statusFailed: "The send did not go through. Please try again.",
+    rejected: {
+      documentSupersededTitle: "The document has been superseded",
+      documentSupersededBody:
+        "A newer version replaced this document — send the customer the newer one.",
+      customerRequiredTitle: "The document has no customer",
+      customerRequiredBody: "Without a customer there is no one to send it to. Attach a customer.",
+      customerAnonymizedTitle: "The customer was anonymized",
+      customerAnonymizedBody:
+        "The customer's data was erased at their request — a new e-mail can no longer be sent to them.",
+      recipientEmailMissingTitle: "The customer has no e-mail address",
+      recipientEmailMissingBody:
+        "No e-mail address is on record for this customer. Add one on the customer record and try again.",
+      sendInProgressTitle: "A send is already in progress",
+      sendInProgressBody: "The previous send hasn't finished. Wait a moment and try again.",
+    },
+  },
   errors: {
     title: "Something went wrong",
     retry: "Try again",
@@ -1214,6 +1251,28 @@ const en: MessagesInput = {
       body: "{inviter} has invited you to join {org} on Perimetra. Click below to accept.",
       button: "Accept invitation",
       ignore: "If you weren't expecting this invitation, you can ignore this email.",
+    },
+    quoteIssued: {
+      subject: "Your quotation {number}",
+      heading: "Quotation {number}",
+      body: "We've prepared quotation {number} for you. Open it with the button below — it lists every item and the total price, and you can accept or decline it right there.",
+      button: "View the quotation",
+      footer:
+        "If you weren't expecting this quotation, please contact your sales representative. Do not reply to this address — the mailbox is not monitored.",
+    },
+    invoiceIssued: {
+      subject: "We've issued invoice {number}",
+      heading: "Invoice {number} has been issued",
+      body: "Hello, we've issued invoice {number}. The details you need in order to pay it are below.",
+      labelNumber: "Document number",
+      labelVariableSymbol: "Variable symbol",
+      labelAmount: "Amount due",
+      labelDueDate: "Due date",
+      labelIban: "IBAN",
+      notice:
+        "This e-mail is a notification that an invoice has been issued. It is not the tax document itself — your sales representative will hand you the document.",
+      footer:
+        "If you weren't expecting this invoice, please contact your sales representative. Do not reply to this address — the mailbox is not monitored.",
     },
   },
 };
