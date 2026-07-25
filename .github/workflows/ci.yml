@@ -47,8 +47,16 @@ concurrency:
 # scopes default to `none`, so a compromised action/step has no write token to
 # abuse. This ALSO forces the gitleaks job off `gitleaks-action@v3` (it calls the
 # PR API and 403s without a `pull-requests` scope) onto the pinned MIT CLI below.
+#
+# `packages: read` is the ONE addition to that floor (ADR 0128). `@cardo/tax-cz`
+# is consumed as the `@miklik1/cardo-tax-cz` GitHub-Packages mirror, so
+# `pnpm install` needs a token for `npm.pkg.github.com`. Without it EVERY job that
+# installs fails at Setup — which is what happened from the moment the dependency
+# landed (ADR 0112 O2-b, 2026-07-16). It is a READ scope on packages owned by the
+# same account; it grants no write anywhere.
 permissions:
   contents: read
+  packages: read
 
 env:
   # Scope the write token to push events only — pull_request runs get an empty
@@ -346,6 +354,62 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # BuildKit secret, never a build ARG: an ARG is recorded in the image
+          # history, so the token would ship inside the image (ADR 0128). The
+          # Dockerfile mounts this at /root/.npmrc for the install layer only.
+          secrets: |
+            npmrc=//npm.pkg.github.com/:_authToken=${{ github.token }}
+
+      # The image is now RUN, not just built (ADR 0128). Building proves the
+      # Dockerfile compiles; it does not prove the artifact starts — and it did
+      # not: the api could not boot because `@cardo/tax-cz/export` loads native
+      # libxmljs2 at module init and `--ignore-scripts` had skipped its build.
+      # `push: false` with no `docker run` is exactly the gap that hid it, so the
+      # job now boots the image against throwaway infra and asserts /health/live.
+      - name: Load the image locally
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          tags: fullstack-skeleton-api:ci
+          load: true
+          cache-from: type=gha
+          secrets: |
+            npmrc=//npm.pkg.github.com/:_authToken=${{ github.token }}
+
+      - name: Boot the image and assert /health/live
+        run: |
+          set -euo pipefail
+          docker network create a3net
+          docker run -d --name pg --network a3net \
+            -e POSTGRES_USER=app -e POSTGRES_PASSWORD=app -e POSTGRES_DB=app postgres:17-alpine
+          docker run -d --name redis --network a3net redis:7-alpine
+          gen() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 44; }
+          for i in $(seq 1 30); do docker exec pg pg_isready -U app >/dev/null 2>&1 && break; sleep 2; done
+          docker run -d --name api --network a3net -p 4000:4000 \
+            -e NODE_ENV=production \
+            -e DATABASE_URL=postgres://app:app@pg:5432/app \
+            -e REDIS_URL=redis://redis:6379 \
+            -e BETTER_AUTH_SECRET="$(gen)" \
+            -e BETTER_AUTH_URL=http://localhost:4000 \
+            -e WEB_URL=http://localhost:3000 \
+            -e CENTRIFUGO_API_KEY="$(gen)" -e CENTRIFUGO_TOKEN_SECRET="$(gen)" \
+            -e S3_ACCESS_KEY="$(gen)" -e S3_SECRET_KEY="$(gen)" \
+            fullstack-skeleton-api:ci
+          # Wait for the container's OWN HEALTHCHECK to go green — that exercises
+          # the probe as shipped, rather than a curl the image does not run.
+          for i in $(seq 1 40); do
+            s=$(docker inspect --format '{{.State.Health.Status}}' api)
+            [ "$s" = "healthy" ] && break
+            [ "$s" = "unhealthy" ] && { docker logs api; exit 1; }
+            sleep 3
+          done
+          [ "$(docker inspect --format '{{.State.Health.Status}}' api)" = "healthy" ] \
+            || { docker logs api; exit 1; }
+          curl -fsS http://localhost:4000/health/live
+          # The kernel's native dependency must actually load in the image.
+          docker exec api node -e "import('@cardo/tax-cz/export').then(m=>{if(typeof m.buildInvoice!=='function')process.exit(1)})"
+          docker rm -f api pg redis
 
   # Vulnerability scan of the BUILT image (ADR 0044): fails on CRITICAL/HIGH
   # findings that have a fix available (`ignore-unfixed` — unfixed alpine/node

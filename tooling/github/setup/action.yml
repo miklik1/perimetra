@@ -14,6 +14,21 @@ runs:
         node-version-file: .nvmrc
         cache: pnpm
 
+    # `@cardo/tax-cz` resolves to the `@miklik1/cardo-tax-cz` GitHub-Packages
+    # mirror (see the repo `.npmrc`, which maps the scope but deliberately holds
+    # no credential). Locally the token lives in the developer's user-level
+    # `~/.npmrc`; on a runner there is none, so `pnpm install` resolves the
+    # package against the public registry and the supply-chain policy rejects the
+    # lockfile with `ERR_PNPM_TARBALL_URL_MISMATCH` — failing Setup, and with it
+    # every job that installs. `github.token` carries the workflow's
+    # `packages: read` scope and the package is owned by the same account.
+    # Appended to `~/.npmrc` (never the repo's, which is committed).
+    - name: Authenticate to GitHub Packages
+      shell: bash
+      env:
+        NODE_AUTH_TOKEN: ${{ github.token }}
+      run: printf '//npm.pkg.github.com/:_authToken=%s\n' "$NODE_AUTH_TOKEN" >> ~/.npmrc
+
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
