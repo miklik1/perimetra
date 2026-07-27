@@ -10,7 +10,7 @@
     "analyze": "next experimental-analyze",
     "analyze:serve": "next experimental-analyze --serve",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit",
+    "check-types": "node scripts/preflight-config.mjs && next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --config playwright.smoke.config.ts",

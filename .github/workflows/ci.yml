@@ -5,9 +5,15 @@ name: CI
 # verified ship-bar for this repo; CI is redundant confidence, and Actions
 # minutes are a finite shared (account-level) budget while we are solo/pre-users.
 # So CI runs:
-#   - on demand (`workflow_dispatch`) — the pre-deploy / checkpoint run, which
-#     also doubles as the gitleaks FULL-history pass (scans every commit from the
-#     root instead of an event range);
+#   - on demand (`workflow_dispatch`) — the pre-deploy / checkpoint run. It used
+#     to ALSO be the only full-history gitleaks pass, back when the job ran
+#     `gitleaks-action` over an incoming commit range. That stopped being true
+#     when ADR 1007 moved the job onto the pinned CLI below: it checks out at
+#     `fetch-depth: 0` and runs `detect --source .`, so EVERY event already scans
+#     the whole history and dispatch buys nothing extra for the secret scan.
+#     (ADR 1028 later added the sha256 DIGEST pin on top; it did not change what
+#     is scanned. This header sentence was stale before that drain, not because
+#     of it.)
 #   - weekly (`schedule`) — a low-cost safety net that catches drift on main
 #     (scheduled runs only fire on the default branch);
 #   - on `pull_request` — a latent pre-merge gate for when PRs are reinstated
@@ -29,6 +35,12 @@ on:
     branches: ["*"]
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  # Manual runs also run everything. NOTE: this is not the "full-history
+  # gitleaks pass" it used to be — since the move to the pinned CLI the job
+  # checks out at `fetch-depth: 0` and runs `detect --source .`, which scans the
+  # ENTIRE history on every event. There is no incoming-range mode to escalate
+  # from (the old gitleaks-action's behaviour), so dispatch buys nothing extra
+  # for the secret scan.
   workflow_dispatch:
 
 concurrency:
@@ -106,6 +118,28 @@ jobs:
       # See scripts/check-control-chars.mjs.
       - name: No raw control bytes
         run: pnpm check:control-chars
+
+      # The gitleaks install step is pinned by version AND sha256 digest (ADR
+      # 1028). That pin lives in a workflow file, which has no unit-test seam, so
+      # without this check nothing reddens when someone bumps the version and
+      # forgets the digest — CI then dies inside the gitleaks job with an opaque
+      # `sha256sum: FAILED`, and the cheapest way to silence THAT is to delete
+      # the verification. Static/offline: it cross-checks ci.yml against the
+      # vetted-digest ledger (scripts/gitleaks-pin.json) and asserts the
+      # download→verify→extract shape. See scripts/check-gitleaks-pin.mjs for
+      # what it does and does not prove.
+      - name: Gitleaks pin (version/digest consistency)
+        run: pnpm check:gitleaks-pin
+
+      # Tests for the repo's own tooling: the Stop-hook gate's invocation path
+      # (ADR 1026) and the gitleaks pin guard's own mutations (ADR 1029).
+      # Neither is a vitest suite (one subject is a bash script run under a
+      # stripped environment, the other is a workflow file no workspace can
+      # see), so `turbo run test` cannot reach them; they are invoked here, in
+      # lefthook pre-push, and by the Stop-hook gate itself. An unwired test
+      # suite is not a gate — it is a command someone has to remember.
+      - name: Repo script tests
+        run: pnpm test:scripts
 
       - name: Lint
         run: pnpm turbo run lint --cache-dir=.turbo
@@ -320,10 +354,21 @@ jobs:
           fetch-depth: 0
 
       - name: Install gitleaks
+        # Pinned VERSION *and* artifact digest: this job is the repo's only
+        # automated secret-scan gate, so a replaced release asset (compromised
+        # maintainer, registry incident) would otherwise pipe an attacker's
+        # binary straight into execution. Verify before extracting — and note the
+        # blast radius grows the day `CI_RUNNER` points at a self-hosted runner
+        # with persistent access (ADR 1007). Bump both values together.
+        # The digest is trust-on-first-use: it freezes the bytes we vetted, it
+        # does not prove the release was honest at publication (ADR 1028).
         run: |
           GITLEAKS_VERSION=8.24.3
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C "$RUNNER_TEMP" gitleaks
+          GITLEAKS_SHA256=9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xz -C "$RUNNER_TEMP" -f "$RUNNER_TEMP/gitleaks.tar.gz" gitleaks
 
       - name: Secret scan (gitleaks, full history)
         run: '"$RUNNER_TEMP/gitleaks" detect --source . --no-banner --redact'

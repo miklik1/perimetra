@@ -1,0 +1,31 @@
+{
+  "$comment": [
+    "Ledger of gitleaks release artifacts whose bytes a human ACTUALLY downloaded and hashed.",
+    "Read scripts/check-gitleaks-pin.mjs first — this file is one half of a two-place tripwire.",
+    "",
+    "It exists so that bumping GITLEAKS_VERSION in .github/workflows/ci.yml without re-vetting the",
+    "artifact reddens a named, actionable check instead of dying inside a CI step with an opaque",
+    "`sha256sum: FAILED`. Duplication is the POINT: the check compares ci.yml against this file, so a",
+    "single-sided edit cannot be silently self-consistent.",
+    "",
+    "NEVER add or edit an entry by copying the value out of ci.yml — that turns the tripwire into a",
+    "rubber stamp. Obtain the digest from the bytes:",
+    "    node scripts/check-gitleaks-pin.mjs --verify-download",
+    "and record what it prints, together with the byte size and the date it was fetched.",
+    "",
+    "What a matching entry proves: the pinned digest is the one someone vetted. What it does NOT",
+    "prove: that upstream was honest at publication. The pin is trust-on-first-use byte-freezing",
+    "(ADR 1028, 'Consequences')."
+  ],
+  "asset": "gitleaks_${version}_linux_x64.tar.gz",
+  "source": "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz",
+  "adr": "docs/adr/1028-gitleaks-pinned-by-sha256-digest.md",
+  "artifacts": {
+    "8.24.3": {
+      "sha256": "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c",
+      "bytes": 5796002,
+      "verifiedOn": "2026-07-20",
+      "note": "Downloaded and hashed independently in this repo (not copied from mercata's constant); byte-identical to the sibling repo's pin."
+    }
+  }
+}

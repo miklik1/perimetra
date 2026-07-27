@@ -133,14 +133,20 @@ export const env = createEnv({
     // The gate is the loopback-ness of the HOST, deliberately NOT `NODE_ENV`
     // (ADR 1021 — the previous rule keyed on `NODE_ENV !== "development"`).
     // That was wrong in BOTH directions:
-    //   - TOO TIGHT, and it broke the gate: `next typegen` and `next build` set
+    //   - TOO TIGHT, and it broke `build`: `next typegen` and `next build` set
     //     `NODE_ENV=production` themselves, so the refinement rejected the
-    //     documented local `API_URL=http://localhost:4000` (.env.example) on
-    //     every non-cached `check-types`/`build`. `web:check-types` therefore
-    //     could not pass bare on ANY box configured the documented way — it only
-    //     ever passed via a turbo CACHE HIT, and the pre-push hook (which does
-    //     not set SKIP_ENV_VALIDATION) inherited that. CI sets the same
-    //     `API_URL: http://localhost:4000` (ci.yml) and rode the same condition.
+    //     documented local `API_URL=http://localhost:4000` (.env.example).
+    //     `next build` fails closed on that (exit 1), so `pnpm build` really was
+    //     broken on a box configured the documented way.
+    //     CORRECTED 2026-07-20 (ADR 1027 disproved the original account, and it
+    //     was re-reproduced before this edit): the claim that `web:check-types`
+    //     "could not pass bare" and "only ever passed via a turbo CACHE HIT" is
+    //     FALSE. `next typegen` reports a config-load failure as an unhandled
+    //     rejection and EXITS 0, so `next typegen && tsc --noEmit` passed cold,
+    //     cache-free, with no SKIP_ENV_VALIDATION. The pre-push hook and CI were
+    //     not riding a cache; they were running a chain whose first command
+    //     could not fail. Fixed by the preflight in ADR 1027 — a chained command
+    //     only gates if its failure mode is an EXIT CODE.
     //   - TOO LOOSE, which is the security half: it allowed http to ANY host
     //     whenever NODE_ENV was development, so a dev box pointed at a shared
     //     staging backend (`http://staging.internal:4000`, `http://192.168.1.5`)

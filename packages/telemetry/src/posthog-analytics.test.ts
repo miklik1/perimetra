@@ -63,3 +63,29 @@ describe("createPosthogAnalytics", () => {
     });
   });
 });
+
+describe("createPosthogAnalytics — ADR 1031: both vocabularies on the EXPLICIT sink", () => {
+  it("reduces a RELATIVE href and drops a bare search term on trackEvent AND screen", () => {
+    // The adapter ran the Sentry walk alone, whose URL key list deliberately
+    // excludes the analytics names — so this exact call shipped the surname
+    // while the AUTOCAPTURED twin of the same value was reduced correctly in the
+    // same session. Assert SAFETY (no marker anywhere), not just the shape.
+    const sent: [string, Record<string, unknown> | undefined][] = [];
+    const analytics = createPosthogAnalytics({
+      capture: (event, properties) => sent.push([event, properties]),
+      identify: () => undefined,
+      reset: () => undefined,
+    });
+    analytics.trackEvent("row_clicked", {
+      href: "/clients?search=Novakova&rc=8001011234",
+      ph_keyword: "Novakova 800101/1234",
+    });
+    analytics.screen("Detail", { href: "/clients?search=Novakova" });
+    expect(JSON.stringify(sent)).not.toContain("Novakova");
+    expect(sent[0]?.[1]?.href).toBe("/clients");
+    expect(sent[0]?.[1]?.ph_keyword).toBe("[Filtered]");
+    expect(sent[1]?.[1]?.href).toBe("/clients");
+    // The screen name still rides along — this is a scrub, not a drop.
+    expect(sent[1]?.[1]?.$screen_name).toBe("Detail");
+  });
+});

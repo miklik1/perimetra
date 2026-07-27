@@ -27,7 +27,7 @@ cancelReason, createdAt, updatedAt }` — its statuses are exactly four
 (`confirmed | in_production | completed | cancelled`, not the canvas's six), there
 is no aggregate endpoint, and the order detail route is not a sales screen at all
 — it is the price-blind workshop production view (`/orders/[id]/production`,
-[ADR 0056](0056-membership-scoped-rbac.md) / [ADR 0108](0108-workshop-traveler.md)).
+[ADR 0056](0056-rbac-roles.md) / [ADR 0108](0108-workshop-traveler-frozen-technical-drawing.md)).
 Where the canvas overdraws what the backend can honestly supply, honesty wins and
 the divergence is recorded here (§11.2).
 
@@ -64,7 +64,7 @@ role-independent, price-blind `GET /v1/orders/:id` read.
    dishonest. A tile that lies is worse than no tile.
 2. **The customer, product, value, and due-date columns are omitted.**
    `orderSchema` carries none of them and there is no cross-module join to
-   reconstruct them (module boundary, [ADR 0032](0032-module-owns-its-schema.md)).
+   reconstruct them (module boundary, [ADR 0032](0032-postgres-drizzle-db-package.md)).
    The honest table is three columns: order number, status, created date.
 3. **The "Export" and "Nová zakázka" actions are omitted.** No bulk-export
    endpoint and no create-order-from-list flow exist (an order is created by

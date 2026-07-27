@@ -71,9 +71,16 @@ export interface FlagsProviderProps {
    * composition root (`@repo/telemetry`'s `sanitizeAnalyticsProperties`; the DAG
    * forbids a `flags → telemetry` import). Wired into posthog's `before_send`,
    * so it covers SDK-autocaptured events — `$pageview`'s `$current_url` query —
-   * that never pass through the telemetry analytics adapter. Absent ⇒ no scrub.
+   * that never pass through the telemetry analytics adapter.
+   *
+   * REQUIRED (ADR 1030 §7). This was optional, and absent meant NO SCRUB — a
+   * fail-open default at the one seam that sees every autocaptured event.
+   * The package DAG still forbids `flags -> telemetry`, so this package
+   * cannot supply a default; that argues for a REQUIRED prop, not for
+   * silence. A derived project that mounts this provider without a scrubber
+   * now fails to COMPILE instead of shipping client-side PII with nothing red.
    */
-  sanitizeProperties?: (properties: Record<string, unknown>) => Record<string, unknown>;
+  sanitizeProperties: (properties: Record<string, unknown>) => Record<string, unknown>;
   children: ReactNode;
 }
 
@@ -108,27 +115,35 @@ export function FlagsProvider({
         // newest date shipped with the pinned posthog-js line.
         defaults: "2026-05-30",
         opt_out_capturing_by_default: true,
+        // SESSION REPLAY IS OFF BY DEFAULT (ADR 1031), and this is a security
+        // default, not a product preference. `before_send` below deliberately
+        // SHORT-CIRCUITS `$snapshot` batches — walking rrweb's serialized DOM
+        // would break replay — which means replay payloads are the one capture
+        // path this scrubber does not clean, and they carry the page URL with its
+        // querystring. Replay is also enableable from the PostHog UI with no code
+        // change and therefore no review, the same hazard class as
+        // `$heatmap_data`. A project that wants replay must turn it on HERE, and
+        // owes rrweb-side masking plus PostHog's own URL masking when it does.
+        disable_session_recording: true,
         // PII scrub over EVERY event's properties — including the SDK's own
         // autocaptured `$pageview` ($current_url query), which the telemetry
         // analytics adapter never sees. `sanitize_properties` is deprecated in
         // favour of `before_send`; scrub `properties`, `$set`, `$set_once`.
-        before_send: sanitizeProperties
-          ? (event) => {
-              if (!event) return event;
-              // Session-replay batches ride the same capture path, but their
-              // `$snapshot_data` is a serialized rrweb DOM — walking it would
-              // rewrite node `href`/`src` attributes (breaking replay: a
-              // `/_next/image?url=…&w=640` becomes a 400), desync
-              // `$snapshot_bytes` from the payload, and deep-copy up to ~1 MB
-              // synchronously per batch. Replay masking is rrweb's own layer
-              // (`maskAllInputs`/privacy classes) — this is the wrong seam.
-              if (event.event === "$snapshot") return event;
-              event.properties = sanitizeProperties(event.properties);
-              if (event.$set) event.$set = sanitizeProperties(event.$set);
-              if (event.$set_once) event.$set_once = sanitizeProperties(event.$set_once);
-              return event;
-            }
-          : undefined,
+        before_send: (event) => {
+          if (!event) return event;
+          // Session-replay batches ride the same capture path, but their
+          // `$snapshot_data` is a serialized rrweb DOM — walking it would
+          // rewrite node `href`/`src` attributes (breaking replay: a
+          // `/_next/image?url=…&w=640` becomes a 400), desync
+          // `$snapshot_bytes` from the payload, and deep-copy up to ~1 MB
+          // synchronously per batch. Replay masking is rrweb's own layer
+          // (`maskAllInputs`/privacy classes) — this is the wrong seam.
+          if (event.event === "$snapshot") return event;
+          event.properties = sanitizeProperties(event.properties);
+          if (event.$set) event.$set = sanitizeProperties(event.$set);
+          if (event.$set_once) event.$set_once = sanitizeProperties(event.$set_once);
+          return event;
+        },
         bootstrap: bootstrap && {
           distinctID: bootstrap.distinctID,
           isIdentifiedID: bootstrap.isIdentifiedID,

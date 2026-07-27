@@ -1,6 +1,6 @@
 # ADR 0128 — Phase A Wave A3 (account-free half): the production image actually builds, boots and stays healthy
 
-**Status:** Accepted (2026-07-25 — Phase A, Wave A3, the half that needs no cloud account). Builds on [ADR 0031](0031-three-deployables-one-build.md) (three deployables from one build), [ADR 0038](0038-migrations-release-phase.md) (migrations as a release phase), [ADR 0112](0112-invoice-frozen-document-class-and-tax-cz-seam.md) (the `@cardo/tax-cz` dependency), [ADR 0113](0113-production-deploy-topology.md) (the deploy topology this unblocks) and [ADR 0044](0044-supply-chain-gates.md) (the image scan). Does not supersede ADR 0113 — it repairs the artifact ADR 0113 plans to deploy.
+**Status:** Accepted (2026-07-25 — Phase A, Wave A3, the half that needs no cloud account). Builds on [ADR 0031](0031-nestjs-modular-monolith-worker-split.md) (three deployables from one build), [ADR 0038](0038-zero-downtime-migrations-pooling.md) (migrations as a release phase), [ADR 0112](0112-invoice-frozen-document-class-and-tax-cz-seam.md) (the `@cardo/tax-cz` dependency), [ADR 0113](0113-production-deploy-topology.md) (the deploy topology this unblocks) and [ADR 0044](0044-security-baseline-supply-chain.md) (the image scan). Does not supersede ADR 0113 — it repairs the artifact ADR 0113 plans to deploy.
 
 ## Context
 

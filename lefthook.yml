@@ -46,6 +46,22 @@ pre-push:
     # build) before they reach CI. See scripts/check-no-orphan-rn.mjs.
     - name: no-orphan-rn
       run: pnpm check:no-orphan-rn
+    # Static, offline, ~50ms: the gitleaks CLI is pinned by version AND sha256
+    # digest (ADR 1028) in a workflow file that no test suite can reach. This
+    # cross-checks ci.yml against the vetted-digest ledger and asserts the
+    # download→verify→extract shape, so a half-bump fails HERE with an
+    # actionable message instead of opaquely inside the CI job.
+    - name: gitleaks-pin
+      run: pnpm check:gitleaks-pin
+    # Tests for the repo's own tooling — the Stop-hook gate's invocation path
+    # (ADR 1026) and the gitleaks pin guard's own mutation tests (ADR 1029).
+    # `turbo run test` only reaches vitest suites inside workspaces, so these
+    # would otherwise run only when a human remembered the command, which is the
+    # same "a gate that can be satisfied without running is not a gate" defect
+    # the suites themselves exist to close. The Stop-hook gate now runs them too,
+    # so a break surfaces at the stop rather than a feedback cycle later here.
+    - name: script-tests
+      run: pnpm test:scripts
     - name: lint
       run: pnpm turbo run lint
     - name: check-types

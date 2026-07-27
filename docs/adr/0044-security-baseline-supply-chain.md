@@ -3,6 +3,28 @@
 **Status:** Accepted (2026-06-11). Implemented (runtime baseline live since
 Phases 2–5; CI gates live in this phase).
 
+**Partially superseded — the secret-scan gate only.** The `gitleaks` bullet
+below (and the `GITLEAKS_LICENSE` note under Consequences) describes the
+arrangement as decided in June 2026: the `gitleaks-action@v3` marketplace
+action, scanning the incoming commit range on PR/push with full history only on
+`workflow_dispatch`. **Both halves of that are false of the repo today** and
+have been since the move to a pinned CLI binary. The gate is now a
+version-and-sha256-digest-pinned `gitleaks` binary that checks out at
+`fetch-depth: 0` and runs `gitleaks detect --source .`, so **every** event —
+PR, push, schedule, dispatch — scans the full history; there is no
+incoming-range mode, and no `gitleaks-action` reference remains in the
+workflow. See [ADR 1028](1028-gitleaks-pinned-by-sha256-digest.md) for the
+digest pin and its threat model, and `SECURITY.md`'s supply-chain table for
+the as-built description.
+
+The text below is deliberately left as written: an ADR records the decision as
+taken at the time, and is superseded rather than rewritten. This pointer exists
+because a superseded record with no forward link is indistinguishable from a
+current one — and this one was being read as current (found 2026-07-20,
+[ADR 1029](1029-the-guards-were-guarding-nothing.md)). Everything else in this
+ADR — the runtime hardening defaults, the audit/trivy gates, the ASVS map —
+stands unchanged.
+
 ## Context
 
 Derived projects inherit whatever security posture the skeleton ships on day

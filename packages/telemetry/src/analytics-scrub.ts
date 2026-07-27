@@ -1,354 +1,355 @@
 /**
- * PostHog analytics property scrubber (ADR 1011, extended by ADRs 1013, 1022 and
- * 1023) — the analytics-sink mirror of the Sentry URL-query scrub in `./scrub`.
+ * PostHog analytics property scrubber — ADR 1030.
  *
  * WHY a second sink. The Sentry scrubber runs on Sentry events; the analytics
  * adapter (`./posthog-analytics`) runs `scrubEvent` on the properties of events
  * the app captures EXPLICITLY (`trackEvent`/`screen`). But PostHog's browser SDK
- * ALSO autocaptures `$pageview` / `$pageleave` / `$autocapture` internally, and
- * attaches the full page + referrer URL — WITH the `?query` — as `$current_url`
- * / `$referrer` (and, as person properties, `$initial_current_url` /
- * `$initial_referrer`). Those events never pass through the adapter, so an
- * arbitrary `?search=<surname>` — PII no value-shape pattern recognises — ships
- * in the clear. This runs at the SDK's own `before_send` hook (wired in
- * `@repo/flags`' `posthog.init`, injected from the app root — the DAG forbids
- * `flags → telemetry`), so it covers autocaptured events too.
+ * ALSO autocaptures `$pageview` / `$pageleave` / `$autocapture` internally and
+ * attaches the full page + referrer URL — WITH the `?query` — under several
+ * names. Those events never pass through the adapter, so an arbitrary
+ * `?search=<surname>` — PII no value-shape pattern recognises — ships in the
+ * clear. This runs at the SDK's own `before_send` hook (wired in `@repo/flags`'
+ * `posthog.init`, injected from the app root — the DAG forbids
+ * `flags → telemetry`).
  *
- * DELIBERATELY NARROW — URL query stripping ONLY, not the full Sentry-style PII
- * walk:
- *   - `identify` ships id + email + username as person properties by design (an
- *     audited payload, see `./posthog-analytics`). A blind key/shape redaction
- *     would `[Filtered]` that intended email.
- *   - PostHog structural props are ids/timestamps (`$device_id`, `$time`, …); a
- *     blind value-shape walk could rewrite an all-digit id via the rodné-číslo
- *     pattern (the same hazard `scrubSpan` avoids by staying targeted).
- * So: URL-bearing keys keep origin+path and drop the query; any OTHER string has
- * only its embedded-URL queries stripped (never its value shapes) — leaving the
- * email/username person payload and every numeric id exactly as PostHog needs.
+ * DELIBERATELY NARROW — URL reduction only, not the full Sentry-style PII walk.
+ * `identify` ships id + email + username as person properties BY DESIGN (an
+ * audited payload, see `./posthog-analytics`), and PostHog's structural props
+ * are ids and timestamps, so a blind value-shape walk would `[Filtered]` an
+ * intended email and rewrite an all-digit id through the rodné-číslo pattern.
+ * So: URL-bearing keys are reduced by the parser or redacted; any OTHER string
+ * has only its embedded-URL queries stripped.
+ *
+ * THIS FILE IS A REPLACEMENT, NOT AN ITERATION. Six adversarial review rounds
+ * ran over the previous design; each declared the code correct, each was
+ * falsified by the next round's execution, and the full cold gate was green
+ * throughout. Every one of those escapes was a value SHAPE outside a model that
+ * enumerated the shapes it knew. So the rule is inverted: an unmodelled shape
+ * REDACTS. See ADR 1030 for the measurements this design is built on and for the
+ * acceptance corpus it must cover by construction; ADR 1031 records the
+ * vocabulary and structure repairs the ADR 1030 adversarial review found.
  */
 
-import { dropUrlQuery, REDACTED, stripEmbeddedUrlQueries } from "./scrub";
+import { REDACTED, safeUrlOrRedact, stripEmbeddedUrlQueries } from "./scrub";
 
-// PostHog property NAMES whose value is a URL (absolute or a relative href):
-// the page + referrer URLs on every autocaptured event, their `$initial_*`
-// person-property forms, an autocaptured external-link click, and element
-// `href` / `attr__href` attributes (autocapture `$elements`). Keep origin+path,
-// drop the query/fragment. `search`/`query`-style keys are intentionally NOT
-// here: PostHog does not attach a raw query bag, and the Sentry key policy owns
-// those names.
-const ANALYTICS_URL_KEY =
-  /^(\$current_url|\$referrer|\$initial_current_url|\$initial_referrer|\$external_click_url|(attr__)?href)$/i;
+// The URL vocabulary, in THREE tiers, because one flat set was wrong in both
+// directions at once (ADR 1031).
+//
+// Tier 1 — UNAMBIGUOUS URL attribute names. A property called `href` or `src`
+// holds a URL wherever it appears, including as an ordinary app event property
+// (`capture("link_click", { href: "/x?q=1" })`), so these are matched globally.
+const URL_ATTRIBUTE_NAMES = new Set([
+  "href",
+  "src",
+  "srcset",
+  "imagesrcset",
+  "ping",
+  "poster",
+  "formaction",
+  "manifest",
+  "longdesc",
+  "lowsrc",
+  "dynsrc",
+  "codebase",
+  "usemap",
+  // posthog-js sets `$pathname` on every pageview — this is a first-class
+  // PostHog property, not only an attribute name, so it is unambiguous.
+  "pathname",
+]);
 
-// `$elements_chain` — the serialized autocapture element tree, attached to EVERY
-// `$autocapture` event (unconditionally, alongside `$elements`; it is the field
-// PostHog's ingestion actually reads). It is one whitespace-free string of the
-// form `a.btn:attr__href="/x?q=1"nth-child="2";div:nth-child="1"`, so it is
-// neither a URL key nor ordinary free text: the generic pass cannot find a
-// relative href (no `://`) and would run its tail past the closing quote of an
-// absolute one, shredding every following attribute and ancestor. Scrub the
-// quoted href values in place instead — surgical, and the chain stays parseable.
+// Tier 2 — names that are URL-bearing ONLY as an HTML attribute. `action`,
+// `data`, `cite`, `background` and `profile` are among the most ordinary
+// property names an app can choose, and matching them globally silently
+// rewrote real analytics data: `{ action: "signup_completed", data: "user
+// pressed save", cite: "Nováková, 2026" }` came back as `/signup_completed`,
+// `[Filtered]` and `[Filtered]`. That is a redaction rule turned into a
+// data-corruption rule — the same failure mode as the `$heatmap_data` merge,
+// arriving through the vocabulary instead of through the accumulator.
 //
-// FINDING THE VALUE'S END is only sometimes possible, so this scrub DETECTS the
-// ambiguous case instead of trying to parse through it. posthog-js escapes a
-// literal `"` as `\"` but never escapes a backslash (`e.replace(/"|\\"/g,
-// '\\"')`), so the encoding is LOSSY: a `\"` is ambiguous between "escaped quote
-// mid-value" and "value ending in a literal backslash, then the real delimiter".
-// Three parsing strategies were tried and all three leaked under an adversarial
-// pass — `[^"]*` strands the rest of an escaped-quote value as raw text;
-// honouring `\"` runs past the real delimiter and swallows the NEXT href's token
-// whole; and anchoring on the chain grammar just moves the tell, since a value
-// can contain a quote followed by grammar-shaped text. Whoever controls an href
-// controls the bytes the heuristic reads, so no local rule is sound.
-//
-// But the ambiguity has a single, reliable tell: it requires a `\"` in the
-// chain. With no `\"` anywhere, every `"` IS a real delimiter — which is the
-// overwhelmingly common case, so ordinary chains keep their element detail. When
-// a `\"` IS present the chain cannot be parsed safely, so it is dropped rather
-// than half-scrubbed. Losing one autocapture chain beats shipping a token.
-//
-// "Every `"` is a real delimiter" does NOT license matching `href="` wherever it
-// appears (ADR 1018, correcting ADR 1013). The earlier rule was a global
-// `/((?:attr__)?href=")([^"]*)(")/gi`, which infers the value's START from the
-// literal bytes `href="` — and those bytes are plantable inside any serialized
-// attribute value that ENDS with `href=`, needing no quote and therefore
-// producing no `\"` to detect. posthog-js folds the clicked element's `text` into
-// the chain and sorts attributes with `localeCompare`, which puts `text` LAST,
-// immediately before the ancestor's `attr__href`; a link label reading "Paste the
-// value after href=" therefore opens a bogus match whose closing group IS the
-// real href's opening quote. `lastIndex` lands past it and the real value is
-// never scrubbed. That is precisely the defect class ADR 1015 generalised and
-// declared closed — the fix had moved the inference from the value's END to its
-// START and left it just as plantable.
-//
-// So the extent is no longer inferred at all. Under the no-`\"` precondition the
-// chain's quotes ALTERNATE exactly: splitting on `"` yields structure at even
-// indices and values at odd ones. An odd segment is an href value iff the
-// structure segment before it ends in an href attribute name — a position no
-// value can occupy, because values are odd segments by construction.
-//
-// Rejoining on `"` is byte-exact, so nothing OUTSIDE an identified href value is
-// altered: structure (even-index) segments are never touched, and an odd segment
-// is rewritten only behind `CHAIN_HREF_NAME_TAIL`. That is the narrow claim the
-// argument needs. It is NOT the stronger claim that a malformed or
-// odd-quote-count chain "round-trips unchanged", which is FALSE: on an odd quote
-// count the trailing segment is unterminated, yet it is still indexed as a value
-// and still passed through `dropUrlQuery`, so `a:attr__href="/p?q=1` returns
-// `a:attr__href="/p`. That behaviour is correct (the no-`\"` precondition
-// guarantees a real delimiter opened it, so it IS a truncated href value —
-// scrubbing it is the intended over-redaction, and the realistic producer is
-// posthog-js truncating a long chain mid-value). A test pins the odd-quote case
-// so the claim stays backed.
-const CHAIN_HAS_AMBIGUOUS_ESCAPE = /\\"/;
-// Whether the chain contains an href AT ALL. An href always serializes as
-// `href="` + value + `"`, and `attr__href="` contains that same byte sequence, so
-// the ABSENCE of these bytes PROVES there is no href value anywhere — the one
-// conclusion that stays sound on a chain too ambiguous to parse. It gates the
-// drop, and what that gate COSTS changed with ADR 1022. Before it, the href cut
-// was this scrub's only mutation, so an href-less chain was provably a no-op and
-// keeping one forwent literally nothing. That is no longer true: a non-href
-// segment can now carry an embedded URL query, so a KEPT ambiguous chain does
-// leave that residue — and unlike the parseable case it is NOT covered by the
-// `$elements` path, which strips the same bytes either way. The trade still
-// favours keeping, for the reason it always did: the residue is bounded to the
-// `stripEmbeddedUrlQueries` class, whereas dropping destroys the ENTIRE element
-// tree on the overwhelming majority of autocapture events — clicks on buttons and
-// divs that carry no href, where one straight quote in captured text or an
-// `aria-label` (`Smazat \"Faktura 42\"` — ordinary in Czech UI copy) is enough to
-// make the chain ambiguous. Spelled out rather than left implicit, because the
-// claim this replaces was true when written and silently became false.
-//
-// The test is a regex, not
-// `String.includes`, so it is case-insensitive — `HREF="` is reachable, but NOT
-// via HTML parsing: the tokenizer's attribute-name state lowercases ASCII
-// upper-alpha unconditionally, and it is not context-sensitive to foreign
-// content. The tree builder's adjust-SVG-attributes step then restores camelCase
-// for a FIXED table only (`viewBox`, `baseFrequency`, `attributeName`, …) — which
-// is itself proof the tokenizer lowercased first, since it must repair `viewbox`
-// back to `viewBox`. Bare `href` has no entry in that table (only `xlink:href`,
-// handled by adjust-foreign-attributes), so `<svg><a HREF="x">` parses to `href`.
-//
-// The genuinely reachable routes are `setAttribute` and XHTML:
-// `document.createElementNS(SVG_NS, "a").setAttribute("HREF", …)` PRESERVES the
-// case, because `setAttribute` lowercases only for HTML-namespace elements in
-// HTML documents; and markup served as `application/xhtml+xml` is XML-parsed,
-// which preserves it too. posthog-js keys the chain off the raw attribute name
-// (`props["attr__" + attr.name]`) with no case normalisation, so `attr__HREF` is
-// producible either way. `/i` only ever widens the redaction gate.
-const CHAIN_HAS_HREF = /href="/i;
-// An href attribute NAME at the very END of a structure segment, i.e. the name
-// whose value the next quote opens. The leading non-name character is what keeps
-// `attr__data-xhref=` from being read as an href; `attr__` is spelled out rather
-// than allowed by that class so the prefix is matched, not merely tolerated.
-//
-// The boundary class excludes only `a-z0-9_-`, so `:` and `.` DO satisfy it and
-// any attribute whose name ends in `:href` or `.href` is read as an href. Both
-// directions are deliberate and both are pinned by tests:
-//   - WANTED: `xlink:href` (React renders `xlinkHref` to exactly that) is a real
-//     link attribute and must be scrubbed.
-//   - ACCEPTED COST: framework binding syntaxes that survive into the live DOM —
-//     Alpine's `x-bind:href` and its `:href` shorthand — are captured by
-//     autocapture with the raw JS EXPRESSION as the value, and `dropUrlQuery`
-//     then cuts at the first `[?#]`, which in an expression is the TERNARY
-//     operator (`isAdmin ? a : b` → `isAdmin `). That is over-redaction of
-//     autocapture detail, never a leak, and this repo does not ship Alpine.
-//     Narrowing the class to exclude `:` would drop `xlink:href` coverage —
-//     trading a real leak for a cosmetic one, the wrong direction for this
-//     module.
-// Not a regression from the ADR 1013 rule: the superseded global
-// `/((?:attr__)?href=")([^"]*)(")/gi` matched `href="` wherever it appeared and
-// so admitted these same names identically.
-const CHAIN_HREF_NAME_TAIL = /(?:^|[^a-z0-9_-])(?:attr__)?href=$/i;
+// They keep full coverage where they ARE attributes: inside `$elements_chain`,
+// inside `$elements`, and under an explicit `attr__` prefix anywhere.
+const ATTRIBUTE_ONLY_URL_NAMES = new Set([
+  "action",
+  "cite",
+  "data",
+  "background",
+  "profile",
+  "archive",
+]);
 
-// The grammar check that makes quote-parity SOUND rather than merely assumed
-// (ADR 1020). The no-`\"` precondition proves nothing on its own: it only rules
-// out quotes the ESCAPER produced, and posthog-js does not escape every field it
-// concatenates. `escapeQuotes` is applied to attribute keys and values
-// (autocapture-utils.js:603) and quotes are stripped from class names (:582), but
-// `element.tag_name` is concatenated RAW (:574-575) from
-// `elem.tagName.toLowerCase()`. Per the HTML tokenizer's tag-name state a `"` is
-// an "anything else" code point and is APPENDED to the tag name, so `<span"x>`
-// parses to localName `span"x` — injecting a bare quote with NO backslash. That
-// shifts the split parity by one: every href value lands at an EVEN index, is
-// read as a structure segment, and is never scrubbed. The chain then passes
-// through BYTE-IDENTICAL — total redaction failure, not partial.
+// Tier 3 — names whose value is a bare SEARCH TERM, not a URL. There is no path
+// to keep, so they are redacted whole, exactly like the Sentry side's
+// query-only keys.
 //
-// An odd-quote-COUNT test does not fix it (verified): two injected tag-name
-// quotes restore an even count while still shifting parity for the first href.
-// So check the grammar the parity argument actually assumes instead. In a
-// well-formed chain every even-index segment except the last is a run of
-// `…name=` text ending at the quote that opens the next value, so it MUST end in
-// `=`. A segment that does not is proof the parity has slipped, and the chain is
-// handed to the same ambiguous-case policy as a `\"` chain: dropped if it carries
-// an href, kept otherwise.
+// `ph_keyword` is not hypothetical and it is not ours: MEASURED in the installed
+// posthog-js, `Us(referrer)` classifies the referring search engine and then
+// does `s.ph_keyword = Is(r.referrer, i)` where `i` is `"q"` (or `"p"` for
+// Yahoo) — i.e. it lifts the user's SEARCH QUERY out of the referrer and ships
+// it as a first-class property. A user who arrived from a Google search for
+// "Nováková 800101/1234" sent that string verbatim. It is one key away from the
+// `$referrer` this file has always scrubbed, and it was missed because the
+// vocabulary asked "is this a URL?" — the answer here is no, which is precisely
+// why it leaked.
+const REDACT_WHOLE_NAMES = new Set(["ph_keyword"]);
+
+// A NAME SHAPE, not a list of names. `$current_url`, `$initial_current_url`,
+// `$external_click_url` and `$session_entry_url` are one rule here rather than
+// four entries, and a name a future posthog-js adds is covered without this file
+// changing. That is the point: round 6 missed two names because the vocabulary
+// was an enumeration, and an enumeration cannot be complete against a producer
+// that mints names at runtime.
 //
-// This preserves every deliberate behaviour above — the planted-`href=` label
-// (its even segments all still end in `=`), the truncated odd-quote chain, the
-// href-less and structure-only chains — while closing the injection. It is the
-// SAME defect class as skeleton ADR 1015 and ADR 1018 above, arriving a third
-// time: an argument about local structure defeated by planting that structure.
-// The lesson is now explicit — a precondition about who ESCAPED a byte is only
-// as strong as the weakest field the producer concatenates unescaped.
-const CHAIN_STRUCTURE_SEGMENT_TAIL = /=$/;
+// THE SEPARATOR CLASS IS `[_\-.]`, NOT `_` ALONE (ADR 1031). HTML attribute
+// names separate words with a HYPHEN, so the `_`-only form covered `data_href`
+// — a name nothing produces — while missing `data-href`, `data-url` and
+// `data-src`, which are what `data-*` attributes actually look like and which
+// posthog-js serialises verbatim into both `$elements` and the chain. The
+// suffix rule existed to stop the vocabulary being an enumeration and was itself
+// enumerating one separator.
+//
+// `src` is in this rule AS WELL AS in tier 1, because the tier-1 set matches a
+// whole name and `data-src` is a compound one. A name is URL-bearing whether it
+// IS `src` or merely ENDS in it.
+const URL_NAME_SUFFIX = /(?:^|[_\-.])(?:url|uri|href|src|referrer|referer)$/i;
+// The camelCase spelling of the same rule, tested BEFORE lower-casing because
+// lower-casing destroys the only boundary there is: `callbackUrl` and `curl`
+// both lower-case to something ending in `url`, and only the capital
+// distinguishes a compound name from a word that merely ends in those letters.
+const URL_NAME_CAMEL_SUFFIX = /[a-z0-9](?:Url|Uri|Href|Src|Referrer|Referer)$/;
+
+// posthog-js 1.379.2 `getSessionProps()` — MEASURED in the installed bundle,
+// `dist/module.js`:
+//
+//   function I(t){return t.replace(/^\$/,"")}
+//   getSessionProps(){var t={};return nr(hr(this.getSetOnceProps()),
+//     ((e,i)=>{"$current_url"===i&&(i="url"),t["$session_entry_"+I(i)]=e})),t}
+//
+// i.e. the family is generated by CONCATENATION from the set-once property set.
+// So its members are not enumerated here — the producer's transform is INVERTED,
+// and each member inherits the policy of the source key it was derived from.
+// `$session_entry_url` and `$session_entry_referrer` get the URL policy;
+// `$session_entry_ph_keyword` inherits the REDACT policy its source has;
+// `$session_entry_utm_source` keeps the free-text policy its source has and is
+// not mangled into `/google`. A member added by a future SDK is covered by
+// construction, which is the whole reason this is a transform and not a list.
+const SESSION_ENTRY_PREFIX = /^\$session_entry_/i;
+
+// CSS has exactly ONE syntax for embedding a URL, and this is it. Naming the
+// PRODUCER rather than the schemes is deliberate: a scheme list here would be
+// the enumerate-the-cases shape this lineage keeps being punished for, and it
+// would have to re-list `data:`/`mailto:`/`tel:` at a second sink.
+const CSS_URL_FUNCTION = /url\(/i;
+
+/**
+ * What policy a key's value gets — the ONE classifier, shared by the scalar
+ * path, the `$elements` object path and the `$elements_chain` value path. The
+ * round-4/round-5 defect was two vocabularies over the same DOM data, and the
+ * round-5 defect was one vocabulary consulted through two independently authored
+ * boundaries; so there is exactly one function and every path calls it.
+ *
+ * `inAttributes` says the key came from an ATTRIBUTE position — inside the
+ * chain, inside `$elements`, or carrying an explicit `attr__` prefix — which is
+ * what unlocks the tier-2 names.
+ */
+function keyPolicy(key: string, inAttributes: boolean): "redact" | "url" | "style" | "text" {
+  if (SESSION_ENTRY_PREFIX.test(key)) {
+    const source = key.replace(SESSION_ENTRY_PREFIX, "");
+    // `url` is the only renamed member — verified in the installed bundle: the
+    // producer's only rename is `"$current_url" === i && (i = "url")`.
+    return keyPolicy(source.toLowerCase() === "url" ? "$current_url" : `$${source}`, inAttributes);
+  }
+  const bare = key.trim().replace(/^\$/, "");
+  // NAMESPACE FIRST, then `attr__`. The other order is wrong, and it was caught
+  // by execution rather than by reading: the chain's structure segment yields
+  // `img:attr__src` (tag and attribute together), and stripping `attr__` from
+  // the FRONT of that does nothing, so the namespace split then leaves
+  // `attr__src` — which matches no entry, and `attr__src` values fell through to
+  // the free-text pass. Splitting the namespace off first reduces
+  // `img:attr__src`, `attr__xlink:href`, `xlink:href` and `attr__href` to the
+  // same local names the scalar path uses.
+  const colon = bare.lastIndexOf(":");
+  const afterNamespace = colon !== -1 ? bare.slice(colon + 1) : bare;
+  const isAttribute = inAttributes || /^attr__/i.test(afterNamespace);
+  const name = afterNamespace.replace(/^attr__/i, "");
+  if (name === "") return "text";
+  const lower = name.toLowerCase();
+  if (REDACT_WHOLE_NAMES.has(lower)) return "redact";
+  if (isAttribute && lower === "style") return "style";
+  if (URL_ATTRIBUTE_NAMES.has(lower)) return "url";
+  if (isAttribute && ATTRIBUTE_ONLY_URL_NAMES.has(lower)) return "url";
+  return URL_NAME_SUFFIX.test(name) || URL_NAME_CAMEL_SUFFIX.test(name) ? "url" : "text";
+}
+
+/** Apply a classified policy to one string value. */
+function scrubString(policy: ReturnType<typeof keyPolicy>, value: string): string {
+  switch (policy) {
+    case "redact":
+      return REDACTED;
+    case "url":
+      return safeUrlOrRedact(value);
+    // An inline `style` is not a URL and must not be handed to the URL
+    // primitive wholesale — but it CAN carry one, and a RELATIVE `url()`
+    // (`background:url(/avatars/novakova?sig=…)`) is invisible to the free-text
+    // pass, which needs a `://` or a dotted `//host`. So: a style declaration
+    // containing CSS's url() syntax is redacted whole (there is no safe
+    // sub-extent to keep without inferring a boundary, and inline styles are
+    // not analytics signal worth that risk); anything else keeps the ordinary
+    // free-text treatment.
+    case "style":
+      return CSS_URL_FUNCTION.test(value) ? REDACTED : stripEmbeddedUrlQueries(value);
+    default:
+      return stripEmbeddedUrlQueries(value);
+  }
+}
+
+// ── $elements_chain ────────────────────────────────────────────────────────
+//
+// The chain is the serialized autocapture element tree, attached to EVERY
+// `$autocapture` event and the field PostHog's ingestion actually reads. It
+// cannot simply be dropped in favour of the structured `$elements` twin:
+// measured in posthog-js 1.379.2, `$elements` is emitted CONDITIONALLY
+// (`or({$event_type:n.type,$ce_version:1}, u?{}:{$elements:p}, {$elements_chain:…})`)
+// while the chain is unconditional, so dropping it would destroy autocapture
+// outright rather than degrade it.
+//
+// It also cannot be trusted to parse. Measured in the same bundle, its producer
+// applies THREE different escaping disciplines in one string: attribute keys and
+// values go through `fs(t){return t.replace(/"|\\"/g,'\\"')}` (escaped), class
+// names have quotes DELETED (`s.replace(/"/g,"")`), and `tag_name` is
+// concatenated RAW (`t.tag_name&&(r+=t.tag_name)`). Six rounds of parse repairs
+// were each defeated by planting the structure the repair read.
+//
+// So the parse stays, but what a parse FAILURE means is inverted: it REDACTS.
+// Previously a failure fell back to "keep the chain unless it contains an href",
+// which is how a chain kept a payload the `$elements` copy lost in the same call.
+const CHAIN_AMBIGUOUS_ESCAPE = /\\"/;
+// A well-formed even (structure) segment is a run of `tag.class:name=` text
+// ending at the quote that opens the next value, so it MUST end in `=`. One that
+// does not is proof the split parity has slipped — the tag-name injection
+// (`<span"x>` parses to localName `span"x`) shifts every value to an even index,
+// where it would be read as structure and never scrubbed.
+const CHAIN_STRUCTURE_TAIL = /=$/;
+// A URL payload inside a STRUCTURE segment. Structure segments are tag names,
+// class names and attribute names; a payload there is anomalous, and the
+// realistic producer is a Tailwind arbitrary value —
+// `bg-[url(https://cdn.app.cz/i?sig=…)]`. It cannot be rewritten in place,
+// because class names are quote-STRIPPED rather than escaped, so there is no
+// delimiter to bound a rewrite against that an author cannot plant. We do not
+// infer one. The chain is redacted whole.
+//
+// THE MARKER SET WAS WRONG IN BOTH DIRECTIONS AT ONCE (ADR 1031), which is why
+// it is not just a byte list any more:
+//
+// - TOO BROAD on `#`. A Tailwind arbitrary COLOUR (`bg-[#0f172a]`) contains a
+//   `#`, so the entire `$elements_chain` was redacted for any click anywhere on
+//   any page using arbitrary hex colours — i.e. on a typical Tailwind app,
+//   autocapture was annihilated wholesale, with no URL and no PII anywhere near
+//   the event. Over-redaction is the safe direction only while it stays a
+//   trade; at that scale it is a functional break.
+// - TOO NARROW on the schemes. `//`, `?` and `#` are the punctuation of a
+//   HIERARCHICAL url. `bg-[url(data:text/csv,Novakova;8001011234)]` and
+//   `bg-[url(mailto:jana@firma.cz)]` contain none of them, so a structure
+//   segment shipped a rodné číslo verbatim — re-opening, inside the structure
+//   half, the exact non-hierarchical-scheme leak §3 closed for values.
+//
+// So the rule now names CSS's URL PRODUCER (`url(`) rather than enumerating the
+// schemes a payload might use, and `#` is redacted UNLESS every occurrence is a
+// CSS hex colour. That exemption is stated rather than hidden, and it cannot
+// help an author hide anything: a `#` followed by anything that is not exactly
+// a 3/4/6/8-digit hex colour still redacts the chain.
+//
+// `@` is deliberately NOT a marker: Tailwind v4 container queries put it in
+// ordinary class names (`@md:flex`, `@container`), and userinfo is unreachable
+// without an authority, which `//` already catches. Both directions are pinned
+// by tests, because this is exactly the kind of narrowing that silently rots.
+const CHAIN_STRUCTURE_PAYLOAD = /\/\/|\?|url\(/i;
+// A CSS hex colour: `#` + exactly 3, 4, 6 or 8 hex digits, not followed by more
+// name characters. Anything else wearing a `#` is not a colour.
+const CSS_HEX_COLOR = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})(?![0-9a-z])/gi;
+
+function structureCarriesPayload(segment: string): boolean {
+  if (CHAIN_STRUCTURE_PAYLOAD.test(segment)) return true;
+  // Every `#` that is a hex colour is removed first; a `#` surviving that is a
+  // fragment marker, and a fragment in a structure segment is a payload.
+  return segment.replace(CSS_HEX_COLOR, "").includes("#");
+}
+// The attribute name whose value the next quote opens. Captured rather than
+// matched against an href-only pattern, so the name goes through the SAME
+// `keyPolicy` the scalar and `$elements` paths use.
+const CHAIN_ATTRIBUTE_NAME_TAIL = /(?:^|[^a-z0-9_:.-])((?:attr__)?[a-z0-9_:.-]+)=$/i;
 
 function scrubElementsChain(chain: string): string {
-  if (CHAIN_HAS_AMBIGUOUS_ESCAPE.test(chain)) return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
+  // A `\"` makes the encoding lossy — it is ambiguous between "escaped quote
+  // mid-value" and "value ending in a backslash, then the real delimiter" — so
+  // the chain cannot be split soundly at all.
+  if (CHAIN_AMBIGUOUS_ESCAPE.test(chain)) return REDACTED;
+
   const parts = chain.split('"');
-  // Parity must be VERIFIED, not assumed — see CHAIN_STRUCTURE_SEGMENT_TAIL.
-  //
-  // EVERY even segment is checked, including the last (ADR 1024). An earlier
-  // revision bounded this loop at `parts.length - 1`, exempting the final even
-  // segment on the reasoning that it is trailing text rather than a name that
-  // opens a value. That exemption is exactly where a shifted split parks the
-  // href value: `x="y:attr__href="https://app.cz/p?token=secret` splits to
-  // ['x=', 'y:attr__href=', 'https://…?token=secret'], the only CHECKED segment
-  // ('x=') ends in `=` and passes, and the URL sits unexamined at the exempt
-  // index 2 — read as structure, never scrubbed, chain returned BYTE-IDENTICAL.
-  // The exemption cost nothing to remove because in a WELL-FORMED chain the
-  // final even segment is always the EMPTY string: a chain ends with a closing
-  // quote, so splitting leaves a trailing "". (When the quote count is odd the
-  // last index is odd — a value — and the last even index is already covered by
-  // the `=` rule, which is what keeps the deliberate truncated-chain behaviour
-  // of ADR 1018 intact.) So the last even segment is required to be empty and
-  // every other one to end in `=`.
+
+  // Verify the split BEFORE trusting it, and examine the structure half rather
+  // than exempting it. Every even segment is checked, including the last: in a
+  // well-formed chain the last even segment is the empty string (the chain ends
+  // with a closing quote), and exempting it is where a shifted parity parks a
+  // whole URL.
   for (let i = 0; i < parts.length; i += 2) {
     const segment = parts[i] as string;
-    const aligned =
-      i === parts.length - 1 ? segment === "" : CHAIN_STRUCTURE_SEGMENT_TAIL.test(segment);
-    if (!aligned) return CHAIN_HAS_HREF.test(chain) ? REDACTED : chain;
+    const aligned = i === parts.length - 1 ? segment === "" : CHAIN_STRUCTURE_TAIL.test(segment);
+    if (!aligned) return REDACTED;
+    if (structureCarriesPayload(segment)) return REDACTED;
   }
+
+  // The split is now verified aligned, so an odd segment is the value's EXACT
+  // extent rather than an extent inferred from surrounding bytes.
   for (let i = 1; i < parts.length; i += 2) {
     const value = parts[i] as string;
-    // An href value is the whole URL, so its query is cut outright. Every OTHER
-    // value segment gets the same generic embedded-URL pass an ordinary string
-    // property would get (ADR 1022), because those segments are not href-shaped
-    // but do carry URLs: posthog-js serializes EVERY attribute of a non-sensitive
-    // element (`attr__src`, `attr__value`, `attr__data-*`) and folds the clicked
-    // element's `text` in as well, so an
-    // `<img src="https://cdn.app.cz/avatar?email=…">` or a label reading
-    // "Copy https://app.cz/p/x?token=…" reached the chain with its query intact.
-    // Without this branch the chain was the ONE property where those bytes
-    // survived: the byte-identical value under `$elements` or `$el_text` is
-    // stripped in the SAME call, which is exactly the kind of silent asymmetry
-    // this module exists to remove.
-    //
-    // The header rejects the generic pass over the WHOLE chain because its tail
-    // would run past a value's closing quote and shred the following attributes.
-    // That hazard does not apply per-segment, and here the distinction rests on
-    // something stronger than the no-`\"` precondition ADR 1020 showed to be
-    // unsound on its own: the parity loop above has already VERIFIED that this
-    // split is aligned, so an odd segment is the value's EXACT extent rather than
-    // merely assumed to be. `stripEmbeddedUrlQueries` then only ever DELETES
-    // characters — it can never introduce a `"` — so the quote count is preserved
-    // and the rejoin stays byte-aligned with the structure segments, which are
-    // not touched at all.
-    //
-    // That is a claim about OUR parse, and it is worth being precise that it is
-    // not a claim about the bytes we EMIT (ADR 1025). Deleting to end-of-segment
-    // can leave a value ending in a backslash that was previously separated from
-    // the delimiter by the query, so the rejoin can produce a `\"` that the input
-    // did not contain: `attr__src="https://a.cz/x\?q=1"` scrubs to
-    // `attr__src="https://a.cz/x\"`. Our own quote COUNT and alignment are
-    // untouched (we already split), and re-running this scrub on its own output
-    // is safe — the `\"` trips the ambiguity gate, and an href-less chain is then
-    // kept. The residue is that PostHog's ingestion parser sees a chain one
-    // escape more ambiguous than the one the SDK emitted, i.e. degraded element
-    // detail on an input that already had to contain a stray backslash before a
-    // query. Recorded rather than fixed: making it exact would mean re-escaping
-    // on the way out, which mutates bytes outside the matched query and is a
-    // strictly larger hazard than the one it removes.
-    //
-    // Known residue, matching the `$elements` object path rather than diverging
-    // from it: a RELATIVE URL in a non-href attribute (`attr__src="/avatar?x=1"`)
-    // keeps its query, because the generic pass needs a `://` or a dotted
-    // `//host`. Closing it would mean `dropUrlQuery` on every value, which
-    // truncates ordinary label text at a legitimate "?" ("Smazat?").
-    parts[i] = CHAIN_HREF_NAME_TAIL.test(parts[i - 1] as string)
-      ? dropUrlQuery(value)
-      : stripEmbeddedUrlQueries(value);
+    const attribute = CHAIN_ATTRIBUTE_NAME_TAIL.exec(parts[i - 1] as string)?.[1];
+    // EVERY name in this position IS an attribute, by the chain's grammar — so
+    // the classifier is called with `inAttributes: true` and the tier-2 names
+    // (`action`, `data`, `cite`, …) keep full coverage here even though they are
+    // not URL-bearing as ordinary top-level property names.
+    parts[i] =
+      attribute !== undefined
+        ? scrubString(keyPolicy(attribute, true), value)
+        : stripEmbeddedUrlQueries(value);
   }
   return parts.join('"');
 }
 
-function scrubEntry(key: string, value: unknown): unknown {
+function scrubEntry(key: string, value: unknown, inAttributes = false): unknown {
   if (typeof value === "string") {
     if (key === "$elements_chain") return scrubElementsChain(value);
-    // A whole-value URL under a URL-named key. NOT gated on url-SHAPE: a key
-    // like `attr__href` means the value IS a URL, including a bare relative one
-    // ("products?q=1", "?page=2") that no shape test recognises. `dropUrlQuery`
-    // is a no-op on a value with no `?`/`#`, so a non-URL sentinel ("$direct")
-    // passes through untouched.
-    if (ANALYTICS_URL_KEY.test(key)) return dropUrlQuery(value);
-    // Any other free-text prop ($el_text, a custom string): cut the query of a
-    // URL sitting inside it, but leave value shapes (emails/tokens) intact so the
-    // deliberate identify person payload is never redacted.
-    return stripEmbeddedUrlQueries(value);
+    // The ONE classifier decides: redact whole (a bare search term), reduce by
+    // the parser (a URL — NOT gated on url-SHAPE, because the KEY is what tells
+    // us the value is a URL, including a bare relative one like `products?q=1`
+    // that no shape test recognises), handle an inline style, or leave the
+    // value shapes intact so the deliberate identify person payload — an
+    // audited email and username — is never redacted.
+    return scrubString(keyPolicy(key, inAttributes), value);
   }
   // An array element inherits its PROPERTY's key, so a URL-named key still
-  // reaches the URL branch. Passing "" here (the previous behaviour) was
-  // invisible for an array of OBJECTS — `$elements`, where the object branch
-  // below restores real keys — but silently disarmed the key-gated branches for
-  // an array of STRINGS: a `href: ["/clients?search=Novakova"]` fell through to
-  // `stripEmbeddedUrlQueries`, which needs a `://` or a dotted `//host`, so a
-  // RELATIVE href kept its query while the byte-identical scalar was stripped.
-  // This is the sink that runs no value-shape pass at all, so nothing else
-  // catches it, and the Sentry walk cannot cover for it either — `URL_KEYS`
-  // deliberately excludes `href`/`$current_url`, which are this module's names.
-  // Carrying the key through an array is what `./scrub`'s `scrubUrlValue` already
-  // does for the Sentry side ("the scalar, an array of URLs, and (defensively) a
-  // nested object").
-  //
-  // Reachability, stated narrowly: `posthog-js` autocapture never emits an array
-  // of strings under a URL-named key (`$current_url`/`$referrer` are scalars,
-  // `$elements` is objects), so this is not a default-path leak — it goes live the
-  // moment app code writes `trackEvent(…, { href: [...] })`. Fixed rather than
-  // deferred because the surprise is total: the identical scalar IS stripped, so
-  // an author has no signal the array form is not.
-  if (Array.isArray(value)) return value.map((item) => scrubEntry(key, item));
+  // reaches the URL branch. Passing "" here silently disarmed the key-gated
+  // branches for an array of STRINGS, so a `href: ["/clients?search=Novakova"]`
+  // kept its query while the byte-identical scalar was stripped.
+  if (Array.isArray(value)) return value.map((item) => scrubEntry(key, item, inAttributes));
   if (value !== null && typeof value === "object") {
-    // `$heatmap_data` is the one PostHog property whose object KEYS are URLs
-    // (ADR 1023): the heatmaps buffer is keyed by `location.href` and flushed as
-    // `capture("$$heatmap", { $heatmap_data: buffer })`, so the raw querystring
-    // IS the key. Every other rule in this module reads a key and rewrites a
-    // value, so a `?search=<surname>` sitting IN a key survived untouched — this
-    // module's own headline leak class shipping in the clear, on an event a
-    // project enables from the PostHog UI with no code change and therefore no
-    // review.
+    // `$heatmap_data` is the one PostHog property whose object KEYS are URLs:
+    // the heatmaps buffer is keyed by `location.href`, so the raw querystring IS
+    // the key. No SDK setting substitutes for this — `maskQueryParams` rewrites
+    // only NAMED campaign params (`gclid`, `fbclid`, …), so `?search=Novakova`
+    // is passed through verbatim even with `mask_personal_data_properties` on.
     //
-    // NO SDK SETTING SUBSTITUTES FOR THIS (ADR 1025, correcting ADR 1023). Both
-    // that ADR and the comment this replaces said the href is masked "only when
-    // `mask_personal_data_properties` is set, which defaults to false" — true
-    // about the default, but it implies the flag would otherwise cover us, and it
-    // does NOT. `heatmaps.js` passes only `PERSONAL_DATA_CAMPAIGN_PARAMS` (+ any
-    // `custom_personal_data_properties`) into `maskQueryParams`, which rewrites
-    // just those NAMED params — `gclid`, `fbclid`, `dclid`, … So even with the
-    // flag ON, `?search=Novakova` is passed through verbatim: the SDK never masks
-    // an arbitrary query key here. The corrected claim is STRONGER than the one
-    // it replaces, and the difference matters because the weaker sentence
-    // licenses a derived repo to flip the SDK flag INSTEAD of draining this fix.
-    //
-    // Buckets are MERGED rather than overwritten. Two distinct querystrings on
-    // one path collapse to the same key here, and `Object.fromEntries` keeps only
-    // the last of a repeated key, so building the map naively would drop
-    // interaction data silently — a redaction rule must not also become a
-    // data-loss rule. Non-array bucket values are not merged (nothing in the SDK
-    // produces them); the later value wins, as it would have anyway.
-    //
-    // The accumulator is a `Map`, not an object literal (ADR 1025). Written the
-    // obvious way this branch would be the only place in the module that builds
-    // its result by ASSIGNMENT rather than by `Object.fromEntries`, and the two
-    // are not equivalent: `merged[k] = v` is a [[Set]], so a key of `__proto__`
-    // hits `Object.prototype`'s setter and sets the RESULT'S PROTOTYPE instead of
-    // defining an own property — the bucket is silently dropped, which is exactly
-    // the data-loss failure the merge exists to prevent, reintroduced through the
-    // back door. `Object.fromEntries` uses CreateDataProperty and never had that
-    // behaviour, so the generic path this branch overrides was already safe;
-    // accumulating in a `Map` and finishing through `Object.fromEntries` keeps
-    // both the merge and that safety, and returns an ordinary object like every
-    // other branch rather than a surprising null-prototype one.
+    // Buckets are MERGED rather than overwritten: two distinct querystrings on
+    // one path collapse to the same key here, and `Object.fromEntries` keeps
+    // only the last of a repeated key, so a naive build would make a redaction
+    // rule a silent DATA-LOSS rule. The accumulator is a `Map`, not an object
+    // literal, because `merged[k] = v` on a key of `__proto__` hits
+    // `Object.prototype`'s setter and sets the RESULT'S PROTOTYPE instead of
+    // defining an own property — dropping the bucket, which is the very failure
+    // the merge exists to prevent.
     if (key === "$heatmap_data") {
       const merged = new Map<string, unknown>();
       for (const [href, bucket] of Object.entries(value)) {
-        const safeHref = dropUrlQuery(href);
+        const safeHref = safeUrlOrRedact(href);
         const scrubbed = scrubEntry(href, bucket);
         const existing = merged.get(safeHref);
         merged.set(
@@ -360,7 +361,15 @@ function scrubEntry(key: string, value: unknown): unknown {
       }
       return Object.fromEntries(merged);
     }
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubEntry(k, v)]));
+    // `$elements` is the STRUCTURED autocapture twin: its entries' keys are
+    // element attributes (`href`, `attr__src`, and the tier-2 names), so the
+    // walk below enters attribute context and the two representations of the
+    // same DOM data get the same vocabulary. That symmetry is the thing rounds
+    // 4 and 5 broke, in both directions.
+    const childInAttributes = inAttributes || key === "$elements";
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, scrubEntry(k, v, childInAttributes)]),
+    );
   }
   // Numbers, booleans, null — ids, timestamps, counts: untouched.
   return value;

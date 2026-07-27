@@ -21,6 +21,8 @@
     "check:control-chars": "node scripts/check-control-chars.mjs",
     "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
     "design-sync:preflight": "node scripts/design-sync-preflight.mjs",
+    "check:gitleaks-pin": "node scripts/check-gitleaks-pin.mjs",
+    "test:scripts": "bash scripts/__tests__/claude-gate.test.sh && bash scripts/__tests__/check-gitleaks-pin.test.sh",
     "prepare": "lefthook install || true"
   },
   "prettier": "@repo/prettier-config",
@@ -41,7 +43,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "3b77c3bf8e5a1aae84bb1678995c00ca5fc3ed40",
+    "baseCommit": "a55e8bc61cd01ac9289b02086f087925d8a56156",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }

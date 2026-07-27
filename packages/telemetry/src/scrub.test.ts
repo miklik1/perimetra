@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  dropUrlQuery,
+  REDACTED,
   redactString,
+  safeUrlOrRedact,
   scrubBreadcrumb,
   scrubDescription,
   scrubEvent,
@@ -177,25 +178,133 @@ describe("scrubBreadcrumb", () => {
 // email/JWT/Bearer/RČ shapes), so an arbitrary `?search=<surname>` param — the
 // PII value with NO recognisable shape — sails through unless we drop the query
 // wholesale. Keep the path (trace stays debuggable); drop the query.
-describe("dropUrlQuery", () => {
+describe("safeUrlOrRedact — ADR 1030 §1: reduced by the parser, or redacted", () => {
   it("keeps origin+path, drops the query string", () => {
-    expect(dropUrlQuery("https://app.example.com/api/users?search=Novak&page=2")).toBe(
+    expect(safeUrlOrRedact("https://app.example.com/api/users?search=Novak&page=2")).toBe(
       "https://app.example.com/api/users",
     );
   });
 
   it("drops the fragment too", () => {
-    expect(dropUrlQuery("https://app.example.com/x#tok=abc")).toBe("https://app.example.com/x");
+    expect(safeUrlOrRedact("https://app.example.com/x#tok=abc")).toBe("https://app.example.com/x");
   });
 
-  it("cuts at the FIRST delimiter (query before fragment or vice versa)", () => {
-    expect(dropUrlQuery("/path#frag?still-gone")).toBe("/path");
-  });
-
-  it("leaves a query-less URL untouched", () => {
-    expect(dropUrlQuery("https://app.example.com/api/users")).toBe(
+  it("leaves a query-less URL untouched in MEANING (re-serialized, not sliced)", () => {
+    expect(safeUrlOrRedact("https://app.example.com/api/users")).toBe(
       "https://app.example.com/api/users",
     );
+  });
+
+  it("keeps a relative path and drops its query", () => {
+    expect(safeUrlOrRedact("/clients?search=Novakova")).toBe("/clients");
+    expect(safeUrlOrRedact("/path#frag?still-gone")).toBe("/path");
+  });
+
+  // ── The round-6 criticals ────────────────────────────────────────────────
+
+  // `reducesToSingleUrl` asked whether a post-comma member was an ABSOLUTE url,
+  // so a protocol-relative member was invisible and this exact value came back
+  // BYTE-IDENTICAL at all four sinks in both skeletons.
+  it("REDACTS a comma-joined value whose later member carries userinfo", () => {
+    expect(safeUrlOrRedact("/a.png,//novakova:8001011234@evil.cz/x")).toBe(REDACTED);
+  });
+
+  it("REDACTS any list-valued attribute value, without classifying its members", () => {
+    expect(safeUrlOrRedact("/a.png 1x, /b.png 2x")).toBe(REDACTED);
+    expect(safeUrlOrRedact("/a /b")).toBe(REDACTED);
+  });
+
+  // ── Userinfo: dropped structurally, not by a rule ────────────────────────
+
+  it("cannot emit userinfo — the output is built from `host`", () => {
+    expect(safeUrlOrRedact("https://novakova:8001011234@evil.cz/x?y=1")).toBe("https://evil.cz/x");
+    expect(safeUrlOrRedact("//novakova:8001011234@evil.cz/x")).toBe("//evil.cz/x");
+  });
+
+  it("keeps an explicit port, which is part of the authority", () => {
+    expect(safeUrlOrRedact("https://api.example.com:8443/x?q=1")).toBe(
+      "https://api.example.com:8443/x",
+    );
+  });
+
+  // ── The scheme allow-list ────────────────────────────────────────────────
+
+  it("REDACTS non-hierarchical schemes, whose payload IS the opaque path", () => {
+    expect(safeUrlOrRedact("mailto:novakova@example.cz?subject=x")).toBe(REDACTED);
+    expect(safeUrlOrRedact("tel:+420800123456")).toBe(REDACTED);
+    expect(safeUrlOrRedact("sms:+420800123456")).toBe(REDACTED);
+    expect(safeUrlOrRedact("geo:50.08,14.44")).toBe(REDACTED);
+    expect(safeUrlOrRedact("javascript:alert(1)")).toBe(REDACTED);
+  });
+
+  // Keying opacity on the absence of `//` is defeated by exactly this value: it
+  // round-trips through that test and still delivers its body.
+  it("REDACTS `data:` in BOTH spellings, including the `//` form", () => {
+    expect(safeUrlOrRedact("data:text/csv;base64,QQ==")).toBe(REDACTED);
+    expect(safeUrlOrRedact("data://text/csv;base64,QQ==")).toBe(REDACTED);
+  });
+
+  it("REDACTS an unknown scheme rather than guessing (allow-list, not deny-list)", () => {
+    expect(safeUrlOrRedact("chrome-extension://abcdef/page?token=x")).toBe(REDACTED);
+    expect(safeUrlOrRedact("app://internal/x")).toBe(REDACTED);
+  });
+
+  it("keeps the native-build schemes that are on the list by provenance", () => {
+    expect(safeUrlOrRedact("capacitor://localhost/clients?search=Novakova")).toBe(
+      "capacitor://localhost/clients",
+    );
+    expect(safeUrlOrRedact("file:///var/app/index.html?token=abc")).toBe(
+      "file:///var/app/index.html",
+    );
+  });
+
+  // ── The two argued exemptions, pinned so they cannot widen ───────────────
+
+  it("passes the `$direct` sentinel EXACTLY, and nothing that merely starts with it", () => {
+    expect(safeUrlOrRedact("$direct")).toBe("$direct");
+    expect(safeUrlOrRedact("$directory")).toBe("/$directory");
+    expect(safeUrlOrRedact("$direct?x=1")).toBe("/$direct");
+  });
+
+  it("reduces `blob:` rather than passing it through — a query still dies", () => {
+    expect(safeUrlOrRedact("blob:https://app.example.com/uuid-1234")).toBe(
+      "blob:https://app.example.com/uuid-1234",
+    );
+    expect(safeUrlOrRedact("blob:https://app.example.com/uuid?search=Novakova")).toBe(
+      "blob:https://app.example.com/uuid",
+    );
+  });
+
+  // ── Deny-by-default residue ──────────────────────────────────────────────
+
+  it("REDACTS a framework binding expression instead of truncating it at a ternary", () => {
+    expect(safeUrlOrRedact("isAdmin ? '/admin' : '/home'")).toBe(REDACTED);
+  });
+
+  it("returns the empty string for an empty value (nothing to leak)", () => {
+    expect(safeUrlOrRedact("")).toBe("");
+    expect(safeUrlOrRedact("   ")).toBe("");
+  });
+
+  it("never returns an input byte it did not examine — no safe answer carries a query marker", () => {
+    const hostile = [
+      "https://a.cz/x?q=1",
+      "//a.cz/x?q=1",
+      "/x?q=1",
+      "?q=1",
+      "#q=1",
+      "https://u:p@a.cz/x#f",
+      "capacitor://localhost/x?q=1",
+      "blob:https://a.cz/u?q=1",
+      "mailto:a@b.cz?subject=x",
+      "/a.png,//u:p@evil.cz/x",
+      "data://text/csv,Novakova",
+    ];
+    for (const value of hostile) {
+      const out = safeUrlOrRedact(value);
+      if (out === REDACTED) continue;
+      expect(out, `safe answer for ${value}`).not.toMatch(/[?#@]/);
+    }
   });
 });
 
@@ -235,7 +344,7 @@ describe("scrubEvent — URL query stripping", () => {
   });
 
   it("still pattern-redacts a token baked into the surviving URL PATH", () => {
-    // dropUrlQuery keeps the path; a JWT in the path is still a value shape we
+    // safeUrlOrRedact keeps the path; a JWT in the path is still a value shape we
     // catch, so the two layers compose.
     const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.dBjftJeZ4CVP";
     expect(scrubBreadcrumb({ data: { url: `https://app/reset/${jwt}?next=/home` } })).toEqual({
@@ -304,10 +413,9 @@ describe("redactString — ws/protocol-relative embedded URLs (ADR 1013 gap fix)
   });
 
   it("consumes the whole non-whitespace query run, so nothing can be stranded", () => {
-    // perimetra rejects upstream's carrier-sparing bound: any rule that infers
-    // the query's end from local context can be defeated by planting that shape
-    // inside the value. These three all leaked under earlier carrier-sparing
-    // designs; the whitespace-bounded tail cannot strand them.
+    // The carrier-sparing bound is rejected: any rule inferring the query's end
+    // from local context can be defeated by planting that shape in the value.
+    // All three of these leaked under earlier carrier-sparing designs.
     for (const q of [
       '?token="abc"&surname=Novakova',
       '?tag="vip",customer=Novakova',
@@ -319,6 +427,13 @@ describe("redactString — ws/protocol-relative embedded URLs (ADR 1013 gap fix)
     }
   });
 
+  it("sacrifices a structured carrier rather than risk stranding PII", () => {
+    // The accepted cost of the whitespace-bounded tail: a URL inside a JSON-ish
+    // carrier takes the rest of the carrier with it. Observability loss by
+    // design — the alternative was a leak.
+    expect(redactString('{"url":"https://a/b?c=1","user":"x"}')).toBe('{"url":"https://a/b');
+  });
+
   it("still matches when a word character is glued to the scheme", () => {
     // A word-boundary anchor is defeated by concatenation (`request` + `http://`),
     // and the protocol-relative pass cannot cover for it on a single-label host
@@ -326,35 +441,14 @@ describe("redactString — ws/protocol-relative embedded URLs (ADR 1013 gap fix)
     expect(redactString("requesthttp://internal-svc/callback?token=SECRET&surname=Novakova")).toBe(
       "requesthttp://internal-svc/callback",
     );
-    expect(redactString("0https://internalhost/p?token=SECRET")).toBe("0https://internalhost/p");
   });
 
   it("KNOWN LIMIT: a raw space inside a query value strands the tail", () => {
-    // The tail is whitespace-bounded, so an unencoded space inside a query value
-    // ends the match early. Documented rather than fixed: consuming past
-    // whitespace would eat the surrounding prose, and the URL's true end is not
-    // knowable in free text. Pre-dates this ADR (perimetra's shipped `\S*` does
-    // the same). A real URL percent-encodes the space; a hand-written or decoded
-    // one in a log line may not. Tracked as owed — see ADR 1013 Consequences.
+    // Documented rather than fixed: consuming past whitespace would eat the
+    // surrounding prose, and a URL's true end in free text is not knowable.
     expect(redactString("Navigated to https://shop.cz/search?q=Jana Novakova")).toBe(
       "Navigated to https://shop.cz/search Novakova",
     );
-  });
-
-  it("sacrifices a structured carrier rather than risk stranding PII", () => {
-    // The accepted cost of the whitespace-bounded tail: a URL inside a JSON-ish
-    // carrier takes the rest of the carrier with it. An observability loss, by
-    // design — the alternative was a leak.
-    expect(redactString('{"url":"https://a/b?c=1","user":"x"}')).toBe('{"url":"https://a/b');
-  });
-
-  it("strips a protocol-relative URL's query, and leaves a non-URL alone", () => {
-    expect(redactString("cdn at //cdn.acme.cz/x?surname=Novakova end")).toBe(
-      "cdn at //cdn.acme.cz/x end",
-    );
-    expect(redactString("//cdn.acme.cz:8443/x?c=1 end")).toBe("//cdn.acme.cz:8443/x end");
-    // The dotted-host guard keeps a bare comment from being truncated at "?".
-    expect(redactString("// is this a comment? yes")).toBe("// is this a comment? yes");
   });
 
   it("stripEmbeddedUrlQueries cuts URL queries WITHOUT redacting value shapes", () => {
@@ -531,7 +625,8 @@ describe("scrubSpan", () => {
 // `BaseServer.handleRequest` root span and by Sentry's
 // `httpServerSpansIntegration`, and Sentry's OTel bridge maps span attributes
 // straight onto `contexts.trace.data` / `spans[].data`, so before this rule the
-// raw querystring rode the entire server tracing path in the clear (ADR 1016).
+// raw querystring rode the entire server tracing path in the clear. Found by
+// adversarial review of a downstream drain, not by the gates.
 describe("scrubEvent / scrubSpan — the http.target path+query attribute", () => {
   it("keeps the path and drops the query on a bare path+query value", () => {
     const result = scrubEvent({
@@ -551,8 +646,8 @@ describe("scrubEvent / scrubSpan — the http.target path+query attribute", () =
   });
 
   it("still redacts a value-shape token left in the surviving path", () => {
-    // Query gone AND the path's JWT still caught by the shape patterns — the URL
-    // rule composes with `redactString`, it does not replace it.
+    // Query gone AND the path's JWT still caught by the shape patterns — the
+    // URL rule composes with `redactString`, it does not replace it.
     const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123";
     expect(scrubSpan({ data: { "http.target": `/reset/${jwt}?x=1` } }).data!["http.target"]).toBe(
       `/reset/${FILTERED}`,
@@ -561,9 +656,9 @@ describe("scrubEvent / scrubSpan — the http.target path+query attribute", () =
 });
 
 // The FRAGMENT twins of the bare-query keys. A bare fragment value has no
-// scheme, so the embedded-URL passes never fire and `dropUrlQuery` is never
+// scheme, so the embedded-URL passes never fire and `safeUrlOrRedact` is never
 // reached — covering `http.query` but not `http.fragment` contradicted the
-// module's own deny-by-default policy (`dropUrlQuery` cuts at `[?#]`).
+// module's own deny-by-default policy (`safeUrlOrRedact` never reads `hash`).
 describe("scrubEvent / scrubSpan — the url.fragment / http.fragment twins", () => {
   it("drops the fragment twins wholesale, like the query keys", () => {
     expect(
@@ -575,10 +670,10 @@ describe("scrubEvent / scrubSpan — the url.fragment / http.fragment twins", ()
   });
 
   it("drops a fragment that arrives with NO query beside it", () => {
-    // Pins the INDEPENDENCE of the two SDK writes: they are separately guarded on
-    // `parsedUrl.search` / `parsedUrl.hash`, so a fragment-only URL emits
-    // `http.fragment` alone. A rule that relied on a covered sibling being present
-    // would leak exactly here.
+    // Pins the INDEPENDENCE of the two SDK writes: they are separately guarded
+    // on `parsedUrl.search` / `parsedUrl.hash`, so a fragment-only URL emits
+    // `http.fragment` alone. A rule that relied on a covered sibling being
+    // present would leak exactly here.
     expect(scrubSpan({ data: { "http.fragment": "email=jan@example.cz" } }).data).toEqual({
       "http.fragment": FILTERED,
     });
@@ -590,7 +685,7 @@ describe("scrubEvent / scrubSpan — the url.fragment / http.fragment twins", ()
 // that same anchoring makes it blind to the PLURAL container `cookies`. The walk
 // descended into the jar and tested each COOKIE NAME against the same anchored
 // list — which no real session-cookie name matches — so the container has to be
-// dropped wholesale instead (ADR 1017).
+// dropped wholesale instead. Found by adversarial review of a downstream drain.
 describe("scrubEvent — request.cookies (the parsed cookie jar)", () => {
   it("drops the whole jar, not per-cookie-name", () => {
     // The exact PoC: `requestDataIntegration` (a DEFAULT integration) parses
@@ -612,11 +707,11 @@ describe("scrubEvent — request.cookies (the parsed cookie jar)", () => {
   });
 
   it("pins WHY the jar must go wholesale: this repo's own cookie survives every other rule", () => {
-    // `__Host-auth_session_token` (packages/auth) matches no anchored key rule,
-    // and its two-segment value matches no value SHAPE (the JWT pattern needs
-    // three). A per-cookie-name rule would have to enumerate a vocabulary it does
-    // not own; this asserts the shortfall so nobody "simplifies" the container
-    // rule back into a name list.
+    // `__Host-auth_session_token` (packages/auth/src/index.ts) matches no anchored
+    // key rule, and its two-segment value matches no value SHAPE (the JWT pattern
+    // needs three). A per-cookie-name rule would have to enumerate a vocabulary it
+    // does not own; this asserts the shortfall so nobody "simplifies" the
+    // container rule back into a name list.
     expect(redactString("hR9m2Kd7.sIgNaTuRe")).toBe("hR9m2Kd7.sIgNaTuRe");
     expect(scrubEvent({ "__Host-auth_session_token": "hR9m2Kd7.sIgNaTuRe" })).toEqual({
       "__Host-auth_session_token": "hR9m2Kd7.sIgNaTuRe",
@@ -689,9 +784,9 @@ describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
     "http.request.header.cookie": "__Host-auth_session_token=hR9m2Kd7.sIgNaTuRe",
     "http.request.header.cookie.__host_auth_session_token": "hR9m2Kd7.sIgNaTuRe",
     // All four (request|response) x (set_)? arms of the cookie-attribute family.
-    // ADR 1017 claims the whole family; pinning only the request-side arms would
-    // let a narrowing of the regex leave the suite green while the ADR kept
-    // promising response coverage.
+    // ADR 1017 claims the whole family; only the two request-side arms were
+    // pinned, so narrowing the regex to `request` alone would have left the
+    // suite green while the ADR kept promising response coverage (ADR 1019).
     "http.request.header.set_cookie": "sid=abc; HttpOnly",
     "http.response.header.cookie": "sid=abc",
     "http.response.header.set_cookie": "sid=abc; HttpOnly",
@@ -736,12 +831,15 @@ describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
   });
 
   it("keeps net.host.* — the server's OWN local address, not the caller's", () => {
-    // `net.host.ip` has exactly two writers in the installed tree and both are
-    // SERVER spans assigning `localAddress` (`@sentry/core` server-subscription.js
-    // and `@sentry/node-core` httpServerSpansIntegration.js, the latter via the
+    // ADR 1019 retired the `net.host.ip` rule. `net.host.ip` has exactly two
+    // writers in the installed tree and both are SERVER spans assigning
+    // `localAddress` (`@sentry/core` server-subscription.js:190 and
+    // `@sentry/node-core` httpServerSpansIntegration.js:216, the latter via the
     // SEMATTRS_NET_HOST_IP constant); the client-span emitter writes only
-    // `net.peer.*`. So the name DOES carry the direction. `net.peer.ip` —
-    // genuinely the caller's IP on a server span — stays redacted above (ADR 1019).
+    // `net.peer.*`. So the name DOES carry the direction, and the retired
+    // direction-ambiguity rationale was false. `net.peer.ip` — genuinely the
+    // caller's IP on a server span — stays redacted above. This is now identical
+    // to `web-native-skeleton`'s registry; the two skeletons agree.
     expect(
       scrubSpan({
         data: {
@@ -760,10 +858,10 @@ describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
   });
 
   it("redacts the credential/PII vocabulary the pii() column mirror does not cover", () => {
-    // ADR 1019. Not every entry here is a `pii()` column, but neither is
-    // `password`, `token` or `rodne_cislo` — this list has always been a column
-    // mirror PLUS a generic vocabulary. `@repo/validators/primitives/cz.ts` MINTS
-    // iban and bankAccount a few lines from the rodné-číslo validator that this
+    // ADR 1019. None of these is a `pii()` column, but neither is `password`,
+    // `token` or `rodne_cislo` — this list has always been a column mirror PLUS a
+    // generic vocabulary. `@repo/validators/primitives/cz.ts` MINTS iban and
+    // bankAccount twenty-five lines from the rodné-číslo validator that this
     // scrubber's own header cites as its reason to exist. No STRING_PATTERN
     // matches any of these values, so the key list is the only defence.
     expect(
@@ -801,8 +899,8 @@ describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
     // `session` is a Better Auth DB table whose `ip_address` / `user_agent` are
     // individually registered pii() columns. Redacting the container would hide
     // them behind one [Filtered] and blind the column mirror that
-    // scrub.pii-contract.test.ts guards. web-native has no packages/db, so no such
-    // container, which is why the bare name is safe there and not here.
+    // scrub.pii-contract.test.ts guards. web-native has no packages/db, so no
+    // such container, which is why the bare name is safe there and not here.
     expect(
       scrubEvent({ session: { ip_address: "1.2.3.4", user_agent: "curl/8", expiresAt: "soon" } }),
     ).toEqual({
@@ -836,5 +934,142 @@ describe("scrubEvent / scrubSpan — SDK attribute forms of PII names", () => {
         rcVersion: "1.2.0",
       },
     });
+  });
+});
+
+// ── ADR 1031 — the Sentry-walk defects the ADR 1030 review confirmed ─────────
+describe("scrubEvent / scrubSpan — ADR 1031 repairs", () => {
+  it("reduces a browser stack frame whose script URL IS the page URL with its query", () => {
+    // The leak: an error thrown from an inline/eval'd script gets frames whose
+    // filename/abs_path is `location.href`. Both fields used to be exempt from
+    // ALL redaction, so the page's search term shipped in every frame — on the
+    // error path, at the default tracesSampleRate: 0.
+    expect(
+      scrubEvent({
+        exception: {
+          values: [
+            {
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "https://app.cz/clients?search=Novakova&rc=8001011234",
+                    abs_path: "https://app.cz/clients?search=Novakova&rc=8001011234",
+                    function: "submit",
+                    lineno: 12,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).toEqual({
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                {
+                  filename: "https://app.cz/clients",
+                  abs_path: "https://app.cz/clients",
+                  function: "submit",
+                  lineno: 12,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it("leaves a SYNTHETIC or relative frame path byte-identical, so source maps still resolve", () => {
+    // This is what the exemption was protecting, and it is why the rule is
+    // narrow rather than "run the primitive on these keys": the primitive would
+    // rewrite `ok.js` to `/ok.js` and REDACT `app:///…` as an unlisted scheme.
+    expect(
+      scrubEvent({
+        filename: "ok.js",
+        abs_path: "app:///_next/static/chunks/4823-9f2.js",
+      }),
+    ).toEqual({
+      filename: "ok.js",
+      abs_path: "app:///_next/static/chunks/4823-9f2.js",
+    });
+    expect(scrubEvent({ filename: "webpack-internal:///./src/app/page.tsx" })).toEqual({
+      filename: "webpack-internal:///./src/app/page.tsx",
+    });
+    // A purely-numeric chunk name must not be rewritten by the rodné-číslo
+    // pattern — the original reason these keys were exempt at all.
+    expect(scrubEvent({ filename: "9007200004.js" })).toEqual({ filename: "9007200004.js" });
+  });
+
+  it("scrubs `links[].attributes` — the SECOND attribute bag on a span", () => {
+    const out = scrubSpan({
+      span_id: "s",
+      trace_id: "t",
+      description: "GET /x",
+      data: { "url.full": "https://app.cz/x?search=Novakova" },
+      links: [
+        {
+          span_id: "l1",
+          attributes: {
+            "url.full": "https://app.cz/x?search=Novakova",
+            "http.target": "/x?search=Novakova",
+            "http.route": "/x",
+          },
+        },
+      ],
+    } as never) as {
+      data: Record<string, unknown>;
+      links: { attributes: Record<string, unknown> }[];
+    };
+    // Assert SAFETY, not agreement: the payload marker must not survive in
+    // EITHER bag. A parity assertion alone would pass if both leaked.
+    expect(JSON.stringify(out)).not.toContain("Novakova");
+    expect(out.data["url.full"]).toBe("https://app.cz/x");
+    expect(out.links[0]?.attributes["url.full"]).toBe("https://app.cz/x");
+    expect(out.links[0]?.attributes["http.target"]).toBe("/x");
+    // The route survives — trace debuggability is the point of keeping paths.
+    expect(out.links[0]?.attributes["http.route"]).toBe("/x");
+  });
+
+  it("passes a span with no links through untouched (no key invented)", () => {
+    expect(scrubSpan({ span_id: "s", description: "GET /x" } as never)).not.toHaveProperty("links");
+  });
+
+  it("routes the native-build schemes through the primitive at EVERY caller, not just URL keys", () => {
+    // The gate that decides whether to CALL the primitive used to know only
+    // http/https, while SAFE_SCHEMES holds seven — so the three schemes added ON
+    // PROVENANCE were invisible to `transaction`, `description` and `to`/`from`.
+    for (const value of [
+      "capacitor://localhost/detail?surname=Novakova",
+      "ionic://localhost/detail?surname=Novakova",
+      "file:///android_asset/www/index.html?surname=Novakova",
+    ]) {
+      expect(scrubTransaction(value)).not.toContain("Novakova");
+      // A bare URL description (how Sentry writes resource/fetch spans).
+      expect(scrubDescription(value)).not.toContain("Novakova");
+      // And with a verb in front, the request-line form.
+      expect(scrubDescription(`GET ${value}`)).not.toContain("Novakova");
+      expect(JSON.stringify(scrubEvent({ transaction: value }))).not.toContain("Novakova");
+      expect(JSON.stringify(scrubEvent({ to: value, from: value }))).not.toContain("Novakova");
+    }
+    // And the reduction is the primitive's, not a truncation.
+    expect(scrubTransaction("capacitor://localhost/detail?surname=Novakova")).toBe(
+      "capacitor://localhost/detail",
+    );
+  });
+
+  it("handles a request line whose verb is outside the classic list", () => {
+    for (const verb of ["TRACE", "QUERY", "CONNECT", "PROPFIND"]) {
+      expect(scrubDescription(`${verb} /clients?search=Novakova`)).toBe(`${verb} /clients`);
+    }
+    // …without turning SQL into a request line: `DELETE FROM` has a second space,
+    // so the anchored no-space-after-URL shape still rejects it.
+    expect(scrubDescription("DELETE FROM users WHERE id = ?")).toBe(
+      "DELETE FROM users WHERE id = ?",
+    );
+    expect(scrubDescription("SELECT * FROM t WHERE a = ?")).toBe("SELECT * FROM t WHERE a = ?");
   });
 });

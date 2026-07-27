@@ -1,12 +1,12 @@
 # ADR 0129 — Phase A Wave A2: document delivery by e-mail, and what an invoice mail may honestly claim
 
-**Status:** Accepted (2026-07-25 — Phase A, Wave A2). Follows [ADR 0127](0127-invoice-surface-a1.md) (the invoice surface) and applies [ADR 0126](0126-phase-a-wave0-legal-tenancy-repairs.md)'s inverted contract-honesty rule to e-mail. Builds on [ADR 0035](0035-infra-modules.md) (the email seam), [ADR 0037](0037-outbox-pattern.md) (outbox), [ADR 0040](0040-privacy-audit.md) (`pii()` + privacy handlers), [ADR 0082](0082-customer-entity-per-rep-ownership.md) (per-rep ownership) and [ADR 0089](0089-public-buyer-nabidka.md) (the public token-credentialed buyer landing).
+**Status:** Accepted (2026-07-25 — Phase A, Wave A2). Follows [ADR 0127](0127-invoice-surface-a1.md) (the invoice surface) and applies [ADR 0126](0126-phase-a-wave0-legal-tenancy-repairs.md)'s inverted contract-honesty rule to e-mail. Builds on [ADR 0035](0035-infra-modules.md) (the email seam), [ADR 0037](0037-transactions-outbox.md) (outbox), [ADR 0040](0040-gdpr-privacy-audit.md) (`pii()` + privacy handlers), [ADR 0082](0082-customer-entity-per-rep-ownership.md) (per-rep ownership) and [ADR 0089](0089-buyer-public-nabidka-view.md) (the public token-credentialed buyer landing).
 
 ## Context
 
 The documents were reachable and unsendable. A rep hand-delivered a link. A2 makes a document reach a buyer's inbox through the existing `EmailService` extension seam.
 
-The quote half is easy: [ADR 0089](0089-public-buyer-nabidka.md)'s public landing `/nabidka/:shareToken` already renders the full priced nabídka and offers accept/decline, so a mail linking it genuinely delivers the document.
+The quote half is easy: [ADR 0089](0089-buyer-public-nabidka-view.md)'s public landing `/nabidka/:shareToken` already renders the full priced nabídka and offers accept/decline, so a mail linking it genuinely delivers the document.
 
 **The invoice half has no carrier.** There is no public invoice route, and [ADR 0087](0087-nabidka-print-surface.md) forbids a PDF dependency. So the invoice mail can only be a link to a new public surface, or a notification. That choice is this ADR.
 

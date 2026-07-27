@@ -4,7 +4,7 @@
 
 ## Context
 
-`/admin` (`apps/web/app/admin/*`) is the **tenant** admin surface. After [ADR 0062](0062-per-tenant-release-visibility.md) retiered authoring to the vendor (`/platform`), what remains here is org-scoped and narrow: the org's **price tables** (publish + version history) and its **upgrade offers** (opt-in version pins, [ADR 0064](0064-release-version-pin-opt-in-upgrade.md)).
+`/admin` (`apps/web/app/admin/*`) is the **tenant** admin surface. After [ADR 0062](0062-per-tenant-release-visibility.md) retiered authoring to the vendor (`/platform`), what remains here is org-scoped and narrow: the org's **price tables** (publish + version history) and its **upgrade offers** (opt-in version pins, [ADR 0064](0064-release-version-pin.md)).
 
 The design canvas (`design/configurator/frames-catalog.jsx`) draws an aspirational, org-editable **model IDE**: a product-**family** list (with `+ Přidat rodinu` and per-family `Aktivní/Skryto`), per-family cenová-pravidla tables (`N pravidel`, `+ Pravidlo`), validation **Limity**, editable **Parametry**, a `V nabídce` visibility toggle, `Publikovat verzi` release publishing, and an `Obnovit` (restore) on every version row. **None of that is backend truth in this org-scoped admin** — families/rules/limits/parameters are vendor-authored release data (not org-editable), there is no visibility column or endpoint, release publishing is vendor-only, and price tables are immutable so there is nothing to "restore".
 
