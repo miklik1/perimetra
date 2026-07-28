@@ -8,6 +8,10 @@ import { useTranslations } from "@repo/i18n/web";
 import { Button } from "@repo/ui";
 
 import { SettingsLayout } from "../../components/settings/settings-layout";
+import { ThemeToggle } from "../../components/settings/theme-toggle";
+
+/** Ties the segmented group to its visible heading (SegmentedNav requires a name). */
+const THEME_HEADING_ID = "account-theme-heading";
 
 /**
  * Client subtree of the protected account page. `<AuthGuard>` resolves the
@@ -35,6 +39,7 @@ export function AccountClient() {
 function AccountContent() {
   const router = useRouter();
   const t = useTranslations("account");
+  const tTheme = useTranslations("theme");
   const { logout } = useAuth();
   const authQueries = useAuthQueries();
   // Consumes the SAME `me()` queryOptions the RSC parent prefetched (with the
@@ -46,8 +51,25 @@ function AccountContent() {
 
   return (
     <SettingsLayout active="account">
-      <div className="flex flex-col items-start gap-4">
+      <div className="flex flex-col items-start gap-6">
         <p className="text-muted-foreground">{t("signedInAs", { email: user?.email ?? "" })}</p>
+
+        {/*
+         * Theme override (ADR 0140). Lives on the profile tab because it is a
+         * per-person display preference, not a security or org setting — and
+         * because `localStorage` makes it per-device, which is what the copy on
+         * this tab implies. Section shape copied from /account/security.
+         */}
+        <section
+          className="flex flex-col gap-3 rounded-md border border-border p-4"
+          aria-labelledby={THEME_HEADING_ID}
+        >
+          <h2 id={THEME_HEADING_ID} className="font-semibold">
+            {tTheme("label")}
+          </h2>
+          <ThemeToggle labelledBy={THEME_HEADING_ID} />
+        </section>
+
         <Button
           onClick={async () => {
             await logout();
