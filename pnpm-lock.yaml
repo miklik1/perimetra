@@ -267,6 +267,9 @@ importers:
       prettier:
         specifier: ^3.8.1
         version: 3.8.3
+      tailwindcss:
+        specifier: catalog:tailwind4
+        version: 4.3.0
       turbo:
         specifier: ^2.9.17
         version: 2.9.17
@@ -550,6 +553,9 @@ importers:
       '@repo/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@repo/tailwind-config':
+        specifier: workspace:*
+        version: link:../../tooling/tailwind-config
       '@repo/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
@@ -710,6 +716,9 @@ importers:
       '@repo/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@repo/tailwind-config':
+        specifier: workspace:*
+        version: link:../../tooling/tailwind-config
       '@repo/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
@@ -771,9 +780,6 @@ importers:
       '@repo/fixtures':
         specifier: workspace:*
         version: link:../../packages/fixtures
-      '@repo/prettier-config':
-        specifier: workspace:*
-        version: link:../../tooling/prettier-config
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../tooling/typescript
@@ -1474,6 +1480,9 @@ importers:
         specifier: ^0.6.14
         version: 0.6.14(@ianvs/prettier-plugin-sort-imports@4.7.1(prettier@3.8.3))(prettier@3.8.3)
     devDependencies:
+      prettier:
+        specifier: ^3.8.1
+        version: 3.8.3
       vitest:
         specifier: ^4.1.0
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@22.19.19)(typescript@6.0.3))(vite@8.0.16(@types/node@22.19.19)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0))

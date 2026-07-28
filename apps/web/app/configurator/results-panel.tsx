@@ -53,14 +53,14 @@ export function ResultsPanel({
           {!priceBlind && (
             <Panel>
               <h2 className="mb-2 font-semibold">{t("totals")}</h2>
-              <dl className="font-data grid grid-cols-2 gap-y-1">
+              <dl className="grid grid-cols-2 gap-y-1 font-data">
                 {categories.map(([key, value]) => (
                   <div key={key} className="contents">
                     <dt className="text-muted-foreground">{t(key)}</dt>
                     <dd className="text-right tabular-nums">{money(value)}</dd>
                   </div>
                 ))}
-                <div className="border-border col-span-2 mt-1 border-t pt-1" />
+                <div className="col-span-2 mt-1 border-t border-border pt-1" />
                 <dt className="font-semibold">{t("totalTotal")}</dt>
                 <dd className="text-right font-semibold tabular-nums">
                   {money(result.money.total)}
@@ -71,9 +71,9 @@ export function ResultsPanel({
 
           <Panel>
             <h2 className="mb-2 font-semibold">{t("bom")}</h2>
-            <table className="font-data w-full text-left">
+            <table className="w-full text-left font-data">
               <thead>
-                <tr className="text-muted-foreground text-xs uppercase">
+                <tr className="text-xs text-muted-foreground uppercase">
                   <th className="py-1 font-medium">{t("bomItem")}</th>
                   <th className="py-1 text-right font-medium">{t("bomQuantity")}</th>
                   {!priceBlind && <th className="py-1 text-right font-medium">{t("bomPrice")}</th>}
@@ -81,7 +81,7 @@ export function ResultsPanel({
               </thead>
               <tbody>
                 {result.parts.map((part) => (
-                  <tr key={part.path} className="border-border border-t">
+                  <tr key={part.path} className="border-t border-border">
                     <td className="py-1">{part.name}</td>
                     <td className="py-1 text-right tabular-nums">
                       {part.quantity} {part.unit}
@@ -109,7 +109,7 @@ function IssueLine({ issue }: { issue: Issue }) {
     <li className="flex items-baseline gap-2">
       <span
         className={cn(
-          "font-data rounded px-1.5 text-[10px] font-semibold uppercase",
+          "rounded px-1.5 font-data text-[10px] font-semibold uppercase",
           issue.severity === "error"
             ? "bg-destructive/15 text-destructive"
             : "bg-muted text-muted-foreground",

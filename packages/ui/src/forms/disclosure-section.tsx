@@ -28,10 +28,10 @@ export function DisclosureSection({
   return (
     <Collapsible.Root
       defaultOpen={defaultOpen}
-      className={cn("border-border rounded-md border", className)}
+      className={cn("rounded-md border border-border", className)}
       data-slot="disclosure"
     >
-      <Collapsible.Trigger className="hover:bg-accent group flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm font-medium">
+      <Collapsible.Trigger className="group flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-accent">
         <span className="flex items-center gap-2">
           <span
             aria-hidden
@@ -43,7 +43,7 @@ export function DisclosureSection({
         </span>
         {badge}
       </Collapsible.Trigger>
-      <Collapsible.Content className="border-border border-t px-3 py-3">
+      <Collapsible.Content className="border-t border-border px-3 py-3">
         {children}
       </Collapsible.Content>
     </Collapsible.Root>

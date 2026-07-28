@@ -51,7 +51,7 @@ const EM_DASH = "—";
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-8 min-w-0">
-      <h2 className="font-display mb-3 text-lg">{title}</h2>
+      <h2 className="mb-3 font-display text-lg">{title}</h2>
       {children}
     </section>
   );
@@ -64,7 +64,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function PartyBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">
+      <h2 className="mb-2 font-display text-xs tracking-wide text-muted-foreground uppercase">
         {title}
       </h2>
       <div className="flex flex-col gap-0.5">{children}</div>
@@ -100,7 +100,7 @@ function PartyLine({ label, value }: { label: string; value: string | null }) {
 function SheetTable({ children }: { children: ReactNode }) {
   return (
     <div className="relative min-w-0 overflow-x-auto print:overflow-visible">
-      <table className="font-data w-full min-w-max text-sm tabular-nums print:min-w-0">
+      <table className="w-full min-w-max font-data text-sm tabular-nums print:min-w-0">
         {children}
       </table>
     </div>
@@ -151,13 +151,13 @@ export function FakturaDocumentView({
   const amount = (value: string) => `${value}\u00A0${doc.currency}`;
 
   return (
-    <main className="bg-field min-h-screen">
+    <main className="min-h-screen bg-field">
       <PrintSheetStyle margin="18mm 16mm" extra="  .faktura-sheet tr { break-inside: avoid; }" />
 
       {/* Toolbar — screen only */}
       <div className="no-print mx-auto flex w-full max-w-[210mm] items-center justify-between gap-4 px-6 pt-6">
         {backHref ? (
-          <Link href={backHref} className="text-muted-foreground text-sm hover:underline">
+          <Link href={backHref} className="text-sm text-muted-foreground hover:underline">
             ← {t("title")}
           </Link>
         ) : (
@@ -172,12 +172,12 @@ export function FakturaDocumentView({
       {/* `min-w-0` is on the sheet AND on `SheetTable`'s wrapper: the banked
           ADR-0121 lesson is that it must run down the WHOLE chain, not just the
           innermost box, or a wide table still pushes the body. */}
-      <article className="faktura-sheet bg-background text-foreground mx-auto my-6 w-full min-w-0 max-w-[210mm] p-6 shadow-sm sm:p-10 print:my-0 print:p-0 print:shadow-none">
+      <article className="faktura-sheet mx-auto my-6 w-full max-w-[210mm] min-w-0 bg-background p-6 text-foreground shadow-sm sm:p-10 print:my-0 print:p-0 print:shadow-none">
         {/* The document type name has exactly ONE source: the kernel's own
             `DOCUMENT_TYPE_LABELS`, on the wire. Never an i18n key here. */}
-        <header className="border-border mb-8 flex items-start justify-between border-b pb-6">
+        <header className="mb-8 flex items-start justify-between border-b border-border pb-6">
           <h1 className="font-display text-3xl">{doc.documentTypeLabel}</h1>
-          <p className="font-data text-muted-foreground text-sm">{doc.documentNumber}</p>
+          <p className="font-data text-sm text-muted-foreground">{doc.documentNumber}</p>
         </header>
 
         {/* Parties — the frozen supplier/buyer identity. `supplierEmail` has NO
@@ -228,7 +228,7 @@ export function FakturaDocumentView({
         <Section title={t("print.items")}>
           <SheetTable>
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th scope="col" className={TH_LEFT}>
                   {t("print.colIndex")}
                 </th>
@@ -260,7 +260,7 @@ export function FakturaDocumentView({
             </thead>
             <tbody>
               {doc.lines.map((line) => (
-                <tr key={line.index} className="border-border/50 border-b">
+                <tr key={line.index} className="border-b border-border/50">
                   <td className={TD_LEFT}>{line.index}</td>
                   {/* The only prose cell — it MAY wrap, and takes the slack so the
                       numeric columns keep their own width on a narrow sheet. */}
@@ -288,7 +288,7 @@ export function FakturaDocumentView({
         <Section title={t("print.vatRecap")}>
           <SheetTable>
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th scope="col" className={`${TH_LEFT} w-full`}>
                   {t("print.colRate")}
                 </th>
@@ -305,7 +305,7 @@ export function FakturaDocumentView({
             </thead>
             <tbody>
               {doc.vatRows.map((row, index) => (
-                <tr key={index} className="border-border/50 border-b">
+                <tr key={index} className="border-b border-border/50">
                   <td className={TD_LEFT}>{row.rateLabel}</td>
                   <td className={TD}>{amount(row.baseAmount)}</td>
                   <td className={TD}>{amount(row.vatAmount)}</td>
@@ -321,27 +321,27 @@ export function FakturaDocumentView({
           {/* Sized to its content and right-aligned rather than a fixed `w-1/2`:
               a nowrap amount wider than half the sheet would otherwise push the
               body out at phone widths, the same defect as the item table. */}
-          <table className="font-data ml-auto mt-4 w-fit max-w-full text-sm tabular-nums">
+          <table className="mt-4 ml-auto w-fit max-w-full font-data text-sm tabular-nums">
             <tbody>
               <tr>
                 <td className="py-0.5 pr-6">{t("print.subtotalBase")}</td>
-                <td className="whitespace-nowrap py-0.5 text-right">{amount(doc.subtotalBase)}</td>
+                <td className="py-0.5 text-right whitespace-nowrap">{amount(doc.subtotalBase)}</td>
               </tr>
               <tr>
                 <td className="py-0.5 pr-6">{t("print.vatTotal")}</td>
-                <td className="whitespace-nowrap py-0.5 text-right">{amount(doc.vatTotal)}</td>
+                <td className="py-0.5 text-right whitespace-nowrap">{amount(doc.vatTotal)}</td>
               </tr>
               {doc.roundingAmount !== null && (
                 <tr>
                   <td className="py-0.5 pr-6">{t("print.rounding")}</td>
-                  <td className="whitespace-nowrap py-0.5 text-right">
+                  <td className="py-0.5 text-right whitespace-nowrap">
                     {amount(doc.roundingAmount)}
                   </td>
                 </tr>
               )}
-              <tr className="border-border border-t">
-                <td className="pr-6 pt-2 font-medium">{t("print.total")}</td>
-                <td className="text-copper whitespace-nowrap pt-2 text-right text-base font-semibold">
+              <tr className="border-t border-border">
+                <td className="pt-2 pr-6 font-medium">{t("print.total")}</td>
+                <td className="pt-2 text-right text-base font-semibold whitespace-nowrap text-copper">
                   {amount(doc.totalAmount)}
                 </td>
               </tr>
@@ -379,7 +379,7 @@ export function FakturaDocumentView({
             the payload. Never composed, never translated, never conditioned on
             anything but this field. */}
         {doc.reverseChargeLegend !== null && (
-          <p className="bg-field text-foreground mt-3 rounded-md p-3 text-sm">
+          <p className="mt-3 rounded-md bg-field p-3 text-sm text-foreground">
             {doc.reverseChargeLegend}
           </p>
         )}
@@ -392,14 +392,14 @@ export function FakturaDocumentView({
 
         {doc.note !== null && (
           <section className="mt-6">
-            <h2 className="font-display text-muted-foreground mb-1 text-xs uppercase tracking-wide">
+            <h2 className="mb-1 font-display text-xs tracking-wide text-muted-foreground uppercase">
               {t("print.note")}
             </h2>
             <p className="text-sm">{doc.note}</p>
           </section>
         )}
 
-        <footer className="border-border text-muted-foreground mt-10 border-t pt-4 text-xs">
+        <footer className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
           {t("print.issuedBy", { system: doc.issuingSystem })}
         </footer>
       </article>

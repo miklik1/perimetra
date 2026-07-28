@@ -21,7 +21,7 @@ export default function Users() {
   const { data, error, status, fetchStatus } = useQuery(usersQueries.list());
 
   return (
-    <SafeArea className="bg-background flex-1">
+    <SafeArea className="flex-1 bg-background">
       <ScrollView contentContainerClassName="gap-4 p-6">
         <Text variant="heading">Users</Text>
         <Text variant="caption">

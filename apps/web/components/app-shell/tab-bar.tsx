@@ -32,7 +32,7 @@ export function TabBar({
       data-testid="app-tab-bar"
       aria-label={t("main")}
       className={cn(
-        "border-border bg-chrome shrink-0 items-stretch justify-around gap-1 border-t px-2 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5",
+        "shrink-0 items-stretch justify-around gap-1 border-t border-border bg-chrome px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
         className,
       )}
     >
@@ -45,7 +45,7 @@ export function TabBar({
             to={entry.to}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-control focus-visible:ring-ring flex min-h-[44px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[0.6875rem] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
+              "flex min-h-[44px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-control py-1 text-[0.6875rem] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               active ? "text-primary" : "text-muted-foreground",
             )}
           >

@@ -25,6 +25,7 @@
     "@repo/i18n": "workspace:*",
     "@repo/navigation": "workspace:*",
     "@repo/store": "workspace:*",
+    "@repo/tailwind-config": "workspace:*",
     "@repo/telemetry": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/utils": "workspace:*",

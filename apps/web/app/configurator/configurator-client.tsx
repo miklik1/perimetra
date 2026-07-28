@@ -95,7 +95,7 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
         <DisplayLabel as="h1" className="text-4xl sm:text-5xl">
           {t("title")}
         </DisplayLabel>
-        <Panel className="text-muted-foreground p-8 text-center">{message}</Panel>
+        <Panel className="p-8 text-center text-muted-foreground">{message}</Panel>
       </main>
     </Field>
   );
@@ -105,7 +105,7 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
       redirect={() => router.push("/login")}
       fallback={
         <Field>
-          <main className="text-muted-foreground flex min-h-screen items-center justify-center">
+          <main className="flex min-h-screen items-center justify-center text-muted-foreground">
             {t("checkingSession")}
           </main>
         </Field>
@@ -131,7 +131,7 @@ export function ConfiguratorClient({ bundle }: { bundle: CatalogBundle | null })
 
 /** The warm-grey full-bleed field the whole configurator floats on (ADR 0072). */
 function Field({ children }: { children: React.ReactNode }) {
-  return <div className="bg-field min-h-screen">{children}</div>;
+  return <div className="min-h-screen bg-field">{children}</div>;
 }
 
 function ConfiguratorInner({
@@ -279,7 +279,7 @@ function ConfiguratorInner({
         <h2 className="font-display text-ui-2xl font-semibold tracking-tight">
           {stepLabel(step, t)}
         </h2>
-        <span className="text-muted-foreground text-ui-xs whitespace-nowrap">
+        <span className="text-ui-xs whitespace-nowrap text-muted-foreground">
           {t("stepCounter", { current: String(activeIndex + 1), total: String(flow.length) })}
         </span>
       </div>
@@ -338,7 +338,7 @@ function ConfiguratorInner({
     // it. When unauthenticated the shell renders children bare and the AuthGuard
     // fallback's own `min-h-screen` takes over; both are full-height, so nothing
     // jumps on auth-resolve. The old hand-coupled `calc(100dvh-3.5rem)` is gone.
-    <div className="bg-field flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-field">
       {/* Immersive mode (ADR 0116) hides the banded chrome and promotes the scene
           `<main>` to full-bleed. The `<main>` is rendered in BOTH branches (only
           its className changes), so the WebGL canvas never remounts on toggle;
@@ -360,7 +360,7 @@ function ConfiguratorInner({
           <div className="hidden md:block xl:hidden">
             <StepChips items={railItems} activeKey={activeKey} onSelect={goTo} />
           </div>
-          <div className="bg-chrome border-border flex-none border-b px-4 py-2.5 md:hidden">
+          <div className="flex-none border-b border-border bg-chrome px-4 py-2.5 md:hidden">
             <StepProgress
               aria-label={t("configuration")}
               total={flow.length}
@@ -394,9 +394,9 @@ function ConfiguratorInner({
           <section
             aria-label={stepLabel(step, t)}
             className={
-              "bg-chrome border-border flex min-h-0 flex-none flex-col gap-4 overflow-y-auto " +
+              "flex min-h-0 flex-none flex-col gap-4 overflow-y-auto border-border bg-chrome " +
               "max-h-[55dvh] rounded-t-2xl border-t p-4" +
-              "md:max-h-none md:w-[372px] md:rounded-none md:border-r md:border-t-0 md:p-5" +
+              "md:max-h-none md:w-[372px] md:rounded-none md:border-t-0 md:border-r md:p-5" +
               "xl:w-[400px]"
             }
           >
@@ -674,7 +674,7 @@ function ParamGroups({
     .filter((g) => g.visible.length > 0);
 
   if (visibleGroups.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("stepNoParams")}</p>;
+    return <p className="text-sm text-muted-foreground">{t("stepNoParams")}</p>;
   }
 
   return (
@@ -685,7 +685,7 @@ function ParamGroups({
         // step — publish validation does not forbid it, so keep the index.
         <fieldset key={`${group.id}-${i}`} className="flex flex-col gap-3">
           {group.label !== undefined && (
-            <legend className="text-muted-foreground mb-2 text-xs font-semibold uppercase">
+            <legend className="mb-2 text-xs font-semibold text-muted-foreground uppercase">
               {group.label}
             </legend>
           )}
@@ -730,8 +730,8 @@ function ProductPicker({
               onClick={() => onSelect(i)}
               className={
                 active
-                  ? "border-copper bg-chrome shadow-soft rounded-xl border px-4 py-3 text-left"
-                  : "border-border bg-chrome-subtle hover:border-copper/60 rounded-xl border px-4 py-3 text-left"
+                  ? "rounded-xl border border-copper bg-chrome px-4 py-3 text-left shadow-soft"
+                  : "rounded-xl border border-border bg-chrome-subtle px-4 py-3 text-left hover:border-copper/60"
               }
             >
               <span className="font-medium">{p.release.modelId}</span>

@@ -66,10 +66,10 @@ export function ArrayField<
   return (
     <div className={cn("flex flex-col gap-2", className)} data-slot="array-field">
       {fields.length === 0 && emptyLabel ? (
-        <p className="text-muted-foreground text-sm">{emptyLabel}</p>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       ) : null}
       {fields.map((field, index) => (
-        <div key={field.id} className="border-border flex items-start gap-2 rounded-md border p-2">
+        <div key={field.id} className="flex items-start gap-2 rounded-md border border-border p-2">
           <div className="min-w-0 flex-1">
             {children({
               index,

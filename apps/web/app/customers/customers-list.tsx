@@ -50,7 +50,7 @@ export function CustomersList() {
       </label>
 
       {error && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {tErrors(errorMessageKey(error))}
         </p>
       )}
@@ -76,25 +76,25 @@ export function CustomersList() {
               <tr>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.name")}
                 </th>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.ico")}
                 </th>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.city")}
                 </th>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.status")}
                 </th>
@@ -102,11 +102,11 @@ export function CustomersList() {
             </thead>
             <tbody>
               {customers.map((customer) => (
-                <tr key={customer.id} className="border-border hover:bg-chrome relative border-t">
+                <tr key={customer.id} className="relative border-t border-border hover:bg-chrome">
                   <td className="py-3">
                     <Link
                       href={`/customers/${customer.id}`}
-                      className={`font-data focus-visible:ring-ring rounded font-medium outline-none after:absolute after:inset-0 focus-visible:ring-2 ${
+                      className={`rounded font-data font-medium outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-ring ${
                         customer.status === "archived" ? "text-muted-foreground" : ""
                       }`}
                     >

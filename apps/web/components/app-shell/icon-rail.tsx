@@ -34,14 +34,14 @@ export function IconRail({
       data-testid="app-icon-rail"
       aria-label={t("main")}
       className={cn(
-        "border-border bg-chrome w-[68px] shrink-0 flex-col items-center border-r",
+        "w-[68px] shrink-0 flex-col items-center border-r border-border bg-chrome",
         className,
       )}
     >
       <Link
         to={{ route: "home" }}
         aria-label="Perimetra"
-        className="font-display rounded-control focus-visible:ring-ring mx-auto flex h-14 w-11 shrink-0 items-center justify-center text-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        className="mx-auto flex h-14 w-11 shrink-0 items-center justify-center rounded-control font-display text-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         P
       </Link>
@@ -58,7 +58,7 @@ export function IconRail({
         ))}
       </ul>
       {footer.length > 0 && (
-        <ul className="border-border flex shrink-0 flex-col items-center gap-1 border-t py-2">
+        <ul className="flex shrink-0 flex-col items-center gap-1 border-t border-border py-2">
           {footer.map((entry) => (
             <li key={entry.key}>
               <IconRailLink entry={entry} pathname={pathname} label={t(entry.key)} />
@@ -96,10 +96,10 @@ function IconRailLink({
           aria-label={accessibleName}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "rounded-control focus-visible:ring-ring relative flex h-11 w-11 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
+            "relative flex h-11 w-11 items-center justify-center rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
             active
               ? "bg-nav-active text-nav-active-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-chrome-subtle",
+              : "text-muted-foreground hover:bg-chrome-subtle hover:text-foreground",
           )}
         >
           <Icon name={entry.icon} size={20} />

@@ -50,7 +50,7 @@ export function InstancePanel({
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="border-border flex items-center justify-between gap-2 rounded-md border p-3 text-sm">
+      <div className="flex items-center justify-between gap-2 rounded-md border border-border p-3 text-sm">
         <span className="font-semibold">
           {release.modelId} · {instance.instanceId}
         </span>
@@ -65,7 +65,7 @@ export function InstancePanel({
       </div>
 
       {release.terrain !== undefined && (
-        <div className="border-border flex items-center gap-2 rounded-md border p-3 text-sm">
+        <div className="flex items-center gap-2 rounded-md border border-border p-3 text-sm">
           <label htmlFor={segmentSelectId} className="text-muted-foreground">
             {t("standsOn")}
           </label>
@@ -73,7 +73,7 @@ export function InstancePanel({
             id={segmentSelectId}
             value={instance.placement.terrainSegmentId ?? ""}
             onChange={(e) => onAssignSegment(e.target.value === "" ? undefined : e.target.value)}
-            className="border-border bg-background rounded-md border px-2 py-1"
+            className="rounded-md border border-border bg-background px-2 py-1"
           >
             <option value="">{t("segmentNone")}</option>
             {site.terrain.map((segment) => (
@@ -86,7 +86,7 @@ export function InstancePanel({
       )}
 
       {instance.result?.issues !== undefined && instance.result.issues.length > 0 && (
-        <div className="border-border flex flex-col gap-1 rounded-md border p-3 text-sm">
+        <div className="flex flex-col gap-1 rounded-md border border-border p-3 text-sm">
           <h3 className="font-semibold">{t("issues")}</h3>
           <IssueList issues={instance.result.issues} />
         </div>

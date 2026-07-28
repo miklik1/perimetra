@@ -19,7 +19,7 @@ export default function Home() {
   const showDemo = useFlag("example-flag");
 
   return (
-    <SafeArea className="bg-background flex-1">
+    <SafeArea className="flex-1 bg-background">
       <ScrollView contentContainerClassName="items-center justify-center gap-4 p-6">
         <Text variant="heading">Mobile</Text>
         <Text variant="caption">Color scheme: {scheme}</Text>

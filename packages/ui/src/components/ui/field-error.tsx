@@ -27,7 +27,7 @@ export function FieldError({ error, children, id, className }: FieldErrorProps) 
   const content = children ?? error?.message;
   if (!content) return null;
   return (
-    <p id={id} role="alert" className={cn("text-destructive text-xs", className)}>
+    <p id={id} role="alert" className={cn("text-xs text-destructive", className)}>
       {content}
     </p>
   );

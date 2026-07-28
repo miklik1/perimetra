@@ -131,7 +131,7 @@ function GeometryRow({ form, validation, partPath, partIndex, index }: GeoRowPro
       </div>
 
       <fieldset className="grid grid-cols-3 gap-2">
-        <legend className="text-muted-foreground mb-1 text-xs">{t("geometryAt")}</legend>
+        <legend className="mb-1 text-xs text-muted-foreground">{t("geometryAt")}</legend>
         {AXES.map((axis) =>
           exprCell(AT_FIELDS[axis], whereGeometryAt(partPath, key, axis), AXIS_LABELS[axis]),
         )}
@@ -416,7 +416,7 @@ export function PartsWorkbench({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{t("partsHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("partsHint")}</p>
       {catalog === null ? (
         <p className="text-xs text-amber-600 dark:text-amber-500">{t("partsNoCatalog")}</p>
       ) : null}

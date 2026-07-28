@@ -48,7 +48,7 @@ export function CatalogForm() {
     <form
       method="post"
       onSubmit={handleSubmit}
-      className="border-border flex flex-col gap-3 rounded-md border p-4"
+      className="flex flex-col gap-3 rounded-md border border-border p-4"
     >
       <label className="flex flex-col gap-1 text-sm font-medium">
         {t("catalogJson")}
@@ -62,7 +62,7 @@ export function CatalogForm() {
       </label>
 
       {parseError && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {parseError}
         </p>
       )}
@@ -90,7 +90,7 @@ function CatalogErrorDetail({ error }: { error: unknown }) {
     const issues = body?.issues;
     if (Array.isArray(defects) && defects.length > 0) {
       return (
-        <div className="text-destructive flex flex-col gap-2 text-sm" role="alert">
+        <div className="flex flex-col gap-2 text-sm text-destructive" role="alert">
           <p className="font-semibold">{t("validationFailed")}</p>
           <ul className="flex flex-col gap-1 pl-4">
             {(defects as Array<{ code?: string; where?: string; message?: string }>).map((d, i) => (
@@ -107,7 +107,7 @@ function CatalogErrorDetail({ error }: { error: unknown }) {
     }
     if (Array.isArray(issues) && issues.length > 0) {
       return (
-        <div className="text-destructive flex flex-col gap-2 text-sm" role="alert">
+        <div className="flex flex-col gap-2 text-sm text-destructive" role="alert">
           <p className="font-semibold">{t("validationFailed")}</p>
           <ul className="flex flex-col gap-1 pl-4">
             {(issues as Array<Record<string, unknown>>).map((issue, i) => (
@@ -121,7 +121,7 @@ function CatalogErrorDetail({ error }: { error: unknown }) {
     }
   }
   return (
-    <p className="text-destructive text-sm" role="alert">
+    <p className="text-sm text-destructive" role="alert">
       {error instanceof Error ? error.message : t("publishError")}
     </p>
   );

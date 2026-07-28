@@ -157,7 +157,7 @@ function Section({
     <section className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h2 className="font-display text-title">{title}</h2>
-        {hint ? <p className="text-muted-foreground max-w-2xl text-sm">{hint}</p> : null}
+        {hint ? <p className="max-w-2xl text-sm text-muted-foreground">{hint}</p> : null}
       </div>
       {children}
     </section>
@@ -177,12 +177,12 @@ function Swatch({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className={cn("rounded-card shadow-soft-sm flex h-20 items-end p-2", className)}>
+      <div className={cn("flex h-20 items-end rounded-card p-2 shadow-soft-sm", className)}>
         {foreground ? <span className={cn("font-data text-xs", foreground)}>Aa</span> : null}
       </div>
       <div className="flex flex-col">
         <span className="font-data text-xs font-semibold">{label}</span>
-        <span className="text-muted-foreground text-xs">{usage}</span>
+        <span className="text-xs text-muted-foreground">{usage}</span>
       </div>
     </div>
   );
@@ -241,12 +241,12 @@ function SpacingScaleRung({
   useCompositionGuard(SpacingScaleContext, "SpacingScale.Rung");
   return (
     <div data-slot="spacing-scale-rung" className="flex items-center gap-4">
-      <span className="font-data w-24 shrink-0 text-xs font-semibold">{token}</span>
+      <span className="w-24 shrink-0 font-data text-xs font-semibold">{token}</span>
       <div className="flex w-24 shrink-0 items-center">
-        <div className={cn("bg-copper h-3 rounded-full", bar)} />
+        <div className={cn("h-3 rounded-full bg-copper", bar)} />
       </div>
-      <span className="font-data text-muted-foreground w-12 shrink-0 text-xs">{px}px</span>
-      {note ? <span className="text-muted-foreground text-xs">{note}</span> : null}
+      <span className="w-12 shrink-0 font-data text-xs text-muted-foreground">{px}px</span>
+      {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
     </div>
   );
 }
@@ -288,8 +288,8 @@ function TypeRampSpecimen({
       data-slot="type-ramp-specimen"
       className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-6"
     >
-      <span className="font-data text-muted-foreground w-32 shrink-0 text-xs">
-        <span className="text-foreground font-semibold">{token}</span> · {size}
+      <span className="w-32 shrink-0 font-data text-xs text-muted-foreground">
+        <span className="font-semibold text-foreground">{token}</span> · {size}
       </span>
       <p className={cn("min-w-0", token)}>{children}</p>
     </div>
@@ -336,7 +336,7 @@ function StateLadderStep({ state, className }: { state: string; className: strin
   return (
     <div
       data-slot="state-ladder-step"
-      className={cn("rounded-inset flex h-14 flex-1 items-end p-2", className)}
+      className={cn("flex h-14 flex-1 items-end rounded-inset p-2", className)}
     >
       <span className="font-data text-ui-2xs">{state}</span>
     </div>
@@ -540,7 +540,7 @@ function BadgeTreatments({ theme }: { theme: "light" | "dark" }) {
             <div key={treatment.id} className="flex flex-col gap-3">
               <div className="flex flex-col gap-0.5">
                 <p className="font-display text-sm">{treatment.title}</p>
-                <p className="text-muted-foreground text-[11px]">{treatment.note}</p>
+                <p className="text-[11px] text-muted-foreground">{treatment.note}</p>
               </div>
               <div className="flex flex-col items-start gap-2.5">
                 {REAL_PILLS.map((pill) => {
@@ -564,13 +564,13 @@ function BadgeTreatments({ theme }: { theme: "light" | "dark" }) {
             </div>
           ))}
         </div>
-        <div className="border-border text-muted-foreground flex flex-col gap-1 border-t pt-4 text-[11px]">
+        <div className="flex flex-col gap-1 border-t border-border pt-4 text-[11px] text-muted-foreground">
           <p>
-            <span className="text-foreground font-semibold">Kde to žije:</span>{" "}
+            <span className="font-semibold text-foreground">Kde to žije:</span>{" "}
             {REAL_PILLS.map((p) => `${p.label} → ${p.where}`).join(" · ")}
           </p>
           <p>
-            <span className="text-foreground font-semibold">Co měření ukázalo:</span> ve SVĚTLÉM
+            <span className="font-semibold text-foreground">Co měření ukázalo:</span> ve SVĚTLÉM
             motivu neprojde práh ani sloupec C (success 3,23 · info 3,49), ani sloupec D (copper
             3,68 · neutral 4,39) — tedy ani slovník, na který se má sjednocovat. Jediný sloupec,
             který projde ve všech tónech a obou motivech, je B.
@@ -594,17 +594,17 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
 
   return (
     <div
-      className={cn(theme === "dark" && "dark", "bg-field text-foreground min-h-screen")}
+      className={cn(theme === "dark" && "dark", "min-h-screen bg-field text-foreground")}
       data-slot="brand-lab"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-16 px-8 py-16">
         {/* Masthead */}
         <header className="flex flex-col gap-3">
-          <span className="font-data text-muted-foreground text-xs font-semibold uppercase tracking-widest">
+          <span className="font-data text-xs font-semibold tracking-widest text-muted-foreground uppercase">
             Perimetra · ADR 0111
           </span>
           <DisplayLabel as="h1">Design system</DisplayLabel>
-          <p className="text-muted-foreground max-w-2xl text-base">
+          <p className="max-w-2xl text-base text-muted-foreground">
             The Bombardier-derived editorial foundation — warm-grey field, flat-matte chrome, one
             copper accent, soft geometry. Tokens and primitives, rendered in the {theme} variant.
           </p>
@@ -619,17 +619,17 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
             <Swatch
               label="field"
               usage="page canvas"
-              className="bg-field ring-border/60 ring-1 ring-inset"
+              className="bg-field ring-1 ring-border/60 ring-inset"
             />
             <Swatch
               label="chrome"
               usage="card surface"
-              className="bg-chrome ring-border/60 ring-1 ring-inset"
+              className="bg-chrome ring-1 ring-border/60 ring-inset"
             />
             <Swatch
               label="chrome-subtle"
               usage="recessed"
-              className="bg-chrome-subtle ring-border/60 ring-1 ring-inset"
+              className="bg-chrome-subtle ring-1 ring-border/60 ring-inset"
             />
             <Swatch
               label="primary"
@@ -704,9 +704,9 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
               ))}
             </StateLadder>
             <div className="flex flex-col gap-3">
-              <p className="text-muted-foreground max-w-3xl text-sm">
-                <span className="font-data text-foreground font-semibold">primary</span> and{" "}
-                <span className="font-data text-foreground font-semibold">nav-active</span> are
+              <p className="max-w-3xl text-sm text-muted-foreground">
+                <span className="font-data font-semibold text-foreground">primary</span> and{" "}
+                <span className="font-data font-semibold text-foreground">nav-active</span> are
                 ALREADY <code className="font-data">--color-foreground</code> (the same ink in
                 light, the same near-white in dark), so mixing them toward it was an exact no-op and
                 their states had no feedback at all. They mix toward{" "}
@@ -718,16 +718,16 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
             <Separator />
             <div className="flex flex-col gap-3">
               <span className="font-data text-xs font-semibold">opacity-disabled · 0.45</span>
-              <p className="text-muted-foreground max-w-3xl text-sm">
+              <p className="max-w-3xl text-sm text-muted-foreground">
                 Disabled is opacity-shaped, not hue-shaped: the same control turned down, which is
                 honest against every base tone in both themes where a per-token muted hue would need
                 sixteen hand-tuned values.
               </p>
               <div className="flex flex-wrap items-center gap-4">
-                <div className="bg-primary text-primary-foreground rounded-inset flex h-14 w-28 items-end p-2">
+                <div className="flex h-14 w-28 items-end rounded-inset bg-primary p-2 text-primary-foreground">
                   <span className="font-data text-ui-2xs">enabled</span>
                 </div>
-                <div className="bg-primary text-primary-foreground rounded-inset opacity-disabled flex h-14 w-28 items-end p-2">
+                <div className="flex h-14 w-28 items-end rounded-inset bg-primary p-2 text-primary-foreground opacity-disabled">
                   <span className="font-data text-ui-2xs">disabled</span>
                 </div>
                 <Separator orientation="vertical" className="h-10" />
@@ -757,7 +757,7 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
                 ["rounded-full", "pill"],
               ].map(([cls, label]) => (
                 <div key={cls} className="flex flex-col items-center gap-2">
-                  <div className={cn("bg-chrome ring-border/60 size-16 ring-1 ring-inset", cls)} />
+                  <div className={cn("size-16 bg-chrome ring-1 ring-border/60 ring-inset", cls)} />
                   <span className="font-data text-xs">{label}</span>
                 </div>
               ))}
@@ -775,7 +775,7 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
                 ["shadow-float", "float · dialog"],
               ].map(([cls, label]) => (
                 <div key={cls} className="flex flex-col items-center gap-2">
-                  <div className={cn("bg-chrome rounded-card size-16", cls)} />
+                  <div className={cn("size-16 rounded-card bg-chrome", cls)} />
                   <span className="font-data text-xs">{label}</span>
                 </div>
               ))}
@@ -891,15 +891,15 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
           <div className="grid gap-5 sm:grid-cols-3">
             <Panel>
               <p className="font-display text-title">Flat</p>
-              <p className="text-muted-foreground text-sm">Default card elevation.</p>
+              <p className="text-sm text-muted-foreground">Default card elevation.</p>
             </Panel>
             <Panel elevation="raised">
               <p className="font-display text-title">Raised</p>
-              <p className="text-muted-foreground text-sm">Lifted, hovering.</p>
+              <p className="text-sm text-muted-foreground">Lifted, hovering.</p>
             </Panel>
             <Panel elevation="flush">
               <p className="font-display text-title">Flush</p>
-              <p className="text-muted-foreground text-sm">Recessed, subtle fill.</p>
+              <p className="text-sm text-muted-foreground">Recessed, subtle fill.</p>
             </Panel>
           </div>
         </Section>
@@ -1079,13 +1079,13 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
                 <TabsTrigger value="price">Cena</TabsTrigger>
                 <TabsTrigger value="drawing">Výkres</TabsTrigger>
               </TabsList>
-              <TabsContent value="bom" className="text-muted-foreground text-sm">
+              <TabsContent value="bom" className="text-sm text-muted-foreground">
                 Rozpad materiálu — profily, kování, výplně.
               </TabsContent>
-              <TabsContent value="price" className="text-muted-foreground text-sm">
+              <TabsContent value="price" className="text-sm text-muted-foreground">
                 Cenový rozpad podle ceníku a marže.
               </TabsContent>
-              <TabsContent value="drawing" className="text-muted-foreground text-sm">
+              <TabsContent value="drawing" className="text-sm text-muted-foreground">
                 Technický výkres pro dílnu.
               </TabsContent>
             </Tabs>
@@ -1167,7 +1167,7 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
               </SheetTrigger>
               <SheetContent side="right">
                 <p className="font-display text-title">Detail instance</p>
-                <p className="text-muted-foreground mt-2 text-sm">Boční panel (Sheet).</p>
+                <p className="mt-2 text-sm text-muted-foreground">Boční panel (Sheet).</p>
               </SheetContent>
             </Sheet>
             <TooltipProvider>
@@ -1184,7 +1184,7 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
               </PopoverTrigger>
               <PopoverContent>
                 <p className="font-display text-title">Odchylka</p>
-                <p className="text-muted-foreground mt-1 text-sm">RAL 7016 mimo standard.</p>
+                <p className="mt-1 text-sm text-muted-foreground">RAL 7016 mimo standard.</p>
               </PopoverContent>
             </Popover>
           </Panel>
@@ -1203,7 +1203,7 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
             </div>
             <div className="flex items-center gap-4">
               <Spinner />
-              <span className="text-muted-foreground text-sm">Načítání…</span>
+              <span className="text-sm text-muted-foreground">Načítání…</span>
               <Separator orientation="vertical" className="h-6" />
               <Pager
                 onPrev={() => setPage((p) => Math.max(1, p - 1))}

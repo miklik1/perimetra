@@ -25,7 +25,7 @@ export function AdvancedWorkbench({ form }: { form: ReleaseEditorForm }) {
   const t = useTranslations("releaseEditor");
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground text-sm">{t("advancedHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("advancedHint")}</p>
       {ISLANDS.map((island) => (
         <FieldShell key={island.name} label={t(island.labelKey)}>
           {({ fieldId }) => (

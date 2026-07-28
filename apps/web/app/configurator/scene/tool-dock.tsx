@@ -38,7 +38,7 @@ export function ToolDock({ canExplode }: { canExplode: boolean }): React.JSX.Ele
       role="toolbar"
       aria-orientation="vertical"
       aria-label={t("toolsLabel")}
-      className="bg-chrome shadow-float rounded-control absolute left-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5 p-1.5"
+      className="absolute top-1/2 left-4 flex -translate-y-1/2 flex-col gap-1.5 rounded-control bg-chrome p-1.5 shadow-float"
     >
       <DockTool
         icon="center"

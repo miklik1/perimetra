@@ -118,7 +118,7 @@ export function LoginForm() {
         </Button>
 
         {mutation.isError && (
-          <p className="text-destructive text-xs" role="alert">
+          <p className="text-xs text-destructive" role="alert">
             {tErrors(authErrorMessageKey(mutation.error))}
           </p>
         )}

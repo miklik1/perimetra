@@ -33,10 +33,10 @@ export function NavRowLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-control focus-visible:ring-ring flex items-center gap-3 px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
+        "flex items-center gap-3 rounded-control px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         active
           ? "bg-nav-active text-nav-active-foreground"
-          : "text-muted-foreground hover:text-foreground hover:bg-chrome-subtle",
+          : "text-muted-foreground hover:bg-chrome-subtle hover:text-foreground",
       )}
     >
       <Icon name={entry.icon} size={18} />

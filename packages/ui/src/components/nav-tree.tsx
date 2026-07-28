@@ -28,7 +28,7 @@ function CountBadge({ count, tone }: { count: number; tone: "error" | "warn" }) 
   return (
     <span
       className={cn(
-        "ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
+        "ml-auto rounded-full px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums",
         tone === "error"
           ? "bg-destructive/15 text-destructive"
           : "bg-amber-500/15 text-amber-600 dark:text-amber-500",
@@ -60,7 +60,7 @@ function NavNode({
         style={{ paddingLeft: `${depth * 0.75 + 0.5}rem` }}
         className={cn(
           "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm",
-          selected ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50",
+          selected ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent/50",
         )}
       >
         <span className="truncate">{node.label}</span>

@@ -210,7 +210,7 @@ function BomTableFrame({
       </Panel.Header>
       <Panel.Body className="min-h-0">
         {sections.length === 0 ? (
-          <p className="text-muted-foreground text-ui-sm">{t("bomEmpty")}</p>
+          <p className="text-ui-sm text-muted-foreground">{t("bomEmpty")}</p>
         ) : (
           // ONE scroll container for both axes: the viewport is `overflow-y-auto`,
           // and CSS forces the untouched axis from `visible` to `auto` whenever the
@@ -228,16 +228,16 @@ function BomTableFrame({
             <FadeScrollArea.Fade position="both" />
             <table
               aria-labelledby={titleId}
-              className="font-data text-ui-sm w-full border-collapse text-left"
+              className="w-full border-collapse text-left font-data text-ui-sm"
             >
               <thead>
-                <tr className="text-muted-foreground text-ui-xs">
+                <tr className="text-ui-xs text-muted-foreground">
                   {columns.map((column) => (
                     <th
                       key={column.id}
                       scope="col"
                       className={cn(
-                        "bg-chrome sticky top-0 z-10 whitespace-nowrap py-2 pr-4 font-medium last:pr-0",
+                        "sticky top-0 z-10 bg-chrome py-2 pr-4 font-medium whitespace-nowrap last:pr-0",
                         column.numeric && "text-right",
                       )}
                     >
@@ -253,10 +253,10 @@ function BomTableFrame({
                       row of ITS tbody — the group header also carries the bucket
                       subtotal, so a group needs one row, not two, and no
                       "subtotal" label has to be invented. */}
-                  <tr className="border-border border-t">
+                  <tr className="border-t border-border">
                     <th
                       scope="rowgroup"
-                      className="text-muted-foreground text-ui-xs pb-1 pr-4 pt-4 font-semibold uppercase tracking-wide"
+                      className="pt-4 pr-4 pb-1 text-ui-xs font-semibold tracking-wide text-muted-foreground uppercase"
                     >
                       {section.label}
                     </th>
@@ -264,9 +264,9 @@ function BomTableFrame({
                       <td
                         key={column.id}
                         className={cn(
-                          "whitespace-nowrap pb-1 pr-4 pt-4 last:pr-0",
+                          "pt-4 pr-4 pb-1 whitespace-nowrap last:pr-0",
                           column.numeric && "text-right tabular-nums",
-                          column.sum && "text-foreground font-semibold",
+                          column.sum && "font-semibold text-foreground",
                         )}
                       >
                         {column.sum?.(section.category)}
@@ -275,7 +275,7 @@ function BomTableFrame({
                   </tr>
 
                   {section.parts.map((part) => (
-                    <tr key={part.path} className="border-border/60 border-t">
+                    <tr key={part.path} className="border-t border-border/60">
                       <th scope="row" className="py-1.5 pr-4 font-normal">
                         {part.name}
                       </th>
@@ -283,7 +283,7 @@ function BomTableFrame({
                         <td
                           key={column.id}
                           className={cn(
-                            "whitespace-nowrap py-1.5 pr-4 last:pr-0",
+                            "py-1.5 pr-4 whitespace-nowrap last:pr-0",
                             column.numeric && "text-right tabular-nums",
                           )}
                         >
@@ -297,15 +297,15 @@ function BomTableFrame({
 
               {totalled && (
                 <tfoot>
-                  <tr className="border-border border-t-2">
-                    <th scope="row" className="pr-4 pt-3 font-semibold">
+                  <tr className="border-t-2 border-border">
+                    <th scope="row" className="pt-3 pr-4 font-semibold">
                       {t("totalTotal")}
                     </th>
                     {columns.slice(1).map((column) => (
                       <td
                         key={column.id}
                         className={cn(
-                          "whitespace-nowrap pr-4 pt-3 last:pr-0",
+                          "pt-3 pr-4 whitespace-nowrap last:pr-0",
                           column.numeric && "text-right tabular-nums",
                           column.sum && "font-semibold",
                         )}

@@ -12,16 +12,24 @@
  * SSRF egress guard (REQUIRED control, `common/http/ssrf-guard`): webhook
  * URLs are user-suppliable, so every dispatch — including every manually
  * followed redirect hop — passes TWO layers: (1) the synchronous
- * `assertEgressUrlAllowed` pre-flight (http(s) only; IP-literal hosts must
- * be ordinary global unicast — ALLOWLIST, everything else refused) and
- * (2) a guarded undici dispatcher whose connector validates every
- * DNS-resolved address and connects to that SAME validated resolution
- * (DNS rebinding closed by construction — no second lookup). Opt out per
- * delivery with `allowPrivateNetwork: true` (trusted first-party targets
- * only; the scheme check still applies).
+ * `assertEgressUrlAllowed` pre-flight (http(s) only; cloud-metadata hostnames
+ * refused unresolved; IP-literal hosts must be ordinary global unicast —
+ * ALLOWLIST, everything else refused) and (2) a guarded undici dispatcher
+ * whose connector validates every DNS-resolved address and connects to that
+ * SAME validated resolution (DNS rebinding closed by construction — no second
+ * lookup).
+ *
+ * The private-target hatch is DEPLOYMENT-WIDE and constructor-injected
+ * ({@link WebhookEgressPolicy}, wired from `WEBHOOK_EGRESS_ALLOW_PRIVATE` in
+ * `WebhooksModule`) — never a per-delivery or per-endpoint argument (ADR 1047).
+ * Endpoint configuration is tenant-owned state (ADR 0034); a per-endpoint
+ * variant of this flag is a tenant-writable switch that disables the tenant's
+ * own SSRF guard, which hands an attacker the off button for the control that
+ * exists to stop them. Under the hatch the guarded dispatcher is still built
+ * and still attached — merely configured permissively.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import {
   assertEgressUrlAllowed,
@@ -49,13 +57,25 @@ export interface DeliverOptions {
   timeoutMs?: number;
   /** Test seam / deterministic replay — defaults to now. */
   timestamp?: number;
-  /**
-   * Skip the private-address egress guard for this delivery (scheme check
-   * still applies). ONLY for trusted first-party targets a project controls
-   * (e.g. an internal relay) — never for customer-supplied URLs.
-   */
-  allowPrivateNetwork?: boolean;
 }
+
+/**
+ * DEPLOYMENT-wide egress posture (ADR 1047). Injected once at module wiring
+ * from `WEBHOOK_EGRESS_ALLOW_PRIVATE`; deliberately NOT reachable from
+ * `deliver()` or from endpoint config, so no tenant-owned row can widen it.
+ */
+export interface WebhookEgressPolicy {
+  /**
+   * Relax the public-unicast allowlist so receivers on this deployment's own
+   * private network are reachable. Cloud-metadata hostnames and addresses stay
+   * blocked, the scheme gate stays on, and the guarded dispatcher stays
+   * attached — this is a relaxation, not an off switch.
+   */
+  allowPrivateTargets: boolean;
+}
+
+/** DI token for the deployment-wide {@link WebhookEgressPolicy}. */
+export const WEBHOOK_EGRESS_POLICY = Symbol("WEBHOOK_EGRESS_POLICY");
 
 /**
  * Thrown on ANY non-success (non-2xx, timeout, network). Deliberately an
@@ -83,16 +103,19 @@ const DEFAULT_TOLERANCE_SECONDS = 300;
 const MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-/**
- * Cloud-metadata hostnames blocked without waiting for DNS (their addresses
- * — 169.254.169.254, fd00:ec2::254 — are caught by the allowlist anyway;
- * this just refuses to even resolve them).
- */
-const BLOCKED_HOSTNAMES = new Set(["metadata.google.internal", "metadata.goog"]);
-
 @Injectable()
 export class WebhookDispatcher {
   private readonly logger = new Logger(WebhookDispatcher.name);
+  private readonly allowPrivateTargets: boolean;
+
+  /**
+   * The egress policy is optional at the DI layer purely so the seam can be
+   * constructed bare (`new WebhookDispatcher()`) in tests and in a project that
+   * has not wired the env knob — and the bare default is the SECURE one.
+   */
+  constructor(@Optional() @Inject(WEBHOOK_EGRESS_POLICY) policy?: WebhookEgressPolicy) {
+    this.allowPrivateTargets = policy?.allowPrivateTargets ?? false;
+  }
 
   /**
    * Sign a raw payload string. Returns the full header value
@@ -138,12 +161,13 @@ export class WebhookDispatcher {
    *
    * Every request — the first AND every redirect hop (`redirect: "manual"`,
    * followed by hand up to MAX_REDIRECTS, re-POSTing the identical signed
-   * body) — passes the SSRF pre-flight first, and (unless the caller opted
-   * into private egress) connects through ONE guarded dispatcher shared
-   * across the hops: its connector validates every DNS-resolved address and
-   * dials that SAME validated resolution, so DNS rebinding is CLOSED — a
-   * hostile resolver cannot swap answers between check and connect, because
-   * there is no second lookup.
+   * body) — passes the SSRF pre-flight first, and connects through ONE guarded
+   * dispatcher shared across the hops: its connector validates every
+   * DNS-resolved address and dials that SAME validated resolution, so DNS
+   * rebinding is CLOSED — a hostile resolver cannot swap answers between check
+   * and connect, because there is no second lookup. The dispatcher is attached
+   * on EVERY delivery, including under the private-target hatch, where it is
+   * configured permissively rather than dropped (ADR 1047).
    */
   async deliver(
     url: string,
@@ -156,16 +180,15 @@ export class WebhookDispatcher {
     // the signature is computed over this EXACT string.
     const body = JSON.stringify({ ...event, timestamp });
     const startedAt = performance.now();
-    const allowPrivateNetwork = options.allowPrivateNetwork ?? false;
+    const allowPrivateTargets = this.allowPrivateTargets;
 
     // ONE guarded dispatcher per delivery, reused across redirect hops
-    // (connection pooling). The opt-out falls back to plain fetch — the
-    // guarded connector would refuse to dial the very private address the
-    // caller explicitly trusted.
-    const egressAgent = allowPrivateNetwork ? undefined : createSsrfGuardedDispatcher();
+    // (connection pooling). NEVER `undefined` — see the class doc: dropping it
+    // removes the only layer that sees where a hostname resolves.
+    const egressAgent = createSsrfGuardedDispatcher({ allowPrivateTargets });
 
     try {
-      let target = this.guardEgress(url, url, event.id, allowPrivateNetwork);
+      let target = this.guardEgress(url, url, event.id, allowPrivateTargets);
 
       for (let redirects = 0; ; redirects++) {
         const init: RequestInit = {
@@ -186,9 +209,7 @@ export class WebhookDispatcher {
         // global fetch IS undici). Its type skews across tsconfigs (undici vs
         // the undici-types bundled with @types/node), so attach it through a
         // structural cast — the value is validated at the guard, not here.
-        if (egressAgent) {
-          (init as Record<string, unknown>).dispatcher = egressAgent;
-        }
+        (init as Record<string, unknown>).dispatcher = egressAgent;
 
         let response: Response;
         try {
@@ -229,9 +250,31 @@ export class WebhookDispatcher {
                 `webhook delivery to ${url} failed: redirect to unparseable Location "${location}"`,
               );
             }
+            // The FULL egress guard re-runs on the hop first, so an SSRF-shaped
+            // Location is reported as blocked rather than as a routing choice.
+            const vetted = this.guardEgress(next.href, url, event.id, allowPrivateTargets);
+            // Then: SAME-ORIGIN hops only. The body re-POSTed to a hop carries
+            // the HMAC over the original payload, so following a CROSS-origin
+            // Location would let the receiver name any host on the public
+            // internet and have this server deliver the signed document there —
+            // a signature/payload-forwarding hazard the SSRF guard by design
+            // does not address, because every hop it approves IS a legitimate
+            // public address. A genuinely moved endpoint is a configuration
+            // change and should be LOUD, not silently followed (ADR 1047).
+            if (vetted.origin !== target.origin) {
+              this.logger.warn(
+                `webhook ${event.id} to ${url}: cross-origin redirect to ${vetted.origin} refused`,
+              );
+              throw new WebhookDeliveryError(
+                url,
+                response.status,
+                `webhook delivery to ${url} failed: refused a cross-origin redirect to ` +
+                  `${vetted.origin} — re-point the endpoint configuration at the new host instead`,
+              );
+            }
             // Re-POST the identical signed body to the vetted hop (webhooks
             // are not browsers — no GET downgrade on 301/302/303).
-            target = this.guardEgress(next.href, url, event.id, allowPrivateNetwork);
+            target = vetted;
             continue;
           }
           const reason =
@@ -259,24 +302,25 @@ export class WebhookDispatcher {
       }
     } finally {
       // The per-delivery agent holds keep-alive sockets — release them.
-      if (egressAgent) await egressAgent.close().catch(() => undefined);
+      await egressAgent.close().catch(() => undefined);
     }
   }
 
   /**
    * Layer 1 of the SSRF guard, re-run on EVERY hop: parse + scheme +
-   * IP-literal allowlist via `assertEgressUrlAllowed`, plus the cheap
-   * metadata-hostname pre-block (refuse to even resolve those names).
-   * Layer 2 — the rebinding-safe DNS gate for hostname targets — is the
-   * guarded dispatcher attached in `deliver`. Failures map onto
-   * `WebhookDeliveryError` (status null, `blocked: <reason>` message) so
-   * blocked deliveries are recorded/retried/DLQ'd like network failures.
+   * cloud-metadata hostname pre-block + IP-literal allowlist, all via
+   * `assertEgressUrlAllowed` (the guard owns the hostname deny list now, so
+   * both layers share one copy — ADR 1047). Layer 2 — the rebinding-safe DNS
+   * gate for hostname targets — is the guarded dispatcher attached in
+   * `deliver`. Failures map onto `WebhookDeliveryError` (status null,
+   * `blocked: <reason>` message) so blocked deliveries are
+   * recorded/retried/DLQ'd like network failures.
    */
   private guardEgress(
     targetUrl: string,
     deliveryUrl: string,
     eventId: string,
-    allowPrivateNetwork: boolean,
+    allowPrivateTargets: boolean,
   ): URL {
     const blocked = (reason: string): never => {
       this.logger.warn(`webhook ${eventId} to ${deliveryUrl}: blocked (${reason})`);
@@ -287,25 +331,12 @@ export class WebhookDispatcher {
       );
     };
 
-    let target: URL;
     try {
-      target = assertEgressUrlAllowed(targetUrl, { allowPrivateTargets: allowPrivateNetwork });
+      return assertEgressUrlAllowed(targetUrl, { allowPrivateTargets });
     } catch (error) {
       if (error instanceof SsrfBlockedError) return blocked(error.message);
       throw error;
     }
-    if (allowPrivateNetwork) return target;
-
-    // WHATWG URL already canonicalized the host; strip IPv6 brackets + the
-    // trailing dot of an absolute DNS name before the hostname pre-block.
-    const hostname = target.hostname
-      .replace(/^\[|\]$/g, "")
-      .replace(/\.$/, "")
-      .toLowerCase();
-    if (BLOCKED_HOSTNAMES.has(hostname)) {
-      return blocked(`${hostname} is a cloud-metadata hostname`);
-    }
-    return target;
   }
 }
 

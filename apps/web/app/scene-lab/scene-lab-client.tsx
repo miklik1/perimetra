@@ -164,9 +164,9 @@ export function SceneLabClient() {
   const scene = source === "synthetic" ? syntheticGate() : realScene;
 
   return (
-    <div data-testid="scene-lab" className="bg-field h-screen w-screen">
+    <div data-testid="scene-lab" className="h-screen w-screen bg-field">
       {scene === undefined ? (
-        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           no scene (invalid derivation)
         </div>
       ) : (

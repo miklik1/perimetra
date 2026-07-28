@@ -235,7 +235,7 @@ export function IssueQuotePanel({
         </label>
 
         {showNew ? (
-          <div className="border-border flex flex-col gap-2 rounded-md border p-3">
+          <div className="flex flex-col gap-2 rounded-md border border-border p-3">
             <input
               className={inputClass}
               placeholder={t("issue.customerName")}
@@ -291,7 +291,7 @@ export function IssueQuotePanel({
           <button
             type="button"
             onClick={() => setShowNew(true)}
-            className="text-copper self-start text-sm hover:underline"
+            className="self-start text-sm text-copper hover:underline"
           >
             + {t("issue.newCustomer")}
           </button>
@@ -345,7 +345,7 @@ export function IssueQuotePanel({
           {issue.isPending ? t("issue.issuing") : t("issue.button")}
         </Button>
         {!customerId && (
-          <p id={customerHintId} className="text-muted-foreground text-xs">
+          <p id={customerHintId} className="text-xs text-muted-foreground">
             {t("issue.customerRequired")}
           </p>
         )}

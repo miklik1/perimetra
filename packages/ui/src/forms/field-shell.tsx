@@ -67,9 +67,9 @@ export function FieldShell({
     <div className={cn("flex flex-col gap-1", className)} data-slot="field">
       <label htmlFor={fieldId} className="text-sm font-medium">
         {label}
-        {required ? <span className="text-destructive ml-0.5">*</span> : null}
+        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
       </label>
-      {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
+      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       {children({ fieldId, describedById, invalid: error !== undefined })}
       {message ? (
         <p

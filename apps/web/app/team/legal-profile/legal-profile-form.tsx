@@ -222,10 +222,10 @@ export function LegalProfileForm({ initial }: { initial: LegalProfile | null }) 
           {mutation.isPending ? t("saving") : t("save")}
         </Button>
         {mutation.isError && (
-          <p className="text-destructive text-xs" role="alert">
+          <p className="text-xs text-destructive" role="alert">
             {tErrors(errorMessageKey(mutation.error))}
             {devErrorDetail(mutation.error) && (
-              <span className="text-muted-foreground ml-1">{devErrorDetail(mutation.error)}</span>
+              <span className="ml-1 text-muted-foreground">{devErrorDetail(mutation.error)}</span>
             )}
           </p>
         )}

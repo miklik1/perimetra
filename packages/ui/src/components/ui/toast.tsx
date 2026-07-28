@@ -67,7 +67,7 @@ export function Toast({
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {title ? <p className="font-semibold">{title}</p> : null}
-        <div className="text-muted-foreground break-words">{children}</div>
+        <div className="break-words text-muted-foreground">{children}</div>
       </div>
       {/* `pointer-coarse:` lifts the interactive targets to the 44px WCAG 2.5.5
           floor on touch, matching `Button`'s convention; fine-pointer rendering
@@ -79,7 +79,7 @@ export function Toast({
         <button
           type="button"
           onClick={onAction}
-          className="text-foreground pointer-coarse:min-h-11 pointer-coarse:px-3 inline-flex shrink-0 items-center text-sm font-medium underline-offset-4 hover:underline"
+          className="inline-flex shrink-0 items-center text-sm font-medium text-foreground underline-offset-4 hover:underline pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           {actionLabel}
         </button>
@@ -89,7 +89,7 @@ export function Toast({
           type="button"
           aria-label={dismissLabel}
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground pointer-coarse:size-11 inline-flex shrink-0 items-center justify-center leading-none"
+          className="inline-flex shrink-0 items-center justify-center leading-none text-muted-foreground hover:text-foreground pointer-coarse:size-11"
         >
           {"×"}
         </button>
@@ -106,7 +106,7 @@ export function ToastViewport({ className, children, ...props }: React.Component
       aria-live="polite"
       aria-relevant="additions"
       className={cn(
-        "pointer-events-none fixed bottom-0 right-0 z-50 flex w-full max-w-sm flex-col gap-2 p-4",
+        "pointer-events-none fixed right-0 bottom-0 z-50 flex w-full max-w-sm flex-col gap-2 p-4",
         className,
       )}
       {...props}

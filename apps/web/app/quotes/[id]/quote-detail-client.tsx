@@ -35,7 +35,7 @@ export function QuoteDetailClient({ id }: { id: string }) {
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="bg-field flex min-h-screen items-center justify-center">
+        <main className="flex min-h-screen items-center justify-center bg-field">
           {t("checkingSession")}
         </main>
       }
@@ -53,7 +53,7 @@ export function QuoteDetailClient({ id }: { id: string }) {
           )}
         </nav>
         {error && (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {tErrors(errorMessageKey(error))}
           </p>
         )}

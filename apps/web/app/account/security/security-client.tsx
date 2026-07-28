@@ -89,7 +89,7 @@ function SecurityContent() {
     <SettingsLayout active="security">
       <div className="flex max-w-md flex-col gap-4 text-sm">
         <h2 className="text-lg font-semibold">{t("security.title")}</h2>
-        <section className="border-border flex flex-col gap-3 rounded-md border p-4">
+        <section className="flex flex-col gap-3 rounded-md border border-border p-4">
           <h2 className="font-semibold">{t("security.twoFactorTitle")}</h2>
           <p className="text-muted-foreground">
             {enabled ? t("security.enabled") : t("security.disabled")}
@@ -137,19 +137,19 @@ function SecurityContent() {
               <p className="text-muted-foreground">{t("security.scanHint")}</p>
               <div className="flex flex-col gap-1">
                 <span className="font-medium">{t("security.secretLabel")}</span>
-                <code className="bg-muted break-all rounded px-2 py-1">
+                <code className="rounded bg-muted px-2 py-1 break-all">
                   {secretFromUri(setup.totpURI)}
                 </code>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium">{t("security.uriLabel")}</span>
-                <code className="bg-muted break-all rounded px-2 py-1 text-xs">
+                <code className="rounded bg-muted px-2 py-1 text-xs break-all">
                   {setup.totpURI}
                 </code>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium">{t("security.backupCodes")}</span>
-                <ul className="bg-muted grid grid-cols-2 gap-1 rounded px-2 py-1 font-mono text-xs">
+                <ul className="grid grid-cols-2 gap-1 rounded bg-muted px-2 py-1 font-mono text-xs">
                   {setup.backupCodes.map((c) => (
                     <li key={c}>{c}</li>
                   ))}

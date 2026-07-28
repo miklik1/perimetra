@@ -178,13 +178,13 @@ export function IssueInvoicePanel({ onClose }: { onClose: () => void }) {
         <h2 className="font-display text-base">{t("issue.title")}</h2>
 
         {ordersPending ? (
-          <p className="text-muted-foreground text-sm">{t("loading")}</p>
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
         ) : ordersError ? (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {tErrors(errorMessageKey(ordersError))}
           </p>
         ) : orders.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("issue.noOrders")}</p>
+          <p className="text-sm text-muted-foreground">{t("issue.noOrders")}</p>
         ) : (
           <label className="flex flex-col gap-1 text-sm font-medium">
             {t("issue.order")}
@@ -256,7 +256,7 @@ export function IssueInvoicePanel({ onClose }: { onClose: () => void }) {
             renders only WITH the picker — "select one above" must never point at
             a control that is not on screen. */}
         {showPicker && !orderId && (
-          <p id={orderHintId} className="text-muted-foreground text-sm">
+          <p id={orderHintId} className="text-sm text-muted-foreground">
             {t("issue.orderRequired")}
           </p>
         )}

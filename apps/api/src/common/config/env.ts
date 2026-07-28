@@ -95,6 +95,23 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().min(1).default("minio-dev-password"),
   S3_BUCKET: z.string().min(1).default("app"),
 
+  // ---- outbound webhooks (spec §7.6, ADR 1047) ---------------------------
+  /**
+   * DEPLOYMENT-wide relaxation of the outbound-webhook SSRF allowlist, so
+   * receivers on this deployment's own private network are reachable (local dev,
+   * a trusted internal cluster). Never enable on a deployment whose endpoint
+   * URLs come from tenants.
+   *
+   * It relaxes the public-unicast allowlist and NOTHING else: cloud-metadata
+   * hostnames and addresses stay blocked, non-http(s) schemes stay blocked, and
+   * the DNS-validating dispatcher stays attached (ADR 1047). There is
+   * deliberately no per-endpoint or per-delivery equivalent.
+   */
+  WEBHOOK_EGRESS_ALLOW_PRIVATE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   // ---- realtime (spec §7.3) — dev defaults match Centrifugo in compose -
   CENTRIFUGO_URL: z.url().default("http://localhost:8000"),
   CENTRIFUGO_API_KEY: z.string().min(1).default("dev-centrifugo-api-key"),

@@ -54,7 +54,7 @@ function DraftsContent() {
   if (!isPlatform) {
     return (
       <main className="mx-auto max-w-2xl p-8">
-        <p className="text-muted-foreground text-sm">{t("onlyPlatform")}</p>
+        <p className="text-sm text-muted-foreground">{t("onlyPlatform")}</p>
       </main>
     );
   }
@@ -77,7 +77,7 @@ function DraftsContent() {
           {items.map((d) => (
             <li
               key={d.id}
-              className="border-border flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
             >
               <span className="font-mono text-xs">
                 {d.modelId || t("untitledDraft")} · v{d.version}

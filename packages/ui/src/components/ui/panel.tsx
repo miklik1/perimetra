@@ -99,7 +99,7 @@ function PanelMeta({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="panel-meta"
-      className={cn("text-muted-foreground text-ui-sm", className)}
+      className={cn("text-ui-sm text-muted-foreground", className)}
       {...props}
     />
   );
@@ -121,7 +121,7 @@ function PanelFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="panel-footer"
-      className={cn("border-border mt-4 flex items-center gap-2 border-t pt-4", className)}
+      className={cn("mt-4 flex items-center gap-2 border-t border-border pt-4", className)}
       {...props}
     />
   );

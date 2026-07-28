@@ -54,11 +54,11 @@ function SupersededPanel({ href }: { href: string }) {
   return (
     <Panel elevation="flat">
       <div className="flex items-start gap-3">
-        <Icon name="warn" aria-hidden className="text-muted-foreground mt-0.5 shrink-0" />
+        <Icon name="warn" aria-hidden className="mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="font-display text-lg">{t("lineage.supersededTitle")}</h2>
-          <p className="text-muted-foreground text-sm">{t("lineage.supersededBody")}</p>
-          <Link href={href} className="text-copper text-sm font-medium hover:underline">
+          <p className="text-sm text-muted-foreground">{t("lineage.supersededBody")}</p>
+          <Link href={href} className="text-sm font-medium text-copper hover:underline">
             {t("lineage.viewSuperseding")}
           </Link>
         </div>
@@ -96,7 +96,7 @@ function DeliveryPanel({ invoiceId }: { invoiceId: string }) {
     <Panel elevation="flat">
       <div className="flex min-w-0 flex-col gap-3">
         <h2 className="font-display text-lg">{t("invoicePanelTitle")}</h2>
-        <p className="text-muted-foreground text-sm">{t("invoiceBody")}</p>
+        <p className="text-sm text-muted-foreground">{t("invoiceBody")}</p>
         <SendDocumentAction documentType="invoice" documentId={invoiceId} />
       </div>
     </Panel>
@@ -154,7 +154,7 @@ function PaymentPanel({ invoice }: { invoice: Invoice }) {
     <Panel elevation="flat">
       <div className="flex min-w-0 flex-col gap-3">
         <h2 className="font-display text-lg">{t("payment.title")}</h2>
-        <p className="text-muted-foreground text-sm">{t("payment.body")}</p>
+        <p className="text-sm text-muted-foreground">{t("payment.body")}</p>
 
         {invoice.status === "paid" && (
           <KeyValueList className="w-full">
@@ -168,7 +168,7 @@ function PaymentPanel({ invoice }: { invoice: Invoice }) {
         )}
 
         {!canMarkPaid ? (
-          <p className="text-muted-foreground text-sm">{t("payment.adminOnly")}</p>
+          <p className="text-sm text-muted-foreground">{t("payment.adminOnly")}</p>
         ) : invoice.status === "issued" ? (
           <div className="flex flex-col gap-3">
             <Field>
@@ -229,7 +229,7 @@ function TrustPanel({ invoiceId }: { invoiceId: string }) {
     <Panel elevation="flat">
       <div className="flex min-w-0 flex-col gap-3">
         <h2 className="font-display text-lg">{t("trust.title")}</h2>
-        <p className="text-muted-foreground text-sm">{t("trust.body")}</p>
+        <p className="text-sm text-muted-foreground">{t("trust.body")}</p>
         <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
@@ -241,17 +241,17 @@ function TrustPanel({ invoiceId }: { invoiceId: string }) {
             {verify.isPending ? t("trust.verifying") : t("trust.verify")}
           </Button>
           {verify.data?.reproduced === true && (
-            <span className="text-success text-sm font-medium" role="status">
+            <span className="text-sm font-medium text-success" role="status">
               ✓ {t("trust.reproduced")}
             </span>
           )}
           {verify.data?.reproduced === false && (
-            <span className="text-destructive text-sm font-medium" role="status">
+            <span className="text-sm font-medium text-destructive" role="status">
               ✗ {t("trust.mismatch")}
             </span>
           )}
           {verify.error && (
-            <span className="text-destructive text-sm" role="alert">
+            <span className="text-sm text-destructive" role="alert">
               {tErrors(errorMessageKey(verify.error))}
             </span>
           )}
@@ -292,9 +292,9 @@ export function InvoiceDetailView({ invoice }: { invoice: Invoice }) {
     <div className="flex min-w-0 flex-col gap-6">
       {/* Titleband — the document identity band (ADR 0120): eyebrow, the number
           as the H1, then the actions with the status badge LAST. */}
-      <div className="border-primary flex flex-col gap-4 border-b-2 pb-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 border-b-2 border-primary pb-4 md:flex-row md:items-end md:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("detail.eyebrow")}
           </span>
           <DisplayLabel as="h1" className="font-data text-3xl sm:text-4xl">
@@ -308,7 +308,7 @@ export function InvoiceDetailView({ invoice }: { invoice: Invoice }) {
              *  shell drops its rails on a `/faktura` suffix. */}
             <Link
               href={`/invoices/${invoice.id}/faktura`}
-              className="text-copper text-sm font-medium hover:underline"
+              className="text-sm font-medium text-copper hover:underline"
             >
               {t("print.open")}
             </Link>

@@ -38,13 +38,13 @@ export function MobileTopBar({
     <header
       data-testid="app-mobile-topbar"
       className={cn(
-        "border-border bg-chrome h-14 shrink-0 items-center justify-between border-b px-4",
+        "h-14 shrink-0 items-center justify-between border-b border-border bg-chrome px-4",
         className,
       )}
     >
       <Link
         to={{ route: "home" }}
-        className="font-display rounded-control focus-visible:ring-ring -mx-1 flex h-11 items-center px-1 text-lg font-semibold tracking-tight outline-none focus-visible:ring-2"
+        className="-mx-1 flex h-11 items-center rounded-control px-1 font-display text-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         Perimetra
       </Link>
@@ -54,11 +54,11 @@ export function MobileTopBar({
             <button
               type="button"
               aria-label={t("menu")}
-              className="rounded-control focus-visible:ring-ring flex h-11 w-11 items-center justify-center outline-none focus-visible:ring-2"
+              className="flex h-11 w-11 items-center justify-center rounded-control outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span
                 aria-hidden
-                className="bg-nav-active text-nav-active-foreground flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-nav-active text-xs font-semibold text-nav-active-foreground"
               >
                 {initial}
               </span>

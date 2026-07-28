@@ -126,7 +126,7 @@ function SkeletonTextLine({ className, ...props }: React.ComponentProps<"div">) 
   return (
     <Skeleton
       data-slot="skeleton-text-line"
-      className={cn("rounded-inset h-3 w-full", className)}
+      className={cn("h-3 w-full rounded-inset", className)}
       {...props}
     />
   );

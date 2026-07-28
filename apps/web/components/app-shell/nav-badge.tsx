@@ -60,7 +60,7 @@ export function NavBadge({
     return (
       <span
         {...a11y}
-        className={cn("bg-primary absolute -top-0.5 right-0 size-2 rounded-full", className)}
+        className={cn("absolute -top-0.5 right-0 size-2 rounded-full bg-primary", className)}
       />
     );
   }
@@ -68,7 +68,7 @@ export function NavBadge({
     <span
       {...a11y}
       className={cn(
-        "bg-primary text-primary-foreground inline-flex items-center justify-center rounded-full font-semibold tabular-nums",
+        "inline-flex items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground tabular-nums",
         placement === "inline"
           ? "ml-auto h-5 min-w-5 px-1.5 text-[0.625rem]"
           : "pointer-events-none absolute -top-1 right-0 h-4 min-w-4 px-1 text-[0.5625rem]",

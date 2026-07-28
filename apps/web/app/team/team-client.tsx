@@ -72,21 +72,21 @@ function TeamContent() {
       </div>
 
       {isAdmin && <InviteForm onInvited={invalidateOrg} />}
-      {!isAdmin && <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>}
+      {!isAdmin && <p className="text-sm text-muted-foreground">{t("onlyAdmin")}</p>}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">{t("members")}</h2>
-        <ul className="border-border divide-border divide-y rounded-md border text-sm">
+        <ul className="divide-y divide-border rounded-md border border-border text-sm">
           {members.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="flex flex-col">
                 <span className="font-medium">
                   {m.user?.name || m.user?.email}
                   {m.userId === user?.id && (
-                    <span className="text-muted-foreground ml-1">{t("you")}</span>
+                    <span className="ml-1 text-muted-foreground">{t("you")}</span>
                   )}
                 </span>
-                <span className="text-muted-foreground text-xs">{m.user?.email}</span>
+                <span className="text-xs text-muted-foreground">{m.user?.email}</span>
               </div>
               <div className="flex items-center gap-3">
                 {isAdmin && m.role !== "owner" && m.userId !== user?.id ? (
@@ -107,14 +107,14 @@ function TeamContent() {
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">{t("pending")}</h2>
           {pending.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("noPending")}</p>
+            <p className="text-sm text-muted-foreground">{t("noPending")}</p>
           ) : (
-            <ul className="border-border divide-border divide-y rounded-md border text-sm">
+            <ul className="divide-y divide-border rounded-md border border-border text-sm">
               {pending.map((inv) => (
                 <li key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="flex flex-col">
                     <span className="font-medium">{inv.email}</span>
-                    <span className="text-muted-foreground text-xs">{roleLabel(inv.role)}</span>
+                    <span className="text-xs text-muted-foreground">{roleLabel(inv.role)}</span>
                   </div>
                   <CancelInviteButton invitationId={inv.id} onCancelled={invalidateOrg} />
                 </li>
@@ -156,7 +156,7 @@ function InviteForm({ onInvited }: { onInvited: () => void }) {
         e.preventDefault();
         mutation.mutate();
       }}
-      className="border-border flex flex-wrap items-end gap-3 rounded-md border p-4"
+      className="flex flex-wrap items-end gap-3 rounded-md border border-border p-4"
     >
       <div className="flex flex-1 flex-col gap-1">
         <label htmlFor={emailId} className="text-sm font-medium">
@@ -193,7 +193,7 @@ function InviteForm({ onInvited }: { onInvited: () => void }) {
         {t("sendInvite")}
       </Button>
       {mutation.isError && (
-        <p className="text-destructive w-full text-sm" role="alert">
+        <p className="w-full text-sm text-destructive" role="alert">
           {t("inviteError")}
         </p>
       )}

@@ -27,6 +27,16 @@ const EVENT = {
   payload: { projectId: "p-1" },
 };
 
+/**
+ * A dispatcher on a deployment that has set `WEBHOOK_EGRESS_ALLOW_PRIVATE=true`.
+ * The hatch is DEPLOYMENT-wide and constructor-injected (ADR 1047) — there is
+ * deliberately no per-delivery or per-endpoint equivalent, so this is the only
+ * way to reach it.
+ */
+function permissive(): WebhookDispatcher {
+  return new WebhookDispatcher({ allowPrivateTargets: true });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -207,13 +217,19 @@ describe("WebhookDispatcher.deliver — SSRF egress guard (sync pre-flight)", ()
   it("rejects cloud-metadata hostnames without resolving them", async () => {
     await expectBlocked("http://metadata.google.internal/computeMetadata/v1/", /metadata/);
     await expectBlocked("http://metadata.goog/computeMetadata/v1/", /metadata/);
+    // The BARE label: GCE resolves it via search-domain completion, so it is a
+    // third live spelling of the same endpoint, not a typo (ADR 1047).
+    await expectBlocked("http://metadata/computeMetadata/v1/", /metadata/);
+    // An absolute (trailing-dot) name resolves identically and must normalise
+    // to the same deny-list key.
+    await expectBlocked("http://metadata.google.internal./computeMetadata/v1/", /metadata/);
   });
 
   it("rejects IPv6 loopback, unique-local (incl. IMDSv6), link-local, and unspecified", async () => {
     await expectBlocked("http://[::1]/hook", /loopback/);
     await expectBlocked("http://[fd00::1]/hook", /uniqueLocal/);
     await expectBlocked("http://[fc00::1]/hook", /uniqueLocal/);
-    await expectBlocked("http://[fd00:ec2::254]/hook", /uniqueLocal/); // AWS IMDSv6
+    await expectBlocked("http://[fd00:ec2::254]/hook", /cloud-metadata/); // AWS IMDSv6
     await expectBlocked("http://[fe80::1]/hook", /linkLocal/);
     await expectBlocked("http://[::]/hook", /unspecified/);
   });
@@ -232,16 +248,15 @@ describe("WebhookDispatcher.deliver — SSRF egress guard (sync pre-flight)", ()
     await expectBlocked("http://[::169.254.169.254]/hook", /linkLocal/);
   });
 
-  it("allowPrivateNetwork: true permits a private target (trusted first-party opt-out)", async () => {
+  it("the deployment hatch permits a private target (trusted internal receiver)", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 200 }));
 
-    const delivery = await new WebhookDispatcher().deliver(
+    const delivery = await permissive().deliver(
       "http://127.0.0.1:4001/internal-hook",
       EVENT,
       SECRET,
-      { allowPrivateNetwork: true },
     );
 
     expect(delivery.status).toBe(200);
@@ -249,19 +264,50 @@ describe("WebhookDispatcher.deliver — SSRF egress guard (sync pre-flight)", ()
       "http://127.0.0.1:4001/internal-hook",
       expect.objectContaining({ method: "POST" }),
     );
-    // The opt-out uses plain fetch — the guarded dispatcher would refuse to
-    // dial the private address the caller explicitly trusted.
-    const init = fetchMock.mock.calls[0]![1] as Record<string, unknown>;
-    expect(init.dispatcher).toBeUndefined();
   });
 
-  it("allowPrivateNetwork: true still rejects non-http(s) schemes", async () => {
+  it("the hatch does NOT drop the guarded dispatcher — it configures it (ADR 1047)", async () => {
+    // The regression this pins is `egressAgent = allowPrivate ? undefined : …`.
+    // The connector is the ONLY layer that can see where a HOSTNAME resolves,
+    // so removing it is not a relaxation, it is a deletion: a name an attacker
+    // registered pointing at 169.254.169.254 then needs no DNS control at all.
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }));
+
+    await permissive().deliver("http://127.0.0.1:4001/internal-hook", EVENT, SECRET);
+
+    const init = fetchMock.mock.calls[0]![1] as Record<string, unknown>;
+    expect(init.dispatcher).toBeDefined();
+  });
+
+  it("the hatch still rejects non-http(s) schemes", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
-    await expect(
-      new WebhookDispatcher().deliver("gopher://127.0.0.1/hook", EVENT, SECRET, {
-        allowPrivateNetwork: true,
-      }),
-    ).rejects.toThrow(/scheme "gopher:"/);
+    await expect(permissive().deliver("gopher://127.0.0.1/hook", EVENT, SECRET)).rejects.toThrow(
+      /scheme "gopher:"/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("the hatch still refuses cloud metadata, by address AND by name (ADR 1047)", async () => {
+    // Every one of these classifies as linkLocal/uniqueLocal/CGNAT — exactly
+    // the generic labels a "permit private targets" hatch would honour if it
+    // were consulted first. Nothing at these addresses is a webhook receiver;
+    // what is there is the instance's IAM credentials.
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    for (const url of [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://[fd00:ec2::254]/latest/meta-data/",
+      "http://100.100.100.200/latest/meta-data/",
+      "http://metadata.google.internal/computeMetadata/v1/",
+      "http://metadata.goog/computeMetadata/v1/",
+      "http://metadata/computeMetadata/v1/",
+      "http://metadata./computeMetadata/v1/",
+    ]) {
+      await expect(permissive().deliver(url, EVENT, SECRET)).rejects.toThrow(
+        /blocked: .*(metadata|linkLocal)/i,
+      );
+    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -283,10 +329,10 @@ describe("WebhookDispatcher.deliver — manual redirect handling", () => {
     return new Response(null, { status, headers: { location } });
   }
 
-  it("follows a redirect to a public target, re-POSTing the same signed body", async () => {
+  it("follows a SAME-ORIGIN redirect, re-POSTing the same signed body", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(redirectTo("https://other.test/hook"))
+      .mockResolvedValueOnce(redirectTo("https://receiver.test/hook/v2"))
       .mockResolvedValueOnce(new Response(null, { status: 200 }));
 
     const delivery = await new WebhookDispatcher().deliver(
@@ -301,7 +347,7 @@ describe("WebhookDispatcher.deliver — manual redirect handling", () => {
     const [firstUrl, firstInit] = fetchMock.mock.calls[0]!;
     const [secondUrl, secondInit] = fetchMock.mock.calls[1]!;
     expect(firstUrl).toBe("https://receiver.test/hook");
-    expect(secondUrl).toBe("https://other.test/hook");
+    expect(secondUrl).toBe("https://receiver.test/hook/v2");
     expect(secondInit!.method).toBe("POST");
     expect(secondInit!.body).toBe(firstInit!.body);
     // Both hops ride the SAME guarded dispatcher (one per delivery).
@@ -309,6 +355,41 @@ describe("WebhookDispatcher.deliver — manual redirect handling", () => {
     const secondAgent = (secondInit as Record<string, unknown>).dispatcher;
     expect(firstAgent).toBeDefined();
     expect(secondAgent).toBe(firstAgent);
+  });
+
+  it("refuses a CROSS-ORIGIN redirect even to a perfectly public host (ADR 1047)", async () => {
+    // The SSRF guard cannot object to this hop — `other.test` is ordinary
+    // global unicast. The hazard is different: the hop re-POSTs a body carrying
+    // an HMAC over the original payload, so a receiver that answers `302
+    // Location: https://attacker.example/` makes THIS server deliver the signed
+    // document to a host IT named. Refusing is also the loud-not-silent
+    // treatment a genuinely moved endpoint deserves.
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(redirectTo("https://other.test/hook"));
+
+    const error = await new WebhookDispatcher()
+      .deliver("https://receiver.test/hook", EVENT, SECRET)
+      .catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(WebhookDeliveryError);
+    expect((error as WebhookDeliveryError).message).toMatch(
+      /refused a cross-origin redirect to https:\/\/other\.test/,
+    );
+    // The named host was never dialled.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a same-host scheme or port change as cross-origin", async () => {
+    // https→http on the same host is a downgrade, and a port change reaches a
+    // different service; `origin` covers all three components deliberately.
+    for (const location of ["http://receiver.test/hook", "https://receiver.test:8443/hook"]) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(redirectTo(location));
+      await expect(
+        new WebhookDispatcher().deliver("https://receiver.test/hook", EVENT, SECRET),
+      ).rejects.toThrow(/refused a cross-origin redirect/);
+      vi.restoreAllMocks();
+    }
   });
 
   it("resolves a relative Location against the current target", async () => {

@@ -35,6 +35,7 @@
     "knip": "catalog:",
     "lefthook": "^2.1.8",
     "prettier": "^3.8.1",
+    "tailwindcss": "catalog:tailwind4",
     "turbo": "^2.9.17",
     "typescript": "catalog:",
     "vitest": "^4.1.0"
@@ -45,7 +46,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "e24039556a9ef9a482d2477d8e54e3a23fa25dab",
+    "baseCommit": "543a5745e8cad74a143203c1abb328c387aa9f8d",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }

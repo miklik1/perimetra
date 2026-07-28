@@ -118,7 +118,7 @@ export function ConstraintsWorkbench({ form, validation }: Props) {
   const t = useTranslations("releaseEditor");
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{t("constraintsHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("constraintsHint")}</p>
       <ArrayField
         control={form.control}
         name="constraints"

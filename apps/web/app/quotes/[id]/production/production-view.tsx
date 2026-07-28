@@ -40,7 +40,7 @@ export function ProductionView({
           {production.documentNumber}
         </DisplayLabel>
         <div className="flex items-center gap-3">
-          <Link href={travelerHref} className="text-copper text-sm hover:underline">
+          <Link href={travelerHref} className="text-sm text-copper hover:underline">
             {t("production.travelerOpen")}
           </Link>
           <QuoteStatusBadge status={production.status} />
@@ -61,11 +61,11 @@ export function ProductionView({
           <Panel key={instanceId} className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold">
               {t("production.instance")}: {instanceId}
-              <span className="text-muted-foreground font-data ml-2 text-xs">
+              <span className="ml-2 font-data text-xs text-muted-foreground">
                 {releaseLabel.get(instanceId) ?? releaseId}
               </span>
             </h2>
-            <h3 className="text-muted-foreground text-xs uppercase">{t("production.elevation")}</h3>
+            <h3 className="text-xs text-muted-foreground uppercase">{t("production.elevation")}</h3>
             <WorkshopDrawingSvg drawing={drawing} className="h-56 w-full" />
           </Panel>
         );
@@ -75,19 +75,19 @@ export function ProductionView({
 
       <Panel>
         <h2 className="mb-2 font-semibold">{t("production.bom")}</h2>
-        <table className="font-data w-full text-left text-sm">
+        <table className="w-full text-left font-data text-sm">
           <thead>
-            <tr className="text-muted-foreground text-xs uppercase">
+            <tr className="text-xs text-muted-foreground uppercase">
               <th className="py-1 font-medium">{t("production.bomItem")}</th>
               <th className="py-1 text-right font-medium">{t("production.bomQuantity")}</th>
             </tr>
           </thead>
           <tbody>
             {production.bom.map((line) => (
-              <tr key={line.componentCode} className="border-border border-t">
+              <tr key={line.componentCode} className="border-t border-border">
                 <td className="py-1">
                   {line.name}
-                  <span className="text-muted-foreground ml-2 text-xs">{line.componentCode}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{line.componentCode}</span>
                 </td>
                 <td className="py-1 text-right tabular-nums">
                   {line.quantity} {line.unit}

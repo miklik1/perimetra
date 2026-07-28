@@ -18,14 +18,14 @@ function Switch({ className, ...props }: React.ComponentProps<typeof RadixSwitch
     <RadixSwitch.Root
       data-slot="switch"
       className={cn(
-        "ease-brand ring-border/60 focus-visible:ring-ring data-[state=checked]:bg-nav-active data-[state=unchecked]:bg-muted inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full px-0.5 outline-none ring-1 ring-inset transition-colors duration-200 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full px-0.5 ring-1 ring-border/60 transition-colors duration-200 ease-brand outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-nav-active data-[state=unchecked]:bg-muted",
         className,
       )}
       {...props}
     >
       <RadixSwitch.Thumb
         data-slot="switch-thumb"
-        className="ease-brand bg-chrome shadow-soft-sm pointer-events-none block size-5 rounded-full transition-transform duration-200 data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+        className="pointer-events-none block size-5 rounded-full bg-chrome shadow-soft-sm transition-transform duration-200 ease-brand data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
       />
     </RadixSwitch.Root>
   );
@@ -36,7 +36,7 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof RadixChec
     <RadixCheckbox.Root
       data-slot="checkbox"
       className={cn(
-        "ease-brand rounded-inset bg-chrome-subtle ring-border/60 focus-visible:ring-ring data-[state=checked]:bg-nav-active data-[state=checked]:text-nav-active-foreground inline-flex size-5 shrink-0 cursor-pointer items-center justify-center outline-none ring-1 ring-inset transition-colors duration-200 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-inset bg-chrome-subtle ring-1 ring-border/60 transition-colors duration-200 ease-brand outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-nav-active data-[state=checked]:text-nav-active-foreground",
         className,
       )}
       {...props}

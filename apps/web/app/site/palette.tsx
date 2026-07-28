@@ -30,7 +30,7 @@ export function Palette({
 }: PaletteProps) {
   const t = useTranslations("site");
   return (
-    <section className="border-border flex flex-col gap-3 rounded-md border p-4 text-sm">
+    <section className="flex flex-col gap-3 rounded-md border border-border p-4 text-sm">
       <div className="flex flex-col gap-2">
         <h2 className="font-semibold">{t("add")}</h2>
         <div className="flex flex-wrap gap-2">
@@ -76,7 +76,7 @@ export function Palette({
                   type="button"
                   onClick={() => onRemove(instance.instanceId)}
                   aria-label={t("removeInstance", { instance: instance.instanceId })}
-                  className="text-muted-foreground hover:text-destructive rounded px-1.5"
+                  className="rounded px-1.5 text-muted-foreground hover:text-destructive"
                 >
                   ×
                 </button>

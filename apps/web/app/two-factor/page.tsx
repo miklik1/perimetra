@@ -28,7 +28,7 @@ export default async function TwoFactorPage({
   const destination = safeNextPath(typeof next === "string" ? next : null) ?? "/account";
   const t = await getTranslations("auth");
   return (
-    <main className="bg-field flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-field p-8">
       {/* The page's top-level heading — matches the sibling /login surface, which
           also renders its title as `DisplayLabel as="h1"` on the page (not inside
           the card), so heading navigation + the document outline stay semantic. */}

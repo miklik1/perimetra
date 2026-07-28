@@ -46,7 +46,7 @@ export function AdminClient({ componentCodes }: AdminClientProps) {
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
-      fallback={<main className="bg-field flex min-h-screen items-center justify-center">…</main>}
+      fallback={<main className="flex min-h-screen items-center justify-center bg-field">…</main>}
     >
       <AdminContent componentCodes={componentCodes} />
     </AuthGuard>
@@ -61,22 +61,22 @@ function AdminContent({ componentCodes }: AdminClientProps) {
 
   return (
     <SettingsLayout active="admin">
-      {!isAdmin && <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>}
+      {!isAdmin && <p className="text-sm text-muted-foreground">{t("onlyAdmin")}</p>}
 
       {isAdmin && (
         <>
           <section className="flex min-w-0 flex-col gap-4">
             <header className="flex flex-col gap-1">
-              <h2 className="text-foreground font-display text-xl font-semibold">
+              <h2 className="font-display text-xl font-semibold text-foreground">
                 {t("productVersions")}
               </h2>
-              <p className="text-muted-foreground text-sm">{t("productVersionsDescription")}</p>
+              <p className="text-sm text-muted-foreground">{t("productVersionsDescription")}</p>
             </header>
             <ProductVersions />
           </section>
 
           <section className="flex min-w-0 flex-col gap-4">
-            <h2 className="text-foreground font-display text-xl font-semibold">
+            <h2 className="font-display text-xl font-semibold text-foreground">
               {t("priceTables")}
             </h2>
             <PriceTablesList />
@@ -153,7 +153,7 @@ function ProductVersions() {
     return (
       <Panel elevation="flat">
         <Panel.Body>
-          <p className="text-muted-foreground text-sm">{t("noUpgrades")}</p>
+          <p className="text-sm text-muted-foreground">{t("noUpgrades")}</p>
         </Panel.Body>
       </Panel>
     );
@@ -167,9 +167,9 @@ function ProductVersions() {
         return (
           <li
             key={o.modelId}
-            className="border-border flex items-center gap-3 rounded-md border px-3 py-2.5"
+            className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5"
           >
-            <span className="text-muted-foreground flex w-10 shrink-0 justify-center">
+            <span className="flex w-10 shrink-0 justify-center text-muted-foreground">
               <ProductGlyph size={40} />
             </span>
             <div className="min-w-0 flex-1">
@@ -177,7 +177,7 @@ function ProductVersions() {
                 <span className="truncate font-mono text-sm font-semibold">{o.modelId}</span>
                 <Badge tone="info">{t("upgradeAvailable")}</Badge>
               </div>
-              <div className="text-muted-foreground font-mono text-xs">
+              <div className="font-mono text-xs text-muted-foreground">
                 v{o.pinnedVersion} → v{o.latestVersion}
               </div>
             </div>
@@ -223,7 +223,7 @@ function PriceTablesList() {
             return (
               <li
                 key={p.id}
-                className="border-border flex items-center gap-3 border-t py-3 first:border-t-0"
+                className="flex items-center gap-3 border-t border-border py-3 first:border-t-0"
               >
                 <span
                   className={cn(
@@ -238,18 +238,18 @@ function PriceTablesList() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-sm font-semibold">v{p.version}</span>
-                    <span className="text-muted-foreground font-mono text-xs">{p.currency}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{p.currency}</span>
                     {isLatest && <Badge tone="success">{t("priceTablesActive")}</Badge>}
                   </div>
                 </div>
-                <span className="text-muted-foreground font-data text-xs tabular-nums">
+                <span className="font-data text-xs text-muted-foreground tabular-nums">
                   {p.effectiveFrom.slice(0, 10)}
                 </span>
               </li>
             );
           })}
         </ul>
-        <p className="text-muted-foreground mt-3 text-xs">{t("priceTablesDescription")}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t("priceTablesDescription")}</p>
       </Panel.Body>
     </Panel>
   );

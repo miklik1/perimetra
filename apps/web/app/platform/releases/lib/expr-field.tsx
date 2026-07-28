@@ -174,7 +174,7 @@ export function ExprField({
         aria-hidden
         className={cn(
           fieldInputClass,
-          "text-foreground pointer-events-none absolute inset-0 overflow-hidden whitespace-pre border-transparent font-mono",
+          "pointer-events-none absolute inset-0 overflow-hidden border-transparent font-mono whitespace-pre text-foreground",
         )}
       >
         {highlightSpans(value).map((span, i) => (
@@ -200,7 +200,7 @@ export function ExprField({
         value={value}
         className={cn(
           fieldInputClass,
-          "caret-foreground relative bg-transparent font-mono text-transparent",
+          "relative bg-transparent font-mono text-transparent caret-foreground",
         )}
         onChange={(e) => {
           setOpen(true);
@@ -220,7 +220,7 @@ export function ExprField({
       {status.kind === "ok" && evalReadout === null ? (
         <span
           aria-hidden
-          className="text-muted-foreground bg-background pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs"
+          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 bg-background text-xs text-muted-foreground"
         >
           ✓
         </span>
@@ -229,7 +229,7 @@ export function ExprField({
         <ul
           id={listboxId}
           role="listbox"
-          className="border-border bg-popover absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border py-1 text-sm shadow-md"
+          className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
         >
           {candidates.map((candidate, i) => (
             <li key={candidate}>
@@ -265,7 +265,7 @@ export function ExprField({
           {message}
         </p>
       ) : evalReadout !== null ? (
-        <p className="text-muted-foreground mt-1 font-mono text-xs">= {evalReadout}</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">= {evalReadout}</p>
       ) : null}
     </div>
   );

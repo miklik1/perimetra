@@ -46,12 +46,12 @@ export function DashboardClient() {
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="bg-field flex min-h-screen items-center justify-center">
+        <main className="flex min-h-screen items-center justify-center bg-field">
           {t("checkingSession")}
         </main>
       }
     >
-      <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6 p-6 md:p-8">
+      <main className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 p-6 md:p-8">
         <DashboardHeader user={user} isWorkshop={role === "workshop"} />
         {summary ? (
           <>
@@ -127,7 +127,7 @@ function DashboardHeader({ user, isWorkshop }: { user: User | null; isWorkshop: 
   return (
     <header className="flex min-w-0 flex-col gap-1">
       <DisplayLabel as="h1">{heading}</DisplayLabel>
-      <p className="text-muted-foreground text-ui-sm">
+      <p className="text-ui-sm text-muted-foreground">
         {dateLine}
         {isWorkshop ? ` · ${t("workshopSuffix")}` : ""}
       </p>
@@ -164,8 +164,8 @@ function KpiRow({ kpis }: { kpis: DashboardKpis }) {
 function PlainKpi({ label, value }: { label: string; value: number }) {
   return (
     <Panel elevation="flat" className="flex min-w-0 flex-col justify-between gap-2">
-      <span className="text-muted-foreground text-ui-sm">{label}</span>
-      <span className="font-data text-metric tabular-nums leading-none">{value}</span>
+      <span className="text-ui-sm text-muted-foreground">{label}</span>
+      <span className="font-data text-metric leading-none tabular-nums">{value}</span>
     </Panel>
   );
 }
@@ -186,14 +186,14 @@ function Funnel({ funnel }: { funnel: DashboardFunnel }) {
       <Panel.Body>
         {rows.map((r) => (
           <div key={r.key} className="flex items-center gap-3">
-            <span className="text-ui-sm w-24 shrink-0">{r.label}</span>
-            <div className="bg-chrome-subtle relative h-6 min-w-0 flex-1 overflow-hidden rounded-full">
+            <span className="w-24 shrink-0 text-ui-sm">{r.label}</span>
+            <div className="relative h-6 min-w-0 flex-1 overflow-hidden rounded-full bg-chrome-subtle">
               <div
                 className={cn("h-full rounded-full", r.fill)}
                 style={{ width: `${(r.n / max) * 100}%` }}
               />
             </div>
-            <span className="font-data text-ui-sm w-8 shrink-0 text-right tabular-nums">{r.n}</span>
+            <span className="w-8 shrink-0 text-right font-data text-ui-sm tabular-nums">{r.n}</span>
           </div>
         ))}
       </Panel.Body>
@@ -212,24 +212,24 @@ function ExpiringQuotes({ quotes }: { quotes: readonly DashboardExpiringQuote[] 
       </Panel.Header>
       <Panel.Body>
         {quotes.length === 0 ? (
-          <p className="text-muted-foreground text-ui-sm">{t("expiring.empty")}</p>
+          <p className="text-ui-sm text-muted-foreground">{t("expiring.empty")}</p>
         ) : (
           <ul className="flex flex-col">
             {quotes.map((q, i) => (
               <li key={q.id} className="flex flex-col">
                 {i > 0 && <Separator />}
                 <div className="flex min-w-0 items-center gap-3 py-2.5">
-                  <span className="font-data min-w-0 flex-1 truncate font-medium">
+                  <span className="min-w-0 flex-1 truncate font-data font-medium">
                     {q.number ?? "—"}
                   </span>
                   <span className="shrink-0 whitespace-nowrap">
                     <QuoteStatusBadge status={q.status} />
                   </span>
-                  <span className="text-muted-foreground text-ui-sm shrink-0 whitespace-nowrap">
+                  <span className="shrink-0 text-ui-sm whitespace-nowrap text-muted-foreground">
                     {q.validUntil ? daysUntil(q.validUntil, locale) : "—"}
                   </span>
                   {q.total !== null && (
-                    <span className="font-data text-ui-sm shrink-0 whitespace-nowrap tabular-nums">
+                    <span className="shrink-0 font-data text-ui-sm whitespace-nowrap tabular-nums">
                       {formatMoney(q.total, locale)}
                     </span>
                   )}
@@ -253,7 +253,7 @@ function Activity({ items }: { items: readonly DashboardActivityItem[] }) {
       </Panel.Header>
       <Panel.Body>
         {items.length === 0 ? (
-          <p className="text-muted-foreground text-ui-sm">{t("activity.empty")}</p>
+          <p className="text-ui-sm text-muted-foreground">{t("activity.empty")}</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {items.map((item) => (
@@ -275,11 +275,11 @@ function ActivityRow({ item }: { item: DashboardActivityItem }) {
   }`;
   return (
     <li className="flex min-w-0 items-center gap-3">
-      <span className="bg-chrome-subtle text-muted-foreground grid size-8 shrink-0 place-items-center rounded-full">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-chrome-subtle text-muted-foreground">
         <Icon name={isOrder ? "list" : "draft"} size={15} />
       </span>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="text-ui-sm min-w-0 truncate font-medium">{label}</span>
+        <span className="min-w-0 truncate text-ui-sm font-medium">{label}</span>
         <span className="shrink-0 whitespace-nowrap">
           {isOrder ? (
             <OrderStatusBadge status={item.status} />
@@ -288,7 +288,7 @@ function ActivityRow({ item }: { item: DashboardActivityItem }) {
           )}
         </span>
       </div>
-      <span className="text-muted-foreground text-ui-sm shrink-0 whitespace-nowrap">
+      <span className="shrink-0 text-ui-sm whitespace-nowrap text-muted-foreground">
         {relativeTime(item.updatedAt, locale)}
       </span>
     </li>

@@ -214,7 +214,7 @@ function CornerHandle({
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
       onBlur={commitKey}
-      className="border-ring bg-chrome shadow-soft-sm focus-visible:ring-ring pointer-coarse:size-6 pointer-events-auto absolute left-0 top-0 size-4 cursor-ew-resize touch-none rounded-[3px] border-2 outline-none focus-visible:ring-2"
+      className="pointer-events-auto absolute top-0 left-0 size-4 cursor-ew-resize touch-none rounded-[3px] border-2 border-ring bg-chrome shadow-soft-sm outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-6"
     />
   );
 }
@@ -265,7 +265,7 @@ function DimensionPill({
   };
 
   return (
-    <div ref={register} className="pointer-events-auto absolute left-0 top-0 flex items-center">
+    <div ref={register} className="pointer-events-auto absolute top-0 left-0 flex items-center">
       {editing ? (
         <input
           ref={inputRef}
@@ -284,7 +284,7 @@ function DimensionPill({
               setEditing(false);
             }
           }}
-          className="border-ring bg-chrome text-foreground font-data ring-ring/25 w-24 rounded-[var(--radius-inset)] border-[1.5px] px-2 py-1 text-[12.5px] font-semibold tabular-nums shadow-[0_0_0_3px] outline-none"
+          className="w-24 rounded-[var(--radius-inset)] border-[1.5px] border-ring bg-chrome px-2 py-1 font-data text-[12.5px] font-semibold text-foreground tabular-nums shadow-[0_0_0_3px] ring-ring/25 outline-none"
         />
       ) : (
         <button
@@ -293,10 +293,10 @@ function DimensionPill({
           onClick={() => setEditing(true)}
           aria-label={t("editDimension", { dimension: binding.label })}
           data-active={dragging || undefined}
-          className="border-input bg-chrome text-foreground shadow-soft-sm hover:border-ring focus-visible:ring-ring data-[active]:border-ring font-data flex items-center gap-1.5 rounded-[var(--radius-inset)] border-[1.5px] px-2.5 py-1 text-[12.5px] font-semibold tabular-nums outline-none focus-visible:ring-2"
+          className="flex items-center gap-1.5 rounded-[var(--radius-inset)] border-[1.5px] border-input bg-chrome px-2.5 py-1 font-data text-[12.5px] font-semibold text-foreground tabular-nums shadow-soft-sm outline-none hover:border-ring focus-visible:ring-2 focus-visible:ring-ring data-[active]:border-ring"
         >
           {new Intl.NumberFormat(locale).format(Math.round(shown))}
-          <span className="text-muted-foreground font-normal">{t("unitMm")}</span>
+          <span className="font-normal text-muted-foreground">{t("unitMm")}</span>
         </button>
       )}
     </div>
@@ -324,9 +324,9 @@ function SelectionChip({
   const part = parts.get(selected);
   if (part === undefined) return null;
   return (
-    <div className="bg-chrome shadow-float pointer-events-auto absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2.5 rounded-[var(--radius-control)] py-1.5 pl-3.5 pr-1.5">
-      <span className="text-foreground text-ui-sm font-semibold">{part.name}</span>
-      <span className="text-muted-foreground font-data text-ui-xs">{part.componentCode}</span>
+    <div className="pointer-events-auto absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-2.5 rounded-[var(--radius-control)] bg-chrome py-1.5 pr-1.5 pl-3.5 shadow-float">
+      <span className="text-ui-sm font-semibold text-foreground">{part.name}</span>
+      <span className="font-data text-ui-xs text-muted-foreground">{part.componentCode}</span>
       <IconButton
         size="sm"
         aria-label={t("clearSelection")}

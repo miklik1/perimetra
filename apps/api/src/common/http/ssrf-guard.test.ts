@@ -27,7 +27,9 @@ describe("blockedReasonForIp", () => {
     expect(blockedReasonForIp("::")).toBe("unspecified");
     expect(blockedReasonForIp("fc00::1")).toBe("uniqueLocal");
     expect(blockedReasonForIp("fe80::1")).toBe("linkLocal");
-    expect(blockedReasonForIp("fd00:ec2::254")).toBe("uniqueLocal"); // AWS IMDSv6
+    expect(blockedReasonForIp("fd00:ec2::254")).toBe("cloud-metadata"); // AWS IMDSv6 —
+    // the SPECIFIC label is the point: "uniqueLocal" is exactly what the
+    // allowPrivateTargets hatch would have honoured (ADR 1047).
   });
 
   it("blocks v6 transition ranges that embed/tunnel v4 (6to4, Teredo, NAT64)", () => {

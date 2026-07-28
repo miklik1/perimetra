@@ -17,7 +17,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("rounded-control bg-muted animate-pulse motion-reduce:animate-none", className)}
+      className={cn("animate-pulse rounded-control bg-muted motion-reduce:animate-none", className)}
       {...props}
     />
   );
@@ -49,7 +49,7 @@ function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
       strokeLinecap="round"
       role={labelled ? "status" : undefined}
       aria-hidden={labelled ? undefined : true}
-      className={cn("text-muted-foreground size-4 animate-spin", className)}
+      className={cn("size-4 animate-spin text-muted-foreground", className)}
       {...props}
     >
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -73,7 +73,7 @@ function Separator({
       decorative={decorative}
       orientation={orientation}
       className={cn(
-        "bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=vertical]:h-full data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px",
+        "shrink-0 bg-border data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",
         className,
       )}
       {...props}

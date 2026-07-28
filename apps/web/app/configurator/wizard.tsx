@@ -60,7 +60,7 @@ export function Wizard({
         return (
           <fieldset key={group.id} className="flex flex-col gap-3">
             {group.label !== undefined && (
-              <legend className="text-muted-foreground mb-2 text-xs font-semibold uppercase">
+              <legend className="mb-2 text-xs font-semibold text-muted-foreground uppercase">
                 {group.label}
               </legend>
             )}

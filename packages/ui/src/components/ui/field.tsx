@@ -89,12 +89,12 @@ function FieldLabel({ className, children, ...props }: React.ComponentProps<"lab
     <label
       data-slot="field-label"
       htmlFor={fieldId}
-      className={cn("text-foreground text-sm font-medium", className)}
+      className={cn("text-sm font-medium text-foreground", className)}
       {...props}
     >
       {children}
       {required ? (
-        <span className="text-destructive ml-0.5" aria-hidden="true">
+        <span className="ml-0.5 text-destructive" aria-hidden="true">
           *
         </span>
       ) : null}
@@ -112,7 +112,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="field-description"
       id={descriptionId}
-      className={cn("text-muted-foreground text-xs", className)}
+      className={cn("text-xs text-muted-foreground", className)}
       {...props}
     />
   );
@@ -145,7 +145,7 @@ function FieldError({ className, ...props }: React.ComponentProps<"p">) {
       data-slot="field-error"
       id={messageId}
       role="alert"
-      className={cn("text-destructive text-xs", className)}
+      className={cn("text-xs text-destructive", className)}
       {...props}
     />
   );
@@ -162,7 +162,7 @@ function FieldWarn({ className, ...props }: React.ComponentProps<"p">) {
       data-slot="field-warn"
       id={messageId}
       role="status"
-      className={cn("text-warning text-xs", className)}
+      className={cn("text-xs text-warning", className)}
       {...props}
     />
   );

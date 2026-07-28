@@ -44,7 +44,7 @@ function SettingsTabs({ active }: { active: SettingsTabKey }) {
   return (
     <nav
       aria-label={t("title")}
-      className="border-border -mx-1 flex gap-1 overflow-x-auto border-b px-1"
+      className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
     >
       {tabs.map((tab) => {
         const isActive = tab.key === active;
@@ -54,10 +54,10 @@ function SettingsTabs({ active }: { active: SettingsTabKey }) {
             to={tab.to}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "focus-visible:ring-ring -mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset",
+              "-mb-px border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               isActive
                 ? "border-primary text-foreground"
-                : "text-muted-foreground hover:text-foreground hover:border-border border-transparent",
+                : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
             )}
           >
             {t(tab.key)}

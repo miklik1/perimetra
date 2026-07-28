@@ -66,7 +66,7 @@ export function CreateProjectForm() {
       onSubmit={handleSubmit((values) =>
         mutation.mutate({ input: values, idempotencyKey: crypto.randomUUID() }),
       )}
-      className="border-border flex w-full flex-col gap-4 rounded-md border p-4 text-sm"
+      className="flex w-full flex-col gap-4 rounded-md border border-border p-4 text-sm"
       noValidate
     >
       <h2 className="font-semibold">{t("newProject")}</h2>
@@ -98,7 +98,7 @@ export function CreateProjectForm() {
         <p className="text-destructive" role="alert">
           {tErrors(errorMessageKey(mutation.error))}
           {devErrorDetail(mutation.error) && (
-            <span className="text-muted-foreground mt-1 block text-xs">
+            <span className="mt-1 block text-xs text-muted-foreground">
               {devErrorDetail(mutation.error)}
             </span>
           )}

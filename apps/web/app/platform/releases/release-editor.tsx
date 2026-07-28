@@ -208,10 +208,10 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
 
   return (
     <main className="flex h-screen flex-col">
-      <header className="border-border flex items-center justify-between gap-4 border-b px-4 py-3">
+      <header className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
         <div>
           <h1 className="text-lg font-semibold">{t("title")}</h1>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             {validation.errorCount === 0
               ? t("noDefects")
               : t("defectCount", { count: String(validation.errorCount) })}
@@ -228,7 +228,7 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
       {mutation.isError ? <PublishError error={mutation.error} /> : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-[210px_1fr_300px]">
-        <aside className="border-border overflow-auto border-r p-2">
+        <aside className="overflow-auto border-r border-border p-2">
           <NavTree
             nodes={navNodes}
             selectedId={section}
@@ -257,7 +257,7 @@ export function Editor({ initial }: { initial?: LoadedDraft }) {
           </section>
         </ExprEvalScopeContext.Provider>
 
-        <aside className="border-border flex flex-col overflow-auto border-l p-3">
+        <aside className="flex flex-col overflow-auto border-l border-border p-3">
           {diff && baseReleaseId ? (
             <DiffPanel diff={diff} baseReleaseId={baseReleaseId} onNavigate={setSection} />
           ) : null}
@@ -342,10 +342,10 @@ function DiffPanel({
 }) {
   const t = useTranslations("releaseEditor");
   return (
-    <section className="border-border mb-3 rounded-md border p-2">
+    <section className="mb-3 rounded-md border border-border p-2">
       <h2 className="mb-1 text-sm font-semibold">{t("diffTitle", { releaseId: baseReleaseId })}</h2>
       {diff.versionChanged ? (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {t("diffVersion", { from: String(diff.baseVersion), to: String(diff.currentVersion) })}
         </p>
       ) : null}
@@ -354,7 +354,7 @@ function DiffPanel({
           {diff.sections.map((s) => (
             <div key={s.section} className="mt-1">
               <p className="text-xs font-medium">{t(`section_${s.section}`)}</p>
-              <ul className="text-muted-foreground flex flex-col gap-0.5 text-xs">
+              <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
                 {s.added.map((k) => (
                   <li key={`a-${k}`}>
                     <button
@@ -386,13 +386,13 @@ function DiffPanel({
             </div>
           ))}
           {diff.islandsChanged.length > 0 ? (
-            <p className="text-muted-foreground mt-1 text-xs">
+            <p className="mt-1 text-xs text-muted-foreground">
               {t("diffIslands", { sections: diff.islandsChanged.join(", ") })}
             </p>
           ) : null}
         </>
       ) : (
-        <p className="text-muted-foreground text-xs">{t("diffNone")}</p>
+        <p className="text-xs text-muted-foreground">{t("diffNone")}</p>
       )}
     </section>
   );
@@ -428,8 +428,8 @@ function PublishError({ error }: { error: unknown }) {
     const defects = body?.defects;
     if (Array.isArray(defects) && defects.length > 0) {
       return (
-        <div className="border-destructive/30 bg-destructive/5 border-b px-4 py-2" role="alert">
-          <p className="text-destructive text-sm font-semibold">{t("serverRejected")}</p>
+        <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-2" role="alert">
+          <p className="text-sm font-semibold text-destructive">{t("serverRejected")}</p>
           <DefectList
             defects={(defects as { code?: string; where?: string; message?: string }[]).map(
               (d) => ({
@@ -446,7 +446,7 @@ function PublishError({ error }: { error: unknown }) {
   }
   return (
     <p
-      className="text-destructive border-destructive/30 bg-destructive/5 border-b px-4 py-2 text-sm"
+      className="border-b border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive"
       role="alert"
     >
       {error instanceof Error ? error.message : t("publishError")}

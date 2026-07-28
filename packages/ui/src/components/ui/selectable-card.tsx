@@ -194,10 +194,10 @@ function SelectableCardRoot({
         aria-disabled={disabled || undefined}
         tabIndex={group.value === undefined ? (isFirst ? 0 : -1) : selected ? 0 : -1}
         className={cn(
-          "ease-brand rounded-card border-border bg-chrome text-chrome-foreground relative flex flex-col items-start gap-1.5 border p-4 text-left outline-none transition-colors duration-200",
-          "focus-visible:ring-ring focus-visible:ring-2",
-          "aria-checked:border-copper aria-checked:ring-copper aria-checked:ring-1",
-          disabled ? "opacity-disabled cursor-default" : "hover:bg-chrome-hover cursor-pointer",
+          "relative flex flex-col items-start gap-1.5 rounded-card border border-border bg-chrome p-4 text-left text-chrome-foreground transition-colors duration-200 ease-brand outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ring",
+          "aria-checked:border-copper aria-checked:ring-1 aria-checked:ring-copper",
+          disabled ? "cursor-default opacity-disabled" : "cursor-pointer hover:bg-chrome-hover",
           className,
         )}
         onClick={(event) => {
@@ -248,7 +248,7 @@ function SelectableCardDescription({ className, ...props }: React.ComponentProps
   return (
     <span
       data-slot="selectable-card-description"
-      className={cn("text-muted-foreground text-ui-sm", className)}
+      className={cn("text-ui-sm text-muted-foreground", className)}
       {...props}
     />
   );
@@ -272,7 +272,7 @@ function SelectableCardBadge({ className, ...props }: React.ComponentProps<typeo
   return (
     <Badge
       data-slot="selectable-card-badge"
-      className={cn("absolute right-3 top-3", className)}
+      className={cn("absolute top-3 right-3", className)}
       {...props}
     />
   );

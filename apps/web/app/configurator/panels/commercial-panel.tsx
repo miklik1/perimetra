@@ -133,7 +133,7 @@ function PendingPanel() {
           mounts its pending state at exactly the same moments (first paint and
           every product switch), so a status line here made one event announce
           twice with identical text. */}
-      <div aria-busy={true} className="bg-chrome-subtle rounded-card p-4">
+      <div aria-busy={true} className="rounded-card bg-chrome-subtle p-4">
         <SkeletonText lines={3} widths={["45%", "70%", "35%"]} />
       </div>
     </PanelFrame>
@@ -151,14 +151,14 @@ function BlockedPanel() {
     <PanelFrame>
       <div
         role="status"
-        className="border-border bg-chrome-subtle rounded-card flex flex-col gap-1.5 border border-dashed p-4"
+        className="flex flex-col gap-1.5 rounded-card border border-dashed border-border bg-chrome-subtle p-4"
       >
-        <span className="text-muted-foreground text-ui-sm inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 text-ui-sm text-muted-foreground">
           <Icon name="lock" size={15} />
           {t("priceExVat")}
         </span>
         <span className="font-display text-ui-4xl text-muted-foreground">{t("priceBlocked")}</span>
-        <span className="text-destructive text-ui-sm">{t("priceBlockedNote")}</span>
+        <span className="text-ui-sm text-destructive">{t("priceBlockedNote")}</span>
       </div>
     </PanelFrame>
   );
@@ -296,7 +296,7 @@ function PriceCard({
 
 function ValidityLine({ children }: { children: ReactNode }) {
   return (
-    <p className="text-success text-ui-sm inline-flex items-center gap-1.5 font-medium">
+    <p className="inline-flex items-center gap-1.5 text-ui-sm font-medium text-success">
       <Icon name="check" size={14} />
       {children}
     </p>

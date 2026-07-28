@@ -182,7 +182,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"h3">) {
   return (
     <h3
       data-slot="alert-title"
-      className={cn("text-ui-md text-foreground col-start-2 row-start-1 font-semibold", className)}
+      className={cn("col-start-2 row-start-1 text-ui-md font-semibold text-foreground", className)}
       {...props}
     />
   );
@@ -195,7 +195,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="alert-description"
-      className={cn("text-muted-foreground col-start-2 row-start-2 mt-1", className)}
+      className={cn("col-start-2 row-start-2 mt-1 text-muted-foreground", className)}
       {...props}
     />
   );

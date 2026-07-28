@@ -49,7 +49,7 @@ export function ParamField({ def, optionSets, value, effective, onChange }: Para
         type="checkbox"
         checked={Boolean(shown)}
         onChange={(e) => onChange(e.target.checked)}
-        className="border-border size-4 rounded border"
+        className="size-4 rounded border border-border"
       />
     );
   } else if (optionSet !== undefined) {
@@ -127,7 +127,7 @@ export function ParamField({ def, optionSets, value, effective, onChange }: Para
       </label>
       {control}
       {def.deviation?.note !== undefined && (
-        <p className="text-muted-foreground text-xs">{def.deviation.note}</p>
+        <p className="text-xs text-muted-foreground">{def.deviation.note}</p>
       )}
     </div>
   );

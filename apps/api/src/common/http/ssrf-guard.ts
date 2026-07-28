@@ -28,6 +28,16 @@
  * anything else (loopback, link-local incl. the cloud-metadata 169.254.169.254 /
  * fd00:ec2::254, RFC1918 private, CGNAT, unique-local, unspecified, reserved,
  * 6to4/teredo/NAT64, multicast) is blocked.
+ *
+ * THE HATCH IS A RELAXATION, NEVER A BYPASS (ADR 1047, ports anyora ADR 0079).
+ * `allowPrivateTargets` relaxes the public-unicast allowlist and NOTHING else.
+ * Four checks sit AHEAD of it and are unreachable by it, in BOTH layers:
+ * the scheme gate, the cloud-metadata HOSTNAME pre-block
+ * ({@link BLOCKED_METADATA_HOSTNAMES}), {@link UNCONDITIONAL_BLOCKS}, and the
+ * fail-closed unparseable-address rule. An exemption evaluated before a deny
+ * list is not an exemption from it — it is a bypass of it, and where a hatch
+ * is PLACED decides its scope regardless of what its documentation claims it
+ * relaxes.
  */
 import { lookup as dnsLookup, type LookupAddress, type LookupOptions } from "node:dns";
 import { isIP, type LookupFunction } from "node:net";
@@ -50,6 +60,61 @@ const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
 /** The deprecated IPv4-COMPATIBLE block `::a.b.c.d` (RFC 4291 §2.5.5.1). */
 const IPV4_COMPATIBLE_CIDR = ipaddr.parseCIDR("::/96");
+
+/**
+ * Cloud-metadata hostnames refused WITHOUT waiting for DNS, and refused even
+ * under `allowPrivateTargets` — no deployment runs a webhook receiver on its
+ * own instance-metadata service, so the hatch has no reason to reach one.
+ *
+ * All three GCE spellings: the FQDN, the short zone name, and the BARE LABEL
+ * `metadata`, which resolves via search-domain completion on a GCE instance.
+ * Compared against a hostname normalised by {@link normalizeHostname}.
+ */
+const BLOCKED_METADATA_HOSTNAMES: ReadonlySet<string> = new Set([
+  "metadata.google.internal",
+  "metadata.goog",
+  "metadata",
+]);
+
+/**
+ * Address ranges refused REGARDLESS of `allowPrivateTargets`, each with the
+ * reason it reports. These are checked ahead of the hatch because the generic
+ * classification the hatch honours (`linkLocal`, `uniqueLocal`,
+ * `carrierGradeNat`) is exactly what would let an instance-metadata endpoint
+ * — and with it the instance's IAM credentials — through on a permissive
+ * deployment.
+ *
+ * - `169.254.0.0/16` / `fe80::/10` — IMDS answers at 169.254.169.254 on AWS,
+ *   Azure, GCP, DigitalOcean, OpenStack and Oracle. The WHOLE link-local space
+ *   is blocked rather than the single host: no real receiver is reachable
+ *   there, so blocking wide costs nothing and leaves no next address to chase.
+ * - `fd00:ec2::/32` — AWS's IPv6 IMDS, which sits INSIDE the unique-local space
+ *   the hatch opens.
+ * - `100.100.100.200/32` — Alibaba Cloud's IMDS, inside CGNAT for the same
+ *   reason.
+ */
+const UNCONDITIONAL_BLOCKS: ReadonlyArray<{
+  cidr: [ipaddr.IPv4 | ipaddr.IPv6, number];
+  reason: string;
+}> = [
+  { cidr: ipaddr.parseCIDR("169.254.0.0/16"), reason: "linkLocal" },
+  { cidr: ipaddr.parseCIDR("fe80::/10"), reason: "linkLocal" },
+  { cidr: ipaddr.parseCIDR("fd00:ec2::/32"), reason: "cloud-metadata" },
+  { cidr: ipaddr.parseCIDR("100.100.100.200/32"), reason: "cloud-metadata" },
+];
+
+/**
+ * The comparable form of a URL host: IPv6 brackets stripped, the trailing dot
+ * of an absolute DNS name removed, lowercased. WHATWG `URL` already lowercases
+ * and canonicalises, but `metadata.google.internal.` keeps its trailing dot and
+ * would otherwise miss {@link BLOCKED_METADATA_HOSTNAMES} while still resolving.
+ */
+function normalizeHostname(host: string): string {
+  return host
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "")
+    .toLowerCase();
+}
 
 /**
  * The embedded IPv4 of a v6 address that carries one — IPv4-MAPPED
@@ -80,24 +145,36 @@ function embeddedIPv4(v6: ipaddr.IPv6): string | null {
 
 /**
  * Classify a single IP literal (the canonical string DNS/URL parsing yields).
- * Returns `null` when the address is globally-routable unicast (safe to egress
- * to), otherwise a short reason naming why it is blocked. Both IPv4-mapped and
- * IPv4-compatible IPv6 are recursed into their embedded v4 so the v6 spelling
- * cannot smuggle a private/loopback v4 past the allowlist (see `embeddedIPv4`).
+ * Returns `null` when the address may be egressed to, otherwise a short reason
+ * naming why it is blocked. Both IPv4-mapped and IPv4-compatible IPv6 are
+ * recursed into their embedded v4 so the v6 spelling cannot smuggle a
+ * private/loopback v4 past the allowlist (see `embeddedIPv4`).
+ *
+ * ORDER IS THE SECURITY PROPERTY (ADR 1047). Fail-closed parsing and
+ * {@link UNCONDITIONAL_BLOCKS} are applied BEFORE `allowPrivateTargets` is even
+ * read; the hatch then permits any remaining non-public address. One
+ * classification path serves both guard layers, so they cannot drift apart.
  */
-export function blockedReasonForIp(ip: string): string | null {
+export function blockedReasonForIp(ip: string, options: SsrfGuardOptions = {}): string | null {
   let addr: ipaddr.IPv4 | ipaddr.IPv6;
   try {
     addr = ipaddr.parse(ip);
   } catch {
     // An address DNS/URL handed us that we cannot parse is, by definition, not
-    // a verified-public address — fail closed.
+    // a verified-public address — fail closed. The hatch permits PRIVATE
+    // destinations, never unclassifiable ones.
     return "unparseable-address";
   }
   if (addr.kind() === "ipv6") {
     const embedded = embeddedIPv4(addr as ipaddr.IPv6);
-    if (embedded) return blockedReasonForIp(embedded);
+    if (embedded) return blockedReasonForIp(embedded, options);
   }
+  for (const { cidr, reason } of UNCONDITIONAL_BLOCKS) {
+    // `match` throws across families (v4 address vs v6 CIDR) — skip those.
+    if (addr.kind() === cidr[0].kind() && addr.match(cidr)) return reason;
+  }
+  // Only now may the hatch speak, and all it can say is "private is fine".
+  if (options.allowPrivateTargets) return null;
   // ALLOWLIST: `unicast` is ipaddr.js's label for an ordinary global address
   // (both families). Everything else is a special-use range we refuse.
   const range = addr.range();
@@ -106,19 +183,30 @@ export function blockedReasonForIp(ip: string): string | null {
 
 export interface SsrfGuardOptions {
   /**
-   * Permit private/loopback/link-local targets. Default `false` (secure).
-   * Set ONLY for local dev or a deliberately-trusted internal deployment where
-   * webhook receivers live on a private network — never on the public internet.
+   * Relax the public-unicast allowlist so ordinary private/loopback/unique-local
+   * targets may be reached. Default `false` (secure). Set ONLY for local dev or
+   * a deliberately-trusted internal deployment where webhook receivers live on a
+   * private network — never on the public internet.
+   *
+   * It is a RELAXATION, not an off switch: the scheme gate,
+   * {@link BLOCKED_METADATA_HOSTNAMES}, {@link UNCONDITIONAL_BLOCKS} and the
+   * fail-closed unparseable rule all still apply, and the guarded dispatcher is
+   * still attached (merely configured permissively) so a HOSTNAME's resolution
+   * is still validated.
    */
   allowPrivateTargets?: boolean;
 }
 
 /**
- * Synchronous URL pre-flight. Validates scheme always, and IP-literal hosts
- * eagerly (the layer undici's lookup can't cover). Hostnames are intentionally
- * NOT resolved here — resolving would (a) break fetch-mocked unit tests and
- * (b) reintroduce a check-vs-connect TOCTOU; their DNS gate is the dispatcher.
- * Returns the parsed `URL`; throws `SsrfBlockedError` on refusal.
+ * Synchronous URL pre-flight. Validates scheme always, the cloud-metadata
+ * hostname pre-block always, and IP-literal hosts eagerly (the layer undici's
+ * lookup can't cover). Ordinary hostnames are intentionally NOT resolved here —
+ * resolving would (a) break fetch-mocked unit tests and (b) reintroduce a
+ * check-vs-connect TOCTOU; their DNS gate is the dispatcher. Returns the parsed
+ * `URL`; throws `SsrfBlockedError` on refusal.
+ *
+ * `allowPrivateTargets` is consulted ONLY by `blockedReasonForIp`, at the
+ * bottom — every check above it is unconditional (ADR 1047).
  */
 export function assertEgressUrlAllowed(rawUrl: string, options: SsrfGuardOptions = {}): URL {
   let url: URL;
@@ -133,12 +221,17 @@ export function assertEgressUrlAllowed(rawUrl: string, options: SsrfGuardOptions
       `egress URL scheme "${url.protocol}" is not allowed (http/https only)`,
     );
   }
-  if (options.allowPrivateTargets) return url;
 
   // IPv6 literals arrive bracket-wrapped from the URL parser: [::1].
-  const host = url.hostname.replace(/^\[/, "").replace(/\]$/, "");
+  const host = normalizeHostname(url.hostname);
+  if (BLOCKED_METADATA_HOSTNAMES.has(host)) {
+    throw new SsrfBlockedError(
+      "cloud-metadata-hostname",
+      `egress URL host ${url.hostname} is a cloud-metadata hostname`,
+    );
+  }
   if (isIP(host) !== 0) {
-    const reason = blockedReasonForIp(host);
+    const reason = blockedReasonForIp(host, options);
     if (reason) {
       throw new SsrfBlockedError(
         reason,
@@ -162,15 +255,31 @@ export type AllAddressResolver = (
 
 /**
  * Build the validating connector `lookup`. It resolves ALL addresses for
- * `hostname`, refuses if ANY is non-public (a name resolving to a mix of public
+ * `hostname`, refuses if ANY is disallowed (a name resolving to a mix of public
  * + private is treated as hostile), and otherwise hands undici the validated
  * resolution — so the address that was checked is the address that is dialled.
  * The resolver is injectable for deterministic tests.
+ *
+ * `guardOptions` is deliberately NOT named `options`: the returned connector's
+ * own second parameter is undici's `LookupOptions`, and naming both `options`
+ * shadows the guard's — the threading then silently does nothing, and only a
+ * test asserting the hatch STILL WORKS catches it (the refusal tests pass
+ * either way, because they also pass when the option is ignored).
  */
 export function buildGuardedLookup(
   resolve: AllAddressResolver = dnsLookup as AllAddressResolver,
+  guardOptions: SsrfGuardOptions = {},
 ): LookupFunction {
   return function guardedLookup(hostname, options, callback): void {
+    // The hostname pre-block is unconditional and applies here too: a name is
+    // refused before it is ever resolved, hatch or no hatch.
+    if (BLOCKED_METADATA_HOSTNAMES.has(normalizeHostname(hostname))) {
+      return callback(
+        new SsrfBlockedError("cloud-metadata-hostname", `${hostname} is a cloud-metadata hostname`),
+        "",
+        0,
+      );
+    }
     resolve(hostname, { ...options, all: true }, (err, addresses) => {
       if (err) return callback(err, "", 0);
       const list = Array.isArray(addresses) ? addresses : [];
@@ -178,7 +287,7 @@ export function buildGuardedLookup(
         return callback(new SsrfBlockedError("no-address", `no address for ${hostname}`), "", 0);
       }
       for (const entry of list) {
-        const reason = blockedReasonForIp(entry.address);
+        const reason = blockedReasonForIp(entry.address, guardOptions);
         if (reason) {
           return callback(
             new SsrfBlockedError(
@@ -205,7 +314,20 @@ export function buildGuardedLookup(
  * the {@link assertEgressUrlAllowed} pre-flight (per redirect hop, when hops
  * are followed manually) for the complete guard. `lookup` is injectable for
  * tests.
+ *
+ * ALWAYS CONSTRUCT IT, EVEN UNDER THE HATCH (ADR 1047). `allowPrivateTargets`
+ * configures the connector permissively; it must never be expressed by passing
+ * `undefined` as the dispatcher instead. This is the ONLY layer that can see
+ * where a HOSTNAME resolves, so dropping it does not relax the guard — it
+ * deletes it, and a name an attacker registered pointing at 169.254.169.254
+ * then needs no DNS control at all to reach the instance's IAM credentials.
  */
-export function createSsrfGuardedDispatcher(opts: { lookup?: AllAddressResolver } = {}): Agent {
-  return new Agent({ connect: { lookup: buildGuardedLookup(opts.lookup) } });
+export function createSsrfGuardedDispatcher(
+  opts: { lookup?: AllAddressResolver } & SsrfGuardOptions = {},
+): Agent {
+  return new Agent({
+    connect: {
+      lookup: buildGuardedLookup(opts.lookup, { allowPrivateTargets: opts.allowPrivateTargets }),
+    },
+  });
 }

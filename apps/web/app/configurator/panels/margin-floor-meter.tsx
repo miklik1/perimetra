@@ -115,7 +115,7 @@ export function MarginFloorMeter({
     <div className={cn("flex flex-col gap-1.5", className)}>
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-ui-sm font-semibold">{valueText}</span>
-        <span id={floorId} className="text-muted-foreground text-ui-xs">
+        <span id={floorId} className="text-ui-xs text-muted-foreground">
           {t("marginFloor", { pct: displayPct(floorPct) })}
         </span>
       </div>
@@ -141,7 +141,7 @@ export function MarginFloorMeter({
         data-breach={breach ? "true" : undefined}
         className="relative"
       >
-        <div className="bg-chrome-subtle h-2 overflow-hidden rounded-full">
+        <div className="h-2 overflow-hidden rounded-full bg-chrome-subtle">
           <div
             data-slot="margin-floor-fill"
             className={cn("h-full rounded-full", breach ? "bg-destructive" : "bg-success")}
@@ -153,7 +153,7 @@ export function MarginFloorMeter({
         <span
           aria-hidden={true}
           data-slot="margin-floor-tick"
-          className="bg-foreground/60 absolute inset-y-0 w-0.5 -translate-x-px rounded-full"
+          className="absolute inset-y-0 w-0.5 -translate-x-px rounded-full bg-foreground/60"
           style={{ left: `${tick}%` }}
         />
       </div>

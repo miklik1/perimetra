@@ -109,14 +109,14 @@ export default function SharedNabidkaPage() {
   if (data && token) return <SharedNabidkaView initial={data} token={token} />;
 
   return (
-    <main className="bg-field flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-field">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-12">
         {missing ? (
           <Panel elevation="flat">
             {/* A real <h1>: `Panel.Title` renders a <div>, and this page has no
                 other heading — the same regression ADR 0122's review caught. */}
             <h1 className="font-display text-title">{t("buyer.invalidTitle")}</h1>
-            <p className="text-muted-foreground text-sm">{t("buyer.invalidBody")}</p>
+            <p className="text-sm text-muted-foreground">{t("buyer.invalidBody")}</p>
           </Panel>
         ) : (
           // A skeleton, not a spinner: the document is the whole page, and a

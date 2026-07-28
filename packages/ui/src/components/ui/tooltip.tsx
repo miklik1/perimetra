@@ -47,13 +47,13 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          "bg-nav-active text-nav-active-foreground rounded-control shadow-float z-50 max-w-xs select-none px-2.5 py-1.5 text-xs",
+          "z-50 max-w-xs rounded-control bg-nav-active px-2.5 py-1.5 text-xs text-nav-active-foreground shadow-float select-none",
           className,
         )}
         {...props}
       >
         {children}
-        <RadixTooltip.Arrow data-slot="tooltip-arrow" className="text-nav-active fill-current" />
+        <RadixTooltip.Arrow data-slot="tooltip-arrow" className="fill-current text-nav-active" />
       </RadixTooltip.Content>
     </RadixTooltip.Portal>
   );

@@ -27,7 +27,7 @@ export function CutListPanel({
     return (
       <Panel>
         <h2 className="mb-2 font-semibold">{t("production.cutList")}</h2>
-        <p className="text-muted-foreground text-sm">{t("production.cutListEmpty")}</p>
+        <p className="text-sm text-muted-foreground">{t("production.cutListEmpty")}</p>
       </Panel>
     );
   }
@@ -37,29 +37,29 @@ export function CutListPanel({
       <h2 className="font-semibold">
         {t("production.cutList")}
         {kerfMm > 0 && (
-          <span className="text-muted-foreground ml-2 text-xs font-normal">kerf {kerfMm} mm</span>
+          <span className="ml-2 text-xs font-normal text-muted-foreground">kerf {kerfMm} mm</span>
         )}
       </h2>
       {cutList.components.map((component) => (
         <div key={component.componentCode} className="flex flex-col gap-2">
           <h3 className="font-data text-sm font-medium">
             {component.name}
-            <span className="text-muted-foreground ml-2 text-xs">{component.componentCode}</span>
+            <span className="ml-2 text-xs text-muted-foreground">{component.componentCode}</span>
           </h3>
-          <table className="font-data w-full text-left text-sm">
+          <table className="w-full text-left font-data text-sm">
             <thead>
-              <tr className="text-muted-foreground text-xs uppercase">
+              <tr className="text-xs text-muted-foreground uppercase">
                 <th className="py-1 font-medium">{t("production.colLength")}</th>
                 <th className="py-1 text-right font-medium">{t("production.colCount")}</th>
               </tr>
             </thead>
             <tbody>
               {component.lines.map((line, index) => (
-                <tr key={`${component.componentCode}-${index}`} className="border-border border-t">
+                <tr key={`${component.componentCode}-${index}`} className="border-t border-border">
                   <td className="py-1 tabular-nums">
                     {Math.round(line.lengthMm)} mm
                     {line.cutArcMin && (
-                      <span className="text-muted-foreground ml-2 text-xs">
+                      <span className="ml-2 text-xs text-muted-foreground">
                         {formatAngle(line.cutArcMin.left)} / {formatAngle(line.cutArcMin.right)}
                       </span>
                     )}
@@ -69,7 +69,7 @@ export function CutListPanel({
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-border border-t font-medium">
+              <tr className="border-t border-border font-medium">
                 <td className="py-1">{t("production.colTotalLength")}</td>
                 <td className="py-1 text-right tabular-nums">
                   {Math.round(component.totalLengthMm)} mm
@@ -80,7 +80,7 @@ export function CutListPanel({
 
           {component.nesting && (
             <div className="text-xs">
-              <p className="text-muted-foreground mb-1">
+              <p className="mb-1 text-muted-foreground">
                 {t("production.nesting")} — {component.nesting.stockLengthMm} mm
               </p>
               <ul className="flex flex-col gap-0.5">
@@ -96,7 +96,7 @@ export function CutListPanel({
                 ))}
               </ul>
               {component.nesting.oversize.length > 0 && (
-                <p className="text-destructive mt-1">
+                <p className="mt-1 text-destructive">
                   {t("production.oversize")}:{" "}
                   {component.nesting.oversize.map((o) => Math.round(o.lengthMm)).join(", ")} mm
                 </p>

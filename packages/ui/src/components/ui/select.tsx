@@ -43,13 +43,13 @@ function SelectTrigger({
     <RadixSelect.Trigger
       data-slot="select-trigger"
       className={cn(
-        "ease-brand bg-chrome-subtle text-chrome-foreground ring-border/60 focus-visible:ring-ring data-[placeholder]:text-muted-foreground rounded-control inline-flex items-center justify-between gap-2 px-3 py-2 text-sm outline-none ring-1 ring-inset transition-[color,box-shadow] duration-200 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-between gap-2 rounded-control bg-chrome-subtle px-3 py-2 text-sm text-chrome-foreground ring-1 ring-border/60 transition-[color,box-shadow] duration-200 ease-brand outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground",
         className,
       )}
       {...props}
     >
       {children}
-      <RadixSelect.Icon className="text-muted-foreground shrink-0">
+      <RadixSelect.Icon className="shrink-0 text-muted-foreground">
         <ChevronDownIcon className="size-4" />
       </RadixSelect.Icon>
     </RadixSelect.Trigger>
@@ -78,7 +78,7 @@ function SelectContent({
         position={position}
         sideOffset={sideOffset}
         className={cn(
-          "bg-chrome text-chrome-foreground ring-border/60 shadow-float rounded-card z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-hidden p-1 ring-1 ring-inset",
+          "z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] overflow-hidden rounded-card bg-chrome p-1 text-chrome-foreground shadow-float ring-1 ring-border/60 ring-inset",
           className,
         )}
         {...props}
@@ -106,13 +106,13 @@ function SelectItem({
     <RadixSelect.Item
       data-slot="select-item"
       className={cn(
-        "ease-brand data-[highlighted]:bg-chrome-subtle rounded-inset relative flex cursor-default select-none items-center justify-between gap-2 px-2 py-1.5 text-sm outline-none transition-colors duration-200 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex cursor-default items-center justify-between gap-2 rounded-inset px-2 py-1.5 text-sm transition-colors duration-200 ease-brand outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-chrome-subtle",
         className,
       )}
       {...props}
     >
       <RadixSelect.ItemText>{children}</RadixSelect.ItemText>
-      <RadixSelect.ItemIndicator className="text-copper shrink-0">
+      <RadixSelect.ItemIndicator className="shrink-0 text-copper">
         <CheckIcon className="size-4" />
       </RadixSelect.ItemIndicator>
     </RadixSelect.Item>

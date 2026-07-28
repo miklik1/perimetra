@@ -247,7 +247,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
           <Panel.Title>{t("componentsSection")}</Panel.Title>
         </Panel.Header>
         <Panel.Body>
-          <p className="text-muted-foreground text-xs">{t("priceRulesHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("priceRulesHint")}</p>
           <ArrayField
             control={control}
             name="components"
@@ -349,7 +349,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
           <label className="flex items-center gap-2 text-sm font-medium">
             <input
               type="checkbox"
-              className="border-border accent-copper size-4 rounded border"
+              className="size-4 rounded border border-border accent-copper"
               {...register("hasCost")}
             />
             {t("hasCost")}
@@ -391,7 +391,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
 
       <DisclosureSection title={t("bulkJsonSection")}>
         <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-muted-foreground text-xs">{t("bulkJsonDescription")}</p>
+          <p className="text-xs text-muted-foreground">{t("bulkJsonDescription")}</p>
           <textarea
             value={islandText}
             onChange={(e) => {
@@ -404,7 +404,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
             className={fieldTextareaClass}
           />
           {islandError && (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {islandError}
             </p>
           )}
@@ -417,7 +417,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
       </DisclosureSection>
 
       {formError && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {formError}
         </p>
       )}
@@ -427,7 +427,7 @@ export function PriceTableForm({ componentCodes = [] }: PriceTableFormProps) {
       </Button>
 
       {mutation.isError && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {mutation.error instanceof Error ? mutation.error.message : t("publishError")}
         </p>
       )}

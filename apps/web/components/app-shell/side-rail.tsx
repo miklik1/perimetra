@@ -31,7 +31,7 @@ export function SideRail({
     <nav
       data-testid="app-side-rail"
       aria-label={t("main")}
-      className={cn("border-border bg-chrome w-[220px] shrink-0 flex-col border-r", className)}
+      className={cn("w-[220px] shrink-0 flex-col border-r border-border bg-chrome", className)}
     >
       <div className="flex h-14 shrink-0 items-center px-4">
         <Link to={{ route: "home" }} className="font-display text-lg font-semibold tracking-tight">
@@ -51,7 +51,7 @@ export function SideRail({
         ))}
       </ul>
       {footer.length > 0 && (
-        <ul className="border-border flex shrink-0 flex-col gap-0.5 border-t px-3 py-2">
+        <ul className="flex shrink-0 flex-col gap-0.5 border-t border-border px-3 py-2">
           {footer.map((entry) => (
             <li key={entry.key}>
               <NavRowLink entry={entry} pathname={pathname} label={t(entry.key)} />

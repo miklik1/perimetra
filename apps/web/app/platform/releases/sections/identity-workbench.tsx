@@ -81,7 +81,7 @@ export function IdentityWorkbench({ form, versions }: Props) {
           }
         </FieldShell>
       </div>
-      <p className="text-muted-foreground text-xs">{t("identityIdNote")}</p>
+      <p className="text-xs text-muted-foreground">{t("identityIdNote")}</p>
     </div>
   );
 }

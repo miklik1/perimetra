@@ -89,7 +89,7 @@ function Pager({
       {label != null ? (
         <span
           data-slot="pager-label"
-          className="font-data text-muted-foreground select-none text-sm tabular-nums"
+          className="font-data text-sm text-muted-foreground tabular-nums select-none"
         >
           {label}
         </span>

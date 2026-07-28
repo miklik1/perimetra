@@ -74,7 +74,7 @@ export function SiteClient({
   const notice = (message: string) => (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-8">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
-      <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center">
+      <p className="rounded-md border border-dashed p-6 text-center text-muted-foreground">
         {message}
       </p>
     </main>
@@ -385,7 +385,7 @@ function SiteCanvas({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex items-center gap-3">
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {dirty ? t("unsaved") : t("allSaved")}
           </span>
           {canDemo && (
@@ -429,7 +429,7 @@ function SiteCanvas({
 
         <div className="flex flex-col gap-4">
           {connectFrom !== undefined && (
-            <p className="border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm">
+            <p className="rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm text-primary">
               {t("connectHint", { instance: connectFrom.instanceId, port: connectFrom.portId })}
             </p>
           )}

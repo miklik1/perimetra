@@ -188,7 +188,7 @@ function ReadyStage({ derivation }: { derivation: UiDerivation }): React.JSX.Ele
           {derivation.result.isValid ? null : <InvalidTint />}
         </>
       )}
-      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <ViewSwitch />
         <FullscreenToggle />
       </div>
@@ -305,8 +305,8 @@ function BomBranch({ children }: { children: React.ReactNode }): React.JSX.Eleme
 function NoGeometry(): React.JSX.Element {
   const t = useTranslations("configurator");
   return (
-    <div className="bg-field-raised shadow-soft flex h-full w-full items-center justify-center overflow-hidden rounded-2xl p-6">
-      <p role="status" className="text-muted-foreground text-ui-base max-w-sm text-center">
+    <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-field-raised p-6 shadow-soft">
+      <p role="status" className="max-w-sm text-center text-ui-base text-muted-foreground">
         {t("sceneInvalid")}
       </p>
     </div>
@@ -323,7 +323,7 @@ function InvalidTint(): React.JSX.Element {
   return (
     <div
       aria-hidden="true"
-      className="bg-destructive/5 pointer-events-none absolute inset-0 rounded-2xl"
+      className="pointer-events-none absolute inset-0 rounded-2xl bg-destructive/5"
     />
   );
 }
@@ -341,10 +341,10 @@ function Pending(): React.JSX.Element {
     <div
       role="status"
       aria-busy="true"
-      className="bg-field-raised shadow-soft relative h-full w-full overflow-hidden rounded-2xl"
+      className="relative h-full w-full overflow-hidden rounded-2xl bg-field-raised shadow-soft"
     >
-      <Skeleton aria-hidden="true" className="rounded-card absolute inset-[12%]" />
-      <span className="text-muted-foreground text-ui-sm absolute inset-x-0 bottom-6 text-center">
+      <Skeleton aria-hidden="true" className="absolute inset-[12%] rounded-card" />
+      <span className="absolute inset-x-0 bottom-6 text-center text-ui-sm text-muted-foreground">
         {t("computing")}
       </span>
     </div>
@@ -362,7 +362,7 @@ function ComputingChip(): React.JSX.Element {
   return (
     <p
       role="status"
-      className="bg-chrome text-muted-foreground shadow-soft rounded-control text-ui-sm absolute left-4 top-4 z-10 inline-flex items-center gap-2 px-3 py-1.5 font-medium"
+      className="absolute top-4 left-4 z-10 inline-flex items-center gap-2 rounded-control bg-chrome px-3 py-1.5 text-ui-sm font-medium text-muted-foreground shadow-soft"
     >
       <Spinner className="size-3.5" />
       {t("computing")}
@@ -379,7 +379,7 @@ function ComputingChip(): React.JSX.Element {
 function DeriveFailed({ message }: { message: string }): React.JSX.Element {
   const t = useTranslations("configurator");
   return (
-    <div className="bg-field-raised shadow-soft flex h-full w-full items-center justify-center overflow-hidden rounded-2xl p-6">
+    <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-field-raised p-6 shadow-soft">
       <Alert tone="destructive" className="max-w-md">
         <Alert.Icon />
         <Alert.Title>{t("deriveFailed")}</Alert.Title>
@@ -453,7 +453,7 @@ function Watermark({ children }: { children: React.ReactNode }): React.JSX.Eleme
       // along the bottom edge, and on a phone-width scene the two collide. The
       // watermark is decorative and the segment control already names the view,
       // so it yields rather than overlapping a real control.
-      className="text-muted-foreground text-ui-xs absolute bottom-4 right-4 hidden font-semibold uppercase tracking-[0.08em] md:block"
+      className="absolute right-4 bottom-4 hidden text-ui-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase md:block"
     >
       {children}
     </span>

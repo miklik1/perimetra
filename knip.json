@@ -17,7 +17,14 @@
       // prettierignored for the same reason: byte-fidelity against the canvas is
       // the point. Implementation lives in `apps/web`, never here.
       "ignore": ["loadtest/**", "design/**"],
-      "ignoreBinaries": ["k6"]
+      "ignoreBinaries": ["k6"],
+      // `tailwindcss` is resolved AT THE ROOT by prettier-plugin-tailwindcss,
+      // not imported by any source file: the plugin derives its module base
+      // from the resolved prettier CONFIG FILE's directory, which is this
+      // package.json's `"prettier"` key (ADR 1049). Without the declaration the
+      // v4 design-system load throws and is swallowed in a bare `catch`, and
+      // every `@theme` token silently sorts as an unknown class.
+      "ignoreDependencies": ["tailwindcss"]
     },
     "apps/api": {
       // Three deployables from one codebase (ADR 0031): http, worker, and the

@@ -53,7 +53,7 @@ export function OrdersList() {
   return (
     <section className="flex w-full flex-col gap-4">
       {error && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {tErrors(errorMessageKey(error))}
         </p>
       )}
@@ -80,19 +80,19 @@ export function OrdersList() {
               <tr>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.orderNumber")}
                 </th>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-left text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.status")}
                 </th>
                 <th
                   scope="col"
-                  className="text-muted-foreground pb-2 text-right text-xs font-medium uppercase tracking-wide"
+                  className="pb-2 text-right text-xs font-medium tracking-wide text-muted-foreground uppercase"
                 >
                   {t("columns.createdAt")}
                 </th>
@@ -100,11 +100,11 @@ export function OrdersList() {
             </thead>
             <tbody>
               {orders.map((order) => (
-                <tr key={order.id} className="border-border hover:bg-chrome relative border-t">
+                <tr key={order.id} className="relative border-t border-border hover:bg-chrome">
                   <td className="py-3">
                     <Link
                       href={hrefFor(order)}
-                      className="font-data focus-visible:ring-ring rounded font-medium outline-none after:absolute after:inset-0 focus-visible:ring-2"
+                      className="rounded font-data font-medium outline-none after:absolute after:inset-0 focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {order.orderNumber}
                     </Link>

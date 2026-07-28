@@ -49,13 +49,13 @@ export function NabidkaDocumentView({
   };
 
   return (
-    <main className="bg-field min-h-screen">
+    <main className="min-h-screen bg-field">
       <PrintSheetStyle margin="18mm 16mm" />
 
       {/* Toolbar — screen only */}
       <div className="no-print mx-auto flex w-full max-w-[210mm] items-center justify-between gap-4 px-6 pt-6">
         {backHref ? (
-          <Link href={backHref} className="text-muted-foreground text-sm hover:underline">
+          <Link href={backHref} className="text-sm text-muted-foreground hover:underline">
             ← {t("title")}
           </Link>
         ) : (
@@ -70,16 +70,16 @@ export function NabidkaDocumentView({
       </div>
 
       {/* The document sheet */}
-      <article className="bg-background text-foreground mx-auto my-6 w-full max-w-[210mm] p-10 shadow-sm print:my-0 print:p-0 print:shadow-none">
-        <header className="border-border mb-8 flex items-start justify-between border-b pb-6">
+      <article className="mx-auto my-6 w-full max-w-[210mm] bg-background p-10 text-foreground shadow-sm print:my-0 print:p-0 print:shadow-none">
+        <header className="mb-8 flex items-start justify-between border-b border-border pb-6">
           <h1 className="font-display text-3xl">{t("nabidka.title")}</h1>
-          <p className="font-data text-muted-foreground text-sm">{doc.documentNumber}</p>
+          <p className="font-data text-sm text-muted-foreground">{doc.documentNumber}</p>
         </header>
 
         {/* Parties */}
         <section className="mb-8 grid grid-cols-2 gap-8 text-sm">
           <div>
-            <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">
+            <h2 className="mb-2 font-display text-xs tracking-wide text-muted-foreground uppercase">
               {t("nabidka.supplier")}
             </h2>
             {supp ? (
@@ -105,7 +105,7 @@ export function NabidkaDocumentView({
                   </span>
                 )}
                 {supp.registrationNote && (
-                  <span className="text-muted-foreground mt-1 text-xs">
+                  <span className="mt-1 text-xs text-muted-foreground">
                     {supp.registrationNote}
                   </span>
                 )}
@@ -115,7 +115,7 @@ export function NabidkaDocumentView({
             )}
           </div>
           <div>
-            <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">
+            <h2 className="mb-2 font-display text-xs tracking-wide text-muted-foreground uppercase">
               {t("nabidka.customer")}
             </h2>
             {cust ? (
@@ -144,10 +144,10 @@ export function NabidkaDocumentView({
 
         {/* Line items */}
         <section className="mb-8">
-          <h2 className="font-display mb-3 text-lg">{t("nabidka.items")}</h2>
-          <table className="font-data w-full text-sm tabular-nums">
+          <h2 className="mb-3 font-display text-lg">{t("nabidka.items")}</h2>
+          <table className="w-full font-data text-sm tabular-nums">
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-1 font-medium">{t("nabidka.colItem")}</th>
                 <th className="py-1 text-right font-medium">{t("nabidka.colQty")}</th>
                 <th className="py-1 text-right font-medium">{t("nabidka.colUnit")}</th>
@@ -156,10 +156,10 @@ export function NabidkaDocumentView({
             </thead>
             <tbody>
               {doc.lines.map((line) => (
-                <tr key={line.componentCode} className="border-border/50 border-b">
+                <tr key={line.componentCode} className="border-b border-border/50">
                   <td className="py-1.5">
                     <span className="font-sans">{line.name}</span>
-                    <span className="text-muted-foreground ml-2 text-xs">{line.componentCode}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{line.componentCode}</span>
                   </td>
                   <td className="py-1.5 text-right">{line.quantity}</td>
                   <td className="py-1.5 text-right">{line.unit}</td>
@@ -172,10 +172,10 @@ export function NabidkaDocumentView({
 
         {/* Category subtotals (net) */}
         <section className="mb-8">
-          <h2 className="font-display text-muted-foreground mb-2 text-xs uppercase tracking-wide">
+          <h2 className="mb-2 font-display text-xs tracking-wide text-muted-foreground uppercase">
             {t("nabidka.subtotals")}
           </h2>
-          <table className="font-data ml-auto w-1/2 text-sm tabular-nums">
+          <table className="ml-auto w-1/2 font-data text-sm tabular-nums">
             <tbody>
               {doc.categories
                 .filter((c) => Number(c.total) !== 0)
@@ -196,13 +196,13 @@ export function NabidkaDocumentView({
         <section className="mb-8">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg">{t("vatBreakdown")}</h2>
-            <span className="text-muted-foreground font-data text-xs uppercase tracking-wide">
+            <span className="font-data text-xs tracking-wide text-muted-foreground uppercase">
               {reverse ? t("tax.reverseCharge") : t("tax.standard")}
             </span>
           </div>
-          <table className="font-data mt-3 w-full text-sm tabular-nums">
+          <table className="mt-3 w-full font-data text-sm tabular-nums">
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-1 font-medium">{t("tax.rate")}</th>
                 <th className="py-1 text-right font-medium">{t("tax.net")}</th>
                 <th className="py-1 text-right font-medium">{t("tax.vat")}</th>
@@ -211,7 +211,7 @@ export function NabidkaDocumentView({
             </thead>
             <tbody>
               {doc.tax.lines.map((line) => (
-                <tr key={line.ratePct} className="border-border/50 border-b">
+                <tr key={line.ratePct} className="border-b border-border/50">
                   <td className="py-1.5">{line.ratePct} %</td>
                   <td className="py-1.5 text-right">{money(line.netBase)}</td>
                   <td className="py-1.5 text-right">{reverse ? "—" : money(line.vatAmount)}</td>
@@ -224,16 +224,16 @@ export function NabidkaDocumentView({
                 <td className="pt-2">{t("tax.total")}</td>
                 <td className="pt-2 text-right">{money(doc.netTotal)}</td>
                 <td className="pt-2 text-right">{reverse ? "—" : money(doc.vatTotal)}</td>
-                <td className="text-copper pt-2 text-right text-base">{money(doc.grossTotal)}</td>
+                <td className="pt-2 text-right text-base text-copper">{money(doc.grossTotal)}</td>
               </tr>
             </tfoot>
           </table>
           {doc.legend && (
-            <p className="bg-field text-foreground mt-3 rounded-md p-3 text-sm">{doc.legend}</p>
+            <p className="mt-3 rounded-md bg-field p-3 text-sm text-foreground">{doc.legend}</p>
           )}
         </section>
 
-        <footer className="border-border text-muted-foreground mt-10 border-t pt-4 text-xs">
+        <footer className="mt-10 border-t border-border pt-4 text-xs text-muted-foreground">
           {t("nabidka.generatedNote")}
         </footer>
       </article>

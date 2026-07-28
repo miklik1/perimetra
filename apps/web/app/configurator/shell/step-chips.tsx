@@ -54,7 +54,7 @@ export function StepChips({
     // view — the region is already keyboard-operable through its contents. A
     // forced tab stop would add a dead one in the common case where the row
     // fits, and a second landmark sharing the nav's name over the same controls.
-    <FadeScrollArea orientation="horizontal" className="bg-chrome border-border flex-none border-b">
+    <FadeScrollArea orientation="horizontal" className="flex-none border-b border-border bg-chrome">
       <FadeScrollArea.Fade position="both" />
       <StepNav
         aria-label={t("configuration")}
@@ -76,7 +76,7 @@ export function StepChips({
             value={item.key}
             state={item.done ? "done" : undefined}
             // Coarse-pointer target (§12.1 item 5) — this band is touch-first.
-            className="pointer-coarse:min-h-11 flex-none"
+            className="flex-none pointer-coarse:min-h-11"
           >
             <StepNav.Label>{item.label}</StepNav.Label>
           </StepNav.Item>

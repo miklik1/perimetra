@@ -19,6 +19,7 @@ import noRhfResetInModalUseEffect from "./no-rhf-reset-in-modal-useeffect.js";
 import noRhfSubscriptionWithoutNoMemoDirective from "./no-rhf-subscription-without-no-memo-directive.js";
 import noTanstackTableWithoutNoMemoDirective from "./no-tanstack-table-without-no-memo-directive.js";
 import noZodResolverWithoutUseZodForm from "./no-zod-resolver-without-use-zod-form.js";
+import requireRedirectPostureOnGuardedFetch from "./require-redirect-posture-on-guarded-fetch.js";
 
 /** @type {import("eslint").ESLint.Plugin} */
 const localPlugin = {
@@ -48,6 +49,11 @@ const localPlugin = {
     // input — a pre-hydration native GET submit serialises the field into the
     // URL/history/Referer/logs (ADR 1001 → the class rule, ADR 1005).
     "no-form-missing-method-with-sensitive-input": noFormMissingMethodWithSensitiveInput,
+
+    // Requires an explicit `redirect` posture on any fetch that goes through
+    // the SSRF egress guard — fetch's default `"follow"` lets the TARGET pick
+    // the final destination, which neither guard layer sees (ADR 1047).
+    "require-redirect-posture-on-guarded-fetch": requireRedirectPostureOnGuardedFetch,
 
     // Bans RHF `reset()` inside useEffect — prevents the _fields-registry
     // wipe that breaks edit pre-fill and inline errors in modal forms.

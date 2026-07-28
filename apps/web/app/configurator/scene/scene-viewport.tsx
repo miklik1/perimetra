@@ -22,7 +22,7 @@ const SceneCanvas = dynamic(() => import("./scene-canvas"), {
 function ViewportNote({ messageKey }: { messageKey: "sceneLoading" | "sceneInvalid" }) {
   const t = useTranslations("configurator");
   return (
-    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
       {t(messageKey)}
     </div>
   );
@@ -30,7 +30,7 @@ function ViewportNote({ messageKey }: { messageKey: "sceneLoading" | "sceneInval
 
 export function SceneViewport({ scene, view }: { scene: Scene3D | undefined; view?: CameraView }) {
   return (
-    <div className="bg-field-raised shadow-soft h-full w-full overflow-hidden rounded-2xl">
+    <div className="h-full w-full overflow-hidden rounded-2xl bg-field-raised shadow-soft">
       {scene === undefined ? (
         <ViewportNote messageKey="sceneInvalid" />
       ) : (

@@ -23,14 +23,14 @@ export function TerrainPanel({ terrain, onElevationChange }: TerrainPanelProps) 
   if (terrain.length === 0) return null;
 
   return (
-    <section className="border-border flex flex-col gap-2 rounded-md border p-4 text-sm">
+    <section className="flex flex-col gap-2 rounded-md border border-border p-4 text-sm">
       <h2 className="font-semibold">{t("terrain")}</h2>
       <div className="flex flex-col gap-2">
         {terrain.map((segment) => {
           const id = `${baseId}-${segment.id}`;
           return (
             <div key={segment.id} className="flex items-center gap-2">
-              <label htmlFor={id} className="text-muted-foreground flex-1">
+              <label htmlFor={id} className="flex-1 text-muted-foreground">
                 {t("segmentElevation", { segment: segment.id })}
               </label>
               <input
@@ -42,7 +42,7 @@ export function TerrainPanel({ terrain, onElevationChange }: TerrainPanelProps) 
                   const next = Number(e.target.value);
                   if (Number.isFinite(next)) onElevationChange(segment.id, Math.round(next));
                 }}
-                className="border-border bg-background w-24 rounded-md border px-2 py-1 text-right tabular-nums"
+                className="w-24 rounded-md border border-border bg-background px-2 py-1 text-right tabular-nums"
               />
               <span className="text-muted-foreground">mm</span>
             </div>

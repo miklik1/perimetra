@@ -9,7 +9,7 @@ import { Text } from "./text";
 describe("SafeArea", () => {
   it("renders its children", () => {
     render(
-      <SafeArea className="bg-background flex-1">
+      <SafeArea className="flex-1 bg-background">
         <Text>Inside</Text>
       </SafeArea>,
     );

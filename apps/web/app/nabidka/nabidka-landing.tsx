@@ -76,11 +76,11 @@ export function NabidkaLandingView({
   }
 
   return (
-    <main className="bg-field flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col bg-field">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-12">
         <header className="flex items-center justify-between gap-4">
           <BrandMark tagline={t("buyer.tagline")} />
-          <span className="text-muted-foreground font-mono text-xs">{doc.documentNumber}</span>
+          <span className="font-mono text-xs text-muted-foreground">{doc.documentNumber}</span>
         </header>
 
         {/* The real gap this wave closes (ADR-O1/CAR-158): the endpoint has
@@ -111,14 +111,14 @@ export function NabidkaLandingView({
               <QuoteStatusBadge status={status} />
             )}
             {validityLabel && (
-              <span className="bg-copper text-copper-foreground inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold">
+              <span className="inline-flex items-center rounded-full bg-copper px-3 py-1 text-xs font-semibold text-copper-foreground">
                 {validityLabel}
               </span>
             )}
           </div>
           <DisplayLabel as="h1">{greeting}</DisplayLabel>
           {actionable && (
-            <p className="text-muted-foreground max-w-xl text-sm sm:text-base">
+            <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
               {t("buyer.intro")}
             </p>
           )}
@@ -156,7 +156,7 @@ export function NabidkaLandingView({
       {actionable && (
         <StickyActionBar tone="chrome" aria-label={t("buyer.totalCaption")}>
           <StickyActionBar.Price>
-            <span className="text-muted-foreground text-xs">{t("buyer.totalCaption")}</span>
+            <span className="text-xs text-muted-foreground">{t("buyer.totalCaption")}</span>
             <span className="font-data text-lg font-semibold tabular-nums sm:text-xl">
               {money(doc.grossTotal)}
             </span>
@@ -184,12 +184,12 @@ export function NabidkaLandingView({
 function BrandMark({ tagline }: { tagline: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="bg-primary text-primary-foreground font-display rounded-control flex h-8 w-8 shrink-0 items-center justify-center text-base font-semibold">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-primary font-display text-base font-semibold text-primary-foreground">
         P
       </div>
       <div className="leading-tight">
         <div className="font-display text-sm font-semibold">Perimetra</div>
-        <div className="text-muted-foreground text-[11px]">{tagline}</div>
+        <div className="text-[11px] text-muted-foreground">{tagline}</div>
       </div>
     </div>
   );
@@ -208,7 +208,7 @@ function PartiesPanel({ doc }: { doc: NabidkaDocumentDto }) {
     <Panel elevation="flat" className="min-w-0">
       <div className="grid gap-6 text-sm sm:grid-cols-2">
         <div>
-          <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+          <div className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("nabidka.supplier")}
           </div>
           {supp ? (
@@ -234,7 +234,7 @@ function PartiesPanel({ doc }: { doc: NabidkaDocumentDto }) {
           )}
         </div>
         <div>
-          <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+          <div className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("nabidka.customer")}
           </div>
           {cust ? (
@@ -285,9 +285,9 @@ function BomPanel({ doc }: { doc: NabidkaDocumentDto }) {
       </Panel.Header>
       <Panel.Body>
         <div className="min-w-0 overflow-x-auto">
-          <table className="font-data w-full text-sm tabular-nums">
+          <table className="w-full font-data text-sm tabular-nums">
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-1 font-medium">{t("nabidka.colItem")}</th>
                 <th className="py-1 text-right font-medium">{t("nabidka.colQty")}</th>
                 <th className="py-1 text-right font-medium">{t("nabidka.colUnit")}</th>
@@ -296,10 +296,10 @@ function BomPanel({ doc }: { doc: NabidkaDocumentDto }) {
             </thead>
             <tbody>
               {doc.lines.map((line) => (
-                <tr key={line.componentCode} className="border-border/50 border-b">
+                <tr key={line.componentCode} className="border-b border-border/50">
                   <td className="py-1.5">
                     <span className="font-sans">{line.name}</span>
-                    <span className="text-muted-foreground ml-2 text-xs">{line.componentCode}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{line.componentCode}</span>
                   </td>
                   <td className="py-1.5 text-right">{line.quantity}</td>
                   <td className="py-1.5 text-right">{line.unit}</td>
@@ -310,10 +310,10 @@ function BomPanel({ doc }: { doc: NabidkaDocumentDto }) {
           </table>
         </div>
         <div>
-          <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+          <div className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("nabidka.subtotals")}
           </div>
-          <table className="font-data ml-auto w-full max-w-xs text-sm tabular-nums">
+          <table className="ml-auto w-full max-w-xs font-data text-sm tabular-nums">
             <tbody>
               {doc.categories
                 .filter((c) => Number(c.total) !== 0)
@@ -350,15 +350,15 @@ function PricePanel({ doc }: { doc: NabidkaDocumentDto }) {
     <Panel elevation="raised" className="min-w-0">
       <Panel.Header>
         <Panel.Title>{t("vatBreakdown")}</Panel.Title>
-        <span className="text-muted-foreground font-data ml-auto text-xs uppercase tracking-wide">
+        <span className="ml-auto font-data text-xs tracking-wide text-muted-foreground uppercase">
           {reverse ? t("tax.reverseCharge") : t("tax.standard")}
         </span>
       </Panel.Header>
       <Panel.Body>
         <div className="min-w-0 overflow-x-auto">
-          <table className="font-data w-full text-sm tabular-nums">
+          <table className="w-full font-data text-sm tabular-nums">
             <thead>
-              <tr className="text-muted-foreground border-border border-b text-left text-xs">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-1 font-medium">{t("tax.rate")}</th>
                 <th className="py-1 text-right font-medium">{t("tax.net")}</th>
                 <th className="py-1 text-right font-medium">{t("tax.vat")}</th>
@@ -367,7 +367,7 @@ function PricePanel({ doc }: { doc: NabidkaDocumentDto }) {
             </thead>
             <tbody>
               {doc.tax.lines.map((line) => (
-                <tr key={line.ratePct} className="border-border/50 border-b">
+                <tr key={line.ratePct} className="border-b border-border/50">
                   <td className="py-1.5">{line.ratePct} %</td>
                   <td className="py-1.5 text-right">{money(line.netBase)}</td>
                   <td className="py-1.5 text-right">{reverse ? "—" : money(line.vatAmount)}</td>
@@ -380,13 +380,13 @@ function PricePanel({ doc }: { doc: NabidkaDocumentDto }) {
                 <td className="pt-2">{t("tax.total")}</td>
                 <td className="pt-2 text-right">{money(doc.netTotal)}</td>
                 <td className="pt-2 text-right">{reverse ? "—" : money(doc.vatTotal)}</td>
-                <td className="text-copper pt-2 text-right text-base">{money(doc.grossTotal)}</td>
+                <td className="pt-2 text-right text-base text-copper">{money(doc.grossTotal)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
         {doc.legend && (
-          <p className="bg-field text-foreground mt-3 rounded-md p-3 text-sm">{doc.legend}</p>
+          <p className="mt-3 rounded-md bg-field p-3 text-sm text-foreground">{doc.legend}</p>
         )}
       </Panel.Body>
     </Panel>

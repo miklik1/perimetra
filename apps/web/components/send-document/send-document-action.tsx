@@ -195,9 +195,9 @@ export function SendDocumentAction({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {children !== undefined && <p className="text-muted-foreground text-sm">{children}</p>}
+      {children !== undefined && <p className="text-sm text-muted-foreground">{children}</p>}
 
-      <p className="text-muted-foreground text-sm">{statusLine}</p>
+      <p className="text-sm text-muted-foreground">{statusLine}</p>
 
       {rejection !== null && (
         <Alert tone="destructive">
@@ -220,8 +220,8 @@ export function SendDocumentAction({
         </Button>
       ) : (
         <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-foreground text-sm font-medium">{t("confirmTitle")}</p>
-          <p className="text-muted-foreground text-sm">{t("confirmBody")}</p>
+          <p className="text-sm font-medium text-foreground">{t("confirmTitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("confirmBody")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="copper" onClick={submit} disabled={send.isPending}>
               {send.isPending ? t("sending") : t("confirmSubmit")}

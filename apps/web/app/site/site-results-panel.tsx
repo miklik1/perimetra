@@ -38,7 +38,7 @@ export function SiteResultsPanel({
   return (
     <section className="flex flex-col gap-4 text-sm">
       {result.issues.length > 0 && (
-        <div className="border-border flex flex-col gap-1 rounded-md border p-4">
+        <div className="flex flex-col gap-1 rounded-md border border-border p-4">
           <h2 className="font-semibold">{t("issues")}</h2>
           <IssueList issues={result.issues} />
         </div>
@@ -47,34 +47,34 @@ export function SiteResultsPanel({
       {result.isValid && (
         <>
           {!priceBlind && (
-            <div className="border-border rounded-md border p-4">
+            <div className="rounded-md border border-border p-4">
               <h2 className="mb-2 font-semibold">{t("totals")}</h2>
-              <dl className="font-data grid grid-cols-2 gap-y-1">
+              <dl className="grid grid-cols-2 gap-y-1 font-data">
                 {categories.map(([key, value]) => (
                   <div key={key} className="contents">
                     <dt className="text-muted-foreground">{t(key)}</dt>
                     <dd className="text-right tabular-nums">{money(value)}</dd>
                   </div>
                 ))}
-                <div className="border-border col-span-2 mt-1 border-t pt-1" />
+                <div className="col-span-2 mt-1 border-t border-border pt-1" />
                 <dt className="font-semibold">{t("totalTotal")}</dt>
                 <dd className="text-right font-semibold tabular-nums">
                   {money(result.money.total)}
                 </dd>
               </dl>
               {result.sharing.length > 0 && (
-                <p className="text-muted-foreground mt-2 text-xs">
+                <p className="mt-2 text-xs text-muted-foreground">
                   {t("sharingCount", { count: String(result.sharing.length) })}
                 </p>
               )}
             </div>
           )}
 
-          <div className="border-border rounded-md border p-4">
+          <div className="rounded-md border border-border p-4">
             <h2 className="mb-2 font-semibold">{t("bom")}</h2>
-            <table className="font-data w-full text-left">
+            <table className="w-full text-left font-data">
               <thead>
-                <tr className="text-muted-foreground text-xs uppercase">
+                <tr className="text-xs text-muted-foreground uppercase">
                   <th className="py-1 font-medium">{t("bomItem")}</th>
                   <th className="py-1 text-right font-medium">{t("bomQuantity")}</th>
                   {!priceBlind && <th className="py-1 text-right font-medium">{t("bomPrice")}</th>}
@@ -84,12 +84,12 @@ export function SiteResultsPanel({
                 {result.bom.map((line) => (
                   <tr
                     key={`${line.componentCode}|${line.unit}|${line.category}`}
-                    className="border-border border-t"
+                    className="border-t border-border"
                   >
                     <td className="py-1">
                       {line.name}
                       {line.sources.length > 1 && (
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-xs text-muted-foreground">
                           {" "}
                           ×{line.sources.length}
                         </span>

@@ -28,7 +28,7 @@ export interface DefectListProps {
 export function DefectList({ defects, onSelect, emptyLabel, className }: DefectListProps) {
   if (defects.length === 0) {
     return emptyLabel ? (
-      <p className="text-muted-foreground text-sm" data-slot="defect-list-empty">
+      <p className="text-sm text-muted-foreground" data-slot="defect-list-empty">
         {emptyLabel}
       </p>
     ) : null;
@@ -53,7 +53,7 @@ export function DefectList({ defects, onSelect, emptyLabel, className }: DefectL
               <button
                 type="button"
                 onClick={() => onSelect(defect.where)}
-                className="hover:bg-accent/50 block w-full rounded-md px-2 py-1 text-left"
+                className="block w-full rounded-md px-2 py-1 text-left hover:bg-accent/50"
               >
                 {body}
               </button>

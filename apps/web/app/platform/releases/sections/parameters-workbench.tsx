@@ -362,7 +362,7 @@ export function ParametersWorkbench({ form, validation }: Props) {
   const t = useTranslations("releaseEditor");
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{t("parametersHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("parametersHint")}</p>
       <ArrayField
         control={form.control}
         name="parameters"

@@ -30,7 +30,7 @@ export function CustomersClient() {
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="bg-field flex min-h-screen items-center justify-center">
+        <main className="flex min-h-screen items-center justify-center bg-field">
           {t("checkingSession")}
         </main>
       }
@@ -50,7 +50,7 @@ function Content() {
       <DisplayLabel as="h1">{t("title")}</DisplayLabel>
 
       {!canManage ? (
-        <p className="text-muted-foreground text-sm">{t("onlyAdminOrSales")}</p>
+        <p className="text-sm text-muted-foreground">{t("onlyAdminOrSales")}</p>
       ) : (
         <>
           {showNew ? (
@@ -59,7 +59,7 @@ function Content() {
             <button
               type="button"
               onClick={() => setShowNew(true)}
-              className="text-copper self-start text-sm hover:underline"
+              className="self-start text-sm text-copper hover:underline"
             >
               + {t("newCustomer")}
             </button>

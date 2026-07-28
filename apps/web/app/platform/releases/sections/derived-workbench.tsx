@@ -59,7 +59,7 @@ export function DerivedWorkbench({ form, validation }: Props) {
   const t = useTranslations("releaseEditor");
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{t("derivedHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("derivedHint")}</p>
       <ArrayField
         control={form.control}
         name="derived"

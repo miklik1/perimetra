@@ -74,7 +74,7 @@ function SegmentedNav({
         role="group"
         className={cn(
           "inline-flex items-center gap-1",
-          track && "bg-chrome shadow-soft-sm rounded-full p-1",
+          track && "rounded-full bg-chrome p-1 shadow-soft-sm",
           className,
         )}
         {...props}
@@ -115,9 +115,9 @@ function SegmentedNavItem({
         if (!event.defaultPrevented) onValueChange(value);
       }}
       className={cn(
-        "ease-brand inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium outline-none transition-colors duration-200",
-        "focus-visible:ring-ring focus-visible:ring-2",
-        "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 ease-brand outline-none",
+        "focus-visible:ring-2 focus-visible:ring-ring",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         active
           ? "bg-nav-active text-nav-active-foreground shadow-soft-sm"
           : "text-muted-foreground hover:bg-chrome-subtle hover:text-foreground",

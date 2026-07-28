@@ -37,7 +37,7 @@ export function DeviationPanel({ result }: { result: DerivationResult }) {
               <span className="font-medium tabular-nums">{d.value}</span>
             </span>
             {d.reason !== undefined && (
-              <span className="text-muted-foreground text-xs">{d.reason}</span>
+              <span className="text-xs text-muted-foreground">{d.reason}</span>
             )}
           </li>
         ))}

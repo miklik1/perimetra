@@ -50,7 +50,7 @@ function PlatformContent() {
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 p-8">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
 
-      {!isPlatform && <p className="text-muted-foreground text-sm">{t("onlyPlatform")}</p>}
+      {!isPlatform && <p className="text-sm text-muted-foreground">{t("onlyPlatform")}</p>}
 
       {isPlatform && (
         <>
@@ -75,7 +75,7 @@ function PlatformContent() {
 
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{t("assignTitle")}</h2>
-            <p className="text-muted-foreground text-sm">{t("assignDescription")}</p>
+            <p className="text-sm text-muted-foreground">{t("assignDescription")}</p>
             <AssignmentManager />
           </section>
         </>
@@ -234,7 +234,7 @@ function ReleaseRow({
   const detailId = `release-body-${r.id}`;
 
   return (
-    <li className="border-border flex flex-col gap-2 rounded-md border px-3 py-2">
+    <li className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
       <div className="flex items-center justify-between gap-3">
         <span className="font-mono text-xs">
           {r.releaseId} · {r.status} · catalog@{r.catalogVersion}
@@ -303,7 +303,7 @@ function ReleaseRow({
           id={detailId}
           role="region"
           aria-label={t("viewBodyFor", { releaseId: r.releaseId })}
-          className="bg-muted max-h-72 overflow-auto rounded-md p-3 text-xs"
+          className="max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs"
         >
           {isLoading || !detail ? t("loadingList") : JSON.stringify(detail.body, null, 2)}
         </pre>
@@ -357,7 +357,7 @@ function AssignmentManager() {
   const busy = assign.isPending || unassign.isPending;
 
   return (
-    <div className="border-border flex flex-col gap-4 rounded-md border p-4">
+    <div className="flex flex-col gap-4 rounded-md border border-border p-4">
       <label className="flex flex-col gap-1 text-sm font-medium">
         {t("selectOrg")}
         {/* Disabled while a toggle is in flight: switching orgId mid-mutation
@@ -385,7 +385,7 @@ function AssignmentManager() {
       {orgId !== "" &&
         models.map(([modelId, versions]) => (
           <div key={modelId} className="flex flex-col gap-2">
-            <p className="text-foreground text-xs font-semibold">{modelId}</p>
+            <p className="text-xs font-semibold text-foreground">{modelId}</p>
             <ul className="flex flex-col gap-2">
               {[...versions]
                 .sort((a, b) => a.version - b.version)
@@ -395,7 +395,7 @@ function AssignmentManager() {
                   return (
                     <li
                       key={r.id}
-                      className="border-border flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                     >
                       <span className="font-mono text-xs">
                         v{r.version} · catalog@{r.catalogVersion}

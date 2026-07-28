@@ -138,19 +138,19 @@ function BuyerLinkPanel({
     <Panel elevation="flat">
       <div className="flex min-w-0 flex-col gap-3">
         <h2 className="font-display text-lg">{t("buyerLink.title")}</h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {validUntil
             ? t("buyerLink.validUntil", { date: validUntilLabel })
             : t("buyerLink.noExpiry")}
         </p>
         {expired && (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {t("buyerLink.expiredWarning", { date: validUntilLabel })}
           </p>
         )}
         {buyerUrl && (
           <div className="flex flex-wrap items-center gap-3">
-            <span className="font-data bg-field text-foreground truncate rounded-md px-3 py-1.5 text-sm">
+            <span className="truncate rounded-md bg-field px-3 py-1.5 font-data text-sm text-foreground">
               {buyerUrl}
             </span>
             <Button type="button" variant="outline" size="sm" onClick={() => void copy()}>
@@ -170,7 +170,7 @@ function BuyerLinkPanel({
             (it knows the role); this only refuses to draw a line under an absent
             child. */}
         {children ? (
-          <div className="border-border flex min-w-0 flex-col gap-3 border-t pt-3">{children}</div>
+          <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-3">{children}</div>
         ) : null}
       </div>
     </Panel>
@@ -200,11 +200,11 @@ function LineagePanel({
   return (
     <Panel elevation="flat">
       <div className="flex items-start gap-3">
-        <Icon name={icon} aria-hidden className="text-muted-foreground mt-0.5 shrink-0" />
+        <Icon name={icon} aria-hidden className="mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-lg">{title}</h2>
-          <p className="text-muted-foreground text-sm">{body}</p>
-          <Link href={href} className="text-copper text-sm font-medium hover:underline">
+          <p className="text-sm text-muted-foreground">{body}</p>
+          <Link href={href} className="text-sm font-medium text-copper hover:underline">
             {linkLabel}
           </Link>
         </div>
@@ -241,9 +241,9 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
   return (
     <div className="flex flex-col gap-6">
       {/* The Nabídka document titleband (Perimetra Nabidka.html .titleband) */}
-      <div className="border-primary flex flex-col gap-4 border-b-2 pb-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 border-b-2 border-primary pb-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("detail.eyebrow")}
           </span>
           <DisplayLabel as="h1" className="font-data text-3xl sm:text-4xl">
@@ -258,14 +258,14 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
             {(quote.status === "issued" || quote.status === "accepted") && (
               <Link
                 href={`/quotes/${quote.id}/production`}
-                className="text-copper text-sm font-medium hover:underline"
+                className="text-sm font-medium text-copper hover:underline"
               >
                 {t("production.open")}
               </Link>
             )}
             <Link
               href={`/quotes/${quote.id}/nabidka`}
-              className="text-copper text-sm font-medium hover:underline"
+              className="text-sm font-medium text-copper hover:underline"
             >
               {t("nabidka.open")}
             </Link>
@@ -346,14 +346,14 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg">{t("vatBreakdown")}</h2>
-              <span className="text-muted-foreground font-data text-xs uppercase tracking-wide">
+              <span className="font-data text-xs tracking-wide text-muted-foreground uppercase">
                 {reverse ? t("tax.reverseCharge") : t("tax.standard")}
               </span>
             </div>
 
             <div className={DOC_TABLE_WRAP}>
               <div className="overflow-x-auto">
-                <table className="font-data w-full text-sm tabular-nums">
+                <table className="w-full font-data text-sm tabular-nums">
                   <thead>
                     <tr className={DOC_TABLE_HEAD_ROW}>
                       <th className={DOC_TABLE_HEAD_CELL}>{t("tax.rate")}</th>
@@ -386,7 +386,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
                         {reverse ? "—" : money(tax.vatTotal)}
                       </td>
                       <td
-                        className={`${DOC_TABLE_BODY_CELL} text-copper text-right text-base font-semibold`}
+                        className={`${DOC_TABLE_BODY_CELL} text-right text-base font-semibold text-copper`}
                       >
                         {money(tax.grossTotal)}
                       </td>
@@ -397,7 +397,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
             </div>
 
             {reverse && tax.legend && (
-              <p className="bg-field text-foreground rounded-md p-3 text-sm">{tax.legend}</p>
+              <p className="rounded-md bg-field p-3 text-sm text-foreground">{tax.legend}</p>
             )}
           </div>
         </Panel>
@@ -415,7 +415,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
             <h2 className="font-display text-lg">{t("bom.title")}</h2>
             <div className={DOC_TABLE_WRAP}>
               <div className="overflow-x-auto">
-                <table className="font-data w-full text-sm">
+                <table className="w-full font-data text-sm">
                   <thead>
                     <tr className={DOC_TABLE_HEAD_ROW}>
                       <th className={DOC_TABLE_HEAD_CELL}>{t("bom.colItem")}</th>
@@ -439,7 +439,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
                           <td className={DOC_TABLE_BODY_CELL}>
                             <div className="flex flex-col gap-0.5">
                               <span>{line.name}</span>
-                              <span className="text-muted-foreground font-mono text-xs">
+                              <span className="font-mono text-xs text-muted-foreground">
                                 {line.componentCode}
                               </span>
                             </div>
@@ -451,7 +451,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
                             {quantity(line.quantity)} {tConfig(UNIT_KEY[line.unit])}
                           </td>
                           <td
-                            className={`${DOC_TABLE_BODY_CELL} text-muted-foreground font-mono text-xs`}
+                            className={`${DOC_TABLE_BODY_CELL} font-mono text-xs text-muted-foreground`}
                           >
                             {instanceIds.join(", ")}
                           </td>
@@ -474,7 +474,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
       )}
       {bom && bom.length === 0 && (
         <Panel elevation="flush">
-          <p className="text-muted-foreground text-sm">{t("bom.empty")}</p>
+          <p className="text-sm text-muted-foreground">{t("bom.empty")}</p>
         </Panel>
       )}
 
@@ -484,7 +484,7 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
       <Panel elevation="flat">
         <div className="flex flex-col gap-3">
           <h2 className="font-display text-lg">{t("trust.title")}</h2>
-          <p className="text-muted-foreground text-sm">{t("trust.body")}</p>
+          <p className="text-sm text-muted-foreground">{t("trust.body")}</p>
           <div className="flex items-center gap-3">
             <Button
               type="button"
@@ -496,17 +496,17 @@ export function QuoteDetailView({ quote }: { quote: QuoteDetail }) {
               {verifyMutation.isPending ? t("trust.verifying") : t("trust.verify")}
             </Button>
             {verifyMutation.data?.reproduced === true && (
-              <span className="text-success text-sm font-medium" role="status">
+              <span className="text-sm font-medium text-success" role="status">
                 ✓ {t("trust.reproduced")}
               </span>
             )}
             {verifyMutation.data?.reproduced === false && (
-              <span className="text-destructive text-sm font-medium" role="status">
+              <span className="text-sm font-medium text-destructive" role="status">
                 ✗ {t("trust.mismatch")}
               </span>
             )}
             {verifyMutation.error && (
-              <span className="text-destructive text-sm" role="alert">
+              <span className="text-sm text-destructive" role="alert">
                 {tErrors(errorMessageKey(verifyMutation.error))}
               </span>
             )}

@@ -88,7 +88,7 @@ function DialogContent({
       <RadixDialog.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-chrome text-chrome-foreground rounded-card shadow-float ring-border/60 fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto p-6 outline-none ring-1 ring-inset",
+          "fixed top-1/2 left-1/2 z-50 max-h-[85vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card bg-chrome p-6 text-chrome-foreground shadow-float ring-1 ring-border/60 outline-none ring-inset",
           className,
         )}
         {...props}
@@ -158,7 +158,7 @@ function DialogDescription({
   return (
     <RadixDialog.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   );

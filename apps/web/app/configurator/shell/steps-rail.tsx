@@ -70,7 +70,7 @@ export function StepsRail({
       value={activeKey}
       onValueChange={onSelect}
       aria-label={t("configuration")}
-      className="bg-chrome border-border h-full w-[210px] flex-none border-r px-3 py-3.5"
+      className="h-full w-[210px] flex-none border-r border-border bg-chrome px-3 py-3.5"
     >
       <StepNav.Heading>{t("configuration")}</StepNav.Heading>
       {/*

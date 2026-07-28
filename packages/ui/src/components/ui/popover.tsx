@@ -49,7 +49,7 @@ function PopoverContent({
         data-slot="popover-content"
         sideOffset={sideOffset}
         className={cn(
-          "bg-chrome text-chrome-foreground rounded-card shadow-float ring-border/60 z-50 p-4 outline-none ring-1 ring-inset",
+          "z-50 rounded-card bg-chrome p-4 text-chrome-foreground shadow-float ring-1 ring-border/60 outline-none ring-inset",
           className,
         )}
         {...props}

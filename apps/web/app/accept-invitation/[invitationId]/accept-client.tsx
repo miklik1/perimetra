@@ -63,7 +63,7 @@ function AcceptContent({ invitationId }: { invitationId: string }) {
         {t("accept.button")}
       </Button>
       {mutation.isError && (
-        <p className="text-destructive text-sm" role="alert">
+        <p className="text-sm text-destructive" role="alert">
           {t("accept.error")}
         </p>
       )}

@@ -373,6 +373,15 @@ export const baseConfig = [
       // `user` row and writes the audit log (it owns the GDPR erasure boundary,
       // ADR 0058). "warn" per the only-warn convention; `--max-warnings 0` blocks.
       "local/no-cross-module-schema-import": ["warn", { allow: { privacy: ["auth", "audit"] } }],
+      // A fetch that goes through the SSRF egress guard must state its
+      // `redirect` posture. Silence means fetch's default `"follow"`, and then
+      // the TARGET picks the final destination: layer 1 has already run on the
+      // original URL, and layer 2's connector cannot re-validate an IP-literal
+      // `Location` because undici skips DNS entirely when no lookup is needed
+      // (ADR 1047). The rule refuses SILENCE, not either posture — refusing the
+      // hop and hand-following it with a fresh pre-flight are both accepted.
+      // "warn" per the only-warn convention; `--max-warnings 0` blocks.
+      "local/require-redirect-posture-on-guarded-fetch": "warn",
     },
   },
   {

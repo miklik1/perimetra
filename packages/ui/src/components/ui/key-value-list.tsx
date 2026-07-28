@@ -41,7 +41,7 @@ function KeyValueListRoot({ className, children, ...props }: React.ComponentProp
       <dl
         data-slot="key-value-list"
         className={cn(
-          "text-ui-base [&>*:not(:last-child)]:border-border [&>*:not(:last-child)]:border-b",
+          "text-ui-base [&>*:not(:last-child)]:border-b [&>*:not(:last-child)]:border-border",
           className,
         )}
         {...props}
@@ -88,14 +88,14 @@ function KeyValueListRow({
       className={cn("flex items-baseline justify-between gap-4 py-1.5", className)}
       {...props}
     >
-      <dt data-slot="key-value-list-key" className="text-muted-foreground shrink-0">
+      <dt data-slot="key-value-list-key" className="shrink-0 text-muted-foreground">
         {label}
       </dt>
       <dd
         data-slot="key-value-list-value"
         data-register={mono ? "mono" : "data"}
         className={cn(
-          "min-w-0 flex-1 break-words text-right font-medium",
+          "min-w-0 flex-1 text-right font-medium break-words",
           mono ? "font-mono" : "font-data tabular-nums",
         )}
       >

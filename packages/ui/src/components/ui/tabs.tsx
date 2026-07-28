@@ -21,7 +21,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof RadixTabs
     <RadixTabs.List
       data-slot="tabs-list"
       className={cn(
-        "bg-chrome shadow-soft-sm inline-flex items-center gap-1 rounded-full p-1",
+        "inline-flex items-center gap-1 rounded-full bg-chrome p-1 shadow-soft-sm",
         className,
       )}
       {...props}
@@ -34,8 +34,8 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof RadixT
     <RadixTabs.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "ease-brand text-muted-foreground rounded-full px-4 py-1.5 text-sm font-medium outline-none transition-colors duration-200",
-        "hover:text-foreground focus-visible:ring-ring focus-visible:ring-2",
+        "rounded-full px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-200 ease-brand outline-none",
+        "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
         "data-[state=active]:bg-nav-active data-[state=active]:text-nav-active-foreground data-[state=active]:shadow-soft-sm",
         "disabled:pointer-events-none disabled:opacity-50",
         className,
@@ -50,7 +50,7 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof RadixT
     <RadixTabs.Content
       data-slot="tabs-content"
       className={cn(
-        "rounded-card focus-visible:ring-ring mt-4 outline-none focus-visible:ring-2",
+        "mt-4 rounded-card outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       {...props}

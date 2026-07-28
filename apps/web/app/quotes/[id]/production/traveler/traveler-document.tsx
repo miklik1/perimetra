@@ -55,7 +55,7 @@ export function TravelerDocument({
   const bomGroups = groupByCategory(production.bom);
 
   return (
-    <main className="bg-field min-h-screen">
+    <main className="min-h-screen bg-field">
       {/* The reused CutListPanel rows can't carry a break utility, so they are
           kept whole here by descendant selector. */}
       <PrintSheetStyle
@@ -65,7 +65,7 @@ export function TravelerDocument({
 
       {/* Toolbar — screen only */}
       <div className="no-print mx-auto flex w-full max-w-[210mm] items-center justify-between gap-4 px-6 pt-6">
-        <Link href={backHref} className="text-muted-foreground text-sm hover:underline">
+        <Link href={backHref} className="text-sm text-muted-foreground hover:underline">
           ← {t("production.title")}
         </Link>
         <Button type="button" variant="copper-outline" onClick={() => window.print()}>
@@ -74,13 +74,13 @@ export function TravelerDocument({
       </div>
 
       {/* The document sheet */}
-      <article className="traveler-sheet bg-background text-foreground mx-auto my-6 flex w-full max-w-[210mm] flex-col gap-6 p-8 shadow-sm print:my-0 print:p-0 print:shadow-none">
-        <header className="border-border flex items-start justify-between border-b pb-4">
+      <article className="traveler-sheet mx-auto my-6 flex w-full max-w-[210mm] flex-col gap-6 bg-background p-8 text-foreground shadow-sm print:my-0 print:p-0 print:shadow-none">
+        <header className="flex items-start justify-between border-b border-border pb-4">
           <div className="flex flex-col gap-1">
             <DisplayLabel as="h1" className="text-3xl">
               {t("production.traveler")}
             </DisplayLabel>
-            <p className="font-data text-muted-foreground text-sm">{production.documentNumber}</p>
+            <p className="font-data text-sm text-muted-foreground">{production.documentNumber}</p>
           </div>
           <QuoteStatusBadge status={production.status} />
         </header>
@@ -95,18 +95,18 @@ export function TravelerDocument({
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="text-base font-semibold">
                   {t("production.instance")}: {instanceId}
-                  <span className="text-muted-foreground font-data ml-2 text-xs">{releaseId}</span>
+                  <span className="ml-2 font-data text-xs text-muted-foreground">{releaseId}</span>
                 </h2>
                 {/* The document number rides every instance block — a printed
                     sheet may be torn off and handled on its own. */}
-                <span className="text-muted-foreground font-data text-xs">
+                <span className="font-data text-xs text-muted-foreground">
                   {production.documentNumber}
                 </span>
               </div>
 
               {drawing && (
                 <div>
-                  <h3 className="text-muted-foreground mb-1 text-xs uppercase">
+                  <h3 className="mb-1 text-xs text-muted-foreground uppercase">
                     {t("production.elevation")}
                   </h3>
                   <TechnicalDrawingSvg drawing={drawing} className="h-72 w-full" />
@@ -115,14 +115,14 @@ export function TravelerDocument({
 
               {specs.length > 0 && (
                 <div>
-                  <h3 className="text-muted-foreground mb-1 text-xs uppercase">
+                  <h3 className="mb-1 text-xs text-muted-foreground uppercase">
                     {t("production.spec")}
                   </h3>
-                  <table className="font-data w-full text-left text-sm">
+                  <table className="w-full text-left font-data text-sm">
                     <tbody>
                       {specs.map((row) => (
-                        <tr key={row.key} className="border-border border-t">
-                          <td className="text-muted-foreground py-1 pr-4">{row.label}</td>
+                        <tr key={row.key} className="border-t border-border">
+                          <td className="py-1 pr-4 text-muted-foreground">{row.label}</td>
                           <td className="py-1">{row.value}</td>
                         </tr>
                       ))}
@@ -133,14 +133,14 @@ export function TravelerDocument({
 
               {dims.length > 0 && (
                 <div>
-                  <h3 className="text-muted-foreground mb-1 text-xs uppercase">
+                  <h3 className="mb-1 text-xs text-muted-foreground uppercase">
                     {t("production.dimensions")}
                   </h3>
-                  <table className="font-data w-full text-left text-sm">
+                  <table className="w-full text-left font-data text-sm">
                     <tbody>
                       {dims.map((row) => (
-                        <tr key={row.id} className="border-border border-t">
-                          <td className="text-muted-foreground py-1 pr-4">{row.label}</td>
+                        <tr key={row.id} className="border-t border-border">
+                          <td className="py-1 pr-4 text-muted-foreground">{row.label}</td>
                           <td className="py-1 text-right tabular-nums">
                             {Math.round(row.valueMm)} mm
                           </td>
@@ -159,22 +159,22 @@ export function TravelerDocument({
           <h2 className="text-base font-semibold">{t("production.bom")}</h2>
           {bomGroups.map(([category, lines]) => (
             <div key={category} className="flex flex-col gap-1">
-              <h3 className="text-muted-foreground text-xs uppercase">
+              <h3 className="text-xs text-muted-foreground uppercase">
                 {categoryLabel[category] ?? category}
               </h3>
-              <table className="font-data w-full text-left text-sm">
+              <table className="w-full text-left font-data text-sm">
                 <thead>
-                  <tr className="text-muted-foreground text-xs uppercase">
+                  <tr className="text-xs text-muted-foreground uppercase">
                     <th className="py-1 font-medium">{t("production.bomItem")}</th>
                     <th className="py-1 text-right font-medium">{t("production.bomQuantity")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lines.map((line) => (
-                    <tr key={line.componentCode} className="border-border border-t">
+                    <tr key={line.componentCode} className="border-t border-border">
                       <td className="py-1">
                         {line.name}
-                        <span className="text-muted-foreground ml-2 text-xs">
+                        <span className="ml-2 text-xs text-muted-foreground">
                           {line.componentCode}
                         </span>
                       </td>

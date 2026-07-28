@@ -40,8 +40,8 @@ function EmptyStateIcon({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="empty-state-icon"
       className={cn(
-        "bg-chrome-subtle text-muted-foreground grid size-12 place-items-center rounded-full",
-        "[&_svg:not([class*='size-'])]:size-6 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "grid size-12 place-items-center rounded-full bg-chrome-subtle text-muted-foreground",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-6",
         className,
       )}
       {...props}
@@ -65,7 +65,7 @@ function EmptyStateDescription({ className, ...props }: React.ComponentProps<"p"
   return (
     <p
       data-slot="empty-state-description"
-      className={cn("text-muted-foreground max-w-sm text-sm", className)}
+      className={cn("max-w-sm text-sm text-muted-foreground", className)}
       {...props}
     />
   );

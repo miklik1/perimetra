@@ -29,9 +29,9 @@ export default function Error({
       <h2 className="text-xl font-semibold">{t("title")}</h2>
       {/* User-facing copy mapped from the error kind via the catalog; the raw
           detail is shown beneath it only in development. */}
-      <p className="text-muted-foreground text-sm">{t(errorMessageKey(error))}</p>
+      <p className="text-sm text-muted-foreground">{t(errorMessageKey(error))}</p>
       {devErrorDetail(error) && (
-        <p className="text-muted-foreground max-w-md text-xs">{devErrorDetail(error)}</p>
+        <p className="max-w-md text-xs text-muted-foreground">{devErrorDetail(error)}</p>
       )}
       <Button variant="outline" onClick={reset}>
         {t("retry")}

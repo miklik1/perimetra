@@ -38,7 +38,7 @@ export function CustomerDetailClient({ id }: { id: string }) {
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="bg-field flex min-h-screen items-center justify-center">
+        <main className="flex min-h-screen items-center justify-center bg-field">
           {t("checkingSession")}
         </main>
       }
@@ -79,17 +79,17 @@ function Content({ id }: { id: string }) {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6 md:p-8">
-      <Link href="/customers" className="text-muted-foreground hover:text-foreground w-fit text-sm">
+      <Link href="/customers" className="w-fit text-sm text-muted-foreground hover:text-foreground">
         ← {t("backToList")}
       </Link>
 
       {!canManage ? (
         <Panel elevation="flush">
-          <p className="text-muted-foreground text-sm">{t("onlyAdminOrSales")}</p>
+          <p className="text-sm text-muted-foreground">{t("onlyAdminOrSales")}</p>
         </Panel>
       ) : error ? (
         <Panel elevation="flush">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {errorMessageKey(error) === "notFound"
               ? t("notFound")
               : tErrors(errorMessageKey(error))}
@@ -98,7 +98,7 @@ function Content({ id }: { id: string }) {
       ) : (
         customer && (
           <>
-            <div className="border-border flex flex-col gap-4 border-b pb-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 border-b border-border pb-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
                 <DisplayLabel as="h1" className="text-3xl sm:text-4xl">
                   {customer.name}

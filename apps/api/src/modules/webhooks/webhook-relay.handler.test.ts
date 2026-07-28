@@ -56,40 +56,34 @@ describe("createWebhookRelayHandler", () => {
       "https://a.test/hook",
       { id: EVENT.eventId, type: "project.created", payload: { projectId: "p-1" } },
       "secret-a",
-      { allowPrivateNetwork: false },
     );
     expect(deliver).toHaveBeenCalledWith(
       "https://b.test/hook",
       expect.objectContaining({ id: EVENT.eventId }),
       "secret-b",
-      { allowPrivateNetwork: false },
     );
   });
 
-  it("threads a per-endpoint allowPrivateNetwork opt-out to the dispatcher (default false)", async () => {
+  it("passes NO egress options — the SSRF hatch is not reachable from endpoint config", async () => {
+    // ADR 1047. Endpoint config is tenant-owned state (ADR 0034), so a
+    // per-endpoint `allowPrivateNetwork` would be a tenant-writable switch that
+    // disables the tenant's own SSRF guard. The relay must therefore hand the
+    // dispatcher exactly three arguments and no options object at all — this
+    // asserts the ABSENCE, which is the property that regresses silently.
     const { dispatcher, deliver } = makeDispatcher();
     const handler = createWebhookRelayHandler(dispatcher, {
       eventTypes: ["project.created"],
       endpointsFor: () => [
-        { url: "http://10.0.0.9/internal", secret: "secret-a", allowPrivateNetwork: true },
-        { url: "https://b.test/hook", secret: "secret-b" },
+        // An endpoint row carrying the old flag: extra keys are ignored, and
+        // nothing about them reaches `deliver`.
+        { url: "https://a.test/hook", secret: "secret-a", allowPrivateNetwork: true } as never,
       ],
     });
 
     await handler.handle(EVENT);
 
-    expect(deliver).toHaveBeenCalledWith(
-      "http://10.0.0.9/internal",
-      expect.objectContaining({ id: EVENT.eventId }),
-      "secret-a",
-      { allowPrivateNetwork: true },
-    );
-    expect(deliver).toHaveBeenCalledWith(
-      "https://b.test/hook",
-      expect.objectContaining({ id: EVENT.eventId }),
-      "secret-b",
-      { allowPrivateNetwork: false },
-    );
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(deliver.mock.calls[0]).toHaveLength(3);
   });
 
   it("attempts ALL endpoints, then throws if any failed (at-least-once via BullMQ retry)", async () => {

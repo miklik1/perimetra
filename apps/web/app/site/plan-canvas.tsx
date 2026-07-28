@@ -160,7 +160,7 @@ export function PlanCanvas({
   };
 
   return (
-    <div className="border-border bg-background relative aspect-[4/3] w-full overflow-hidden rounded-md border">
+    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-border bg-background">
       <svg
         ref={svgRef}
         role="img"
@@ -226,7 +226,7 @@ export function PlanCanvas({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={fontSize * 0.9}
-                  className="fill-muted-foreground pointer-events-none select-none"
+                  className="pointer-events-none fill-muted-foreground select-none"
                 >
                   ×
                 </text>
@@ -262,7 +262,7 @@ export function PlanCanvas({
                   vectorEffect="non-scaling-stroke"
                   strokeWidth={2}
                   strokeDasharray="4 3"
-                  className="fill-destructive/15 stroke-destructive cursor-grab"
+                  className="cursor-grab fill-destructive/15 stroke-destructive"
                   onPointerDown={(e) => beginDrag(e, instance)}
                 />
               )}
@@ -272,7 +272,7 @@ export function PlanCanvas({
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={fontSize}
-                className="fill-foreground pointer-events-none select-none"
+                className="pointer-events-none fill-foreground select-none"
               >
                 {label}
               </text>
@@ -328,7 +328,7 @@ export function PlanCanvas({
       </svg>
 
       {instances.length === 0 && (
-        <p className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
+        <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
           {t("emptyPlan")}
         </p>
       )}

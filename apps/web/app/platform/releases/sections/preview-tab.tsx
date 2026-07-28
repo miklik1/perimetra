@@ -83,7 +83,7 @@ export function PreviewTab({
       )}
 
       {preview.status === "computing" && (
-        <p className="text-muted-foreground text-xs">{t("previewComputing")}</p>
+        <p className="text-xs text-muted-foreground">{t("previewComputing")}</p>
       )}
       {preview.status === "error" && (
         <Notice text={t("previewError", { message: preview.message ?? "" })} />
@@ -100,7 +100,7 @@ export function PreviewTab({
 
 function Notice({ text }: { text: string }) {
   return (
-    <p className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+    <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
       {text}
     </p>
   );
@@ -115,7 +115,7 @@ function CostMargin({ money, costMoney }: { money: MoneyTotals; costMoney: Money
   const cost = Number(costMoney.total);
   const marginPct = price > 0 ? ((price - cost) / price) * 100 : 0;
   return (
-    <div className="border-border rounded-md border p-4 text-sm">
+    <div className="rounded-md border border-border p-4 text-sm">
       <dl className="grid grid-cols-2 gap-y-1">
         <dt className="text-muted-foreground">{t("previewCost")}</dt>
         <dd className="text-right tabular-nums">{formatMoney(costMoney.total, locale)}</dd>

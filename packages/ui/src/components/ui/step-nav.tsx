@@ -175,7 +175,7 @@ function StepNavHeading({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="step-nav-heading"
       className={cn(
-        "text-muted-foreground text-ui-xs @[10rem]/step-nav:block hidden px-2 pb-2 pt-0.5 font-semibold uppercase tracking-[0.06em]",
+        "hidden px-2 pt-0.5 pb-2 text-ui-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase @[10rem]/step-nav:block",
         className,
       )}
       {...props}
@@ -210,11 +210,11 @@ function StepNavItem({ className, value, state, onClick, children, ...props }: S
         aria-current={active ? "step" : undefined}
         aria-disabled={locked || undefined}
         className={cn(
-          "ease-brand rounded-control flex items-center gap-3 p-2 text-left outline-none transition-colors duration-200",
-          "focus-visible:ring-ring focus-visible:ring-2",
-          "@[10rem]/step-nav:justify-start @[10rem]/step-nav:px-2.5 @[10rem]/step-nav:py-2.5 justify-center",
+          "flex items-center gap-3 rounded-control p-2 text-left transition-colors duration-200 ease-brand outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ring",
+          "justify-center @[10rem]/step-nav:justify-start @[10rem]/step-nav:px-2.5 @[10rem]/step-nav:py-2.5",
           active && "bg-chrome-subtle shadow-[inset_2px_0_0_var(--color-copper)]",
-          locked ? "opacity-disabled cursor-default" : "hover:bg-chrome-subtle cursor-pointer",
+          locked ? "cursor-default opacity-disabled" : "cursor-pointer hover:bg-chrome-subtle",
           className,
         )}
         onClick={(event) => {
@@ -232,7 +232,7 @@ function StepNavItem({ className, value, state, onClick, children, ...props }: S
          * carries; `sr-only` -> `not-sr-only` keeps the accessible name intact at
          * every width from a single subtree.
          */}
-        <span className="@[10rem]/step-nav:not-sr-only @[10rem]/step-nav:flex @[10rem]/step-nav:min-w-0 @[10rem]/step-nav:flex-1 @[10rem]/step-nav:flex-col sr-only">
+        <span className="sr-only @[10rem]/step-nav:not-sr-only @[10rem]/step-nav:flex @[10rem]/step-nav:min-w-0 @[10rem]/step-nav:flex-1 @[10rem]/step-nav:flex-col">
           {children}
         </span>
       </button>
@@ -273,7 +273,7 @@ function StepNavDot() {
         state === "done"
           ? "bg-copper text-copper-foreground"
           : active
-            ? "border-copper text-copper bg-chrome border-2"
+            ? "border-2 border-copper bg-chrome text-copper"
             : "bg-chrome-subtle text-muted-foreground",
       )}
     >
@@ -310,7 +310,7 @@ function StepNavSub({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="step-nav-sub"
-      className={cn("text-muted-foreground text-ui-xs truncate", className)}
+      className={cn("truncate text-ui-xs text-muted-foreground", className)}
       {...props}
     />
   );
@@ -368,7 +368,7 @@ function StepProgress({
           />
         ))}
       </span>
-      <span className="font-data text-muted-foreground text-ui-sm">
+      <span className="font-data text-ui-sm text-muted-foreground">
         {current}/{total}
       </span>
     </div>

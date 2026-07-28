@@ -7,10 +7,10 @@ export default async function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-2">
       <h1 className="text-2xl font-bold">{t("notFoundTitle")}</h1>
-      <p className="text-muted-foreground text-sm">{t("notFoundDescription")}</p>
+      <p className="text-sm text-muted-foreground">{t("notFoundDescription")}</p>
       <Link
         href="/"
-        className="border-border hover:bg-accent mt-4 rounded-lg border px-4 py-2 text-sm transition-colors"
+        className="mt-4 rounded-lg border border-border px-4 py-2 text-sm transition-colors hover:bg-accent"
       >
         {t("goHome")}
       </Link>

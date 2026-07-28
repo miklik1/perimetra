@@ -320,7 +320,7 @@ export default function SceneCanvas({
               markerRefs.current[i] = el;
             }}
             data-deviation-marker
-            className="bg-deviation text-deviation-foreground shadow-soft absolute left-0 top-0 flex size-6 items-center justify-center rounded-full"
+            className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-full bg-deviation text-deviation-foreground shadow-soft"
             style={{ display: "none" }}
             aria-hidden
           >
@@ -334,7 +334,7 @@ export default function SceneCanvas({
           cluster on the right. In immersive mode the tool dock supersedes it
           (ADR 0116), so this banded cluster (and its scrub sliders) yields. */}
       {!immersive && (
-        <div className="absolute left-3 top-3 flex items-start gap-2">
+        <div className="absolute top-3 left-3 flex items-start gap-2">
           <IconCluster>
             <IconButton
               size="sm"
@@ -374,7 +374,7 @@ export default function SceneCanvas({
                   value={Math.round(explodeTarget * 100)}
                   onChange={(e) => setExplodeTarget(Number(e.target.value) / 100)}
                   aria-label={t("explodeAmount")}
-                  className="accent-copper h-1 w-28 cursor-pointer"
+                  className="h-1 w-28 cursor-pointer accent-copper"
                 />
               )}
             </div>
@@ -400,7 +400,7 @@ export default function SceneCanvas({
                     value={Math.round(sectionPosition * 100)}
                     onChange={(e) => setSectionPosition(Number(e.target.value) / 100)}
                     aria-label={t("sectionPosition")}
-                    className="accent-copper h-1 w-28 cursor-pointer"
+                    className="h-1 w-28 cursor-pointer accent-copper"
                   />
                 </>
               )}
@@ -411,7 +411,7 @@ export default function SceneCanvas({
 
       {/* Count badge + highlight toggle — only when something deviates (§6 chrome). */}
       {deviatedCenters.length > 0 && (
-        <div className="absolute right-3 top-3 flex items-center gap-2">
+        <div className="absolute top-3 right-3 flex items-center gap-2">
           <Badge tone="deviation" aria-label={`${t("deviationsTitle")}: ${deviatedCenters.length}`}>
             {deviatedCenters.length}
           </Badge>
@@ -440,8 +440,8 @@ export default function SceneCanvas({
               onClick={() => setScene(s.id)}
               className={
                 active
-                  ? "border-copper bg-chrome text-foreground shadow-soft rounded-full border px-3 py-1 text-xs font-medium"
-                  : "border-border bg-chrome-subtle/80 text-muted-foreground hover:border-copper/60 rounded-full border px-3 py-1 text-xs"
+                  ? "rounded-full border border-copper bg-chrome px-3 py-1 text-xs font-medium text-foreground shadow-soft"
+                  : "rounded-full border border-border bg-chrome-subtle/80 px-3 py-1 text-xs text-muted-foreground hover:border-copper/60"
               }
             >
               {s.label}

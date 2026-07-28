@@ -37,10 +37,10 @@ export function FinishPicker() {
               onClick={() => setFinish(f.id)}
               style={{ backgroundColor: f.swatch }}
               className={cn(
-                "border-border/60 size-9 rounded-full border outline-none transition-transform",
-                "focus-visible:ring-copper focus-visible:ring-2",
+                "size-9 rounded-full border border-border/60 transition-transform outline-none",
+                "focus-visible:ring-2 focus-visible:ring-copper",
                 active
-                  ? "ring-copper ring-offset-chrome scale-105 ring-2 ring-offset-2"
+                  ? "scale-105 ring-2 ring-copper ring-offset-2 ring-offset-chrome"
                   : "hover:scale-105",
               )}
             />
@@ -53,7 +53,7 @@ export function FinishPicker() {
           <span className="text-muted-foreground"> · {selected.ral}</span>
         )}
       </p>
-      <p className="text-muted-foreground text-xs">{t("ralCaveat")}</p>
+      <p className="text-xs text-muted-foreground">{t("ralCaveat")}</p>
     </Panel>
   );
 }

@@ -22,17 +22,17 @@ export function ProductionClient({ id }: { id: string }) {
     <AuthGuard
       redirect={() => router.push("/login")}
       fallback={
-        <main className="bg-field flex min-h-screen items-center justify-center">
+        <main className="flex min-h-screen items-center justify-center bg-field">
           {t("checkingSession")}
         </main>
       }
     >
-      <main className="bg-field mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-8">
-        <Link href={`/quotes/${id}`} className="text-muted-foreground text-sm hover:underline">
+      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 bg-field p-8">
+        <Link href={`/quotes/${id}`} className="text-sm text-muted-foreground hover:underline">
           ← {t("title")}
         </Link>
         {error && (
-          <p className="text-destructive text-sm" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {tErrors(errorMessageKey(error))}
           </p>
         )}

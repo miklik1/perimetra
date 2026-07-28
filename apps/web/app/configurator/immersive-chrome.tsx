@@ -47,17 +47,17 @@ export function ImmersiveChrome({
   return (
     <>
       {/* Collapsed step trigger — top-left, below the scene HUD chip. */}
-      <div className="bg-chrome shadow-float rounded-control absolute left-4 top-[70px] flex items-center gap-2.5 py-2 pl-3 pr-2.5">
-        <span className="bg-copper text-copper-foreground font-data grid size-6 place-items-center rounded-full text-[12px] font-semibold">
+      <div className="absolute top-[70px] left-4 flex items-center gap-2.5 rounded-control bg-chrome py-2 pr-2.5 pl-3 shadow-float">
+        <span className="grid size-6 place-items-center rounded-full bg-copper font-data text-[12px] font-semibold text-copper-foreground">
           {current}
         </span>
         <div className="leading-tight">
           <div className="text-ui-sm font-semibold">{stepLabel}</div>
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-[11px] text-muted-foreground">
             {t("stepOfShort", { current: String(current), total: String(total) })}
           </div>
         </div>
-        <span className="bg-border mx-0.5 h-5 w-px" aria-hidden />
+        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
         {/* `aria-disabled` + guarded handlers, NOT native `disabled` (the guard
             lives in onPrev/onNext). A native disabled attribute on the focused
             control at a flow boundary drops focus to <body> — the same trap the
@@ -67,7 +67,7 @@ export function ImmersiveChrome({
           aria-label={t("back")}
           aria-disabled={current <= 1}
           onClick={onPrev}
-          className="pointer-coarse:size-11 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50 pointer-coarse:size-11"
         >
           <span className="inline-flex rotate-180">
             <Icon name="chevron" size={14} />
@@ -78,7 +78,7 @@ export function ImmersiveChrome({
           aria-label={t("next")}
           aria-disabled={current >= total}
           onClick={onNext}
-          className="pointer-coarse:size-11 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50 pointer-coarse:size-11"
         >
           <Icon name="chevron" size={14} />
         </IconButton>
@@ -88,12 +88,12 @@ export function ImmersiveChrome({
       <button
         type="button"
         onClick={() => setImmersive(false)}
-        className="bg-chrome shadow-float focus-visible:ring-ring rounded-control absolute right-4 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2.5 px-2 py-3 outline-none focus-visible:ring-2"
+        className="absolute top-1/2 right-4 flex -translate-y-1/2 flex-col items-center gap-2.5 rounded-control bg-chrome px-2 py-3 shadow-float outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="text-ui-xs font-semibold [transform:rotate(180deg)] [writing-mode:vertical-rl]">
+        <span className="[transform:rotate(180deg)] text-ui-xs font-semibold [writing-mode:vertical-rl]">
           {t("settings")}
         </span>
-        <span className="text-muted-foreground inline-flex rotate-180">
+        <span className="inline-flex rotate-180 text-muted-foreground">
           <Icon name="chevron" size={15} />
         </span>
       </button>
@@ -121,9 +121,9 @@ function CommercialChip({
       : null;
 
   return (
-    <div className="bg-chrome shadow-float rounded-control absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-4 py-2.5 pl-4 pr-3">
+    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-control bg-chrome py-2.5 pr-3 pl-4 shadow-float">
       <div className="flex flex-col leading-tight">
-        <span className="text-muted-foreground text-[10.5px]">
+        <span className="text-[10.5px] text-muted-foreground">
           {t("priceExVat")}
           {margin !== null && Number.isFinite(margin)
             ? ` · ${t("marginWithPct", { pct: String(Math.round(margin)) })}`
@@ -136,8 +136,8 @@ function CommercialChip({
       <span
         className={
           result.isValid
-            ? "text-success text-ui-xs inline-flex items-center gap-1.5"
-            : "text-destructive text-ui-xs inline-flex items-center gap-1.5"
+            ? "inline-flex items-center gap-1.5 text-ui-xs text-success"
+            : "inline-flex items-center gap-1.5 text-ui-xs text-destructive"
         }
       >
         <Icon name={result.isValid ? "check" : "warn"} size={14} />

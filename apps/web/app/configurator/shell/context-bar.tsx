@@ -66,7 +66,7 @@ function ContextBarRoot({
         data-slot="context-bar"
         aria-label={t("configuratorLabel")}
         className={cn(
-          "bg-chrome border-border h-13 flex flex-none items-center gap-3.5 border-b px-4",
+          "flex h-13 flex-none items-center gap-3.5 border-b border-border bg-chrome px-4",
           className,
         )}
         {...props}
@@ -91,7 +91,7 @@ function ContextBarWordmark({ className, ...props }: React.ComponentProps<"span"
     <span
       data-slot="context-bar-wordmark"
       className={cn(
-        "text-foreground font-display text-ui-xl font-semibold tracking-tight",
+        "font-display text-ui-xl font-semibold tracking-tight text-foreground",
         className,
       )}
       {...props}
@@ -107,7 +107,7 @@ function ContextBarProduct({ className, ...props }: React.ComponentProps<"span">
   return (
     <span
       data-slot="context-bar-product"
-      className={cn("text-foreground text-ui-base truncate font-semibold", className)}
+      className={cn("truncate text-ui-base font-semibold text-foreground", className)}
       {...props}
     />
   );
@@ -136,7 +136,7 @@ function ContextBarCatalogVersion({
   return (
     <span
       data-slot="context-bar-catalog-version"
-      className={cn("text-muted-foreground text-ui-xs whitespace-nowrap font-mono", className)}
+      className={cn("font-mono text-ui-xs whitespace-nowrap text-muted-foreground", className)}
       {...props}
     >
       {t("catalogVersion", { version: String(value) })}

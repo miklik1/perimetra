@@ -50,7 +50,7 @@ function ToastRow({ toast }: { toast: Toast }) {
       // as urgent (RN has no `status` role — the live region carries the rest).
       accessibilityRole={toast.type === "error" ? "alert" : undefined}
       accessibilityLiveRegion={toast.type === "error" ? "assertive" : "polite"}
-      className={`bg-background border-border rounded-md border px-4 py-3 shadow ${TYPE_CLASS[toast.type]}`}
+      className={`rounded-md border border-border bg-background px-4 py-3 shadow ${TYPE_CLASS[toast.type]}`}
     >
       <Pressable onPress={() => dismiss(toast.id)}>
         <Stack gap={1}>

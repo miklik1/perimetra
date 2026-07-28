@@ -22,7 +22,7 @@ export function LegalProfileClient() {
   return (
     <AuthGuard
       redirect={() => router.push("/login")}
-      fallback={<main className="bg-field flex min-h-screen items-center justify-center">…</main>}
+      fallback={<main className="flex min-h-screen items-center justify-center bg-field">…</main>}
     >
       <Content />
     </AuthGuard>
@@ -41,19 +41,19 @@ function Content() {
       <div className="flex max-w-2xl flex-col gap-6">
         <header className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">{t("title")}</h2>
-          <p className="text-muted-foreground text-sm">{t("description")}</p>
+          <p className="text-sm text-muted-foreground">{t("description")}</p>
         </header>
 
         {!isAdmin ? (
           <Panel elevation="flat">
             <Panel.Body>
-              <p className="text-muted-foreground text-sm">{t("onlyAdmin")}</p>
+              <p className="text-sm text-muted-foreground">{t("onlyAdmin")}</p>
             </Panel.Body>
           </Panel>
         ) : isLoading ? (
           <Panel elevation="flat">
             <Panel.Body>
-              <p className="text-muted-foreground text-sm">…</p>
+              <p className="text-sm text-muted-foreground">…</p>
             </Panel.Body>
           </Panel>
         ) : (

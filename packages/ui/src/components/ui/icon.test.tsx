@@ -78,7 +78,7 @@ describe("Icon", () => {
   });
 
   it("merges the caller's className over the shrink guard", () => {
-    render(<Icon name="chevron" className="text-copper rotate-90" data-testid="glyph" />);
+    render(<Icon name="chevron" className="rotate-90 text-copper" data-testid="glyph" />);
     expect(screen.getByTestId("glyph")).toHaveClass("shrink-0", "text-copper", "rotate-90");
   });
 });

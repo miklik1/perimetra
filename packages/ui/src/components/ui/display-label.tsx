@@ -20,7 +20,7 @@ function DisplayLabel({
     <Comp
       data-slot="display-label"
       className={cn(
-        "text-foreground font-display md:text-display text-4xl font-light tracking-tight sm:text-6xl",
+        "font-display text-4xl font-light tracking-tight text-foreground sm:text-6xl md:text-display",
         className,
       )}
       {...props}

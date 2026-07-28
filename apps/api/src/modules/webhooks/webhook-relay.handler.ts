@@ -29,17 +29,20 @@
 import { type DomainEventHandler } from "../jobs/jobs.tokens.js";
 import { type WebhookDispatcher } from "./webhook-dispatcher.service.js";
 
-/** One delivery target. Where these live (env, table) is project-owned. */
+/**
+ * One delivery target. Where these live (env, table) is project-owned.
+ *
+ * There is deliberately NO per-endpoint SSRF opt-out (ADR 1047). Endpoint
+ * configuration is tenant-owned state (ADR 0034) and a table is the shape a
+ * self-service registration door eventually writes, so a per-endpoint flag is a
+ * tenant-writable switch that disables the tenant's own egress guard. The knob
+ * is DEPLOYMENT-wide instead: `WEBHOOK_EGRESS_ALLOW_PRIVATE`, wired once in
+ * `WebhooksModule`.
+ */
 export interface WebhookEndpointTarget {
   url: string;
   /** Per-endpoint signing secret — never shared across endpoints. */
   secret: string;
-  /**
-   * Opt this endpoint out of the dispatcher's SSRF egress guard (private/
-   * loopback/metadata targets stay blocked otherwise). ONLY for trusted
-   * first-party targets — never settable from customer input.
-   */
-  allowPrivateNetwork?: boolean;
 }
 
 type RelayedDomainEvent = Parameters<DomainEventHandler["handle"]>[0] & { eventId?: string };
@@ -87,7 +90,6 @@ export function createWebhookRelayHandler(
               payload: event.payload,
             },
             endpoint.secret,
-            { allowPrivateNetwork: endpoint.allowPrivateNetwork ?? false },
           ),
         ),
       );

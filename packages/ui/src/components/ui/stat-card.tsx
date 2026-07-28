@@ -25,7 +25,7 @@ function StatCardRoot({ className, children, ...props }: React.ComponentProps<"d
       <div
         data-slot="stat-card"
         className={cn(
-          "bg-spotlight text-spotlight-foreground rounded-card-lg shadow-soft relative p-5",
+          "relative rounded-card-lg bg-spotlight p-5 text-spotlight-foreground shadow-soft",
           className,
         )}
         {...props}
@@ -94,7 +94,7 @@ function StatCardAction({ className, ...props }: React.ComponentProps<"button">)
       type="button"
       data-slot="stat-card-action"
       className={cn(
-        "ease-brand bg-spotlight-foreground/15 hover:bg-spotlight-foreground/25 focus-visible:ring-ring absolute right-4 top-4 grid size-9 place-items-center rounded-full outline-none transition-colors duration-200 focus-visible:ring-2 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "absolute top-4 right-4 grid size-9 place-items-center rounded-full bg-spotlight-foreground/15 transition-colors duration-200 ease-brand outline-none hover:bg-spotlight-foreground/25 focus-visible:ring-2 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
       {...props}

@@ -240,7 +240,7 @@ function FadeScrollAreaRoot({
         {...props}
         ref={ref}
         className={cn(
-          "has-[:focus-visible]:ring-ring flex [--fade-scroll-length:12px] has-[:focus-visible]:ring-2",
+          "flex [--fade-scroll-length:12px] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
           horizontal ? "min-w-0 flex-row" : "min-h-0 flex-col",
           className,
         )}

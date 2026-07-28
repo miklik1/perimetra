@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LoginPage() {
   const t = await getTranslations("auth");
   return (
-    <main className="bg-field flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-field p-8">
       <DisplayLabel as="h1">{t("login")}</DisplayLabel>
       {/* LoginForm reads `?next=` via useSearchParams → needs a Suspense boundary. */}
       <Suspense fallback={null}>
