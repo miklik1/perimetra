@@ -77,7 +77,11 @@ describe("deviation ledger (HTTP, real stack) — CAR-159 / ADR 0110", () => {
       id: string;
       shareToken: string;
     };
-    await inject(app, { method: "POST", url: `/v1/quotes/shared/${quote.shareToken}/accept` });
+    await inject(app, {
+      method: "POST",
+      url: "/v1/quotes/shared/accept",
+      payload: { token: quote.shareToken },
+    });
     const order = (await post(tenant, "/v1/orders", { quoteId: quote.id })).json() as {
       id: string;
     };

@@ -27,7 +27,7 @@ checkable criterion: `@Public()` still appears only on `HealthController`,
 ## The carrier ruling (the decision that dominates this module)
 
 - **Quote mail** genuinely DELIVERS the nabídka: it links the ALREADY-SHIPPED
-  ADR-0089 public landing `/nabidka/:shareToken`, which renders the full priced
+  ADR-0089 public landing `/nabidka#<shareToken>`, which renders the full priced
   document off the frozen snapshot and offers accept/decline. The subject's
   claim is fully backed by the payload.
 - **Invoice mail is a NOTIFICATION** that names itself precisely: it states the

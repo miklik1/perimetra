@@ -150,9 +150,8 @@ function ContextBarCatalogVersion({
  * 1. ANNOUNCEMENT — the live region is always mounted and its CONTENT toggles,
  *    which is what makes a polite announcement fire (a region that mounts
  *    together with its text is unreliable across screen readers). The spinner
- *    inside is forced decorative: the kit's `Spinner` ships its own
- *    `role="status"` + hardcoded label, and a nested live region would announce
- *    a second, non-catalog string over ours.
+ *    inside carries no name, so it stays decorative and this stays the only
+ *    live region: the announced string is the catalog's, once.
  * 2. NO LAYOUT SHIFT — an `aria-hidden`, `invisible` ghost of the same content
  *    sits in the same grid cell and permanently reserves the slot, so the bar's
  *    trailing group does not reflow when the indicator appears or clears.
@@ -182,7 +181,7 @@ function ContextBarComputing({
 function ComputingLabel({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <Spinner className="size-3.5" role="presentation" aria-hidden aria-label={undefined} />
+      <Spinner className="size-3.5" />
       <span className="whitespace-nowrap">{children}</span>
     </>
   );

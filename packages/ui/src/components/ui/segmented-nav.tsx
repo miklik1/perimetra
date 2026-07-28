@@ -3,13 +3,30 @@ import * as React from "react";
 import { cn } from "@repo/ui/lib/utils";
 
 /**
- * Segmented top-nav (ADR 0111) — a group of stadium pills, each an icon + label,
- * with one active. Compound-with-context: <SegmentedNav value onValueChange>
- * puts the selection + setter on context and each <SegmentedNavItem> reads it,
- * so callers compose sections as children instead of feeding an items array.
- * The active pill flips to the near-black `bg-nav-active` fill — the same
- * toggle grammar as IconButton/StepNav — over an optional recessed chrome track.
- * Domain-agnostic: the caller owns the values, the inline-svg icons and labels.
+ * Segmented control (ADR 0111) — a group of stadium pills, each an icon + label,
+ * with exactly one active. Compound-with-context: <SegmentedNav value
+ * onValueChange> puts the selection + setter on context and each
+ * <SegmentedNavItem> reads it, so callers compose segments as children instead
+ * of feeding an items array. The active pill flips to the near-black
+ * `bg-nav-active` fill — the same toggle grammar as IconButton/StepNav — over an
+ * optional recessed chrome track. Domain-agnostic: the caller owns the values,
+ * the inline-svg icons and labels.
+ *
+ * What this is NOT: page navigation. It used to render a `<nav>` landmark and
+ * mark the selected pill `aria-current="page"`, which is factually wrong for
+ * every real use — a screen-reader user heard "Rozpad, current page" for a
+ * control that changes no page, and the one product consumer had to re-state the
+ * semantics by hand through the spread props. So the root is a NAMED
+ * `role="group"` and each segment is a toggle button carrying `aria-pressed`
+ * (always emitted, `true`/`false` — a toggle with a missing `aria-pressed` reads
+ * as a plain button). The accessible name is REQUIRED by the prop type: an
+ * unnamed group is an axe failure, and it is the only thing telling the user
+ * what the segments are switching between.
+ *
+ * Deliberately not a `tablist` either: nothing here wires `tabpanel`s, and
+ * `role="tab"` would additionally owe roving tabindex, arrow-key movement and
+ * `aria-controls`. Real tabs are `tabs.tsx`. Here the native `<button>`s carry
+ * their own keyboard operation (Tab to reach, Enter/Space to press).
  */
 
 interface SegmentedNavContextValue {
@@ -27,12 +44,20 @@ function useSegmentedNav(): SegmentedNavContextValue {
   return ctx;
 }
 
-interface SegmentedNavProps extends React.ComponentProps<"nav"> {
+/**
+ * The accessible name is part of the contract, not an optional extra, so it is
+ * enforced by the type: one of `aria-label` / `aria-labelledby` must be present.
+ * A union (rather than a single required prop) keeps the labelledby form — the
+ * right one when a visible heading already names the group — equally first-class.
+ */
+type SegmentedNavName = { "aria-label": string } | { "aria-labelledby": string };
+
+type SegmentedNavProps = React.ComponentProps<"div"> & {
   value: string;
   onValueChange: (value: string) => void;
   /** Wrap the pills in the recessed chrome track (default `true`). */
   track?: boolean;
-}
+} & SegmentedNavName;
 
 function SegmentedNav({
   value,
@@ -44,8 +69,9 @@ function SegmentedNav({
 }: SegmentedNavProps) {
   return (
     <SegmentedNavContext value={{ value, onValueChange }}>
-      <nav
+      <div
         data-slot="segmented-nav"
+        role="group"
         className={cn(
           "inline-flex items-center gap-1",
           track && "bg-chrome shadow-soft-sm rounded-full p-1",
@@ -54,7 +80,7 @@ function SegmentedNav({
         {...props}
       >
         {children}
-      </nav>
+      </div>
     </SegmentedNavContext>
   );
 }
@@ -81,7 +107,7 @@ function SegmentedNavItem({
       type="button"
       data-slot="segmented-nav-item"
       data-active={active || undefined}
-      aria-current={active ? "page" : undefined}
+      aria-pressed={active}
       onClick={(event) => {
         onClick?.(event);
         // Selection is this control's core job — a caller onClick composes with

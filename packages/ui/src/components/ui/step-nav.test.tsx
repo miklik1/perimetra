@@ -28,6 +28,38 @@ function Rail({
   );
 }
 
+/**
+ * The shape the configurator rail actually uses: the items are NOT direct children
+ * of the root — a scroll wrapper sits between — so they are numbered by
+ * `StepNav.List` rather than by the root's own walk. `intro` is the conditionally
+ * rendered step that a release may or may not author.
+ */
+function NestedRail({ intro }: { intro: boolean }) {
+  return (
+    <StepNav value="rozmery" aria-label="Konfigurace">
+      <StepNav.Heading>Konfigurace</StepNav.Heading>
+      <div>
+        <StepNav.List className="flex flex-col gap-0.5">
+          {intro ? (
+            <StepNav.Item value="uvod">
+              <StepNav.Label>Úvod</StepNav.Label>
+            </StepNav.Item>
+          ) : null}
+          <StepNav.Item value="rozmery">
+            <StepNav.Label>Rozměry</StepNav.Label>
+          </StepNav.Item>
+          <StepNav.Item value="vypln">
+            <StepNav.Label>Výplň</StepNav.Label>
+          </StepNav.Item>
+        </StepNav.List>
+      </div>
+    </StepNav>
+  );
+}
+
+const dotOrdinals = () =>
+  [...document.querySelectorAll('[data-slot="step-nav-dot"]')].map((dot) => dot.textContent);
+
 describe("StepNav", () => {
   it("marks the step matching the root's value as current — active is derived, never passed", () => {
     render(<Rail value="rozmery" />);
@@ -52,6 +84,31 @@ describe("StepNav", () => {
     // and it must be 2, its true position, not a caller-supplied index.
     expect(dots).toHaveLength(3);
     expect(dots[1]?.textContent).toBe("2");
+  });
+
+  it("renumbers every dot when a step appears later, and numbers items nested under a List", () => {
+    // Two regressions in one fixture. (1) The items live inside a layout wrapper,
+    // so only `StepNav.List` can see them — a root-only children walk would render
+    // three blank dots here. (2) The step set CHANGES after mount, which the old
+    // mount-time DOM measurement could not follow: the two existing dots kept their
+    // 1 and 2 while the inserted one measured a fresh 1, so the rail showed
+    // "1, 1, 2".
+    const { rerender } = render(<NestedRail intro={false} />);
+    expect(dotOrdinals()).toEqual(["1", "2"]);
+
+    rerender(<NestedRail intro />);
+    expect(dotOrdinals()).toEqual(["1", "2", "3"]);
+
+    rerender(<NestedRail intro={false} />);
+    expect(dotOrdinals()).toEqual(["1", "2"]);
+  });
+
+  it("throws when a List escapes its rail", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<StepNav.List>x</StepNav.List>)).toThrow(
+      /<StepNav.List> must be rendered inside <StepNav>/,
+    );
+    spy.mockRestore();
   });
 
   it("derives the dot's glyph from state — a locked step can never show a checkmark", () => {

@@ -21,7 +21,7 @@
  * `@ZodSerializerDto` strips it, ADR 0039).
  *
  * WHY `link_path` IS NOT `pii()`: it is a BEARER CREDENTIAL
- * (`/nabidka/<shareToken>`), not personal data — the same posture as
+ * (`/nabidka#<shareToken>`), not personal data — the same posture as
  * `quote.share_token`, which is likewise unwrapped. It must never reach a
  * response body or a log line, and the response schema is what enforces that.
  *
@@ -91,7 +91,7 @@ export const documentDelivery = pgTable(
     /** Buyer locale. Null → `resolveLocale` falls back to DEFAULT_LOCALE (cs).
      *  A preference, not identity data — deliberately not `pii()`, like `user.locale`. */
     locale: text("locale"),
-    /** `/nabidka/<shareToken>` for a quote; NULL for an invoice (the ADR-0129
+    /** `/nabidka#<shareToken>` for a quote; NULL for an invoice (the ADR-0129
      *  carrier ruling: the invoice notification carries no document link).
      *  A BEARER CREDENTIAL — never on the wire, never in a log line. */
     linkPath: text("link_path"),

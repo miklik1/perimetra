@@ -61,6 +61,9 @@ export const fenceRunV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 1000, max: 30000 },
       adjustability: "user",
+      // The role is the AXIS, not the product wording (ADR 0136): a fence run's
+      // horizontal extent is its length, and that is what the handle drags.
+      dimensionRole: "width",
     },
     {
       key: "clear_height_mm",
@@ -68,6 +71,7 @@ export const fenceRunV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2000 },
       adjustability: "user",
+      dimensionRole: "height",
       deviation: {
         mode: "warn",
         bounds: { min: expr("600"), max: expr("2200") },

@@ -153,10 +153,31 @@ export const quoteAcceptanceSchema = z.object({
 });
 export type QuoteAcceptance = z.infer<typeof quoteAcceptanceSchema>;
 
+/**
+ * The request body for every buyer-facing shareToken call (ADR 0130). The token
+ * travels HERE and never in a URL — not in a path segment, not in a query
+ * parameter — because a URL is copied into places a body is not: `pino-http`
+ * logs `req.url` but never the body, every reverse proxy access-logs the request
+ * line, the browser keeps the address bar in history, and the telemetry URL
+ * primitive (`safeUrlOrRedact`, skeleton ADR 1030) deliberately KEEPS the
+ * pathname — so a token in the path is reduced but not redacted on its way to
+ * Sentry and PostHog. The same reasoning already governs the ARES/VIES lookup
+ * bodies in `./lookups.ts`; this is that rule applied to a bearer credential
+ * rather than to a `pii()` value.
+ *
+ * Lenient on shape (`z.string`) on purpose: the token is an opaque server-minted
+ * UUID today, and an unknown token must 404 through the same path as a
+ * well-formed one — a schema that rejected a malformed token with a distinct 422
+ * would be an existence oracle. The bound is a denial-of-service guard, not a
+ * format check.
+ */
+export const resolveSharedNabidkaSchema = z.object({ token: z.string().min(1).max(128) });
+export type ResolveSharedNabidka = z.infer<typeof resolveSharedNabidkaSchema>;
+
 // --- Buyer-facing public nabídka (ADR 0089) ----------------------------------
 //
 // The shapes below mirror the pure-data `NabidkaDocument` (the L layer, ADR 0085,
-// in `@repo/renderers`) so the buyer-facing `GET /v1/quotes/shared/:token` can
+// in `@repo/renderers`) so the buyer-facing `POST /v1/quotes/shared/resolve` can
 // return a TYPED, zod-stripped document. The boundary is load-bearing security:
 // the endpoint is UNAUTHENTICATED (the unguessable shareToken IS the credential),
 // so the server builds the document from the frozen snapshot and returns ONLY
@@ -243,8 +264,8 @@ export const nabidkaDocumentSchema = z.object({
 });
 export type NabidkaDocumentDto = z.infer<typeof nabidkaDocumentSchema>;
 
-/** The buyer-facing envelope returned by `GET /v1/quotes/shared/:token` (ADR
- *  0089): the built document + the effective status (so the buyer view gates
+/** The buyer-facing envelope returned by `POST /v1/quotes/shared/resolve` (ADR
+ *  0089, re-carried by ADR 0130): the built document + the effective status (so the buyer view gates
  *  accept/decline and shows an accepted/declined/expired banner) + validUntil.
  *  The document holds no cost, no stamps, no re-derivation seeds. */
 export const sharedNabidkaSchema = z.object({

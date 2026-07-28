@@ -382,12 +382,14 @@ describe("quote lifecycle (HTTP, real stack)", () => {
           headers: { cookie: tenant.cookie },
         })
       ).json() as QuoteDetail;
-    const publicPost = (url: string) => inject(app, { method: "POST", url });
+    // ADR 0130: the token travels in the BODY, never the URL.
+    const publicAct = (action: "accept" | "decline", token: string) =>
+      inject(app, { method: "POST", url: `/v1/quotes/shared/${action}`, payload: { token } });
 
     it("a fresh quote is issued; the buyer accepts via shareToken (issued→accepted)", async () => {
       const q = await issue();
       expect(q.status).toBe("issued");
-      const res = await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`);
+      const res = await publicAct("accept", q.shareToken);
       expect(res.statusCode, res.body).toBe(200);
       expect(res.json()).toEqual({ documentNumber: q.documentNumber, status: "accepted" });
       expect((await read(q.id)).status).toBe("accepted");
@@ -395,13 +397,13 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
     it("a second resolution is rejected (409 — not open)", async () => {
       const q = await issue();
-      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`)).statusCode).toBe(200);
-      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/decline`)).statusCode).toBe(409);
+      expect((await publicAct("accept", q.shareToken)).statusCode).toBe(200);
+      expect((await publicAct("decline", q.shareToken)).statusCode).toBe(409);
     });
 
     it("the buyer can decline (issued→declined)", async () => {
       const q = await issue();
-      const res = await publicPost(`/v1/quotes/shared/${q.shareToken}/decline`);
+      const res = await publicAct("decline", q.shareToken);
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({ status: "declined" });
       expect((await read(q.id)).status).toBe("declined");
@@ -415,11 +417,11 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         })
       ).json() as QuoteDetail;
       expect((await read(q.id)).status).toBe("expired"); // derived from validUntil
-      expect((await publicPost(`/v1/quotes/shared/${q.shareToken}/accept`)).statusCode).toBe(409);
+      expect((await publicAct("accept", q.shareToken)).statusCode).toBe(409);
     });
 
     it("an unknown shareToken 404s", async () => {
-      expect((await publicPost(`/v1/quotes/shared/no-such-token/accept`)).statusCode).toBe(404);
+      expect((await publicAct("accept", "no-such-token")).statusCode).toBe(404);
     });
   });
 
@@ -722,8 +724,11 @@ describe("quote lifecycle (HTTP, real stack)", () => {
   });
 
   describe("buyer-facing public nabídka (ADR 0089)", () => {
-    const publicGet = (url: string) => inject(app, { method: "GET", url });
-    const publicPost = (url: string) => inject(app, { method: "POST", url });
+    // ADR 0130: the read is a POST too — the token travels in the BODY.
+    const publicResolve = (token: string) =>
+      inject(app, { method: "POST", url: "/v1/quotes/shared/resolve", payload: { token } });
+    const publicAct = (action: "accept" | "decline", token: string) =>
+      inject(app, { method: "POST", url: `/v1/quotes/shared/${action}`, payload: { token } });
     const buyer = {
       name: "Stavby Vrata s.r.o.",
       ico: "27074358",
@@ -748,7 +753,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
         await post(tenant, "/v1/quotes", { ...issueBody, customerId: customer.id })
       ).json() as QuoteDetail;
 
-      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      const res = await publicResolve(issued.shareToken);
       expect(res.statusCode, res.body).toBe(200);
       const body = res.json() as {
         document: {
@@ -770,7 +775,7 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
     it("NEVER leaks cost/margin, stamps, or re-derivation seeds to the unauthenticated buyer", async () => {
       const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
-      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      const res = await publicResolve(issued.shareToken);
       expect(res.statusCode).toBe(200);
       // The cost golden (82889.86) + the cost/stamp/seed + workshop-internal keys
       // must be ABSENT — the boundary returns ONLY the buyer document (ADR 0089).
@@ -790,10 +795,8 @@ describe("quote lifecycle (HTTP, real stack)", () => {
 
     it("still serves the document after the buyer resolves it (accepted → 200, not 409)", async () => {
       const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
-      expect((await publicPost(`/v1/quotes/shared/${issued.shareToken}/accept`)).statusCode).toBe(
-        200,
-      );
-      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      expect((await publicAct("accept", issued.shareToken)).statusCode).toBe(200);
+      const res = await publicResolve(issued.shareToken);
       expect(res.statusCode).toBe(200);
       expect((res.json() as { status: string }).status).toBe("accepted");
     });
@@ -802,13 +805,51 @@ describe("quote lifecycle (HTTP, real stack)", () => {
       const issued = (
         await post(tenant, "/v1/quotes", { ...issueBody, validUntil: "2020-01-01T00:00:00.000Z" })
       ).json() as QuoteDetail;
-      const res = await publicGet(`/v1/quotes/shared/${issued.shareToken}`);
+      const res = await publicResolve(issued.shareToken);
       expect(res.statusCode).toBe(200);
       expect((res.json() as { status: string }).status).toBe("expired");
     });
 
     it("an unknown shareToken 404s", async () => {
-      expect((await publicGet(`/v1/quotes/shared/no-such-token`)).statusCode).toBe(404);
+      expect((await publicResolve("no-such-token")).statusCode).toBe(404);
+    });
+
+    // ADR 0130. These three are the ACCEPTANCE of the carrier change, and each
+    // must red if the old path-parameter routes are reinstated: the credential
+    // must have no URL-shaped way in at all. A route that merely also accepts a
+    // body would leave the leak open, because a client is free to keep using the
+    // path — so the path form has to be gone, not deprecated.
+    it("refuses a shareToken carried in the URL path — no route accepts one", async () => {
+      const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteDetail;
+      for (const url of [
+        `/v1/quotes/shared/${issued.shareToken}`,
+        `/v1/quotes/shared/${issued.shareToken}/accept`,
+        `/v1/quotes/shared/${issued.shareToken}/decline`,
+      ]) {
+        const method = url.endsWith(issued.shareToken) ? "GET" : "POST";
+        const res = await inject(app, { method, url });
+        expect(res.statusCode, `${method} ${url}`).toBe(404);
+      }
+      // …and the quote is still resolvable the supported way, so the assertion
+      // above is about the CARRIER and not about a broken fixture.
+      expect((await publicResolve(issued.shareToken)).statusCode).toBe(200);
+    });
+
+    it("422s a resolve with no token in the body", async () => {
+      const res = await inject(app, {
+        method: "POST",
+        url: "/v1/quotes/shared/resolve",
+        payload: {},
+      });
+      expect(res.statusCode).toBe(422);
+    });
+
+    it("a malformed token 404s exactly like an unknown one — no existence oracle", async () => {
+      const malformed = await publicResolve("not-a-uuid-at-all");
+      const unknown = await publicResolve("11111111-1111-1111-1111-111111111111");
+      expect(malformed.statusCode).toBe(404);
+      expect(unknown.statusCode).toBe(404);
+      expect(malformed.json()).toEqual(unknown.json());
     });
   });
 });

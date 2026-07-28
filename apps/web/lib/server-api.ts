@@ -24,13 +24,14 @@ import { handleApiRequest } from "./route-handler/handle-api-request";
  *   route into dynamic rendering — correct for protected routes (`/account`).
  *   Best-effort: a stale/revoked session 401s here and the browser client
  *   refetches after hydration.
- * - `createPublicServerApiClient` reads no cookie, so a public RSC (the home
- *   page's users list) stays statically renderable.
+ * There is no public (cookie-less) variant any more. One existed for the buyer
+ * `/nabidka/[token]` RSC, which ADR 0130 replaced with a static client route —
+ * the share token now rides the URL fragment and is resolved in the browser, so
+ * nothing renders an unauthenticated RSC through this seam. Re-adding a public
+ * client is fine if a genuinely public RSC appears; it is deleted rather than
+ * kept dormant because an unused export is an unmaintained one.
  */
 const baseUrl = "http://rsc.internal/api";
-
-const inProcessFetch: typeof fetch = (input, init) =>
-  handleApiRequest(new Request(input as RequestInfo, init));
 
 // Dev-only: record server-side (RSC/in-process) requests to the ring buffer the
 // `/api/dev/log` route reads (ADR 0018). Tree-shaken out unless the flag is set.
@@ -49,8 +50,4 @@ export async function createServerApiClient(): Promise<ApiClient> {
     return handleApiRequest(request);
   };
   return createApiClient({ baseUrl, fetch: fetchWithCookies, middleware });
-}
-
-export function createPublicServerApiClient(): ApiClient {
-  return createApiClient({ baseUrl, fetch: inProcessFetch, middleware });
 }

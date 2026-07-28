@@ -8,11 +8,21 @@ import { FadeScrollArea } from "./fade-scroll-area";
  * "overflowing" by default. These helpers install a fake scroll geometry on the
  * viewport node and then dispatch a scroll so the component re-measures — which is
  * exactly the path the browser takes.
+ *
+ * The keys are partial because a vertical area reads only the vertical trio and a
+ * horizontal one only the horizontal trio; stubbing the axis under test keeps each
+ * case honest about which numbers the component actually consumed.
  */
-function setGeometry(
-  node: HTMLElement,
-  geometry: { scrollHeight: number; clientHeight: number; scrollTop: number },
-) {
+type Geometry = Partial<{
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+  scrollWidth: number;
+  clientWidth: number;
+  scrollLeft: number;
+}>;
+
+function setGeometry(node: HTMLElement, geometry: Geometry) {
   for (const [key, value] of Object.entries(geometry)) {
     Object.defineProperty(node, key, { value, configurable: true, writable: true });
   }
@@ -40,6 +50,7 @@ describe("FadeScrollArea", () => {
     render(<FadeScrollArea data-testid="area">obsah</FadeScrollArea>);
 
     expect(root()).toHaveAttribute("data-slot", "fade-scroll-area");
+    expect(root()).toHaveAttribute("data-orientation", "vertical");
     expect(viewport()).toHaveClass("overflow-y-auto");
   });
 
@@ -57,7 +68,7 @@ describe("FadeScrollArea", () => {
     expect(root()).not.toHaveAttribute("data-fade");
   });
 
-  it("fades the bottom edge only while there is content still below the fold", () => {
+  it("fades the end edge only while there is content still below the fold", () => {
     render(
       <FadeScrollArea data-testid="area">
         <FadeScrollArea.Fade />
@@ -66,7 +77,8 @@ describe("FadeScrollArea", () => {
     );
 
     setGeometry(viewport(), { scrollHeight: 900, clientHeight: 300, scrollTop: 0 });
-    expect(root()).toHaveAttribute("data-fade", "bottom");
+    expect(root()).toHaveAttribute("data-fade", "end");
+    expect(mask()).toContain("to bottom");
     expect(mask()).toContain("calc(100% - var(--fade-scroll-length))");
   });
 
@@ -95,7 +107,7 @@ describe("FadeScrollArea", () => {
     expect(mask()).toBe("");
   });
 
-  it("fades the top edge too, but only once scrolled away from it, with position=both", () => {
+  it("fades the start edge too, but only once scrolled away from it, with position=both", () => {
     render(
       <FadeScrollArea data-testid="area">
         <FadeScrollArea.Fade position="both" />
@@ -109,6 +121,84 @@ describe("FadeScrollArea", () => {
 
     setGeometry(viewport(), { scrollHeight: 900, clientHeight: 300, scrollTop: 200 });
     expect(mask()).toContain("black var(--fade-scroll-length)");
+  });
+
+  // The horizontal mirror of the three edge cases above. Same edge vocabulary, same
+  // stops, same no-active-edge-no-mask rule — only the measured axis and the gradient
+  // direction differ, which is exactly the claim `orientation` makes.
+  describe("orientation=horizontal", () => {
+    it("scrolls and measures on the X axis instead", () => {
+      render(
+        <FadeScrollArea data-testid="area" orientation="horizontal">
+          obsah
+        </FadeScrollArea>,
+      );
+
+      expect(root()).toHaveAttribute("data-orientation", "horizontal");
+      expect(root()).toHaveClass("flex-row");
+      expect(viewport()).toHaveClass("overflow-x-auto");
+      expect(viewport()).not.toHaveClass("overflow-y-auto");
+    });
+
+    it("fades the end edge only while there is content still past the right side", () => {
+      render(
+        <FadeScrollArea data-testid="area" orientation="horizontal">
+          <FadeScrollArea.Fade />
+          <div>obsah</div>
+        </FadeScrollArea>,
+      );
+
+      // The vertical trio is left at jsdom's 0 on purpose: if the component still read
+      // it, nothing here would overflow and there would be no mask at all.
+      setGeometry(viewport(), { scrollWidth: 900, clientWidth: 300, scrollLeft: 0 });
+      expect(root()).toHaveAttribute("data-fade", "end");
+      expect(mask()).toContain("to right");
+      expect(mask()).toContain("calc(100% - var(--fade-scroll-length))");
+    });
+
+    it("drops the mask entirely at the far right so the last chip never looks cut off", () => {
+      render(
+        <FadeScrollArea data-testid="area" orientation="horizontal">
+          <FadeScrollArea.Fade />
+          <div>obsah</div>
+        </FadeScrollArea>,
+      );
+
+      setGeometry(viewport(), { scrollWidth: 900, clientWidth: 300, scrollLeft: 600 });
+      expect(mask()).toBe("");
+    });
+
+    it("fades the start edge too, but only once scrolled away from it, with position=both", () => {
+      render(
+        <FadeScrollArea data-testid="area" orientation="horizontal">
+          <FadeScrollArea.Fade position="both" />
+          <div>obsah</div>
+        </FadeScrollArea>,
+      );
+
+      setGeometry(viewport(), { scrollWidth: 900, clientWidth: 300, scrollLeft: 0 });
+      expect(mask()).toContain("black 0px");
+      expect(mask()).not.toContain("black var(--fade-scroll-length)");
+
+      setGeometry(viewport(), { scrollWidth: 900, clientWidth: 300, scrollLeft: 200 });
+      expect(mask()).toContain("black var(--fade-scroll-length)");
+    });
+
+    it("still gates the keyboard-reachable region on real overflow", () => {
+      render(
+        <FadeScrollArea data-testid="area" orientation="horizontal">
+          <FadeScrollArea.Fade position="both" />
+          <div>obsah</div>
+        </FadeScrollArea>,
+      );
+
+      expect(screen.queryByRole("region")).toBeNull();
+
+      setGeometry(viewport(), { scrollWidth: 900, clientWidth: 300, scrollLeft: 0 });
+      const region = screen.getByRole("region", { name: "Posuvná oblast" });
+      expect(region).toBe(viewport());
+      expect(region).toHaveAttribute("tabindex", "0");
+    });
   });
 
   it("degrades to no mask rather than to clipped content when ResizeObserver is missing", () => {

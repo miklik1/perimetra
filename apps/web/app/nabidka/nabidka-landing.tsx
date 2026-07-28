@@ -5,8 +5,8 @@ import { Alert, Badge, Button, DisplayLabel, Panel, StickyActionBar } from "@rep
 import { formatDate } from "@repo/utils";
 import type { NabidkaDocumentDto, QuoteStatus } from "@repo/validators";
 
-import { formatMoney } from "../../../lib/format-money";
-import { QuoteStatusBadge } from "../../quotes/quote-status";
+import { formatMoney } from "../../lib/format-money";
+import { QuoteStatusBadge } from "../quotes/quote-status";
 
 /**
  * The buyer-facing PUBLIC nabídka LANDING (ADR-0089 reversal, Wave B) — a

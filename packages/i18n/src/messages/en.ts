@@ -820,6 +820,13 @@ const en: MessagesInput = {
       supersededTitle: "This offer has been superseded",
       supersededBody:
         "This offer has been superseded by a newer version and can no longer be accepted or declined. Please wait for a new link.",
+      // ADR 0130 — see the cs catalogue for the reasoning; these two states are
+      // new because the token now rides the URL fragment and is resolved in the
+      // browser rather than on the server.
+      loadingTitle: "Loading the offer…",
+      invalidTitle: "This link does not work",
+      invalidBody:
+        "This offer link is invalid or has expired. Please copy it from the e-mail in full, including the part after the # character, or request a new one.",
     },
     production: {
       title: "Production",
@@ -1137,6 +1144,12 @@ const en: MessagesInput = {
     label: "Label",
     type: "Type",
     adjustability: "Adjustability",
+    dimensionRole: "Dimension role",
+    dimensionRoleHint:
+      "Which spatial dimension this parameter is — drives the configurator's handles and pills. Needs a “range” domain with both min and max, and must not be vendor-only.",
+    dimensionRole_none: "none",
+    dimensionRole_width: "width",
+    dimensionRole_height: "height",
     valueMode: "Default value",
     valueMode_none: "none",
     valueMode_literal: "literal",

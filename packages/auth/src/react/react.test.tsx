@@ -63,10 +63,12 @@ function makeClient(opts: { authenticated: boolean }): AuthClient {
   });
 }
 
-function wrapper(client: AuthClient) {
+function wrapper(client: AuthClient, initiallyAuthenticated = false) {
   const Wrap = ({ children }: { children: ReactNode }) => (
     <ApiProvider baseUrl="http://api.test">
-      <AuthProvider client={client}>{children}</AuthProvider>
+      <AuthProvider client={client} initiallyAuthenticated={initiallyAuthenticated}>
+        {children}
+      </AuthProvider>
     </ApiProvider>
   );
   Wrap.displayName = "TestWrap";
@@ -148,5 +150,47 @@ describe("AuthGuard", () => {
     expect(screen.getByText("loading")).toBeInTheDocument();
     await waitFor(() => expect(redirect).toHaveBeenCalled());
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
+  });
+
+  // The SSR seam (ADR 0135) at its worst case: the request carried a session
+  // cookie (so the server painted the page) but the cookie is stale/revoked and
+  // the API says no. The optimistic paint must NOT swallow the bounce — the
+  // guard still redirects once the session resolves, and the children come back
+  // out of the DOM. This is the branch that makes the seed honest.
+  it("renders children optimistically when SSR-seeded, and still redirects on a revoked session", async () => {
+    const redirect = vi.fn();
+    render(
+      <AuthGuard redirect={redirect} fallback={<span>loading</span>}>
+        secret
+      </AuthGuard>,
+      { wrapper: wrapper(makeClient({ authenticated: false }), true) },
+    );
+    // First paint: children, not the fallback — this is exactly what the server
+    // now emits for a cookie-bearing request.
+    expect(screen.getByText("secret")).toBeInTheDocument();
+    expect(screen.queryByText("loading")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(redirect).toHaveBeenCalled());
+    expect(screen.queryByText("secret")).not.toBeInTheDocument();
+    expect(screen.getByText("loading")).toBeInTheDocument();
+  });
+
+  // The overwhelmingly common case, and the whole point of the seam fix: a live
+  // cookie means the fallback is never painted at all — not on the server, not
+  // on the hydration pass, not while the session fetch is in flight. Before the
+  // seed this handoff was a visible fallback→children swap on every surface.
+  it("never paints the fallback when the seed matches a live session", async () => {
+    render(
+      <AuthGuard redirect={vi.fn()} fallback={<span>loading</span>}>
+        secret
+      </AuthGuard>,
+      { wrapper: wrapper(makeClient({ authenticated: true }), true) },
+    );
+    expect(screen.getByText("secret")).toBeInTheDocument();
+    expect(screen.queryByText("loading")).not.toBeInTheDocument();
+
+    // ...and it is still children once the session actually resolves.
+    await waitFor(() => expect(screen.getByText("secret")).toBeInTheDocument());
+    expect(screen.queryByText("loading")).not.toBeInTheDocument();
   });
 });

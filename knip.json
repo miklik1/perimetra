@@ -44,13 +44,14 @@
       // pino-pretty is loaded by pino at runtime via the transport `target`
       // string (dev only) — invisible to static analysis. `auth` is the
       // Better Auth CLI (schema scaffolding, `pnpm exec auth generate`) —
-      // a binary-only devDep, never imported.
-      "ignoreDependencies": [
-        "pino-pretty",
-        "auth",
-        "@opentelemetry/exporter-trace-otlp-http",
-        "@opentelemetry/exporter-metrics-otlp-http"
-      ]
+      // a binary-only devDep, never imported. The metrics exporter is still
+      // selected by the SDK from env, so nothing imports it.
+      //
+      // `@opentelemetry/exporter-trace-otlp-http` was here for the same reason
+      // and is NOT any more: ADR 0131 moved trace-exporter construction into
+      // `src/otel/exporter-processors.ts`, which imports it directly. Knip's own
+      // hint caught the stale entry.
+      "ignoreDependencies": ["pino-pretty", "auth", "@opentelemetry/exporter-metrics-otlp-http"]
     },
     "apps/web": {
       // Dev-only headless capture harnesses — standalone `node`-run verification

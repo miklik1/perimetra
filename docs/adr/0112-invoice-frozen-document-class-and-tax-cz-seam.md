@@ -149,6 +149,24 @@ boundary is pinned at O2-b, not guessed here.
 
 ### 3. Numbering consolidation (O2-a) — one allocator, one continuity story
 
+> **STATUS UPDATE (2026-07-28) — the deploy-ordering constraint is DISCHARGED, not
+> pending.** The livelock described below requires a rolling overlap in which
+> prior-version pods still write `quote_number_sequence`. That state is unreachable,
+> and this section says so itself: no production instance has ever existed and `main`
+> carries O2-a, so the first deploy is greenfield by construction. It should not be
+> carried into the deploy runbook as a live pre-flight step — it is a constraint that
+> was satisfied before it could ever be tested, and `docs/operations/deploy.md`
+> correctly does not mention it.
+>
+> The analysis stays because it is the reason the constraint holds and because it is
+> the design a **future** counter-home move over a live production would need (a true
+> dual-write expand/contract, allocating `MAX+1`).
+>
+> **What IS still owed** is the contract half: `quote_number_sequence` is no longer
+> read by any code, but the table is still declared
+> (`packages/db/src/schema/quotes/index.ts`) and still needs its contract-drop
+> migration.
+
 ADR 0109 generalized the ADR-0079 allocator to `document_number_sequence(org,
 series, year, last_number)` and used it for the `"order"` series, but the quote
 counter still lives in the legacy `quote_number_sequence(org, year)`. O2-a folds

@@ -60,20 +60,29 @@ function onQueryError(error: unknown): void {
  * the shared client the instrumentation boot already wired into both the
  * flags and analytics carriers. It sits inside `<AuthProvider>` with
  * `<AnalyticsIdentity>` (the auth → identify/setUser bridge) as its child.
+ *
+ * `initiallyAuthenticated` is this request's session-cookie PRESENCE, threaded
+ * from the RSC layout (ADR 0135). It is the auth equivalent of the flag
+ * bootstrap above and of the no-FOUC theme script: the server already knows the
+ * likely answer, so it paints it rather than paying a post-hydration swap. It
+ * is a render hint only — the API service stays the authority and `AuthGuard`
+ * still redirects a session that resolves unauthenticated.
  */
 export function Providers({
   children,
   flagsBootstrap,
+  initiallyAuthenticated = false,
 }: {
   children: React.ReactNode;
   flagsBootstrap?: FlagsBootstrap;
+  initiallyAuthenticated?: boolean;
 }) {
   // Built here (not defaulted inside ApiProvider) to thread the telemetry
   // onError hook; useState initializer = once per mount, same as ApiProvider's.
   const [queryClient] = useState(() => makeQueryClient({ onError: onQueryError }));
   return (
     <ApiProvider baseUrl={baseUrl} middleware={middleware} initialQueryClient={queryClient}>
-      <AuthProvider>
+      <AuthProvider initiallyAuthenticated={initiallyAuthenticated}>
         {/* Realtime (ADR 0029): builds the client lazily — no socket until a
             consumer (the projects LIVE badge) calls connect(). Inside
             ApiProvider because the token getters ride `apiFetch`. */}

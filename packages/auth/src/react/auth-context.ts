@@ -7,6 +7,20 @@ import { type AuthClient } from "../client";
 export interface AuthContextValue {
   /** The Better Auth client owned by the nearest `<AuthProvider>`. */
   client: AuthClient;
+  /**
+   * SSR render hint: did the request that produced this HTML carry a session
+   * cookie? Seeded by the host app from the server (web: the root layout reads
+   * `headers()` and calls `hasSessionCookie` — the same PRESENCE check the
+   * request-time proxy gate already trusts), so the server can paint the
+   * authenticated tree instead of every guard's loading fallback.
+   *
+   * This is NOT authentication and must never authorize anything: a cookie can
+   * be stale or revoked, and only the API service knows. It exists so the
+   * FIRST paint matches the overwhelmingly likely outcome; the moment Better
+   * Auth's session resolves, `isAuthenticated` takes over and a confirmed
+   * unauthenticated session still redirects (see `AuthGuard`).
+   */
+  initiallyAuthenticated: boolean;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

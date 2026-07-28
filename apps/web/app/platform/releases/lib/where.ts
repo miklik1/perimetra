@@ -19,6 +19,11 @@
 export const whereParam = (key: string): string => `parameters[${key}]`;
 /** The deviation block (the `deviation.unbounded` defect). */
 export const whereParamDeviation = (key: string): string => `parameters[${key}].deviation`;
+/** The dimension-role select (the `dimensionRole.duplicate` / `.domain` /
+ *  `.vendor` defects — ADR 0136). Not an expression slot, so it has no
+ *  `slotScopes` entry; the bijection test pins it against the gate's own
+ *  emitted `where` instead. */
+export const whereParamDimensionRole = (key: string): string => `parameters[${key}].dimensionRole`;
 export const whereParamDefaultExpr = (key: string): string => `parameters[${key}].defaultExpr`;
 export const whereParamRelevance = (key: string): string => `parameters[${key}].relevance`;
 export const whereParamDeviationBound = (key: string, bound: "min" | "max"): string =>

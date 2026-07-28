@@ -20,15 +20,21 @@ describe("Skeleton", () => {
 });
 
 describe("Spinner", () => {
-  it("exposes an accessible status role with a Czech default label that props override", () => {
-    const { rerender } = render(<Spinner />);
-    const spinner = screen.getByRole("status");
+  it("is decorative by default, so it never announces beside its own visible label", () => {
+    render(<Spinner data-testid="sp" />);
+    const spinner = screen.getByTestId("sp");
 
-    expect(spinner).toHaveAttribute("aria-label", "Načítání");
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    expect(spinner).not.toHaveAttribute("role");
     expect(spinner).toHaveClass("animate-spin", "text-muted-foreground");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 
-    rerender(<Spinner aria-label="Ukládání" />);
-    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Ukládání");
+  it("flips to a real status region when the caller names it", () => {
+    render(<Spinner aria-label="Ukládání" />);
+    const spinner = screen.getByRole("status", { name: "Ukládání" });
+
+    expect(spinner).not.toHaveAttribute("aria-hidden");
   });
 });
 

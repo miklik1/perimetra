@@ -50,7 +50,11 @@ Rules for draining a new canvas revision:
 
 `_ds_sync.json`'s `styleSha` recipe is **not** a plain hash of `theme.css`, `_ds_bundle.css` or `styles.css`, nor of any obvious concatenation of them. Do not rely on a specific recipe until it has been read out of `.ds-sync/lib/`.
 
-`design/_ds/…/_adherence.oxlintrc.json` is a shipped **design-adherence oxlint configuration**. Decision: **wire it into `pnpm lint` as a separate, non-blocking `lint:design` task during the first surface, and promote it to blocking once the first two surfaces pass it clean.** It is the only automated adherence gate that ships with the export, and leaving it unwired means the export's own rules are enforced by hand review only.
+`design/_ds/…/_adherence.oxlintrc.json` is a shipped **design-adherence oxlint configuration**. It is the only automated adherence gate that ships with the export.
+
+> **SUPERSEDED by [ADR 0137](../docs/adr/0137-design-adherence-gate.md) (2026-07-28).** This section used to plan a *separate, non-blocking* `lint:design` task promoted to blocking "once the first two surfaces pass it clean". Seven surfaces shipped and the promotion never happened — a ramp whose trigger nobody watches is not a plan. It is now **blocking from the start**, folded into the existing `pnpm lint` (already `--max-warnings 0` in CI and the DoD) so there is no separate task to half-wire.
+>
+> It also does **not** run on oxlint. The pinned oxlint implements none of the config's substantive rules — `no-restricted-syntax`, which carries all three checks, does not exist there — so wiring it as written would have passed green while auditing nothing. The export remains the source of truth for the rules; ESLint executes them. See ADR 0137 for what is enforced, what is not, and why.
 
 ### 1.4 `parts.jsx` is superseded chrome, not shipped composition
 
@@ -1165,5 +1169,5 @@ These are wired once and then enforced continuously, not per surface.
 | `design/` is byte-unmodified | The export's whole value is byte-comparability against the canvas (§1.1). | A CI check diffing `design/` against its committed tree; fails on any modification outside a deliberate export refresh (§1.3). |
 | No raw hex outside the token layer | §1.1 and §2 establish tokens as the single colour vocabulary; the canvas's raw hex values are reference bytes, not licence. | A lint rule allow-listing `tooling/tailwind-config/theme.css` and `design/`. |
 | No `title=` used as a tooltip | §12.1 item 3; the export ships `title=''` and native-title swatch labels. | A lint rule banning `title` on non-`<iframe>`/`<abbr>` elements in `apps/web` and `packages/ui`. |
-| Design-adherence lint | The export ships `_adherence.oxlintrc.json` (§1.3). | A `lint:design` task, non-blocking for the first surface, blocking from the second. |
+| Design-adherence lint | The export ships `_adherence.oxlintrc.json` (§1.3). | **Done, differently — [ADR 0137](../docs/adr/0137-design-adherence-gate.md).** Blocking from the start inside the existing `pnpm lint`, not a separate ramped task; executed by ESLint, because oxlint implements none of the config's substantive rules. |
 | Public-funnel telemetry | The funnel is the top of the money path and the only surface with no other feedback channel. | Per-step drop-off events on every step of the public configurator, subject to the consent posture settled in §7.9. |

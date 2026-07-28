@@ -66,7 +66,7 @@ describe("EmailService.sendQuoteIssuedEmail (ADR 0129)", () => {
     await service.sendQuoteIssuedEmail({
       to: "buyer@example.cz",
       documentNumber: "2026/0007",
-      quoteUrl: "https://app.test/nabidka/tok_abc123",
+      quoteUrl: "https://app.test/nabidka#tok_abc123",
       locale: null,
     });
 
@@ -75,9 +75,41 @@ describe("EmailService.sendQuoteIssuedEmail (ADR 0129)", () => {
     expect(sent[0]!.html).toContain("2026/0007");
     // The mail genuinely DELIVERS the nabídka: the button targets the shipped
     // public landing, so the subject's claim is backed by the payload.
-    expect(sent[0]!.html).toContain("https://app.test/nabidka/tok_abc123");
+    expect(sent[0]!.html).toContain("https://app.test/nabidka#tok_abc123");
     expect(sent[0]!.text.trim().length).toBeGreaterThan(0);
     expect(sent[0]!.text).toContain("Připravili jsme pro vás cenovou nabídku 2026/0007");
+  });
+
+  /**
+   * ADR 0130. The whole design rests on the fragment SURVIVING the trip to the
+   * buyer's mail client, so the parts of that trip we own are pinned here: the
+   * `@react-email` `<Button href>` render and the HTML→plain-text conversion,
+   * either of which could plausibly normalise or truncate a `#`.
+   *
+   * The part we do NOT own — a mail gateway that rewrites links (Microsoft Safe
+   * Links, Proofpoint, Mimecast) — cannot be tested from this repo, and a
+   * gateway that dropped the fragment would turn every mailed link into a dead
+   * `/nabidka`. That check is a MANUAL pre-deploy step in the deploy runbook
+   * (`docs/operations/deploy.md`), deliberately recorded as owed rather than
+   * faked with a green unit test.
+   */
+  it("carries the URL fragment intact into BOTH the html and the plain-text part", async () => {
+    const { service, sent } = makeService();
+    const url = "https://app.test/nabidka#tok_abc123";
+    await service.sendQuoteIssuedEmail({
+      to: "buyer@example.cz",
+      documentNumber: "2026/0007",
+      quoteUrl: url,
+      locale: null,
+    });
+
+    expect(sent[0]!.html).toContain(url);
+    expect(sent[0]!.text).toContain(url);
+    // Not merely "contains a #": the token must be the LAST thing on the URL, so
+    // a conversion that kept the fragment marker but dropped what follows it
+    // reds here rather than shipping a link that resolves to nothing.
+    expect(sent[0]!.text).toContain("#tok_abc123");
+    expect(sent[0]!.html).not.toContain("/nabidka/tok_abc123");
   });
 
   it("renders English for locale=en and falls back for unknown locales", async () => {
@@ -85,13 +117,13 @@ describe("EmailService.sendQuoteIssuedEmail (ADR 0129)", () => {
     await service.sendQuoteIssuedEmail({
       to: "buyer@example.cz",
       documentNumber: "2026/0007",
-      quoteUrl: "https://app.test/nabidka/tok_abc123",
+      quoteUrl: "https://app.test/nabidka#tok_abc123",
       locale: "en",
     });
     await service.sendQuoteIssuedEmail({
       to: "buyer@example.cz",
       documentNumber: "2026/0007",
-      quoteUrl: "https://app.test/nabidka/tok_abc123",
+      quoteUrl: "https://app.test/nabidka#tok_abc123",
       locale: "klingon",
     });
 

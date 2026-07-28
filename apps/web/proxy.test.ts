@@ -79,6 +79,30 @@ describe("buildCsp", () => {
     expect(directives(csp).get("connect-src")).toContain("wss://realtime.example.com");
   });
 
+  it("omits any realtime origin from connect-src in production when the URL is unset", async () => {
+    // ADR 0132. The origin used to fall back to the dev default
+    // `ws://localhost:8000/connection/websocket`, so an unconfigured production
+    // build shipped a plaintext-ws localhost entry in its own allow-list. Unset
+    // must now behave exactly like the Sentry/PostHog origins: absent.
+    envState.NODE_ENV = "production";
+    envState.NEXT_PUBLIC_REALTIME_URL = undefined;
+    const connectSrc = directives(await buildCsp("n")).get("connect-src") ?? "";
+    expect(connectSrc).not.toContain("localhost");
+    expect(connectSrc).not.toContain("ws:");
+    expect(connectSrc).toBe("'self'");
+  });
+
+  it("adds the blanket ws: only in development", async () => {
+    // The dev HMR socket (and the whole local docker stack, on whatever port
+    // docker/.env remapped Centrifugo to) is covered by this blanket entry —
+    // which is why removing the production fallback costs dev nothing.
+    envState.NODE_ENV = "development";
+    expect(directives(await buildCsp("n")).get("connect-src")).toContain("ws:");
+
+    envState.NODE_ENV = "production";
+    expect(directives(await buildCsp("n")).get("connect-src")).not.toContain("ws:");
+  });
+
   it("adds 'unsafe-eval' to script-src in development, never in production", async () => {
     envState.NODE_ENV = "development";
     const dev = await buildCsp("n");

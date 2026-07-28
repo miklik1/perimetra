@@ -28,11 +28,22 @@ supposed to reach it.
 
 - **Web** (ADR 0026): a per-request **nonce-based CSP** is minted in
   `apps/web/proxy.ts` (strict `script-src 'self' 'nonce-…'`, no
-  `unsafe-inline` for scripts; `frame-ancestors 'self'`); the static set —
-  HSTS (2y, preload), `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `unsafe-inline` for scripts; `frame-ancestors 'none'` — `'none'`, not
+  `'self'`, because browsers honour `frame-ancestors` over the legacy
+  `X-Frame-Options: DENY` when both are present); the static set — HSTS (2y,
+  preload), `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy`, `Permissions-Policy` (camera/mic/geolocation denied) —
   lives in `apps/web/next.config.js`. Tested in
   `apps/web/e2e/security-headers.spec.ts`.
+- **`connect-src`** is composed from configured origins only (ADR 0026,
+  tightened by ADR 0132): `'self'` plus the Sentry, PostHog and Centrifugo
+  origins, each added **only when its env var is set** and dropped otherwise —
+  no environment ships an allow-list entry it cannot use. The realtime origin
+  additionally cannot be plaintext against a remote host:
+  `NEXT_PUBLIC_REALTIME_URL` is refused by the env schema unless it is `wss://`
+  or a `ws://` to a loopback host, the same https-only-egress stance `API_URL`
+  takes (ADR 1021). Development alone adds a blanket `ws:` for the HMR socket
+  and the local docker stack.
 - **API**: `@fastify/helmet` registered globally in `apps/api/src/main.ts`
   (default helmet header set).
 

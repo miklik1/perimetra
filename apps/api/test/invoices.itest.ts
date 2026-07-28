@@ -103,7 +103,11 @@ describe("invoice issue + reproducibility (HTTP, real stack) — ADR 0112", () =
       id: string;
       shareToken: string;
     };
-    await inject(app, { method: "POST", url: `/v1/quotes/shared/${quote.shareToken}/accept` });
+    await inject(app, {
+      method: "POST",
+      url: "/v1/quotes/shared/accept",
+      payload: { token: quote.shareToken },
+    });
     const order = (await post(user, "/v1/orders", { quoteId: quote.id })).json() as { id: string };
     return { orderId: order.id, quoteId: quote.id };
   }

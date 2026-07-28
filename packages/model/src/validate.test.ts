@@ -281,3 +281,102 @@ describe("validateRelease — generated ui (CORE_SPEC §8)", () => {
     expect(codes(base)).toEqual([]);
   });
 });
+
+describe("validateRelease — dimension roles (ADR 0136)", () => {
+  /** A release whose parameters carry the given roles. The base derivation reads
+   *  `len`, so every case keeps that parameter; nothing else in the gate cares. */
+  const roles = (parameters: ProductModelRelease["parameters"]): ProductModelRelease => ({
+    ...base,
+    parameters,
+  });
+
+  const bounded = (key: string, extra?: Partial<ProductModelRelease["parameters"][number]>) =>
+    ({
+      key,
+      type: "length_mm",
+      adjustability: "user",
+      domain: { kind: "range", min: 100, max: 900 },
+      ...extra,
+    }) satisfies ProductModelRelease["parameters"][number];
+
+  const len = base.parameters[0]!;
+
+  it("accepts one width and one height on bounded, user-writable parameters", () => {
+    expect(
+      codes(
+        roles([
+          len,
+          bounded("w", { dimensionRole: "width" }),
+          bounded("h", { dimensionRole: "height" }),
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves a release that authors no role alone (the positional fallback still applies)", () => {
+    expect(codes(roles([len, bounded("w"), bounded("h")]))).toEqual([]);
+  });
+
+  it("rejects a role claimed by two parameters", () => {
+    const defects = validateRelease(
+      roles([
+        len,
+        bounded("w", { dimensionRole: "width" }),
+        bounded("w2", { dimensionRole: "width" }),
+      ]),
+    );
+    expect(defects.map((d) => d.code)).toContain("dimensionRole.duplicate");
+    // The defect lands on the SECOND claimant — the one the editor must fix.
+    expect(defects.find((d) => d.code === "dimensionRole.duplicate")?.where).toBe(
+      "parameters[w2].dimensionRole",
+    );
+  });
+
+  it("rejects a role on a parameter a drag could not clamp", () => {
+    // No domain at all.
+    expect(
+      codes(
+        roles([
+          len,
+          { key: "w", type: "length_mm", adjustability: "user", dimensionRole: "width" },
+        ]),
+      ),
+    ).toContain("dimensionRole.domain");
+    // A range domain missing one bound is just as unclampable as none.
+    expect(
+      codes(
+        roles([
+          len,
+          {
+            key: "w",
+            type: "length_mm",
+            adjustability: "user",
+            domain: { kind: "range", min: 100 },
+            dimensionRole: "width",
+          },
+        ]),
+      ),
+    ).toContain("dimensionRole.domain");
+    // A non-range domain cannot carry bounds at all.
+    expect(
+      codes(
+        roles([
+          len,
+          {
+            key: "w",
+            type: "select",
+            adjustability: "user",
+            domain: { kind: "enum", values: ["a", "b"] },
+            dimensionRole: "width",
+          },
+        ]),
+      ),
+    ).toContain("dimensionRole.domain");
+  });
+
+  it("rejects a role on a vendor-only parameter (I7 — the pill would 403 itself)", () => {
+    expect(
+      codes(roles([len, bounded("w", { adjustability: "vendor", dimensionRole: "width" })])),
+    ).toContain("dimensionRole.vendor");
+  });
+});

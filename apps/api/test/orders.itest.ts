@@ -83,7 +83,8 @@ describe("order domain (HTTP, real stack) — CAR-156 / ADR 0109", () => {
   async function accept(quote: { shareToken: string }): Promise<void> {
     const res = await inject(app, {
       method: "POST",
-      url: `/v1/quotes/shared/${quote.shareToken}/accept`,
+      url: "/v1/quotes/shared/accept",
+      payload: { token: quote.shareToken },
     });
     expect(res.statusCode, res.body).toBe(200);
   }

@@ -425,6 +425,162 @@ const STATE_LADDERS = [
   ],
 ] as const;
 
+/**
+ * The Badge status-tone decision strip — a DECISION SURFACE, not a gallery entry.
+ *
+ * `Badge`'s three status tones render status ink on a subtle tint of the same hue
+ * (`bg-success-subtle text-success`), which at the pill's 10px uppercase — normal
+ * text under WCAG, nowhere near the 18.66px-bold large-text exemption — measures
+ * 2.02:1 (`warning`), 2.91:1 (`success`) and 3.12:1 (`info`) in LIGHT against a
+ * 4.5:1 requirement. The tones are not decorative: they carry the only copy that
+ * distinguishes the states, on 7 live call sites across 5 shipped surfaces, worst
+ * case inside the `role="status"` live region on `/projects`.
+ *
+ * The remedy repaints primary list surfaces, so the four candidate treatments are
+ * rendered side by side rather than one being chosen here. Each cell is annotated
+ * with its MEASURED ratio for the theme being rendered (oklch → linear sRGB → WCAG
+ * relative luminance, gamut-clamped; the light column reproduces the independent
+ * measurement above). `bg-*-subtle` is an opaque token, so the pill's own fill is
+ * the true backdrop and these ratios are exact, not approximations over the page.
+ *
+ * Nothing here changes `badge.tsx`. Column D is the vocabulary the already-drawn
+ * status surfaces use (`orders/order-status.tsx`, `quotes/quote-status.tsx` use
+ * only `neutral`/`copper`/`outline`) — the three status tones are the outliers.
+ */
+const CONTRAST_BAR = 4.5;
+
+/** Measured contrast per treatment, `[light, dark]`. See the header note. */
+const TREATMENTS = [
+  {
+    id: "current",
+    title: "A — Současný",
+    note: "text-{tone} na bg-{tone}-subtle (jak je nasazeno)",
+    className: () => "",
+    ratio: { success: [2.91, 4.89], warning: [2.02, 6.24], info: [3.12, 4.41] },
+  },
+  {
+    id: "ink",
+    title: "B — Inkoust na tintu",
+    note: "text-foreground na stejné bg-{tone}-subtle",
+    className: () => "text-foreground",
+    ratio: { success: [15.49, 12.66], warning: [15.78, 12.03], info: [15.38, 12.8] },
+  },
+  {
+    id: "solid",
+    title: "C — Plná výplň",
+    note: "bg-{tone} + stávající text-{tone}-foreground",
+    // Literal class strings, never `bg-${tone}` — Tailwind scans source text, so an
+    // interpolated utility is simply never generated and the cell ships unstyled.
+    className: (tone: StatusTone) =>
+      ({
+        success: "bg-success text-success-foreground",
+        warning: "bg-warning text-warning-foreground",
+        info: "bg-info text-info-foreground",
+      })[tone],
+    ratio: { success: [3.23, 7.07], warning: [7.25, 8.87], info: [3.49, 6.32] },
+  },
+  {
+    id: "converged",
+    title: "D — Sjednocení",
+    note: "slovník copper/neutral/outline z /orders a /quotes",
+    className: () => "",
+    ratio: { neutral: [4.39, 5.66], copper: [3.68, 6.04], outline: [4.83, 6.74] },
+  },
+] as const;
+
+type StatusTone = "success" | "warning" | "info";
+
+/** The four REAL pills, with the surfaces they ship on. */
+const REAL_PILLS = [
+  {
+    label: "Aktivní",
+    tone: "success",
+    converged: "neutral",
+    where: "/customers · /customers/[id] · /projects",
+  },
+  { label: "Živě", tone: "success", converged: "copper", where: '/projects — role="status"' },
+  {
+    label: "Připojování…",
+    tone: "warning",
+    converged: "outline",
+    where: '/projects — role="status"',
+  },
+  {
+    label: "K dispozici novější verze",
+    tone: "info",
+    converged: "copper",
+    where: "/admin",
+  },
+] as const;
+
+function RatioTag({ value }: { value: number }) {
+  const passes = value >= CONTRAST_BAR;
+  return (
+    <span
+      className={cn(
+        "font-data text-[10px] tabular-nums",
+        passes ? "text-success" : "text-destructive",
+      )}
+    >
+      {passes ? "✓" : "✗"} {value.toFixed(2)}:1
+    </span>
+  );
+}
+
+function BadgeTreatments({ theme }: { theme: "light" | "dark" }) {
+  const i = theme === "dark" ? 1 : 0;
+  return (
+    <Section
+      title="Badge — stavové tóny, čtyři varianty"
+      hint={`Rozhodovací plocha, ne galerie. Naměřený kontrast pro ${theme === "dark" ? "TMAVÝ" : "SVĚTLÝ"} motiv; práh 4,5:1 (10px verzálky = běžný text). Nic v badge.tsx se nemění — sloupec vybírá Martin.`}
+    >
+      <Panel className="flex flex-col gap-6">
+        <div className="grid gap-5 lg:grid-cols-4">
+          {TREATMENTS.map((treatment) => (
+            <div key={treatment.id} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-0.5">
+                <p className="font-display text-sm">{treatment.title}</p>
+                <p className="text-muted-foreground text-[11px]">{treatment.note}</p>
+              </div>
+              <div className="flex flex-col items-start gap-2.5">
+                {REAL_PILLS.map((pill) => {
+                  const tone = treatment.id === "converged" ? pill.converged : pill.tone;
+                  const ratios = treatment.ratio[tone as keyof typeof treatment.ratio] as
+                    | readonly [number, number]
+                    | undefined;
+                  return (
+                    <div key={pill.label} className="flex flex-col items-start gap-1">
+                      <Badge
+                        tone={tone as React.ComponentProps<typeof Badge>["tone"]}
+                        className={treatment.className(pill.tone)}
+                      >
+                        {pill.label}
+                      </Badge>
+                      {ratios ? <RatioTag value={ratios[i]} /> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-border text-muted-foreground flex flex-col gap-1 border-t pt-4 text-[11px]">
+          <p>
+            <span className="text-foreground font-semibold">Kde to žije:</span>{" "}
+            {REAL_PILLS.map((p) => `${p.label} → ${p.where}`).join(" · ")}
+          </p>
+          <p>
+            <span className="text-foreground font-semibold">Co měření ukázalo:</span> ve SVĚTLÉM
+            motivu neprojde práh ani sloupec C (success 3,23 · info 3,49), ani sloupec D (copper
+            3,68 · neutral 4,39) — tedy ani slovník, na který se má sjednocovat. Jediný sloupec,
+            který projde ve všech tónech a obou motivech, je B.
+          </p>
+        </div>
+      </Panel>
+    </Section>
+  );
+}
+
 export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
   const [step, setStep] = React.useState(1);
   const [seg, setSeg] = React.useState("interior");
@@ -727,6 +883,8 @@ export function BrandLabClient({ theme }: { theme: "light" | "dark" }) {
             <Badge tone="deviation">Deviation §6</Badge>
           </div>
         </Section>
+
+        <BadgeTreatments theme={theme} />
 
         {/* Panels */}
         <Section title="Panels" hint="Flat-matte chrome lifted by soft shadow — three elevations.">

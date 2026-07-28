@@ -50,7 +50,7 @@ export type SendDocumentInput = z.infer<typeof sendDocumentSchema>;
  * - `failureReason` — a DB-only operator code. `status: "failed"` is the whole
  *   signal the rep needs; keeping the column off the wire means an SMTP message
  *   (which routinely embeds the recipient) can never reach a log or Sentry.
- * - `linkPath` — a bearer credential (`/nabidka/<shareToken>`). Already on the
+ * - `linkPath` — a bearer credential (`/nabidka#<shareToken>`). Already on the
  *   quote detail response; re-shipping it in a second list is gratuitous.
  * - amount / variableSymbol / dueOn / payToIban — already on the invoice detail
  *   response. Not re-shipped.

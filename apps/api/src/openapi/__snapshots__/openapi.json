@@ -1238,19 +1238,20 @@
         ]
       }
     },
-    "/v1/quotes/shared/{shareToken}": {
-      "get": {
-        "operationId": "QuotesPublicController_shared_v1",
-        "parameters": [
-          {
-            "name": "shareToken",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
+    "/v1/quotes/shared/resolve": {
+      "post": {
+        "operationId": "QuotesPublicController_resolve_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSharedNabidkaDto"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1261,19 +1262,20 @@
         ]
       }
     },
-    "/v1/quotes/shared/{shareToken}/accept": {
+    "/v1/quotes/shared/accept": {
       "post": {
         "operationId": "QuotesPublicController_accept_v1",
-        "parameters": [
-          {
-            "name": "shareToken",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSharedNabidkaDto"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1284,19 +1286,20 @@
         ]
       }
     },
-    "/v1/quotes/shared/{shareToken}/decline": {
+    "/v1/quotes/shared/decline": {
       "post": {
         "operationId": "QuotesPublicController_decline_v1",
-        "parameters": [
-          {
-            "name": "shareToken",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSharedNabidkaDto"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3069,6 +3072,19 @@
         "required": [
           "site",
           "instances"
+        ]
+      },
+      "ResolveSharedNabidkaDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "token"
         ]
       },
       "CreateCustomerDto": {

@@ -1,5 +1,5 @@
 /**
- * Headless capture of the BUYER /nabidka/[token] landing (Phase-2 Wave B rebuild)
+ * Headless capture of the BUYER /nabidka landing (Phase-2 Wave B rebuild)
  * — the eyes for the §12.1 responsive + both-themes pass. This is a PUBLIC,
  * unauthenticated surface (the token is the credential), so no sign-in. Captures
  * the four buyer states against real seeded quotes: issued (BOM + accept/decline
@@ -73,7 +73,7 @@ async function assertThemeAndScroll(page, theme, vpName, label) {
 }
 
 async function captureState(page, theme, vpName, state) {
-  const res = await page.goto(`${BASE}/nabidka/${state.token}`, {
+  const res = await page.goto(`${BASE}/nabidka#${state.token}`, {
     waitUntil: "domcontentloaded",
     timeout: 90_000,
   });

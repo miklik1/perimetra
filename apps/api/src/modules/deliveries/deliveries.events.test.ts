@@ -34,7 +34,7 @@ function makeRow(overrides: Partial<DocumentDeliveryRow> = {}): DocumentDelivery
     customerId: "01890a5d-ac96-774b-bcce-b302099a0044",
     recipientEmail: BUYER_EMAIL,
     locale: null,
-    linkPath: `/nabidka/${SHARE_TOKEN}`,
+    linkPath: `/nabidka#${SHARE_TOKEN}`,
     amountMoney: null,
     currency: null,
     variableSymbol: null,
@@ -115,7 +115,7 @@ describe("DeliveriesEventsHandler", () => {
     expect(deps.email.sendQuoteIssuedEmail).toHaveBeenCalledWith({
       to: BUYER_EMAIL,
       documentNumber: "2026/0007",
-      quoteUrl: `${WEB_ORIGIN}/nabidka/${SHARE_TOKEN}`,
+      quoteUrl: `${WEB_ORIGIN}/nabidka#${SHARE_TOKEN}`,
       locale: null,
     });
     expect(deps.email.sendInvoiceIssuedEmail).not.toHaveBeenCalled();

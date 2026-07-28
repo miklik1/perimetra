@@ -203,7 +203,52 @@ export const env = createEnv({
     // browser connects directly (realtime bypasses the BFF by design — only
     // the JWT mint goes through /api). Absent ⇒ local docker default
     // (ws://localhost:8000/connection/websocket) applied at the use-site.
-    NEXT_PUBLIC_REALTIME_URL: z.string().url().optional(),
+    //
+    // wss-only egress, the SAME rule and the same exposure class as `API_URL`
+    // above (ADR 1021, extended by ADR 0132). The browser opens this socket
+    // carrying the Centrifugo connection JWT minted by `GET /v1/realtime/token`
+    // — over a plaintext `ws://` to a non-loopback host that token, and every
+    // subsequent `user:<id>` / `org:<id>` frame, crosses a real wire in clear.
+    // The ONE exemption is a LOOPBACK host, whose traffic never reaches a wire
+    // to be intercepted (the local docker stack, and the URL that
+    // `scripts/create-project/index.mjs` stamps into a fresh .env.local).
+    //
+    // The rule is ABSOLUTE — it is keyed on neither `NODE_ENV` nor the ADR 0104
+    // `TIER`, and that is forced, not merely preferred:
+    //   - `NODE_ENV` describes the BUILD, never the network path — the same
+    //     mistake ADR 1021 corrected for API_URL in both directions.
+    //   - A per-field `.refine` cannot see another field: t3-env's default
+    //     `parseWithDictionary` validates every key INDEPENDENTLY. The only
+    //     cross-field hook is `createFinalSchema`, which REPLACES that per-key
+    //     parse with a single object parse for the whole env — changing error
+    //     paths and unknown-key handling everywhere to express one rule.
+    //   - This is a CLIENT var, so the refinement runs a second time inside the
+    //     browser bundle, where `process.env.APP_TIER` / `VERCEL_TARGET_ENV` are
+    //     not inlined and read as `undefined`. A tier-conditional rule would
+    //     therefore be silently LENIENT client-side — the same hazard already
+    //     documented for `TIER` below. A scheme-only rule is deterministic in
+    //     both contexts, so server and client agree by construction.
+    //
+    // Deliberate tightening: this also refuses `http://`, `https://` and any
+    // other scheme for this var. zod 4's `.url()` accepts them all (verified
+    // against zod 4.4.3 — it even passes `ftp://x.com`), so `.url()` alone
+    // constrained nothing here. A non-websocket scheme in a Centrifugo endpoint
+    // is a misconfiguration in every environment; failing the build is the
+    // honest outcome.
+    NEXT_PUBLIC_REALTIME_URL: z
+      .string()
+      .url()
+      .optional()
+      .refine(
+        (url) =>
+          url === undefined ||
+          url.startsWith("wss://") ||
+          (url.startsWith("ws://") && isLoopbackOrigin(url)),
+        {
+          message:
+            "NEXT_PUBLIC_REALTIME_URL must use wss unless it targets a loopback host (localhost, *.localhost, 127.0.0.0/8, ::1)",
+        },
+      ),
   },
 
   /** Runtime values destructured from process.env (all server + client vars). */

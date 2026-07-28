@@ -13,6 +13,7 @@ import { ExprField } from "../lib/expr-field";
 import {
   adjustabilityValues,
   deviationFieldModeValues,
+  dimensionRoleFieldValues,
   domainKindValues,
   paramTypeValues,
   valueModeValues,
@@ -24,6 +25,7 @@ import {
   whereParamDefaultExpr,
   whereParamDeviation,
   whereParamDeviationBound,
+  whereParamDimensionRole,
   whereParamRelevance,
 } from "../lib/where";
 
@@ -93,6 +95,33 @@ function ParameterRow({ form, validation, index }: Props & { index: number }) {
           )}
         </FieldShell>
       </div>
+
+      {/* Which spatial dimension this parameter IS (ADR 0136) — descriptive only,
+          but the gate refuses a role it could not honour (unbounded domain,
+          vendor-only, or already claimed), so the select carries its own defect. */}
+      <FieldShell
+        label={t("dimensionRole")}
+        description={t("dimensionRoleHint")}
+        error={defectFor(whereParamDimensionRole(key))}
+      >
+        {({ fieldId }) => (
+          <Controller
+            control={control}
+            name={`${base}.dimensionRole`}
+            render={({ field }) => (
+              <EnumSelect
+                id={fieldId}
+                value={field.value}
+                onChange={field.onChange}
+                options={dimensionRoleFieldValues.map((v) => ({
+                  value: v,
+                  label: t(`dimensionRole_${v}`),
+                }))}
+              />
+            )}
+          />
+        )}
+      </FieldShell>
 
       {/* default: none | literal | expr (mutual exclusion enforced structurally) */}
       <div className="grid grid-cols-[1fr_2fr] gap-2">

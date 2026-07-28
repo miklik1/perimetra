@@ -76,7 +76,7 @@ export class EmailService {
    * the deliveries worker handler, never inline in a request path.
    *
    * It genuinely DELIVERS the document: `quoteUrl` is the absolute form of the
-   * shipped ADR-0089 public landing `/nabidka/:shareToken`, which renders the
+   * shipped ADR-0089 public landing `/nabidka#<shareToken>`, which renders the
    * full priced nabídka and offers accept/decline — so the subject's claim is
    * fully backed by the payload.
    */

@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fenceRunV1, slidingGateV1 } from "@repo/fixtures";
-import { slotScopes } from "@repo/model";
+import { slotScopes, validateRelease } from "@repo/model";
 import type { ProductModelRelease } from "@repo/model";
 
 import {
@@ -22,6 +22,7 @@ import {
   whereGeometryRotation,
   whereParamDefaultExpr,
   whereParamDeviationBound,
+  whereParamDimensionRole,
   whereParamRelevance,
   wherePartBom,
   wherePartResolveMaterial,
@@ -86,4 +87,47 @@ describe("where ↔ slotScopes bijection", () => {
       });
     });
   }
+});
+
+/**
+ * `dimensionRole` (ADR 0136) is not an expression slot, so it never appears in
+ * `slotScopes` — the bijection above cannot see it. It still carries defects, so
+ * it is pinned directly against the gate that emits them, in BOTH directions:
+ * every `dimensionRole.*` where the gate produces is reproducible by the builder,
+ * and the builder's output is a where the gate actually uses.
+ */
+describe("whereParamDimensionRole ↔ the publish gate", () => {
+  // Three violations at once: `w2` duplicates the role, has no bounded range
+  // domain, and is vendor-only — so all three codes are exercised.
+  const release: ProductModelRelease = {
+    ...slidingGateV1,
+    parameters: [
+      ...slidingGateV1.parameters,
+      { key: "w2", type: "length_mm", adjustability: "vendor", dimensionRole: "width" },
+    ],
+  };
+
+  const roleDefects = validateRelease(release).filter((d) => d.code.startsWith("dimensionRole."));
+
+  it("emits all three role defects on the offending parameter", () => {
+    expect(roleDefects.map((d) => d.code).sort()).toEqual([
+      "dimensionRole.domain",
+      "dimensionRole.duplicate",
+      "dimensionRole.vendor",
+    ]);
+  });
+
+  it("addresses every one of them by the builder's where", () => {
+    for (const d of roleDefects) expect(d.where).toBe(whereParamDimensionRole("w2"));
+  });
+
+  it("produces a where for a role-carrying parameter that the gate would use", () => {
+    // The corpus authors width/height on the sliding gate; the builder must
+    // reproduce the exact string the gate would attach a defect to.
+    const roled = slidingGateV1.parameters.filter((p) => p.dimensionRole !== undefined);
+    expect(roled.length).toBeGreaterThan(0);
+    for (const p of roled) {
+      expect(whereParamDimensionRole(p.key)).toBe(`parameters[${p.key}].dimensionRole`);
+    }
+  });
 });

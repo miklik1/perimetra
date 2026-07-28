@@ -24,7 +24,7 @@ rep's action:
 
 - `sendQuoteIssuedEmail({ to, documentNumber, quoteUrl, locale })` — genuinely
   DELIVERS the nabídka. `quoteUrl` is the absolute form of the shipped
-  ADR-0089 public landing `/nabidka/:shareToken`, which renders the full
+  ADR-0089 public landing `/nabidka#<shareToken>`, which renders the full
   priced document and offers accept/decline, so the subject's claim is fully
   backed by the payload.
 - `sendInvoiceIssuedEmail({ to, documentNumber, variableSymbol, amount,

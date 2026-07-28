@@ -175,7 +175,11 @@ describe("FlagsProvider", () => {
     const config = initCall[1] as { before_send: unknown; disable_session_recording: unknown };
     // A fail-open revert to `sanitizeProperties ? … : undefined` reddens here.
     expect(typeof config.before_send).toBe("function");
-    // Replay payloads are the one capture path before_send does not clean.
+    // Replay payloads are the one capture path before_send does not clean — and
+    // in perimetra this flag is load-bearing for ADR 0130: the buyer's share
+    // token rides the URL fragment, which a recorder captures from the address
+    // bar and the DOM without ever passing through the scrubber. Flipping this
+    // is a credential decision, so it must red here first.
     expect(config.disable_session_recording).toBe(true);
   });
 

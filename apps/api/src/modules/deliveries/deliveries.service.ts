@@ -227,6 +227,15 @@ export class DeliveriesService {
    * document off the frozen snapshot and offers accept/decline. Nothing else is
    * frozen — the landing renders `validUntil` and its own expired banner, so the
    * mail never restates a deadline it could get wrong across a timezone.
+   *
+   * The token rides the URL FRAGMENT (`/nabidka#<shareToken>`, ADR 0130), not a
+   * path segment. `linkPath` is therefore path+fragment rather than a bare path,
+   * and the events handler's `${WEB_ORIGIN}${linkPath}` concatenation already
+   * produces the correct absolute URL — a fragment must be appended to
+   * origin+path, which is exactly what that concatenation does. A side benefit
+   * worth naming: a server-side link scanner (Safe Links, Proofpoint) that
+   * pre-fetches the mailed URL now receives a contentless `/nabidka` and can
+   * neither resolve the quote nor burn the buyer's throttle budget.
    */
   private async quoteFacts(
     scope: RequestScope,
@@ -238,7 +247,7 @@ export class DeliveriesService {
     return {
       documentNumber: quote.documentNumber,
       customerId: quote.customerId,
-      linkPath: `/nabidka/${quote.shareToken}`,
+      linkPath: `/nabidka#${quote.shareToken}`,
       amountMoney: null,
       currency: null,
       variableSymbol: null,

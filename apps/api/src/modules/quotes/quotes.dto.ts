@@ -10,6 +10,7 @@ import {
   quoteReproductionSchema,
   quoteSchema,
   quotesPageSchema,
+  resolveSharedNabidkaSchema,
   sharedNabidkaSchema,
 } from "@repo/validators/quotes";
 
@@ -17,6 +18,9 @@ import { createZodDto } from "../../common/api/zod.js";
 
 export class IssueQuoteDto extends createZodDto(issueQuoteSchema) {}
 export class ListQuotesQueryDto extends createZodDto(listQuotesQuerySchema) {}
+/** Request body — the buyer's shareToken travels HERE, never in the URL (ADR
+ *  0130). Shared by resolve/accept/decline: one credential, one carrier. */
+export class ResolveSharedNabidkaDto extends createZodDto(resolveSharedNabidkaSchema) {}
 
 /** Response DTOs — used with `@ZodSerializerDto` (strip semantics, spec §8). */
 export class QuoteDto extends createZodDto(quoteSchema) {}

@@ -28,6 +28,44 @@ describe("buttonVariants", () => {
     expect(buttonVariants({ size: "xs" })).not.toContain("pointer-coarse");
     expect(buttonVariants({ size: "icon-xs" })).not.toContain("pointer-coarse");
   });
+
+  it("speaks the kit's single focus grammar on every variant (ring-2 ring-ring)", () => {
+    // Button was the ONE divergent focus ring in the kit (shadcn's `border-ring`
+    // + `ring-[3px] ring-ring/50`). These assertions are the guard against it
+    // drifting back: no variant may reintroduce a width, an opacity or a colour
+    // of its own — including `destructive`, which used to tint the ring red.
+    const variants = [
+      "default",
+      "destructive",
+      "outline",
+      "secondary",
+      "ghost",
+      "link",
+      "copper",
+      "copper-outline",
+    ] as const;
+
+    for (const variant of variants) {
+      const classes = buttonVariants({ variant });
+      expect(classes).toContain("focus-visible:ring-2");
+      expect(classes).toContain("focus-visible:ring-ring");
+      expect(classes).not.toContain("focus-visible:ring-[3px]");
+      expect(classes).not.toContain("focus-visible:ring-ring/50");
+      expect(classes).not.toContain("focus-visible:border-ring");
+      expect(classes).not.toMatch(/focus-visible:ring-destructive/);
+      expect(classes).not.toMatch(/dark:focus-visible:ring-/);
+    }
+  });
+
+  it("gives the aria-invalid ring its own width so it paints unfocused too", () => {
+    // The old `aria-invalid:ring-destructive/20` set colour only and borrowed its
+    // width from the focus ring, so an invalid button was red ONLY while focused.
+    const classes = buttonVariants();
+    expect(classes).toContain("aria-invalid:ring-2");
+    expect(classes).toContain("aria-invalid:ring-destructive");
+    expect(classes).not.toContain("aria-invalid:ring-destructive/20");
+    expect(classes).not.toContain("dark:aria-invalid:ring-destructive/40");
+  });
 });
 
 describe("Button", () => {

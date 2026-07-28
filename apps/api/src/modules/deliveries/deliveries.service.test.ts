@@ -81,7 +81,7 @@ function makeRow(overrides: Partial<DocumentDeliveryRow> = {}): DocumentDelivery
     customerId: CUSTOMER_ID,
     recipientEmail: BUYER_EMAIL,
     locale: null,
-    linkPath: `/nabidka/${SHARE_TOKEN}`,
+    linkPath: `/nabidka#${SHARE_TOKEN}`,
     amountMoney: null,
     currency: null,
     variableSymbol: null,
@@ -156,7 +156,7 @@ describe("DeliveriesService.send — quote", () => {
     const inserted = deps.deliveries.insert.mock.calls[0]![1] as Record<string, unknown>;
     expect(inserted.documentType).toBe("quote");
     expect(inserted.documentNumber).toBe("2026/0007");
-    expect(inserted.linkPath).toBe(`/nabidka/${SHARE_TOKEN}`);
+    expect(inserted.linkPath).toBe(`/nabidka#${SHARE_TOKEN}`);
     expect(inserted.recipientEmail).toBe(BUYER_EMAIL);
     // A quote mail carries no payment figures at all.
     expect(inserted.amountMoney).toBeNull();

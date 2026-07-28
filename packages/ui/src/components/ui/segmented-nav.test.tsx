@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SegmentedNav, SegmentedNavItem } from "./segmented-nav";
 
 describe("SegmentedNav", () => {
-  it("marks the active item with aria-current + the nav-active fill, others muted", () => {
+  it("marks the active item pressed + the nav-active fill, others unpressed and muted", () => {
     render(
       <SegmentedNav value="plan" onValueChange={() => {}} aria-label="Zobrazení">
         <SegmentedNavItem value="plan" label="Půdorys" />
@@ -13,10 +13,24 @@ describe("SegmentedNav", () => {
     );
     const active = screen.getByRole("button", { name: "Půdorys" });
     const inactive = screen.getByRole("button", { name: "3D model" });
-    expect(active).toHaveAttribute("aria-current", "page");
+    expect(active).toHaveAttribute("aria-pressed", "true");
     expect(active).toHaveClass("bg-nav-active");
-    expect(inactive).not.toHaveAttribute("aria-current");
+    // Emitted on BOTH segments: a toggle with a missing aria-pressed reads as a
+    // plain button, so the unpressed state has to be stated, not left absent.
+    expect(inactive).toHaveAttribute("aria-pressed", "false");
     expect(inactive).toHaveClass("text-muted-foreground");
+  });
+
+  it("is a named group, never a navigation landmark", () => {
+    render(
+      <SegmentedNav value="plan" onValueChange={() => {}} aria-label="Zobrazení">
+        <SegmentedNavItem value="plan" label="Půdorys" />
+      </SegmentedNav>,
+    );
+    expect(screen.getByRole("group", { name: "Zobrazení" })).toBeInTheDocument();
+    // The landmark must not come back: this switches a view, not a page.
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.getByRole("button", { name: "Půdorys" })).not.toHaveAttribute("aria-current");
   });
 
   it("wraps the pills in the recessed chrome track by default and drops it when track=false", () => {
@@ -25,19 +39,19 @@ describe("SegmentedNav", () => {
         <SegmentedNavItem value="plan" label="Půdorys" />
       </SegmentedNav>,
     );
-    expect(screen.getByRole("navigation")).toHaveClass("bg-chrome");
+    expect(screen.getByRole("group")).toHaveClass("bg-chrome");
     rerender(
       <SegmentedNav value="plan" onValueChange={() => {}} track={false} aria-label="Zobrazení">
         <SegmentedNavItem value="plan" label="Půdorys" />
       </SegmentedNav>,
     );
-    expect(screen.getByRole("navigation")).not.toHaveClass("bg-chrome");
+    expect(screen.getByRole("group")).not.toHaveClass("bg-chrome");
   });
 
   it("calls onValueChange with the clicked item's value", () => {
     const onValueChange = vi.fn();
     render(
-      <SegmentedNav value="plan" onValueChange={onValueChange}>
+      <SegmentedNav value="plan" onValueChange={onValueChange} aria-label="Zobrazení">
         <SegmentedNavItem value="plan" label="Půdorys" />
         <SegmentedNavItem value="model" label="3D model" />
       </SegmentedNav>,
@@ -51,7 +65,7 @@ describe("SegmentedNav", () => {
     const onClick = vi.fn();
     const onValueChange = vi.fn();
     render(
-      <SegmentedNav value="plan" onValueChange={onValueChange}>
+      <SegmentedNav value="plan" onValueChange={onValueChange} aria-label="Zobrazení">
         <SegmentedNavItem value="model" label="3D model" onClick={onClick} />
       </SegmentedNav>,
     );

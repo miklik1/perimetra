@@ -53,6 +53,8 @@ export const brankaV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 700, max: 1500 },
       adjustability: "user",
+      // The horizontal dimension the §7.6 pill/corner handle drags (ADR 0136).
+      dimensionRole: "width",
       deviation: {
         mode: "warn",
         bounds: { min: expr("600"), max: expr("1600") },
@@ -65,6 +67,7 @@ export const brankaV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 1000, max: 2000 },
       adjustability: "user",
+      dimensionRole: "height",
       deviation: {
         mode: "warn",
         bounds: { min: expr("800"), max: expr("2200") },

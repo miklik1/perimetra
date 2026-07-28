@@ -60,13 +60,17 @@ export const quoteRoutes: MockRoute[] = [
     },
   },
   {
-    // Buyer-facing public nabídka by shareToken (ADR 0089). The matcher keys on
-    // segment count, so `/v1/quotes/shared/:token` (4) never collides with
-    // `/v1/quotes/:id` (3) regardless of declaration order.
-    method: "GET",
-    pattern: "/v1/quotes/shared/:shareToken",
-    handler: ({ params }) => {
-      const result = findSharedNabidkaFixture(params.shareToken ?? "");
+    // Buyer-facing public nabídka (ADR 0089, re-carried by ADR 0130): the token
+    // travels in the BODY, so the mock route is a STATIC 4-segment POST. The
+    // matcher keys on segment count plus static-segment equality, so
+    // `/v1/quotes/shared/resolve` never collides with `/v1/quotes/:id/verify`
+    // (same count, different literal 4th segment) regardless of declaration
+    // order.
+    method: "POST",
+    pattern: "/v1/quotes/shared/resolve",
+    handler: async ({ getBody }) => {
+      const { token = "" } = ((await getBody()) ?? {}) as { token?: string };
+      const result = findSharedNabidkaFixture(token);
       if (!result) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
       return { data: result };
     },
@@ -91,9 +95,10 @@ export const quoteRoutes: MockRoute[] = [
   },
   {
     method: "POST",
-    pattern: "/v1/quotes/shared/:shareToken/accept",
-    handler: ({ params }) => {
-      const quote = findQuoteByShareToken(params.shareToken ?? "");
+    pattern: "/v1/quotes/shared/accept",
+    handler: async ({ getBody }) => {
+      const { token = "" } = ((await getBody()) ?? {}) as { token?: string };
+      const quote = findQuoteByShareToken(token);
       if (!quote) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
       // Mirrors the real service's supersession guard (ADR-O1/CAR-158): checked
       // BEFORE the generic "not open" 409, and carries no `status` field — the
@@ -101,21 +106,22 @@ export const quoteRoutes: MockRoute[] = [
       if (quote.supersededById) {
         throw new MockHttpError(409, "quote_superseded", "Quote has been superseded");
       }
-      const result = setQuoteStatusFixture(params.shareToken ?? "", "accepted");
+      const result = setQuoteStatusFixture(token, "accepted");
       if (!result) throw new MockHttpError(409, "QUOTE_NOT_OPEN", "Quote is not open");
       return { data: result };
     },
   },
   {
     method: "POST",
-    pattern: "/v1/quotes/shared/:shareToken/decline",
-    handler: ({ params }) => {
-      const quote = findQuoteByShareToken(params.shareToken ?? "");
+    pattern: "/v1/quotes/shared/decline",
+    handler: async ({ getBody }) => {
+      const { token = "" } = ((await getBody()) ?? {}) as { token?: string };
+      const quote = findQuoteByShareToken(token);
       if (!quote) throw new MockHttpError(404, "NOT_FOUND", "Quote not found");
       if (quote.supersededById) {
         throw new MockHttpError(409, "quote_superseded", "Quote has been superseded");
       }
-      const result = setQuoteStatusFixture(params.shareToken ?? "", "declined");
+      const result = setQuoteStatusFixture(token, "declined");
       if (!result) throw new MockHttpError(409, "QUOTE_NOT_OPEN", "Quote is not open");
       return { data: result };
     },

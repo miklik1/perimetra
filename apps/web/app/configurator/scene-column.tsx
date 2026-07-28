@@ -364,7 +364,7 @@ function ComputingChip(): React.JSX.Element {
       role="status"
       className="bg-chrome text-muted-foreground shadow-soft rounded-control text-ui-sm absolute left-4 top-4 z-10 inline-flex items-center gap-2 px-3 py-1.5 font-medium"
     >
-      <Spinner aria-hidden="true" className="size-3.5" />
+      <Spinner className="size-3.5" />
       {t("computing")}
     </p>
   );
@@ -400,21 +400,14 @@ function ViewSwitch(): React.JSX.Element {
   const { state, actions } = useSceneColumn();
   return (
     <SegmentedNav
-      // `SegmentedNav` is a page-navigation control by default: it renders a
-      // `<nav>` landmark and marks the selected item `aria-current="page"`.
-      // This is a VIEW SWITCH, so both are factually wrong — a screen-reader
-      // user would hear "Rozpad, current page" for a control that changes no
-      // page. Re-stated here, through the props the kit already spreads, as a
-      // labelled GROUP of toggle buttons: native `<button>` keyboard operation
-      // (Tab to reach, Enter/Space to press), no roving tabindex to get wrong.
-      // The kit should grow a non-navigation variant — see the slice report.
-      role="group"
+      // The kit is a named `role="group"` of `aria-pressed` toggle buttons, which
+      // is exactly what a view switch is; the name is required by its prop type.
       aria-label={t("viewSwitchLabel")}
       value={state.view}
       // The kit's contract is the generic `(value: string)`; the three values
       // in this group are authored right below, so this narrows what we wrote.
       // Positioning now lives on the top-right cluster in `ReadyStage` (it shares
-      // the row with the fullscreen toggle), so the nav itself is unpositioned.
+      // the row with the fullscreen toggle), so the group itself is unpositioned.
       onValueChange={(value) => actions.selectView(value as SceneView)}
     >
       <ViewSwitchItem view="3d" icon="cube" label={t("view3d")} />
@@ -433,14 +426,13 @@ function ViewSwitchItem({
   icon: IconName;
   label: string;
 }): React.JSX.Element {
-  const { state } = useSceneColumn();
+  // No `useSceneColumn()` here: the pressed state comes from the kit's own
+  // selection context, so this part only supplies the value, icon and label.
   return (
     <SegmentedNavItem
       value={view}
       icon={<Icon name={icon} size={16} />}
       label={label}
-      aria-current={undefined}
-      aria-pressed={state.view === view}
       // The kit's pill is ~30px tall; `pointer-coarse:` lifts it to the 44px
       // WCAG 2.5.5 target on touch, the same idiom Button/Toast already use.
       className="pointer-coarse:min-h-11"

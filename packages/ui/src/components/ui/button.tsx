@@ -6,15 +6,36 @@ import { cn } from "@repo/ui/lib/utils";
 
 const buttonVariants = cva(
   // Base grammar (ADR 0111): soft-geometry radius (`rounded-control`) + the brand
-  // ease, so every button carries the "Seamless" motion. Ink default + copper
-  // focus ring come from the retired-blue token change, no class needed here.
-  "ease-brand inline-flex shrink-0 items-center justify-center gap-2 rounded-control text-sm font-medium whitespace-nowrap transition-all duration-200 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // ease, so every button carries the "Seamless" motion. The ink default colour
+  // comes from the retired-blue token change, no class needed here.
+  //
+  // Focus: `focus-visible:ring-2 focus-visible:ring-ring` — the ONE focus grammar
+  // the whole kit speaks (icon-button, select, switch, checkbox, tabs, pager,
+  // segmented-nav, step-nav, stat-card, alert, `fieldInputClass`). Button used to
+  // diverge with a shadcn-inherited `border-ring` + `ring-[3px] ring-ring/50`
+  // (a 3px half-opacity ring plus a competing copper border), which read as a
+  // different control family on the same screen. The design export draws no focus
+  // state at all, so there was nothing to defer to — the divergence was a leftover,
+  // not a decision. One width, one token, full opacity, both themes.
+  //
+  // `aria-invalid` carries its own width (`aria-invalid:ring-2`) rather than
+  // borrowing it from the focus ring: the old classes set ring COLOUR only and
+  // took their width from `ring-[3px]`, so an invalid button showed its red ring
+  // ONLY while focused — half-broken already, and fully dead once the width source
+  // went. Colour is now the solid `ring-destructive` in both themes, mirroring
+  // `fieldInputClass` (the kit's only other invalid-state ring) instead of the
+  // near-invisible /20 + dark:/40 tints.
+  "ease-brand inline-flex shrink-0 items-center justify-center gap-2 rounded-control text-sm font-medium whitespace-nowrap transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+        // No per-variant focus tint: the destructive button takes the same copper
+        // `ring-ring` as every other control. A red focus ring on a red button is
+        // decoration, not meaning — the destructive semantics are already carried
+        // by the fill, and a second focus vocabulary is exactly what the base
+        // comment above converges away.
+        destructive: "bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/60",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

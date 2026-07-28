@@ -49,6 +49,9 @@ export const slidingGateV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 2000, max: 8000 },
       adjustability: "user",
+      // The horizontal dimension the §7.6 pill/corner handle drags (ADR 0136) —
+      // named by the release rather than inferred from declaration order.
+      dimensionRole: "width",
       // The "but not there" knowledge (CORE_SPEC §3): a quote may deviate
       // outside the catalog range with a recorded reason, never past bounds.
       // Placeholder envelope — real values are a fabricator-extraction item.
@@ -64,6 +67,7 @@ export const slidingGateV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2500 },
       adjustability: "user",
+      dimensionRole: "height",
       // Hard structural limit: the dimension chain (frameHeight − 40 …) and
       // wind load make this non-negotiable. Placeholder envelope, as above.
       deviation: {

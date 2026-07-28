@@ -32,6 +32,8 @@
  */
 import { create } from "zustand";
 
+import type { DimensionRole, ResolvedUiStep } from "@repo/model";
+
 /** The active dock tool. `select` and `dim` are the two manipulation modes this
  *  store owns; `section`/`explode` are independent overlay toggles (their own
  *  stores) and `measure`/`rotate` are deferred (ADR 0116), so the store never
@@ -143,28 +145,85 @@ export const useManipulation = create<ManipulationState>((set) => ({
   reset: () => set({ ...INITIAL }),
 }));
 
+/** One candidate dimension parameter: its key, label and `range` domain bounds,
+ *  already narrowed to the numeric-min-and-max case a drag can clamp against. */
+export interface DimensionRange {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+}
+
 /**
- * The width/height dimension bindings for a release, by position: the first
- * visible `range`-domain parameter is the width, the second is the height. A
- * release does not (yet) author which parameter is a spatial dimension, so this
- * is a heuristic — recorded as a deviation (ADR 0116); a future `dimensionRole`
- * on the schema would replace it. A dimension with no such parameter is null, and
- * its pill/handle is then not shown (§7.6).
+ * Which parameters the §7.6 pills and corner handles address, resolved off the
+ * RESOLVED UI (so a parameter hidden by its `relevance` is never draggable).
+ *
+ * Since ADR 0136 the release names them: a parameter tagged
+ * `dimensionRole: "width"` / `"height"` IS that dimension, wherever it is
+ * declared. The ADR 0117 §3 positional heuristic — the first two visible bounded
+ * `range` parameters, by declaration order — survives only as the fallback for a
+ * release that authors NO role at all, which is every release published before
+ * ADR 0136, including immutable ones that can never be re-authored. That fallback
+ * must therefore not be deleted.
+ *
+ * The fallback is whole-release, not per-dimension, on purpose: a vendor who tags
+ * only the width gets a width pill and NO height pill (§7.6 — a control that
+ * cannot address a form-exposed parameter is not shown) rather than a height
+ * silently back-filled from a parameter they did not nominate.
+ *
+ * Only bounded parameters are candidates either way: without a numeric min AND
+ * max the drag has no rail to clamp to (the gate refuses an authored role on such
+ * a parameter, but a pre-ADR-0136 release reaches the positional path unchecked).
+ */
+export function resolveDimensionRanges(steps: ResolvedUiStep[]): {
+  width?: DimensionRange | undefined;
+  height?: DimensionRange | undefined;
+} {
+  const candidates: { range: DimensionRange; role: DimensionRole | undefined }[] = [];
+  for (const group of steps.flatMap((s) => s.groups)) {
+    for (const { def, visible } of group.params) {
+      if (!visible || def.domain?.kind !== "range") continue;
+      const { min, max, step } = def.domain;
+      if (typeof min !== "number" || typeof max !== "number") continue;
+      candidates.push({
+        range: { key: def.key, label: def.label ?? def.key, min, max, step: step ?? 10 },
+        role: def.dimensionRole,
+      });
+    }
+  }
+  const width = candidates.find((c) => c.role === "width")?.range;
+  const height = candidates.find((c) => c.role === "height")?.range;
+  if (width !== undefined || height !== undefined) return { width, height };
+  return { width: candidates[0]?.range, height: candidates[1]?.range };
+}
+
+/**
+ * The width/height dimension bindings for a release. The pair is chosen by the
+ * CALLER — since ADR 0136 a release names its own spatial dimensions through
+ * `ParameterDef.dimensionRole`, and `ConfiguratorInner` resolves the role before
+ * calling here (falling back to the ADR 0117 §3 positional heuristic only for a
+ * release that authors no role at all, which is every release published before
+ * that ADR — including immutable ones that can never be re-authored). This
+ * function is therefore pure binding: pick a value, or yield null.
+ *
+ * A dimension with no parameter is null, and its pill/handle is then not shown
+ * (§7.6 — a control that cannot address a form-exposed parameter is not shown).
  *
  * Effective scope values are preferred over raw input so a defaulted parameter
  * still reads a value; the drag/pill always writes the raw parameter key.
  */
 export function dimensionBindings(
-  ranges: { key: string; label: string; min: number; max: number; step: number }[],
+  ranges: { width?: DimensionRange | undefined; height?: DimensionRange | undefined },
   read: (key: string) => number | null,
 ): { width: DimensionBinding | null; height: DimensionBinding | null } {
-  const bind = (r: (typeof ranges)[number] | undefined): DimensionBinding | null => {
+  const bind = (r: DimensionRange | undefined): DimensionBinding | null => {
     if (r === undefined) return null;
     const value = read(r.key);
     if (value === null) return null;
     return { key: r.key, label: r.label, value, min: r.min, max: r.max, step: r.step };
   };
-  return { width: bind(ranges[0]), height: bind(ranges[1]) };
+  return { width: bind(ranges.width), height: bind(ranges.height) };
 }
 
 /** Clamp a dimension value to its `range` domain — the drag rail (§7.6). */

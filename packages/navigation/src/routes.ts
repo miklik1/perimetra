@@ -61,7 +61,16 @@ export const routes = {
   invoice: { path: "/invoices/:id", params: { id: "string" } },
   // Buyer-facing PUBLIC nabídka (ADR 0089) — token-credentialed, no session.
   // Deliberately OUTSIDE the `/quotes` protected prefix (proxy.ts auth gate).
-  sharedNabidka: { path: "/nabidka/:token", params: { token: "string" } },
+  //
+  // NO `params` any more: the shareToken rides the URL FRAGMENT
+  // (`/nabidka#<token>`, ADR 0130), never a path segment and never a query
+  // parameter, because a fragment is the only part of a URL no HTTP client
+  // transmits. `Href`/`buildPath` cannot express a fragment — and must NOT be
+  // taught to, because a typed fragment slot would invite the next credential
+  // into the registry and back into every URL sink. The one producer builds the
+  // absolute link as a raw string (`quote-detail.tsx`), which is the right
+  // amount of friction.
+  sharedNabidka: { path: "/nabidka" },
   // Org-admin price-table console (ADR 0056/0061) and the platform/vendor
   // console (ADR 0062) — added for the nav shell (CAR-12) so both surfaces
   // are typed `Href`s like everything else, instead of the raw string hrefs

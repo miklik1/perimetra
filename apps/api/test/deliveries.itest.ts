@@ -131,7 +131,11 @@ describe("document delivery (HTTP, real stack) — ADR 0129", () => {
     customerId: string,
   ): Promise<{ id: string; documentNumber: string }> {
     const quote = await issueQuote(user, customerId);
-    await inject(app, { method: "POST", url: `/v1/quotes/shared/${quote.shareToken}/accept` });
+    await inject(app, {
+      method: "POST",
+      url: "/v1/quotes/shared/accept",
+      payload: { token: quote.shareToken },
+    });
     const order = (await post(user, "/v1/orders", { quoteId: quote.id })).json() as { id: string };
     const res = await post(user, "/v1/invoices", { orderId: order.id });
     expect(res.statusCode, res.body).toBe(201);
@@ -293,7 +297,7 @@ describe("document delivery (HTTP, real stack) — ADR 0129", () => {
     expect(delivered).toHaveLength(1);
     expect(delivered[0]!.to).toBe(BUYER_EMAIL);
     expect(delivered[0]!.subject).toBe(`Vaše cenová nabídka ${quote.documentNumber}`);
-    expect(delivered[0]!.html).toContain(`/nabidka/${quote.shareToken}`);
+    expect(delivered[0]!.html).toContain(`/nabidka#${quote.shareToken}`);
 
     const after = await get(tenant, `/v1/deliveries?documentType=quote&documentId=${quote.id}`);
     const row = (after.json() as { items: DeliveryBody[] }).items[0]!;

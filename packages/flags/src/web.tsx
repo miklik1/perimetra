@@ -124,6 +124,18 @@ export function FlagsProvider({
         // change and therefore no review, the same hazard class as
         // `$heatmap_data`. A project that wants replay must turn it on HERE, and
         // owes rrweb-side masking plus PostHog's own URL masking when it does.
+        //
+        // IN PERIMETRA THIS IS ALSO LOAD-BEARING FOR ADR 0130, and that raises
+        // the bar for ever flipping it. The buyer's share token rides the URL
+        // FRAGMENT precisely because no HTTP client transmits a fragment and
+        // because the URL scrubber rebuilds from parser fields and never reads
+        // `hash`. A session recorder defeats BOTH halves at once: it runs inside
+        // the page, so the network property is irrelevant, and its payload
+        // short-circuits `before_send` below, so the scrubber never sees it. It
+        // would capture the address bar and the DOM directly — re-opening
+        // exactly the leak ADR 0130 closed, on the one surface that matters
+        // most. Turning replay on here is therefore a decision about a bearer
+        // credential, not about analytics.
         disable_session_recording: true,
         // PII scrub over EVERY event's properties — including the SDK's own
         // autocaptured `$pageview` ($current_url query), which the telemetry

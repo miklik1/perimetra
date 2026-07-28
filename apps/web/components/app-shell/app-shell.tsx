@@ -17,7 +17,7 @@ import { TabBar } from "./tab-bar";
 /**
  * Routes that render their OWN session-less chrome — public share links, auth
  * flows — or are print sheets. The shell never frames them: an authenticated
- * visitor previewing a buyer `/nabidka/:token`, a user mid `/two-factor`, and
+ * visitor previewing a buyer `/nabidka#<token>`, a user mid `/two-factor`, and
  * critically the print routes — the two `/traveler` sheets and the invoice
  * `/faktura` §29 doklad — which are `window.print()`ed so app chrome must NOT
  * bleed onto the A4 (the live §4.2 bug this closes — the old top-bar shell
@@ -65,21 +65,32 @@ function ownsBottomActionBar(pathname: string): boolean {
  *
  * When there is no session yet, or on a chromeless route, it renders `{children}`
  * BARE — never null — so the page's own AuthGuard fallback still shows. The flip
- * to framed is joint with that AuthGuard (both read the same `isAuthenticated`),
- * so nothing resizes on auth-resolve. `useRole`/`usePlatformAdmin` fail-closed
+ * to framed is joint with that AuthGuard (both read the same auth condition off
+ * `useAuth`, including the server's `initiallyAuthenticated` seed — ADR 0135),
+ * so nothing resizes on auth-resolve and the server's HTML already carries the
+ * frame for a cookie-bearing request. `useRole`/`usePlatformAdmin` fail-closed
  * while `/v1/me` resolves, so a first-paint flash shows only Nastavení rather
  * than a wrong role's links.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, sessionValidated, initiallyAuthenticated, user } = useAuth();
   const role = useRole();
   const isPlatformAdmin = usePlatformAdmin();
   // The badge counts (1c-3), fetched once + kept live off the org realtime
   // channel; the rails paint pills from this map (§4.1). Called unconditionally
   // (hooks rule), but gated to the FRAMED authed routes below — so no socket or
   // poll fires on a chromeless print sheet / public preview that renders bare.
-  const framed = isAuthenticated && !isChromelessRoute(pathname);
+  //
+  // The auth term MUST stay byte-identical to AuthGuard's render condition
+  // (packages/auth/src/react/auth-guard.tsx, ADR 0135): while the session is
+  // still resolving, both trust the server's `initiallyAuthenticated` cookie
+  // hint. If only one of them did, the server would paint an unframed page and
+  // the client a framed one — a NEW layout shift on every surface, which is the
+  // exact thing the joint flip documented above exists to prevent.
+  const framed =
+    (isAuthenticated || (!sessionValidated && initiallyAuthenticated)) &&
+    !isChromelessRoute(pathname);
   const counts = useNavCounts({ active: framed });
 
   if (!framed) {

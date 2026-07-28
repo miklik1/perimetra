@@ -28,7 +28,7 @@ import { CommercialPanel } from "./panels/commercial-panel";
 import { ParamField } from "./param-field";
 import type { CatalogBundle, ConfigurableProduct, ConfiguratorPricing } from "./products";
 import { SceneColumn } from "./scene-column";
-import { dimensionBindings, useManipulation } from "./scene/manipulation";
+import { dimensionBindings, resolveDimensionRanges, useManipulation } from "./scene/manipulation";
 import { webglAvailable } from "./scene/webgl";
 import { ContextBar } from "./shell/context-bar";
 import { StepChips } from "./shell/step-chips";
@@ -184,25 +184,10 @@ function ConfiguratorInner({
   );
   const flow = useMemo(() => buildFlow(steps), [steps]);
 
-  // The dimension parameters the immersive handles/pills address (ADR 0116,
-  // §7.6). By position: the first two VISIBLE `range`-domain parameters with
-  // bounds are the width and height. A release does not author which parameter is
-  // a spatial dimension, so this is a heuristic (recorded as a deviation); a
-  // parameter with no bounds cannot clamp a drag and is skipped, and a dimension
-  // with no such parameter yields a null binding whose pill/handle is not shown.
-  const dimensionRanges = useMemo(() => {
-    const ranges: { key: string; label: string; min: number; max: number; step: number }[] = [];
-    for (const group of steps.flatMap((s) => s.groups)) {
-      for (const { def, visible } of group.params) {
-        if (!visible || def.domain?.kind !== "range") continue;
-        const { min, max, step } = def.domain;
-        if (typeof min !== "number" || typeof max !== "number") continue;
-        ranges.push({ key: def.key, label: def.label ?? def.key, min, max, step: step ?? 10 });
-        if (ranges.length === 2) return ranges;
-      }
-    }
-    return ranges;
-  }, [steps]);
+  // Which parameters the immersive handles/pills address (§7.6). The release
+  // names them since ADR 0136; `resolveDimensionRanges` owns that resolution and
+  // its ADR-0117 positional fallback, so the rule is stated (and tested) once.
+  const dimensionRanges = useMemo(() => resolveDimensionRanges(steps), [steps]);
 
   // Clamp rather than fall back. `flow.length` is release-authored and therefore
   // VARIABLE (ADR 0115) where it used to be a constant 5, so a step index can

@@ -26,13 +26,10 @@ import type { RailItem } from "./steps-rail";
  * scrolls when steps overflow". It scrolls, because the step count is
  * release-authored and therefore unbounded.
  *
- * ⚠️ It scrolls WITHOUT the masked-edge fade §8.1 codifies. The kit's
- * `FadeScrollArea` is vertical-only — its `Fade` slot takes `bottom | both` and
- * its viewport is `overflow-y-auto` — so there is no horizontal variant to
- * compose, and §8.1 explicitly forbids re-implementing the gradient locally.
- * The scroll region is still named and keyboard-reachable; only the visual cue
- * is missing. Closing it means a horizontal orientation on the kit component,
- * which is a `packages/ui` change and is left for its own slice.
+ * It scrolls WITH the masked-edge fade §8.1 codifies, on both edges: the kit's
+ * `FadeScrollArea` takes an `orientation`, so the horizontal cue is the same
+ * implementation and the same gradient the vertical rail uses, never a local
+ * re-implementation (§8.1 forbids that outright).
  */
 export function StepChips({
   items,
@@ -46,9 +43,9 @@ export function StepChips({
   const t = useTranslations("configurator");
 
   return (
-    // `FadeScrollArea` without a `Fade` slot: no mask (the kit has none for this
-    // axis — see above), but the scroller is the kit's, so this row is not a
-    // second local scroll implementation.
+    // `position="both"`: a chip row can be scrolled away from either end, so both
+    // edges have to be able to say "there is more this way". `end` alone would go
+    // on lying about the left side the moment the user scrolls right.
     //
     // Deliberately NO forced `role="region"` / `tabIndex` here, unlike
     // `panels/bom-table.tsx`. That table's cells are inert, so its scroll
@@ -57,7 +54,8 @@ export function StepChips({
     // view — the region is already keyboard-operable through its contents. A
     // forced tab stop would add a dead one in the common case where the row
     // fits, and a second landmark sharing the nav's name over the same controls.
-    <FadeScrollArea className="bg-chrome border-border flex-none border-b">
+    <FadeScrollArea orientation="horizontal" className="bg-chrome border-border flex-none border-b">
+      <FadeScrollArea.Fade position="both" />
       <StepNav
         aria-label={t("configuration")}
         value={activeKey}

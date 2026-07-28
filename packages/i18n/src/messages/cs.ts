@@ -871,6 +871,15 @@ const cs = {
       supersededTitle: "Nabídka byla nahrazena",
       supersededBody:
         "Tato nabídka byla nahrazena novější verzí a nelze ji už potvrdit ani odmítnout. Vyčkejte prosím na nový odkaz.",
+      // ADR 0130 — the token now rides the URL fragment, so the page resolves it
+      // in the browser instead of on the server. These two states did not exist
+      // while the route was an RSC: the loading tick is new, and the invalid
+      // state replaces the server `notFound()`. A missing fragment and an
+      // unknown token render the SAME message on purpose — never an oracle.
+      loadingTitle: "Načítáme nabídku…",
+      invalidTitle: "Odkaz nefunguje",
+      invalidBody:
+        "Tento odkaz na nabídku je neplatný nebo už vypršel. Zkopírujte jej prosím z e-mailu celý, včetně části za znakem #, nebo si vyžádejte nový.",
     },
     production: {
       title: "Výroba",
@@ -1194,6 +1203,12 @@ const cs = {
     label: "Popisek",
     type: "Typ",
     adjustability: "Nastavitelnost",
+    dimensionRole: "Rozměrová role",
+    dimensionRoleHint:
+      "Který prostorový rozměr parametr představuje — ovládá táhla a kóty v konfigurátoru. Vyžaduje doménu „range“ s min i max a nesmí být vendor-only.",
+    dimensionRole_none: "žádná",
+    dimensionRole_width: "šířka",
+    dimensionRole_height: "výška",
     valueMode: "Výchozí hodnota",
     valueMode_none: "žádná",
     valueMode_literal: "literál",

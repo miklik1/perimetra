@@ -32,6 +32,19 @@ export type Adjustability = "vendor" | "tenant" | "user";
 /** The "but not there" knowledge (CORE_SPEC §3): free / needs-reason / hard limit. */
 export type DeviationMode = "free" | "warn" | "hard";
 
+/**
+ * Which spatial dimension a parameter IS (ADR 0136) — the release naming its own
+ * width and height so the §7.6 direct-manipulation pills and corner handles stop
+ * guessing them positionally (the ADR 0117 §3 heuristic).
+ *
+ * `width` is the HORIZONTAL extent and `height` the vertical one — geometry, not
+ * product wording (a fence run tags its `run_length_mm` "width"; the vendor's
+ * `label` carries the language). Exactly two members: they are the two dimensions
+ * §7.6 addresses, and the immutability of a published release (I3) makes adding a
+ * member later free while removing one is not.
+ */
+export type DimensionRole = "width" | "height";
+
 export interface DeviationSpec {
   mode: DeviationMode;
   bounds?: { min: ExprString; max: ExprString };
@@ -63,6 +76,20 @@ export interface ParameterDef {
   deviation?: DeviationSpec;
   /** UI shows the parameter only when this evaluates true (generated UI). */
   relevance?: ExprString;
+  /**
+   * Marks this parameter as the product's width or height (ADR 0136). Purely
+   * DESCRIPTIVE: it enters no expression scope, no derivation and no price path —
+   * nothing downstream of the engine reads it — so authoring or changing it
+   * cannot move a golden. It exists only so a surface (today: the §7.6 dimension
+   * pills and corner handles) can ADDRESS a parameter it was already allowed to
+   * write, instead of inferring it from declaration order.
+   *
+   * The publish gate requires an authored role to be usable: unique per role, on
+   * a `range` domain with numeric min AND max (a drag clamps to the domain), and
+   * never `adjustability: "vendor"` (I7 — a pill editing a vendor-only parameter
+   * is a write the input gate would reject).
+   */
+  dimensionRole?: DimensionRole;
 }
 
 /**

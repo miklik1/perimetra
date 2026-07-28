@@ -25,12 +25,16 @@ export const constraintScopeValues = ["instance", "connection"] as const;
 export const valueModeValues = ["none", "literal", "expr"] as const;
 export const domainKindValues = ["none", "range", "enum", "pattern"] as const;
 export const deviationFieldModeValues = ["none", "free", "warn", "hard"] as const;
+/** Which spatial dimension the parameter IS (ADR 0136) — "none" = not a
+ *  dimension, and `buildParam` omits the field entirely for it. */
+export const dimensionRoleFieldValues = ["none", "width", "height"] as const;
 
 const paramDraftSchema = z.object({
   key: z.string(),
   label: z.string(),
   type: z.enum(paramTypeValues),
   adjustability: z.enum(adjustabilityValues),
+  dimensionRole: z.enum(dimensionRoleFieldValues),
   /** How the default is supplied: none | a typed literal | an expression. */
   valueMode: z.enum(valueModeValues),
   defaultLiteral: z.string(),

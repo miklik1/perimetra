@@ -7,6 +7,7 @@ import { DEFAULT_TIME_ZONE, getMessages } from "@repo/i18n";
 import { I18nProvider } from "@repo/i18n/web";
 import { getLocale } from "@repo/i18n/web/server";
 
+import { hasSessionCookieHint } from "../lib/session-hint";
 import { Providers } from "./providers";
 import { ZodI18nBoot } from "./zod-i18n-boot";
 
@@ -75,6 +76,12 @@ export default async function RootLayout({
   // `x-nonce` request header. Stamped on the inline theme script below so it
   // runs under the strict, nonce-based `script-src` (no `unsafe-inline`).
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // First-paint auth hint (ADR 0135): session-cookie PRESENCE on this request,
+  // the same signal the proxy gate already acts on. Handed to <AuthProvider> so
+  // the server renders the authenticated tree (app shell + page) instead of
+  // every AuthGuard's loading fallback. A hint, never authorization — a revoked
+  // cookie is still bounced by AuthGuard once the session resolves.
+  const initiallyAuthenticated = await hasSessionCookieHint();
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
@@ -109,7 +116,12 @@ export default async function RootLayout({
          */}
         <I18nProvider locale={locale} messages={messages} timeZone={DEFAULT_TIME_ZONE}>
           <ZodI18nBoot />
-          <Providers flagsBootstrap={flagsBootstrap}>{children}</Providers>
+          <Providers
+            flagsBootstrap={flagsBootstrap}
+            initiallyAuthenticated={initiallyAuthenticated}
+          >
+            {children}
+          </Providers>
         </I18nProvider>
       </body>
     </html>

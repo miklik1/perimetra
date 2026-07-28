@@ -236,7 +236,8 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
     const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteResponse;
     const decline = await inject(app, {
       method: "POST",
-      url: `/v1/quotes/shared/${issued.shareToken}/decline`,
+      url: "/v1/quotes/shared/decline",
+      payload: { token: issued.shareToken },
     });
     expect(decline.statusCode).toBe(200);
 
@@ -256,7 +257,8 @@ describe("quote production view (HTTP, real stack) — CAR-24", () => {
     const issued = (await post(tenant, "/v1/quotes", issueBody)).json() as QuoteResponse;
     const accept = await inject(app, {
       method: "POST",
-      url: `/v1/quotes/shared/${issued.shareToken}/accept`,
+      url: "/v1/quotes/shared/accept",
+      payload: { token: issued.shareToken },
     });
     expect(accept.statusCode).toBe(200);
 

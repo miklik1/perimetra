@@ -41,6 +41,25 @@ Notes:
 Migrations never run at app boot — N replicas racing the same DDL is the
 outage generator this order exists to prevent (ADR 0038).
 
+### Manual pre-deploy check: the buyer link's URL fragment (ADR 0130)
+
+**Owed before the first real send, and it cannot be automated from this repo.**
+The buyer's nabídka link is `https://<origin>/nabidka#<shareToken>`, and the
+token lives in the URL **fragment** so that no HTTP client ever transmits it.
+Everything inside our control is pinned by tests — the mail template's `href`,
+the plain-text conversion, the browser-side read — but the leg between our SMTP
+hop and the buyer's inbox is not: link-rewriting mail gateways (Microsoft Safe
+Links, Proofpoint, Mimecast) replace the `href` with their own scanner URL, and
+a rewriter that drops the fragment turns every mailed link into a dead
+`/nabidka` with no error anywhere.
+
+So before the first production send, issue a quote and mail it to a real
+address on **at least Outlook/Office 365 and Gmail**, then confirm the received
+link still carries `#<token>` and that following it renders the nabídka. If a
+gateway strips fragments, the carrier decision has to be revisited — do not
+work around it by putting the token back into the path or the query string,
+which is the exposure ADR 0130 exists to close.
+
 **Rollback = previous image, nothing else.** Expand/contract discipline means
 every applied migration is compatible with N−1 code, so the schema **stays** —
 there are no down migrations. Redeploy the previous tag for api + worker and
@@ -70,6 +89,12 @@ default is a **dev** value). The prod-mandatory set:
 Web service env: `API_URL` (proxy target — also flips MSW mocks off),
 `NEXT_PUBLIC_REALTIME_URL` (`wss://<centrifugo-host>/connection/websocket`),
 plus the Sentry/PostHog publics from `apps/web/.env.example`.
+
+`wss://` there is **enforced**, not a convention (ADR 0132): the env schema
+accepts plaintext `ws://` only for a loopback host, so a non-loopback `ws://`
+fails the build outright. Set the var explicitly — when it is unset the web
+CSP simply omits the realtime origin, and the browser's websocket is blocked
+by `connect-src` rather than silently allowed.
 
 ## Recipe A — managed PaaS (Railway-style)
 

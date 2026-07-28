@@ -67,13 +67,23 @@ export function buildCsp(nonce: string): string {
   })();
   // PostHog origin (ADR 0028) — analytics/flags ingestion.
   const posthogOrigin = env.NEXT_PUBLIC_POSTHOG_HOST;
-  // Centrifugo websocket origin (ADR 0029) — the realtime LIVE badge. Dev's
-  // blanket `ws:` already covers the local stack; this entry matters for prod
-  // (wss://...). Same default as app/realtime-provider.tsx.
+  // Centrifugo websocket origin (ADR 0029) — the realtime LIVE badge. Added
+  // ONLY when the endpoint is actually configured, exactly like sentryOrigin
+  // above: unset ⇒ undefined ⇒ dropped by the `.filter(Boolean)` below.
+  //
+  // This used to fall back to the dev default `ws://localhost:8000/connection/
+  // websocket` (ADR 0132), which meant a PRODUCTION build with the var unset
+  // shipped a plaintext-ws localhost origin in its connect-src allow-list —
+  // an entry that can never serve that deployment and only widens the policy.
+  // The fallback bought dev nothing either: dev gets the blanket `ws:` a few
+  // lines down, which already covers the whole local stack (and covers it on
+  // whatever port `docker/.env` remapped Centrifugo to, which a hard-coded
+  // :8000 does not).
   const realtimeOrigin = (() => {
+    const url = env.NEXT_PUBLIC_REALTIME_URL;
+    if (!url) return undefined;
     try {
-      return new URL(env.NEXT_PUBLIC_REALTIME_URL ?? "ws://localhost:8000/connection/websocket")
-        .origin;
+      return new URL(url).origin;
     } catch {
       return undefined;
     }

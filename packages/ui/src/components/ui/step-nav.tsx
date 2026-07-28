@@ -40,6 +40,20 @@ import { Icon } from "./icon";
  * touch users and is not an accessible name. Here the label is a real slot that
  * becomes visually hidden, so the name survives the collapse.
  *
+ * ## Where the ordinals come from
+ *
+ * Each dot's number is its position among the `StepNav.Item`s in the CHILDREN it
+ * was written with, derived in one synchronous render-time pass (`withOrdinals`)
+ * and handed down through `StepOrdinalContext`. The root numbers its own
+ * children; `StepNav.List` numbers its own, for the common case where a layout
+ * wrapper (a scroll area, a flex column) sits between the rail and its steps.
+ *
+ * The contract that buys: an item must be an immediate child of `<StepNav>` or of
+ * a `<StepNav.List>`. An item generated inside a caller's OWN component is
+ * invisible to the walk and renders a blank dot — that is a real narrowing versus
+ * reading the DOM, and it is deliberate, because the DOM read could only ever run
+ * once (see `StepNavDot`).
+ *
  * The mobile progress indicator is deliberately NOT this component — see
  * `StepProgress` below.
  */
@@ -74,12 +88,42 @@ function useStepItem(part: string): StepItemContextValue {
   return ctx;
 }
 
+/**
+ * Per-item ordinal channel. `null` means "nobody numbered me", which the dot
+ * renders as an empty slot rather than a wrong number.
+ */
+const StepOrdinalContext = React.createContext<number | null>(null);
+
+/**
+ * Numbers the `StepNav.Item`s in one children list, 1-based, and returns the list
+ * with each item wrapped in its own ordinal provider.
+ *
+ * Everything that is not a `StepNav.Item` element — text, `null`, a `false` from a
+ * short-circuit, a `Heading`, a caller's own wrapper — passes through untouched
+ * AND does not advance the counter. That last part is the whole point: a
+ * `{cond && <StepNav.Item/>}` must not leave a gap in the numbering, and a
+ * `Heading` must not consume the number 1.
+ *
+ * It is a pure render-time pass: no effect, no ref, no module-level mutable state,
+ * so it runs correctly under concurrent rendering and it is already right in the
+ * server HTML. `React.Children.map` flattens nested arrays, so an inline
+ * `{steps.map(…)}` numbers exactly as if the items had been written out.
+ */
+function withOrdinals(children: React.ReactNode): React.ReactNode {
+  let ordinal = 0;
+  return React.Children.map(children, (child) => {
+    if (!React.isValidElement(child) || child.type !== StepNavItem) return child;
+    ordinal += 1;
+    return <StepOrdinalContext value={ordinal}>{child}</StepOrdinalContext>;
+  });
+}
+
 type StepNavProps = Omit<React.ComponentProps<"nav">, "onChange"> & {
   value?: string;
   onValueChange?: (value: string) => void;
 };
 
-function StepNavRoot({ className, value, onValueChange, ...props }: StepNavProps) {
+function StepNavRoot({ className, value, onValueChange, children, ...props }: StepNavProps) {
   const select = React.useCallback(
     (next: string) => {
       onValueChange?.(next);
@@ -93,8 +137,31 @@ function StepNavRoot({ className, value, onValueChange, ...props }: StepNavProps
         data-slot="step-nav"
         className={cn("@container/step-nav flex flex-col gap-0.5", className)}
         {...props}
-      />
+      >
+        {withOrdinals(children)}
+      </nav>
     </StepNavContext>
+  );
+}
+
+/**
+ * Optional grouping slot for the steps themselves. It exists for one reason: a
+ * rail that puts its items inside a layout wrapper (a `FadeScrollArea`, a flex
+ * column) breaks the root's children walk, because the root then sees the wrapper
+ * and not the steps. Wrapping them in `<StepNav.List>` instead of a bare `<div>`
+ * restores the numbering without the rail having to count anything itself.
+ *
+ * It renders a plain container with no layout of its own — the caller keeps
+ * spelling its own `className`, because a scroll column and a chip row want
+ * different ones. Nesting is unambiguous: the innermost provider wins, so a List
+ * inside the root re-numbers only what it contains.
+ */
+function StepNavList({ className, children, ...props }: React.ComponentProps<"div">) {
+  useStepNav("List");
+  return (
+    <div data-slot="step-nav-list" className={cn(className)} {...props}>
+      {withOrdinals(children)}
+    </div>
   );
 }
 
@@ -178,26 +245,27 @@ function StepNavItem({ className, value, state, onClick, children, ...props }: S
  * glyph, a check, or the step's ordinal — so a caller cannot render a checkmark
  * on a step it also marked locked.
  *
- * The ordinal comes from the item's real position among its siblings, read once
- * on mount. Passing an index down would let the rail's numbering drift from its
- * own order the first time a step is conditionally rendered, which is exactly
- * what happens when a release authors a different step set per product.
+ * The ordinal is READ, never passed: it comes from `StepOrdinalContext`, which the
+ * root (or a `StepNav.List`) fills from the item's position among its siblings on
+ * every render. Letting the caller pass an index would let the rail's numbering
+ * drift from its own order the first time a step is conditionally rendered, which
+ * is exactly what happens when a release authors a different step set per product.
+ *
+ * This used to be a DOM measurement — a ref callback that walked up to the rail and
+ * asked for `querySelectorAll('[data-slot="step-nav-item"]').indexOf(…)`. That read
+ * the right answer but only ONCE: the callback identity was stable and the span was
+ * never remounted, so React invoked it exactly once per mount. A step appearing
+ * later left every already-mounted dot on its mount-time number while the new dot
+ * computed a fresh, colliding one — the precise drift the paragraph above exists to
+ * prevent. It also painted an empty dot on the server, since a ref never runs there.
+ * A render-time derivation has neither failure.
  */
 function StepNavDot() {
   const { state, active } = useStepItem("Dot");
-  const [ordinal, setOrdinal] = React.useState<number | null>(null);
-
-  const measure = React.useCallback((el: HTMLSpanElement | null) => {
-    const item = el?.closest('[data-slot="step-nav-item"]');
-    const root = item?.closest('[data-slot="step-nav"]');
-    if (!item || !root) return;
-    const items = [...root.querySelectorAll('[data-slot="step-nav-item"]')];
-    setOrdinal(items.indexOf(item) + 1);
-  }, []);
+  const ordinal = React.use(StepOrdinalContext);
 
   return (
     <span
-      ref={measure}
       data-slot="step-nav-dot"
       aria-hidden={true}
       className={cn(
@@ -250,6 +318,7 @@ function StepNavSub({ className, ...props }: React.ComponentProps<"span">) {
 
 const StepNav = Object.assign(StepNavRoot, {
   Heading: StepNavHeading,
+  List: StepNavList,
   Item: StepNavItem,
   Label: StepNavLabel,
   Sub: StepNavSub,

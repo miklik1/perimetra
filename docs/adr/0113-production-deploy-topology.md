@@ -115,6 +115,13 @@ build.
 
 ### 7. Root-demo retirement
 
+> **STATUS UPDATE (2026-07-28) — DONE, and not by move (b).** The demo was retired
+> when [ADR 0125](0125-owner-dashboard-prehled.md) made `/` the authenticated
+> "Přehled" dashboard; `apps/web/app/page.tsx` says so in its own header. The
+> deferral below ("lands with move (b)") is therefore spent, and the reasoning that
+> justified it — that the e2e specs could not be verified without Docker — no longer
+> applies. Kept verbatim for the record; read it as history, not as a plan.
+
 The web root (`/`) still serves the **fullstack-skeleton users demo** (a
 `CreateUserForm` + `UsersList`/`UsersInfiniteList` off `jsonplaceholder`, under an
 `h1` literally reading "Web"). A public deploy must not present a skeleton demo as
@@ -140,6 +147,20 @@ endpoints (post-CAR-26 onboarding), not new code — it lands when FIL's real da
 (org name, legal profile, members) arrives.
 
 ### 9. The STOP boundary (what this ADR does NOT execute, and why)
+
+> **STATUS UPDATE (2026-07-28) — move (b) has partly landed; this list is stale.**
+> Two of its items are done and their stated blockers are gone:
+>
+> - The **`Dockerfile`** shipped and is proven — [ADR 0128](0128-production-image-actually-runs.md)
+>   builds, boots and health-checks the production image. Docker is no longer down
+>   on this box, so "cannot be verified without Docker" no longer holds.
+> - The **root-demo retirement** shipped with ADR 0125 (see the §7 note above).
+>
+> What genuinely remains account-gated is the **cloud** half only: the Railway and
+> Vercel projects, services, secrets and domains, the CD workflow, the smoke script,
+> the first deploy, the backups restore drill and FIL provisioning. That is the
+> CAR-40 host+region call and it is still Martin's. Read the list below as the
+> original plan, and this note as what is actually outstanding.
 
 The **cloud artifacts** — the API `Dockerfile` (multi-stage, the three entrypoints
 off one build), the Railway service/topology config, the Vercel project config, the

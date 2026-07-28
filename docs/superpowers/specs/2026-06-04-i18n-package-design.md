@@ -259,6 +259,18 @@ silently drift — this is what keeps the skeleton "ready for `en`".
   `app/providers.tsx` (if client provider needed), `lib/locale-cookie.ts`,
   a `LocaleSwitcher` component.
 - `apps/mobile/` — `lib/locale.ts`, `app/_layout.tsx`, a switcher.
+
+> **AMENDMENT (2026-07-28) — the locale switcher is NOT owed, on web or mobile.**
+> [ADR 0125](../../adr/0125-wave-d-dashboard.md) deleted `app/locale-switcher.tsx`
+> (and `lib/locale-cookie.ts`) as orphaned skeleton-demo chrome, and nothing has
+> asked for it since. Perimetra is a Czech-market product: `cs` is mandated as the
+> runtime locale, **no locale negotiation exists anywhere in the app**, and
+> `packages/i18n/src/config.ts` says of `en` that the first product "may never
+> render" it. `en` stays a complete, parity-tested catalog so the skeleton remains
+> "ready for `en` behind a one-line default switch" — but a user-facing control for
+> a locale the product does not offer would be a feature, not a gap. Re-open this
+> only if a second market is actually taken.
+
 - `knip.json` — `packages/i18n` workspace entry.
 - `docs/adr/0020-*.md`, `docs/adr/0010-*.md` (store-placement rule amendment),
   `docs/adr/README.md`, `ARCHITECTURE.md`.

@@ -103,6 +103,9 @@ function buildParam(p: ParamDraft): ParameterDef {
     adjustability: p.adjustability,
   };
   if (p.label.trim() !== "") param.label = p.label;
+  // "none" is an editor-only sentinel — a parameter that is not a spatial
+  // dimension carries no key at all in the built release (ADR 0136).
+  if (p.dimensionRole !== "none") param.dimensionRole = p.dimensionRole;
   if (p.valueMode === "literal") param.default = coerceLiteral(p.defaultLiteral, p.type);
   else if (p.valueMode === "expr") param.defaultExpr = expr(p.defaultExpr);
   const domain = buildDomain(p);
@@ -228,6 +231,7 @@ function draftParam(p: ParameterDef): ParamDraft {
     label: p.label ?? "",
     type: p.type,
     adjustability: p.adjustability,
+    dimensionRole: p.dimensionRole ?? "none",
     valueMode: p.default !== undefined ? "literal" : p.defaultExpr !== undefined ? "expr" : "none",
     defaultLiteral: p.default !== undefined ? String(p.default) : "",
     defaultExpr: exprStr(p.defaultExpr),
@@ -389,6 +393,7 @@ export function blankParam(): ParamDraft {
     label: "",
     type: "length_mm",
     adjustability: "user",
+    dimensionRole: "none",
     valueMode: "none",
     defaultLiteral: "",
     defaultExpr: "",

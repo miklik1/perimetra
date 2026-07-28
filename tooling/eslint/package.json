@@ -8,7 +8,8 @@
     "./node": "./node.js",
     "./next-js": "./next.js",
     "./react-internal": "./react-internal.js",
-    "./expo": "./expo.js"
+    "./expo": "./expo.js",
+    "./design-adherence": "./design-adherence.js"
   },
   "scripts": {
     "test": "vitest run"

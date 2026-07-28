@@ -79,7 +79,13 @@ export function StepsRail({
        */}
       <FadeScrollArea className="min-h-0 flex-1">
         <FadeScrollArea.Fade position="both" />
-        <div className="flex flex-col gap-0.5">
+        {/*
+         * `StepNav.List`, not a bare `<div>`: the scroll area puts two elements
+         * between the rail and its steps, and the kit derives each dot's ordinal
+         * from the items it can see among its own children. A plain wrapper would
+         * hide every step from that walk and the rail would draw blank dots.
+         */}
+        <StepNav.List className="flex flex-col gap-0.5">
           {items.map((item) => (
             <StepNav.Item key={item.key} value={item.key} state={item.done ? "done" : undefined}>
               <StepNav.Label>{item.label}</StepNav.Label>
@@ -92,7 +98,7 @@ export function StepsRail({
               {item.sub === undefined ? null : <StepNav.Sub>{item.sub}</StepNav.Sub>}
             </StepNav.Item>
           ))}
-        </div>
+        </StepNav.List>
       </FadeScrollArea>
     </StepNav>
   );

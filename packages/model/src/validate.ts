@@ -22,6 +22,8 @@
  *     names a writable length_mm parameter
  *   - ui (when authored): refs name real parameters, each writable parameter
  *     appears exactly once, vendor-only parameters never appear (I7)
+ *   - dimension roles (when authored): unique per role, on a bounded `range`
+ *     domain (a drag must be able to clamp), never vendor-only (ADR 0136)
  *   - against a catalog: every resolve.role exists, and literal
  *     section/material requests name real catalog codes
  *
@@ -33,7 +35,7 @@
 import type { Catalog } from "./catalog.js";
 import { pieceGlobToRegex } from "./drawing.js";
 import { collectCalls, collectRefs, ExprError, isKnownFunction, parse, type Ast } from "./expr.js";
-import type { ProductModelRelease } from "./schema.js";
+import type { DimensionRole, ProductModelRelease } from "./schema.js";
 
 export interface ReleaseDefect {
   /** Machine code, e.g. "expr.parse", "key.duplicate", "ref.unknown". */
@@ -298,8 +300,49 @@ export function validateRelease(release: ProductModelRelease, catalog?: Catalog)
   }
 
   // --- Parameters: default/defaultExpr exclusivity, bounded "hard" deviations,
-  // and parse of every defaultExpr / relevance / deviation-bound expression.
+  // usable dimension roles, and parse of every defaultExpr / relevance /
+  // deviation-bound expression.
+  //
+  // `dimensionRole` (ADR 0136) is OPTIONAL, but an authored role is a promise the
+  // §7.6 manipulation layer has to keep — so the gate refuses a role it could not
+  // honour rather than letting the surface silently drop the pill.
+  const seenDimensionRoles = new Set<DimensionRole>();
   for (const p of release.parameters) {
+    if (p.dimensionRole !== undefined) {
+      const at = `parameters[${p.key}].dimensionRole`;
+      if (seenDimensionRoles.has(p.dimensionRole)) {
+        // Two widths is not a preference the app can resolve; picking the first
+        // would reintroduce exactly the positional guessing the role removes.
+        defects.push({
+          code: "dimensionRole.duplicate",
+          where: at,
+          message: `dimension role "${p.dimensionRole}" is claimed by more than one parameter`,
+        });
+      }
+      seenDimensionRoles.add(p.dimensionRole);
+      if (
+        p.domain?.kind !== "range" ||
+        typeof p.domain.min !== "number" ||
+        typeof p.domain.max !== "number"
+      ) {
+        // §7.6: the drag clamps to the parameter's domain (the outer rail), so a
+        // parameter without both bounds cannot clamp a drag at all.
+        defects.push({
+          code: "dimensionRole.domain",
+          where: at,
+          message: `a dimension role requires a "range" domain with numeric min and max — a drag cannot clamp otherwise`,
+        });
+      }
+      if (p.adjustability === "vendor") {
+        // Mirrors `ui.param.vendor` / I7: a pill that edits a vendor-only
+        // parameter is a write the input gate would reject.
+        defects.push({
+          code: "dimensionRole.vendor",
+          where: at,
+          message: `"${p.key}" is vendor-only — it must never be a user-draggable dimension (I7)`,
+        });
+      }
+    }
     if (p.default !== undefined && p.defaultExpr !== undefined) {
       defects.push({
         code: "default.ambiguous",

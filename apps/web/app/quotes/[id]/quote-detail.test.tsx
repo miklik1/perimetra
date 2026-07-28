@@ -72,7 +72,7 @@ const REVERSE: QuoteDetail = {
 };
 
 // CAR-16: every status a quote can hold has a shareable offer behind it (ADR
-// 0089's `/nabidka/:shareToken` public route) — a quote is born `issued`, and
+// 0089/0130's `/nabidka#<shareToken>` public route) — a quote is born `issued`, and
 // ADR 0127 removed the unwritable `draft` that was the sole no-link case.
 // `status` here is already the READ-time effective status the api computes
 // (`effectiveStatus`) — these fixtures never need a client-side clock.
@@ -228,7 +228,7 @@ describe("QuoteDetailView — buyer link (CAR-16)", () => {
 
   it("issued: shows the absolute buyer URL and copies it", async () => {
     renderView(STANDARD);
-    const expectedUrl = `${window.location.origin}/nabidka/${STANDARD.shareToken}`;
+    const expectedUrl = `${window.location.origin}/nabidka#${STANDARD.shareToken}`;
 
     expect(screen.getByText(expectedUrl)).toBeInTheDocument();
     // No validUntil on this fixture — the "no expiry" line, not a warning. The
@@ -257,13 +257,13 @@ describe("QuoteDetailView — buyer link (CAR-16)", () => {
   it.each(QUOTE_STATUSES)("%s: shows the buyer link (no status is link-less)", (status) => {
     renderView({ ...STANDARD, status });
     expect(
-      screen.getByText(`${window.location.origin}/nabidka/${STANDARD.shareToken}`),
+      screen.getByText(`${window.location.origin}/nabidka#${STANDARD.shareToken}`),
     ).toBeInTheDocument();
   });
 
   it("expired: still shows the link, plus an expired warning", () => {
     renderView(EXPIRED);
-    const expectedUrl = `${window.location.origin}/nabidka/${EXPIRED.shareToken}`;
+    const expectedUrl = `${window.location.origin}/nabidka#${EXPIRED.shareToken}`;
 
     expect(screen.getByText(expectedUrl)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/Platnost nabídky vypršela/);

@@ -5,7 +5,7 @@
  * for any locale.
  *
  * This mail genuinely DELIVERS the nabídka: `quoteUrl` targets the shipped
- * ADR-0089 public landing `/nabidka/:shareToken`, which renders the full priced
+ * ADR-0089 public landing `/nabidka#<shareToken>`, which renders the full priced
  * document off the frozen snapshot and offers accept/decline. The copy therefore
  * claims exactly three things — a quotation exists, the button opens it, it can
  * be accepted or declined there — and all three are backed by the payload. It

@@ -130,6 +130,9 @@ const SAMPLE: ProductModelRelease = {
       label: "Width",
       default: 4000,
       domain: { kind: "range", min: 1000, max: 6000, step: 10 },
+      // ADR 0136 — the round trip must carry the role through the editor's
+      // "none"-sentinel mapping; the other parameters exercise its absence.
+      dimensionRole: "width",
     },
     {
       key: "material",

@@ -6,7 +6,7 @@ import { ApiError } from "@repo/api";
 import { useApiClient, useMutation } from "@repo/api/react";
 import { quoteStatusSchema, type QuoteStatus, type SharedNabidka } from "@repo/validators";
 
-import { createPublicQuotesQueries } from "../../../lib/public-quotes-queries";
+import { createPublicQuotesQueries } from "../../lib/public-quotes-queries";
 import { NabidkaLandingView } from "./nabidka-landing";
 
 /**

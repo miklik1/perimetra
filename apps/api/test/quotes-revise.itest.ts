@@ -108,8 +108,9 @@ describe("quote revision / supersession (HTTP, real stack) — CAR-158 / ADR 010
 
     // The public buyer view still renders the old document, flagged superseded.
     const shared = await inject(app, {
-      method: "GET",
-      url: `/v1/quotes/shared/${original.shareToken}`,
+      method: "POST",
+      url: "/v1/quotes/shared/resolve",
+      payload: { token: original.shareToken },
     });
     expect(shared.statusCode).toBe(200);
     expect(shared.json().superseded).toBe(true);
@@ -117,7 +118,8 @@ describe("quote revision / supersession (HTTP, real stack) — CAR-158 / ADR 010
     // But a forwarded stale link cannot accept/decline it.
     const accept = await inject(app, {
       method: "POST",
-      url: `/v1/quotes/shared/${original.shareToken}/accept`,
+      url: "/v1/quotes/shared/accept",
+      payload: { token: original.shareToken },
     });
     expect(accept.statusCode).toBe(409);
     expect(accept.json().code).toBe("quote_superseded");

@@ -68,7 +68,7 @@ describe("AppShell — chrome suppression", () => {
     expect(screen.getByText("PAGE CONTENT")).toBeInTheDocument();
     expect(screen.queryByTestId("app-side-rail")).toBeNull();
 
-    renderShell("/nabidka/tok123");
+    renderShell("/nabidka");
     expect(screen.queryByTestId("app-side-rail")).toBeNull();
   });
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { resolveTier } from "./web";
 
@@ -109,6 +110,95 @@ describe("env/web", () => {
   ])("rejects http to %s", async (_label, url) => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("API_URL", url);
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  // ── ADR 0132: the same loopback-not-NODE_ENV rule, for the realtime socket ──
+  it("leaves NEXT_PUBLIC_REALTIME_URL undefined when absent", async () => {
+    // Absent stays legal — the use-site applies the local-stack default, and a
+    // deployment without realtime configured is a supported state (the CSP
+    // simply omits the origin).
+    const { env } = await import("./web");
+    expect(env.NEXT_PUBLIC_REALTIME_URL).toBeUndefined();
+  });
+
+  it("rejects a plaintext ws:// to a remote host that zod's .url() accepts", async () => {
+    // Pins the gap the refinement exists to close, not just the refinement:
+    // `z.string().url()` alone PASSES this value (verified against zod 4.4.3 —
+    // it passes `ftp://x.com` too), so without the refine a production build
+    // would happily carry the Centrifugo connection JWT over a plaintext socket.
+    // Asserting the naked `.url()` verdict here keeps a future zod bump that
+    // tightens `.url()` from quietly making this case vacuous.
+    expect(z.string().url().safeParse("ws://rt.example.com/connection/websocket").success).toBe(
+      true,
+    );
+    vi.stubEnv("NEXT_PUBLIC_REALTIME_URL", "ws://rt.example.com/connection/websocket");
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  it("accepts a ws:// LOOPBACK realtime URL even under NODE_ENV=production", async () => {
+    // `next build` / `next typegen` set NODE_ENV=production themselves, so a
+    // NODE_ENV-keyed rule would refuse the documented local docker endpoint
+    // (.env.example, and the URL scripts/create-project stamps into a fresh
+    // .env.local) on every build. Loopback traffic never reaches a wire.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_REALTIME_URL", "ws://localhost:8000/connection/websocket");
+    vi.resetModules();
+    const { env } = await import("./web");
+    expect(env.NEXT_PUBLIC_REALTIME_URL).toBe("ws://localhost:8000/connection/websocket");
+  });
+
+  it("rejects a ws:// REMOTE host even under NODE_ENV=development", async () => {
+    // The other direction, and the reason the rule is absolute: a dev box
+    // pointed at a shared staging Centrifugo sends a real connection JWT for a
+    // real account across a real network in clear.
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv(
+      "NEXT_PUBLIC_REALTIME_URL",
+      "ws://realtime.staging.internal:8000/connection/websocket",
+    );
+    vi.resetModules();
+    await expect(import("./web")).rejects.toThrow();
+  });
+
+  it.each([
+    ["wss to a remote host", "wss://realtime.example.com/connection/websocket"],
+    ["ws to localhost", "ws://localhost:8000/connection/websocket"],
+    ["ws to a *.localhost subdomain (RFC 6761)", "ws://rt.localhost:8000/connection/websocket"],
+    ["ws to 127.0.0.1", "ws://127.0.0.1:8002/connection/websocket"],
+    ["ws to the wider 127.0.0.0/8 block", "ws://127.1.2.3:8000/connection/websocket"],
+    ["ws to IPv6 ::1", "ws://[::1]:8000/connection/websocket"],
+  ])("accepts a realtime URL using %s", async (_label, url) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_REALTIME_URL", url);
+    vi.resetModules();
+    const { env } = await import("./web");
+    expect(env.NEXT_PUBLIC_REALTIME_URL).toBe(url);
+  });
+
+  it.each([
+    // The exemption GRANTS plaintext, so it must not be fooled by a hostname
+    // that merely CONTAINS the loopback text and resolves wherever its owner
+    // points it — same adversarial set as the API_URL table above.
+    ["ws to a remote host", "ws://rt.example.com/connection/websocket"],
+    ["ws to a non-loopback private address", "ws://192.168.1.5:8000/connection/websocket"],
+    [
+      "ws to a hostname suffixed onto localhost",
+      "ws://localhost.evil.com:8000/connection/websocket",
+    ],
+    [
+      "ws to a hostname prefixed with 127.0.0.1",
+      "ws://127.0.0.1.evil.com:8000/connection/websocket",
+    ],
+    // Not a websocket scheme at all. zod's `.url()` lets these through; the
+    // refinement is what refuses them (a deliberate tightening — see web.ts).
+    ["https (not a websocket scheme)", "https://realtime.example.com/connection/websocket"],
+    ["http to a loopback host", "http://localhost:8000/connection/websocket"],
+  ])("rejects a realtime URL using %s", async (_label, url) => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_REALTIME_URL", url);
     vi.resetModules();
     await expect(import("./web")).rejects.toThrow();
   });

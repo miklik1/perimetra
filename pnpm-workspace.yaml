@@ -92,6 +92,11 @@ catalog:
   nestjs-zod: ^5.4.0
   "@opentelemetry/sdk-node": 0.218.0
   "@opentelemetry/exporter-trace-otlp-http": 0.218.0
+  # `http/protobuf` is the OTLP spec DEFAULT protocol, so this is the exporter
+  # the trace chain builds when only OTEL_EXPORTER_OTLP_ENDPOINT is set
+  # (ADR 0131 — apps/api now owns that chain and can no longer inherit the
+  # exporter sdk-node used to pick for it).
+  "@opentelemetry/exporter-trace-otlp-proto": 0.218.0
   "@opentelemetry/exporter-metrics-otlp-http": 0.218.0
   "@opentelemetry/instrumentation": 0.218.0
   "@opentelemetry/instrumentation-pg": 0.70.0

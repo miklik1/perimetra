@@ -16,6 +16,15 @@ export interface UseAuthResult {
    * answer, not an optimistic guess.
    */
   sessionValidated: boolean;
+  /**
+   * The server's first-paint hint: did the request carry a session cookie
+   * (ADR 0135)? Seeded on `<AuthProvider>`, `false` when unseeded. Read it ONLY
+   * together with `sessionValidated` — the render signal is
+   * `isAuthenticated || (!sessionValidated && initiallyAuthenticated)`, i.e. the
+   * hint applies only while the real answer is still in flight. It is a render
+   * hint, never authorization; the API service stays the authority.
+   */
+  initiallyAuthenticated: boolean;
   /** Full logout: revoke the server session, then clear the query cache. */
   logout: () => Promise<void>;
   /** Re-fetch the session (e.g. after a profile update). */
@@ -29,7 +38,7 @@ export interface UseAuthResult {
  * surface is identity + logout, what screens and the analytics bridge consume.
  */
 export function useAuth(): UseAuthResult {
-  const { client } = useAuthContext();
+  const { client, initiallyAuthenticated } = useAuthContext();
   const queryClient = useQueryClient();
   const { data, isPending, refetch } = client.useSession();
 
@@ -59,6 +68,7 @@ export function useAuth(): UseAuthResult {
     user,
     isAuthenticated: Boolean(sessionUser),
     sessionValidated: !isPending,
+    initiallyAuthenticated,
     logout,
     refetch,
   };

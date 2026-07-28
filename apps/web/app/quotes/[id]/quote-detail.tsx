@@ -74,7 +74,7 @@ const DOC_TABLE_BODY_CELL = "px-4 py-2.5";
 const DOC_TABLE_SUM_ROW = "border-primary bg-spotlight-subtle border-t-2";
 
 /**
- * The buyer-facing public link (CAR-16, ADR 0089's `/nabidka/:shareToken`
+ * The buyer-facing public link (CAR-16, ADR 0089/0130's `/nabidka#<shareToken>`
  * route) surfaced on the rep's own quote detail — so a rep can copy/paste it
  * to the buyer without hunting for the shareToken. Shown for EVERY status: a
  * quote is born `issued` and every state reachable from it —
@@ -120,7 +120,7 @@ function BuyerLinkPanel({
     setOrigin(window.location.origin);
   }, []);
 
-  const buyerUrl = origin !== null ? `${origin}/nabidka/${shareToken}` : null;
+  const buyerUrl = origin !== null ? `${origin}/nabidka#${shareToken}` : null;
   const expired = status === "expired";
   const validUntilLabel = validUntil ? formatDate(validUntil, undefined, locale) : "";
 

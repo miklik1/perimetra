@@ -51,6 +51,8 @@ export const swingGateV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 1000, max: 6000 },
       adjustability: "user",
+      // The horizontal dimension the §7.6 pill/corner handle drags (ADR 0136).
+      dimensionRole: "width",
       // Placeholder deviation envelope — real values are a fabricator-extraction
       // item (mirrors sliding-gate's stance).
       deviation: {
@@ -65,6 +67,7 @@ export const swingGateV1: ProductModelRelease = {
       type: "length_mm",
       domain: { kind: "range", min: 800, max: 2500 },
       adjustability: "user",
+      dimensionRole: "height",
       deviation: {
         mode: "hard",
         bounds: { min: expr("700"), max: expr("2600") },
