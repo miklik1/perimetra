@@ -6,6 +6,14 @@ own package + ADR). Mirrors the seam pattern of
 [ADR 0021](0021-telemetry-observability-package.md) (telemetry) and
 [ADR 0028](0028-feature-flags-posthog.md) (flags).
 
+**Partially superseded — the duplicate-subscribe rule only.** The Decision below states "One logical subscription per channel; duplicate `subscribe` throws (fan-out belongs above the seam)", and the Consequences and the package README repeated it. **That rule is withdrawn** by [ADR 1039](1039-realtime-channel-fanout-registry.md). A channel now has one VENDOR subscription and any number of refcounted CONSUMERS on it: a second `subscribe` fans out instead of throwing, teardown is deferred by a microtask, and the two cases the fan-out genuinely cannot model — two live consumers with different `since`, and a double release of one handle — throw a typed `RealtimeContractError` instead. `SubscribedContext` gained a required `origin` discriminator as part of that change.
+
+Splitting "fan-out belongs above this seam" out of the contract was not a preference: as written, the rule made a second legitimate consumer of a broadcast channel fail **silently**, because `useChannel` caught the throw. See ADR 1039 for the mechanism and for what a draining repo must change.
+
+The text below is deliberately left as written: an ADR records the decision as taken at the time, and is superseded rather than rewritten. Everything else here — the seam, the recovery model with its stream-lost signal, the no-op default and the mock, the injected token, the DAG — stands unchanged.
+
+**One further correction, recorded not rewritten:** the last Consequences bullet's "No skeleton app wires it yet (no demo backend)" is stale in this repo and was already stale before ADR 1039. Three files wire realtime today — `apps/web/app/realtime-provider.tsx`, `apps/web/lib/realtime/centrifuge-client.ts` and `apps/web/app/projects/projects-live-badge.tsx`. ADR 1039 records this; the bullet stays as written.
+
 ## Context
 
 The first product migrating onto this skeleton (primat-plus) streams

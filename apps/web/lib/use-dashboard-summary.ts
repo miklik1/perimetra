@@ -55,6 +55,11 @@ export function useDashboardSummary(
   // Any publication on the org channel may move a counted surface (an order/
   // quote transition) — re-fetch the whole (cheap, PII-free) aggregate rather
   // than reason about which field changed.
+  //
+  // THIS CHANNEL IS SHARED with `useNavCounts` — see the longer note at that
+  // hook's `useChannel` call. Both are mounted on `/`, both now receive every
+  // publication (ADR 1039 fan-out; before it, one of the two was a silent
+  // no-op), and neither may take a `since` unless both do.
   useChannel<{ type: string }>(client, enabled ? `org:${orgId}` : null, {
     onPublication: () => {
       void invalidateKeys(queryClient, [keys.nav.dashboardSummary()]);

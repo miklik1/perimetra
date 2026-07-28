@@ -9,6 +9,7 @@ import {
   scrubEvent,
   scrubSpan,
   scrubTransaction,
+  STRING_PATTERNS,
   stripEmbeddedUrlQueries,
 } from "./scrub";
 
@@ -258,6 +259,25 @@ describe("safeUrlOrRedact — ADR 1030 §1: reduced by the parser, or redacted",
     );
   });
 
+  // ADR 1032 §3 — the KNOWN, ACCEPTED exposure of keeping `file:` on the list.
+  // For `file:` the PATH is the entire payload, so "keep authority+path" keeps
+  // everything, and a document filename is exactly where a surname and a rodné
+  // číslo live. This is pinned as an exposure, not as a desired behaviour, so it
+  // cannot be rediscovered as a surprise.
+  //
+  // It is NOT fixed by dropping `file:` from `SAFE_SCHEMES`. That set is read
+  // with three different polarities in this module — allow-list here, but
+  // route-or-return-raw in `reduceSourceLocation` and route-or-skip in
+  // `scrubDescription` — so removing a member closes it at this sink and OPENS
+  // it at the other two. Measured in ADR 1032 §3; the repair is to fix the two
+  // inverted callers first, and that is a different change to a different set
+  // of files.
+  it("keeps a `file:` path WHOLE — ADR 1032 §3's accepted exposure, pinned as one", () => {
+    expect(safeUrlOrRedact("file:///Users/novakova/Documents/rodne-cislo-8001011234.pdf")).toBe(
+      "file:///Users/novakova/Documents/rodne-cislo-8001011234.pdf",
+    );
+  });
+
   // ── The two argued exemptions, pinned so they cannot widen ───────────────
 
   it("passes the `$direct` sentinel EXACTLY, and nothing that merely starts with it", () => {
@@ -266,13 +286,175 @@ describe("safeUrlOrRedact — ADR 1030 §1: reduced by the parser, or redacted",
     expect(safeUrlOrRedact("$direct?x=1")).toBe("/$direct");
   });
 
-  it("reduces `blob:` rather than passing it through — a query still dies", () => {
-    expect(safeUrlOrRedact("blob:https://app.example.com/uuid-1234")).toBe(
-      "blob:https://app.example.com/uuid-1234",
+  // ── `blob:` — an ALLOW-SHAPE, not an exemption (ADR 1032) ────────────────
+  //
+  // Every case below goes RED against the arm this replaces, which recursed on
+  // `absolute.pathname`. For a non-hierarchical `blob:` that pathname is the
+  // WHOLE opaque body, so the recursive call fell into the path-relative branch
+  // and resolved author text against the synthetic base — returning it with a
+  // "/" bolted on. `blob:jan.novak@klient.cz` came back as
+  // `blob:/jan.novak@klient.cz`, e-mail intact.
+
+  // A real `URL.createObjectURL` id.
+  const BLOB_UUID = "2c1f0a3e-1111-4222-8333-444455556666";
+  // The same id as the NATIVE minter emits it: `[NSUUID UUID].UUIDString` is
+  // UPPERCASE, so the case-insensitive match is a requirement, not laxity.
+  const BLOB_UUID_RN = "2C1F0A3E-1111-4222-8333-444455556666";
+
+  it("keeps the tuple-origin blob shape, and the query the browser cannot mint still dies", () => {
+    expect(safeUrlOrRedact(`blob:https://app.example.com/${BLOB_UUID}`)).toBe(
+      `blob:https://app.example.com/${BLOB_UUID}`,
     );
-    expect(safeUrlOrRedact("blob:https://app.example.com/uuid?search=Novakova")).toBe(
-      "blob:https://app.example.com/uuid",
+    expect(safeUrlOrRedact(`blob:https://app.example.com/${BLOB_UUID}?search=Novakova`)).toBe(
+      `blob:https://app.example.com/${BLOB_UUID}`,
     );
+  });
+
+  it("keeps `blob:null/<uuid>`, the opaque-origin form the old arm CORRUPTED", () => {
+    // `URL.createObjectURL` in a document with an opaque origin (a sandboxed
+    // iframe, a `data:` or `file:` document) mints exactly this. The body does
+    // not parse as a URL, so the old recursion resolved it against the synthetic
+    // base and shipped `blob:/null/<uuid>` — a corrupted value, from the arm
+    // whose whole justification was that this shape is browser-minted.
+    expect(safeUrlOrRedact(`blob:null/${BLOB_UUID}`)).toBe(`blob:null/${BLOB_UUID}`);
+  });
+
+  it("REDACTS author-controlled text behind `blob:` — the fail-open arm itself", () => {
+    expect(safeUrlOrRedact("blob:jan.novak@klient.cz")).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:null/novakova-8001011234")).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:file:///etc/Novakova")).toBe(REDACTED);
+  });
+
+  it("matches the opaque-origin form on SHAPE, never on a `null/` prefix", () => {
+    // A prefix check is how the next bypass gets in, so the id is matched as a
+    // whole uuid and the body is anchored at both ends.
+    expect(safeUrlOrRedact("blob:null/2c1f0a3e-1111-4222-8333-44445555666")).toBe(REDACTED);
+    expect(safeUrlOrRedact(`blob:null/${BLOB_UUID}/Novakova`)).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:null")).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:")).toBe(REDACTED);
+  });
+
+  it("REDACTS an inner scheme no DOCUMENT origin can have, `file:` and `ws:` included", () => {
+    // The blob inner list is NARROWER than `SAFE_SCHEMES` on purpose: a `file:`
+    // document has an OPAQUE origin, so `createObjectURL` there mints
+    // `blob:null/<uuid>` and never `blob:file:…` — a `blob:file:` is therefore
+    // proof the value was typed, not minted. No document is ever served from
+    // `ws:`/`wss:` either. `ftp:` carries the pin for a scheme outside
+    // `SAFE_SCHEMES` entirely, and the nested spelling pins that the arm no
+    // longer recurses at all.
+    expect(safeUrlOrRedact("blob:ftp://files.app.cz/Novakova")).toBe(REDACTED);
+    expect(safeUrlOrRedact(`blob:ws://a.cz/${BLOB_UUID}`)).toBe(REDACTED);
+    expect(safeUrlOrRedact(`blob:blob:https://a.cz/${BLOB_UUID}`)).toBe(REDACTED);
+  });
+
+  it("REDACTS a tuple-origin blob whose path is not an id `createObjectURL` could mint", () => {
+    expect(safeUrlOrRedact("blob:https://app.example.com/uuid-1234")).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:https://app.example.com/clients/Novakova")).toBe(REDACTED);
+  });
+
+  it("cannot emit userinfo from inside a blob body either — rebuilt from `host`", () => {
+    // Property 1 of the primitive holds INSIDE the blob arm too, because the arm
+    // re-serializes the body from parser fields rather than echoing it.
+    expect(safeUrlOrRedact(`blob:https://novakova:8001011234@evil.cz/${BLOB_UUID}`)).toBe(
+      `blob:https://evil.cz/${BLOB_UUID}`,
+    );
+  });
+
+  // ── Form (c): the ORIGIN-LESS native body ────────────────────────────────
+  //
+  // The allow-shape landed claiming "exactly two bodies are legitimate, because
+  // exactly two kinds of origin can mint one". That is a sentence about the
+  // world, not a predicate over the input, and it was FALSE for the React
+  // Native / Expo lineage this skeleton ships in `apps/mobile`. Two independent
+  // minters were verified in the installed packages:
+  //   · react-native `Libraries/Blob/URL.js` returns
+  //     `${BLOB_URL_PREFIX}${blob.data.blobId}?offset=…&size=…`, and iOS
+  //     `RCTBlobManager.mm` exports `@"BLOB_URI_HOST" : [NSNull null]`, so the
+  //     prefix never gains its `//<host>/` suffix and stays the bare `blob:`;
+  //   · expo `src/winter/url.ts` ships the same template and
+  //     `src/winter/runtime.native.ts` installs it as the global `URL`.
+  // The wave REGRESSED this shape from `blob:/<uuid>` (HEAD's corrupted answer)
+  // to `[Filtered]` — a closed failure, but on the primary object-URL shape of
+  // the mobile platform, which is exactly where over-redaction stops being rare.
+
+  it("keeps the ORIGIN-LESS native blob form — uppercase id, `offset`/`size` pair", () => {
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID_RN}?offset=0&size=1234`)).toBe(
+      `blob:${BLOB_UUID_RN}?offset=0&size=1234`,
+    );
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}?offset=0&size=1234`)).toBe(
+      `blob:${BLOB_UUID}?offset=0&size=1234`,
+    );
+    // The pair is metadata, not identity: a caller that logged
+    // `url.split("?")[0]` hands us the bare body, and it is the same value.
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID_RN}`)).toBe(`blob:${BLOB_UUID_RN}`);
+  });
+
+  it("accepts that EXACT query and no other — this is a shape, not `a query is allowed here`", () => {
+    // The single place in this module where `search` is read at all. If it is
+    // ever loosened to "a blob may carry a query", the `?search=<surname>` leak
+    // class walks back in through the arm written to close it.
+    for (const query of [
+      "?offset=0", // one param only
+      "?size=1234", // the other one only
+      "?size=1234&offset=0", // right pair, minted order violated
+      "?offset=0&size=1234&rc=8001011234", // right pair, extra rider
+      "?rc=8001011234&offset=0&size=1", // rider first
+      "?offset=jan&size=Novakova", // right keys, author text
+      "?offset=-1&size=1", // not a non-negative integer
+      "?offset=1.5&size=1", // not an integer
+      "?offset=&size=", // empty values
+      "?offset=0%26size=1&x=2", // percent-encoded separator
+      "?offset=0&size=1?offset=0&size=1", // a second `?` lands in `search`
+      "?search=Novakova", // the leak class itself
+    ]) {
+      expect(safeUrlOrRedact(`blob:${BLOB_UUID}${query}`), query).toBe(REDACTED);
+    }
+  });
+
+  it("matches the origin-less form on SHAPE too, never on a uuid prefix", () => {
+    expect(safeUrlOrRedact("blob:2c1f0a3e-1111-4222-8333-44445555666?offset=0&size=1")).toBe(
+      REDACTED,
+    );
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}/Novakova?offset=0&size=1`)).toBe(REDACTED);
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}Novakova`)).toBe(REDACTED);
+    expect(safeUrlOrRedact(`blob:Novakova${BLOB_UUID}`)).toBe(REDACTED);
+    // Version nibble outside 1–8 and variant nibble outside 8/9/a/b.
+    expect(safeUrlOrRedact("blob:2c1f0a3e-1111-9222-8333-444455556666")).toBe(REDACTED);
+    expect(safeUrlOrRedact("blob:2c1f0a3e-1111-4222-c333-444455556666")).toBe(REDACTED);
+  });
+
+  it("cannot smuggle PII through the accepted query — two integer groups, and the shape pass still runs", () => {
+    // The residual channel is two digit runs, because the answer is rebuilt
+    // from the capture groups and the punctuation is the module's own literal.
+    // `redactString` runs downstream of this primitive at every sink, so even
+    // an RČ-shaped run parked in `offset=` dies before it ships.
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}?offset=8001011234&size=1`)).toBe(
+      `blob:${BLOB_UUID}?offset=8001011234&size=1`,
+    );
+    expect(redactString(safeUrlOrRedact(`blob:${BLOB_UUID}?offset=8001011234&size=1`))).toBe(
+      `blob:${BLOB_UUID}?offset=${REDACTED}&size=1`,
+    );
+    // `hash` is still read nowhere, so an appended fragment is DESTROYED rather
+    // than carried: the answer is the modelled shape and nothing else.
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}?offset=0&size=1#jan.novak@klient.cz`)).toBe(
+      `blob:${BLOB_UUID}?offset=0&size=1`,
+    );
+    expect(safeUrlOrRedact(`blob:${BLOB_UUID}#rc=8001011234`)).toBe(`blob:${BLOB_UUID}`);
+  });
+
+  it("does NOT model the Android object-URL form — it is a `content:` URL and redacts on the scheme list", () => {
+    // Declined deliberately. RN's `BlobModule.kt` returns
+    // `mapOf("BLOB_URI_SCHEME" to "content", "BLOB_URI_HOST" to <authority>)`,
+    // so Android mints `content://<authority>/<uuid>?offset=&size=` — never a
+    // `blob:` at all. It redacts on the scheme allow-list exactly as it did
+    // before this wave (pre-existing, not a regression), and modelling it would
+    // mean allowing an app-declared authority as a host.
+    expect(
+      safeUrlOrRedact(`content://your.app.package.blobs/${BLOB_UUID}?offset=0&size=1234`),
+    ).toBe(REDACTED);
+    expect(
+      safeUrlOrRedact(`blob:content://your.app.package.blobs/${BLOB_UUID}?offset=0&size=1234`),
+    ).toBe(REDACTED);
   });
 
   // ── Deny-by-default residue ──────────────────────────────────────────────
@@ -286,7 +468,13 @@ describe("safeUrlOrRedact — ADR 1030 §1: reduced by the parser, or redacted",
     expect(safeUrlOrRedact("   ")).toBe("");
   });
 
-  it("never returns an input byte it did not examine — no safe answer carries a query marker", () => {
+  it("never returns an input byte it did not examine — every safe answer here is marker-free", () => {
+    // ONE safe answer in this module may contain a `?`: the origin-less native
+    // blob form, whose query must match `?offset=<int>&size=<int>` as a WHOLE
+    // field and is rebuilt from the two integer capture groups. It is pinned by
+    // its own tests above, and NO member of this list can produce it — every
+    // query-bearing entry here either redacts or comes back marker-free, which
+    // is what the assertion below still asserts at full strength.
     const hostile = [
       "https://a.cz/x?q=1",
       "//a.cz/x?q=1",
@@ -296,6 +484,20 @@ describe("safeUrlOrRedact — ADR 1030 §1: reduced by the parser, or redacted",
       "https://u:p@a.cz/x#f",
       "capacitor://localhost/x?q=1",
       "blob:https://a.cz/u?q=1",
+      // The old arm answered this one SAFELY with the `@` still in it: it
+      // recursed into the path-relative branch, so it came back as
+      // `blob:/jan.novak@klient.cz`. This loop is therefore a second,
+      // independent guard on the blob arm and not only on the query rule.
+      "blob:jan.novak@klient.cz",
+      "blob:https://a.cz/2c1f0a3e-1111-4222-8333-444455556666?q=1",
+      // Origin-less native body, query NOT the minted pair — the arm that now
+      // reads `search` must not become a general "a blob may carry a query".
+      "blob:2c1f0a3e-1111-4222-8333-444455556666?search=Novakova",
+      "blob:2c1f0a3e-1111-4222-8333-444455556666?offset=0&size=1&rc=8001011234",
+      "blob:2c1f0a3e-1111-4222-8333-444455556666?offset=jan.novak@klient.cz&size=1",
+      // Origin-less native body with a fragment: the modelled shape survives,
+      // the fragment must not ride along on it.
+      "blob:2c1f0a3e-1111-4222-8333-444455556666#jan.novak@klient.cz",
       "mailto:a@b.cz?subject=x",
       "/a.png,//u:p@evil.cz/x",
       "data://text/csv,Novakova",
@@ -983,25 +1185,64 @@ describe("scrubEvent / scrubSpan — ADR 1031 repairs", () => {
     });
   });
 
+  // A stack frame is an ELEMENT of a `frames` array (ADR 1044), so these fixtures
+  // are wrapped rather than written at the top level of an event. They used to be
+  // top-level, and that was the defect: the exemption keyed on the KEY NAME and
+  // fired at any depth. Wrapping is the whole change to this case.
+  const inFrame = (frame: Record<string, unknown>) => ({ stacktrace: { frames: [frame] } });
+
   it("leaves a SYNTHETIC or relative frame path byte-identical, so source maps still resolve", () => {
     // This is what the exemption was protecting, and it is why the rule is
     // narrow rather than "run the primitive on these keys": the primitive would
     // rewrite `ok.js` to `/ok.js` and REDACT `app:///…` as an unlisted scheme.
     expect(
-      scrubEvent({
-        filename: "ok.js",
-        abs_path: "app:///_next/static/chunks/4823-9f2.js",
-      }),
-    ).toEqual({
-      filename: "ok.js",
-      abs_path: "app:///_next/static/chunks/4823-9f2.js",
-    });
-    expect(scrubEvent({ filename: "webpack-internal:///./src/app/page.tsx" })).toEqual({
-      filename: "webpack-internal:///./src/app/page.tsx",
-    });
+      scrubEvent(
+        inFrame({ filename: "ok.js", abs_path: "app:///_next/static/chunks/4823-9f2.js" }),
+      ),
+    ).toEqual(inFrame({ filename: "ok.js", abs_path: "app:///_next/static/chunks/4823-9f2.js" }));
+    expect(scrubEvent(inFrame({ filename: "webpack-internal:///./src/app/page.tsx" }))).toEqual(
+      inFrame({ filename: "webpack-internal:///./src/app/page.tsx" }),
+    );
     // A purely-numeric chunk name must not be rewritten by the rodné-číslo
     // pattern — the original reason these keys were exempt at all.
-    expect(scrubEvent({ filename: "9007200004.js" })).toEqual({ filename: "9007200004.js" });
+    expect(scrubEvent(inFrame({ filename: "9007200004.js" }))).toEqual(
+      inFrame({ filename: "9007200004.js" }),
+    );
+  });
+
+  // ── the allow-SHAPE (ADR 1044) ────────────────────────────────────────────
+  //
+  // The exemption used to be the key NAME alone, matched at any depth, which is a
+  // claim about what a key called `filename` cannot contain. `filename` is not a
+  // reserved word in a Sentry envelope — it is the natural key for an upload
+  // field — so the claim was false wherever a user typed it.
+  it("does NOT exempt `filename` / `abs_path` outside a stack frame", () => {
+    // An upload field in `extra`: the rodné číslo in the name must be redacted.
+    expect(scrubEvent({ extra: { filename: "novakova-9007200004.pdf" } })).toEqual({
+      extra: { filename: "novakova-[Filtered].pdf" },
+    });
+    // A breadcrumb data bag.
+    expect(scrubEvent({ breadcrumbs: [{ data: { abs_path: "jan.novak@klient.cz" } }] })).toEqual({
+      breadcrumbs: [{ data: { abs_path: FILTERED } }],
+    });
+    // Top level of the event, which is where the old rule fired hardest.
+    expect(scrubEvent({ filename: "9007200004.js" })).toEqual({ filename: "[Filtered].js" });
+  });
+
+  it("arms the exemption on the `frames` ARRAY, not on any object called a frame", () => {
+    // The real containers, all three spellings Sentry uses.
+    for (const event of [
+      { exception: { values: [inFrame({ filename: "app:///x.js" })] } },
+      { threads: { values: [inFrame({ filename: "app:///x.js" })] } },
+      inFrame({ filename: "app:///x.js" }),
+    ]) {
+      expect(scrubEvent(event)).toEqual(event);
+    }
+    // One level deeper than a frame is NOT a frame: a frame's own nested bag
+    // must not inherit the exemption, or the allow-shape widens by recursion.
+    expect(scrubEvent(inFrame({ vars: { filename: "9007200004.js" } }))).toEqual(
+      inFrame({ vars: { filename: "[Filtered].js" } }),
+    );
   });
 
   it("scrubs `links[].attributes` — the SECOND attribute bag on a span", () => {
@@ -1071,5 +1312,200 @@ describe("scrubEvent / scrubSpan — ADR 1031 repairs", () => {
       "DELETE FROM users WHERE id = ?",
     );
     expect(scrubDescription("SELECT * FROM t WHERE a = ?")).toBe("SELECT * FROM t WHERE a = ?");
+  });
+});
+
+// ── ReDoS bounds (ADR 1043) ────────────────────────────────────────────────
+//
+// `redactString` runs synchronously inside `beforeSend` / `beforeBreadcrumb`
+// over strings an attacker can influence, so a quadratic pattern here is a
+// reachable denial of service. Three of them were: measured on this box against
+// a 128 KB input, the e-mail pattern blocked for 9.0 s, the JWT pattern for
+// 7.7 s and the embedded-URL query cut for 1.5 s.
+//
+// The timing assertion is deliberately a LOOSE ceiling, not a benchmark. A tight
+// number turns a slow CI runner into a red gate for no defect; a 2 s ceiling
+// still separates "linear" from "quadratic" by two orders of magnitude, because
+// the pre-fix cost at these sizes was 5–18 s and a genuine regression restores
+// the quadratic, not a constant factor.
+describe("value-shape patterns are bounded (ReDoS)", () => {
+  const KB = 1024;
+  const timed = (value: string) => {
+    const started = performance.now();
+    redactString(value);
+    return performance.now() - started;
+  };
+
+  it.each([
+    ["a word run ending in @ (e-mail pattern)", `${"a".repeat(128 * KB)}@`],
+    ["@ followed by a dot run (e-mail pattern)", `a@${"b.".repeat(64 * KB)}`],
+    ["a hyphenated word run (JWT pattern)", "ab-".repeat(43 * KB)],
+    // 256 KB for the two URL passes, and the size is load-bearing: their pre-fix
+    // cost at 128 KB was 1.5 s and 2.2 s, i.e. straddling the ceiling, so a
+    // 128 KB case would not have redded against the defect it exists for
+    // (observed while writing this). Quadratic quadruples per doubling and
+    // linear only doubles, so 256 KB separates them: 6.0 s / 8.8 s before,
+    // 0.14 s / 0.21 s after.
+    ["a repeated scheme (embedded-URL pass)", "https://".repeat(32 * KB)],
+    ["a repeated dotted authority (protocol-relative pass)", "//a.b/".repeat(42 * KB)],
+  ])("stays under 2s on %s", (_label, value) => {
+    expect(timed(value)).toBeLessThan(2000);
+  });
+
+  // The bound must not have been bought by simply not matching any more.
+  it.each([
+    ["a plain address", "jan.novak@klient.cz"],
+    ["a subdomained address", "x.y+z%q@sub.domain.co.uk"],
+    ["a single-label domain longer than 255 chars", `a@${"b".repeat(300)}.com`],
+    ["an HS256 token", `${"x".repeat(36)}.${"y".repeat(120)}.${"z".repeat(43)}`],
+    [
+      "an RS512 token (683-char signature)",
+      `${"x".repeat(60)}.${"y".repeat(700)}.${"z".repeat(683)}`,
+    ],
+    ["a 4 KB-payload token", `${"x".repeat(60)}.${"y".repeat(4000)}.${"z".repeat(342)}`],
+  ])("still redacts %s", (_label, value) => {
+    expect(redactString(value)).toContain(REDACTED);
+  });
+
+  it("still cuts the query of a normal embedded URL", () => {
+    expect(redactString("see https://a.cz/b?search=Novakova now")).toBe("see https://a.cz/b now");
+    expect(redactString("see //cdn.host/p?q=Novakova now")).toBe("see //cdn.host/p now");
+  });
+
+  // An over-length local part redacts NARROWLY rather than not at all — the
+  // stated cost of the bound, pinned so a future edit cannot quietly widen it
+  // into "no match".
+  it("redacts from the bound inward on an over-length local part", () => {
+    const out = redactString(`${"A".repeat(70)}@example.com`);
+    expect(out).toContain(REDACTED);
+    expect(out).not.toContain("@example.com");
+  });
+
+  // Structural, not timing: a timing assertion tells you the machine was fast,
+  // not that the pattern is safe. `{n,}` (open-ended repetition) is the exact
+  // shape that was quadratic here; `+`/`*` are left alone because they are safe
+  // where a literal anchors them (the Bearer prefix, the decomposed e-mail
+  // label), so this bans the form that actually bit us rather than quantifiers
+  // at large.
+  it("has no unbounded open-ended quantifier left in the shape patterns", () => {
+    for (const pattern of STRING_PATTERNS) {
+      expect(pattern.source, `open-ended {n,} in ${pattern.source}`).not.toMatch(/\{\d+,\}/);
+    }
+  });
+});
+
+// ── SAFE_SCHEMES is read with ONE polarity (ADR 1045) ──────────────────────
+//
+// The set used to be read three different ways: an allow-list in
+// `safeUrlOrRedact`, a route-or-return-the-input-RAW gate in
+// `reduceSourceLocation`, and a route-or-SKIP gate in `scrubDescription`. Under
+// that arrangement removing a scheme CLOSED one hole and OPENED two, so the set
+// could not be maintained at all. These cases pin the repaired property:
+// membership means "keep more" at EVERY reader, so a non-member is redacted
+// everywhere and shrinking the set is safety-monotone.
+//
+// `reduceSourceLocation` is module-local here (web-native's mirror must export
+// it because its registry lives a package away), so it is driven through
+// `scrubEvent` and a real stack frame. That is the stronger test anyway: it
+// exercises the walk's wiring as well as the function.
+describe("SAFE_SCHEMES has one polarity at every reader", () => {
+  const frameFilename = (value: string): unknown =>
+    (
+      scrubEvent({ stacktrace: { frames: [{ filename: value }] } }) as {
+        stacktrace: { frames: { filename: string }[] };
+      }
+    ).stacktrace.frames[0]?.filename;
+
+  // The schemes where the PATH IS THE PAYLOAD — no `?` to cut at, so the old
+  // "skip the primitive, run pattern redaction" fallback could not help.
+  const pathIsPayload = [
+    "data:text/csv,Novakova;9007200004",
+    "mailto:jan.novak@klient.cz",
+    "tel:+420777123456",
+    "sms:+420777123456?body=Novakova",
+    "geo:50.0755,14.4378",
+  ];
+
+  it.each(pathIsPayload)("scrubDescription redacts %s to its scheme", (value) => {
+    expect(scrubDescription(value)).toBe(`${new URL(value).protocol}${FILTERED}`);
+  });
+
+  it.each(pathIsPayload)("a stack frame redacts %s to its scheme", (value) => {
+    expect(frameFilename(value)).toBe(`${new URL(value).protocol}${FILTERED}`);
+  });
+
+  it.each(pathIsPayload)("safeUrlOrRedact already redacted %s (the reader that was right)", (v) => {
+    expect(safeUrlOrRedact(v)).toBe(FILTERED);
+  });
+
+  // The build-synthetic frame schemes are their own ALLOW-list, so they survive
+  // byte-identical — that is what protects source-map resolution, and writing it
+  // as a list is what stops it being "everything unknown is fine".
+  it.each([
+    "app:///_next/static/chunks/4823-9f2.js",
+    "webpack-internal:///./src/app/page.tsx",
+    "webpack://_N_E/./src/app/page.tsx",
+    "node:internal/process/task_queues",
+  ])("a stack frame keeps the build-synthetic %s", (value) => {
+    expect(frameFilename(value)).toBe(value);
+  });
+
+  // A relative or unparseable frame path is still byte-identical: it has no
+  // scheme, so there is no page query it could be carrying.
+  it.each(["ok.js", "/static/x.js", "<anonymous>"])(
+    "a stack frame keeps the relative path %s",
+    (value) => {
+      expect(frameFilename(value)).toBe(value);
+    },
+  );
+
+  // THE MONOTONICITY PROPERTY ITSELF. This is the one that would have caught the
+  // original defect: for a scheme NOT in the set, every reader must answer with a
+  // redaction rather than with the input. Add a reader with the old inverted
+  // polarity and this reds, without anyone having to think of the specific scheme
+  // that exposes it.
+  it("no reader returns an unlisted scheme's payload unchanged", () => {
+    const hostile = [
+      "data:text/csv,Novakova",
+      "mailto:jan.novak@klient.cz",
+      "javascript:alert(document.cookie)",
+      "chrome-extension://abc/page.html?surname=Novakova",
+      "content://cz.app.provider/doc/novakova-9007200004",
+    ];
+    for (const value of hostile) {
+      for (const [reader, out] of [
+        ["safeUrlOrRedact", safeUrlOrRedact(value)],
+        ["stack frame", frameFilename(value) as string],
+        ["scrubDescription", scrubDescription(value)],
+        ["scrubTransaction", scrubTransaction(value)],
+      ] as const) {
+        expect(out, `${reader}(${value})`).toContain(FILTERED);
+        expect(out, `${reader}(${value}) kept the payload`).not.toContain("Novakova");
+        expect(out, `${reader}(${value}) kept the payload`).not.toContain("9007200004");
+        expect(out, `${reader}(${value}) kept the payload`).not.toContain("document.cookie");
+      }
+    }
+  });
+
+  // `file:` is IN the set, so it is reduced rather than redacted — and this is
+  // the case the old comment used to justify the whole three-polarity mess.
+  it("reduces a file: URL through the parser at every reader", () => {
+    const value = "file:///android_asset/www/index.html?surname=Novakova";
+    expect(safeUrlOrRedact(value)).toBe("file:///android_asset/www/index.html");
+    expect(frameFilename(value)).toBe("file:///android_asset/www/index.html");
+    expect(scrubDescription(value)).toBe("file:///android_asset/www/index.html");
+    expect(scrubTransaction(value)).toBe("file:///android_asset/www/index.html");
+  });
+
+  // Free text and SQL must not be touched by the redact-to-scheme arm: it fires
+  // only when the WHOLE description is one whitespace-free token the URL parser
+  // accepts.
+  it.each([
+    "SELECT * FROM users WHERE id = ?",
+    "POST /api/checkout?x=1 returns 500 every time",
+    "cache.get",
+    "ui.react.render",
+  ])("leaves the non-URL description %s alone", (value) => {
+    expect(scrubDescription(value)).toBe(value);
   });
 });

@@ -7,14 +7,8 @@ import type {
 
 import { createLogger } from "@repo/utils";
 
-import type {
-  ConnectionState,
-  RealtimeClient,
-  RealtimeSubscription,
-  StreamPosition,
-  SubscribeOptions,
-  SubscriptionHandlers,
-} from "./types";
+import { createFanoutRegistry } from "./fanout";
+import type { ConnectionState, RealtimeClient, StreamPosition } from "./types";
 
 const logger = createLogger({ scope: "realtime" });
 
@@ -27,6 +21,17 @@ export interface CentrifugeRealtimeConfig {
    * manager — so no `realtime → auth` edge exists. `null` connects anonymous.
    */
   getToken?: () => string | null | Promise<string | null>;
+  /**
+   * Per-channel subscription-token source (the SDK's subscription-level
+   * `getToken`), for namespaces that require a subscription JWT — Centrifugo
+   * refuses a client-side subscribe to a protected namespace without one. Called
+   * on subscribe AND on subscription-token expiry. Omit for open namespaces.
+   *
+   * Fan-out keeps this correct for free: there is still exactly ONE vendor
+   * subscription per channel however many consumers are attached, so the token
+   * is minted once per channel, not once per consumer.
+   */
+  getSubscriptionToken?: (channel: string) => string | null | Promise<string | null>;
   /** Hard cap on a single connect attempt. SDK default when omitted. */
   timeoutMs?: number;
   /** Reconnect backoff window. SDK defaults when omitted. */
@@ -49,10 +54,15 @@ function toConnectionState(state: Centrifuge["state"]): ConnectionState {
 
 /**
  * The Centrifugo adapter (ADR 0029) over the `centrifuge` SDK (pure JS — same
- * client on web and RN). Transport only: connection lifecycle, one
+ * client on web and RN). Transport only: connection lifecycle, one VENDOR
  * subscription per channel, stream-position bookkeeping for history recovery.
  * The SDK already queues subscriptions made while disconnected and replays
  * them on (re)connect, which satisfies the contract's any-state `subscribe`.
+ *
+ * Consumer bookkeeping — several readers of one broadcast channel, refcounting,
+ * deferred teardown — belongs to the shared fan-out registry, not here. This
+ * file owns only `open` (build the SDK subscription, wire its three events into
+ * the sink) and `close` (full teardown).
  */
 export function createCentrifugeRealtime(config: CentrifugeRealtimeConfig): RealtimeClient {
   const client = new Centrifuge(config.url, {
@@ -81,74 +91,61 @@ export function createCentrifugeRealtime(config: CentrifugeRealtimeConfig): Real
   client.on("disconnected", notify);
   client.on("error", (ctx) => logger.error("connection error", ctx));
 
-  const subscriptions = new Map<string, Subscription>();
-
-  function subscribe<T>(
-    channel: string,
-    handlers: SubscriptionHandlers<T>,
-    options?: SubscribeOptions,
-  ): RealtimeSubscription {
-    if (subscriptions.has(channel)) {
-      throw new Error(`Already subscribed to channel "${channel}"`);
-    }
-
-    const subscription = client.newSubscription(channel, {
-      ...(options?.since &&
-        options.since.offset > 0 && {
-          since: { offset: options.since.offset, epoch: options.since.epoch },
+  const registry = createFanoutRegistry<Subscription>({
+    open(channel, since, sink) {
+      const subscription = client.newSubscription(channel, {
+        ...(config.getSubscriptionToken && {
+          getToken: async () => (await config.getSubscriptionToken!(channel)) ?? "",
         }),
-    });
-
-    // Publications carry only the offset; the epoch arrives once per
-    // (re)subscribe. Track the latest so `position` is always composable.
-    let epoch = options?.since?.epoch ?? "";
-
-    subscription.on("subscribed", (ctx: CentrifugeSubscribedContext) => {
-      if (ctx.streamPosition) epoch = ctx.streamPosition.epoch;
-      const position: StreamPosition | undefined = ctx.streamPosition
-        ? { offset: ctx.streamPosition.offset, epoch: ctx.streamPosition.epoch }
-        : undefined;
-      handlers.onSubscribed?.({
-        channel,
-        wasRecovering: ctx.wasRecovering,
-        recovered: ctx.recovered,
-        position,
+        ...(since &&
+          since.offset > 0 && {
+            since: { offset: since.offset, epoch: since.epoch },
+          }),
       });
-    });
 
-    subscription.on("publication", (ctx: PublicationContext) => {
-      const position: StreamPosition | undefined =
-        ctx.offset !== undefined ? { offset: ctx.offset, epoch } : undefined;
-      handlers.onPublication({ data: ctx.data as T, position });
-    });
+      // Publications carry only the offset; the epoch arrives once per
+      // (re)subscribe. Track the latest so `position` is always composable.
+      // Lives in this closure (one per vendor subscription), so it survives
+      // every consumer joining and leaving and is lost only on a real close.
+      let epoch = since?.epoch ?? "";
 
-    subscription.on("error", (ctx) => {
-      logger.error(`subscription error on "${channel}"`, ctx);
-      handlers.onError?.(new Error(ctx.error.message));
-    });
+      subscription.on("subscribed", (ctx: CentrifugeSubscribedContext) => {
+        if (ctx.streamPosition) epoch = ctx.streamPosition.epoch;
+        const position: StreamPosition | undefined = ctx.streamPosition
+          ? { offset: ctx.streamPosition.offset, epoch: ctx.streamPosition.epoch }
+          : undefined;
+        sink.subscribed({
+          wasRecovering: ctx.wasRecovering,
+          recovered: ctx.recovered,
+          position,
+        });
+      });
 
-    subscription.subscribe();
-    subscriptions.set(channel, subscription);
+      subscription.on("publication", (ctx: PublicationContext) => {
+        const position: StreamPosition | undefined =
+          ctx.offset !== undefined ? { offset: ctx.offset, epoch } : undefined;
+        sink.publication({ data: ctx.data, position });
+      });
 
-    return {
-      channel,
-      unsubscribe: () => unsubscribe(channel),
-    };
-  }
+      subscription.on("error", (ctx) => {
+        logger.error(`subscription error on "${channel}"`, ctx);
+        sink.error(new Error(ctx.error.message));
+      });
 
-  function unsubscribe(channel: string): void {
-    const subscription = subscriptions.get(channel);
-    if (!subscription) return;
-    subscriptions.delete(channel);
-    subscription.unsubscribe();
-    subscription.removeAllListeners();
-    client.removeSubscription(subscription);
-  }
+      subscription.subscribe();
+      return subscription;
+    },
+    close(_channel, subscription) {
+      subscription.unsubscribe();
+      subscription.removeAllListeners();
+      client.removeSubscription(subscription);
+    },
+  });
 
   return {
     connect: () => client.connect(),
     disconnect() {
-      for (const channel of Array.from(subscriptions.keys())) unsubscribe(channel);
+      registry.reset();
       client.disconnect();
     },
     getState: () => toConnectionState(client.state),
@@ -156,7 +153,7 @@ export function createCentrifugeRealtime(config: CentrifugeRealtimeConfig): Real
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    subscribe,
+    subscribe: registry.subscribe,
     setToken: (token) => client.setToken(token ?? ""),
   };
 }

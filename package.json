@@ -17,12 +17,14 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter web test:e2e",
     "knip": "knip",
     "check:control-chars": "node scripts/check-control-chars.mjs",
     "check:no-orphan-rn": "node scripts/check-no-orphan-rn.mjs",
     "design-sync:preflight": "node scripts/design-sync-preflight.mjs",
     "check:gitleaks-pin": "node scripts/check-gitleaks-pin.mjs",
-    "test:scripts": "bash scripts/__tests__/claude-gate.test.sh && bash scripts/__tests__/check-gitleaks-pin.test.sh",
+    "check:adr-links": "node scripts/check-adr-links.mjs",
+    "test:scripts": "bash scripts/__tests__/claude-gate.test.sh && bash scripts/__tests__/check-gitleaks-pin.test.sh && pnpm check:adr-links",
     "prepare": "lefthook install || true"
   },
   "prettier": "@repo/prettier-config",
@@ -43,7 +45,7 @@
   },
   "skeleton": {
     "repo": "git@github.com:miklik1/fullstack-skeleton.git",
-    "baseCommit": "a55e8bc61cd01ac9289b02086f087925d8a56156",
+    "baseCommit": "e24039556a9ef9a482d2477d8e54e3a23fa25dab",
     "createdAt": "2026-06-12T01:35:43.516Z"
   }
 }

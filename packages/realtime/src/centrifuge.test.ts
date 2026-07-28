@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCentrifugeRealtime } from "./centrifuge";
+import { describeFanoutConformance, flushTeardown } from "./fanout-conformance";
 
 // Minimal stand-in for the centrifuge SDK: records constructor options,
 // exposes `emit` to drive client/subscription events from tests. Defined via
@@ -43,6 +44,8 @@ const { FakeCentrifuge } = vi.hoisted(() => {
     handlers = new Map<string, Handler[]>();
     subscriptions = new Map<string, FakeSubscription>();
     removed: FakeSubscription[] = [];
+    /** Cumulative newSubscription calls per channel — the fan-out open count. */
+    openCounts = new Map<string, number>();
     connectCalled = false;
     disconnectCalled = false;
     token: string | undefined;
@@ -78,6 +81,7 @@ const { FakeCentrifuge } = vi.hoisted(() => {
       if (this.subscriptions.has(channel)) throw new Error("duplicate");
       const subscription = new FakeSubscription(channel, options);
       this.subscriptions.set(channel, subscription);
+      this.openCounts.set(channel, (this.openCounts.get(channel) ?? 0) + 1);
       return subscription;
     }
     removeSubscription(subscription: FakeSubscription) {
@@ -170,24 +174,46 @@ describe("createCentrifugeRealtime", () => {
     subscription.emit("subscribed", { wasRecovering: true, recovered: false });
     expect(onSubscribed).toHaveBeenCalledWith({
       channel: "job:a",
+      // The vendor really (re)subscribed, so every consumer sees `opened`.
+      origin: "opened",
       wasRecovering: true,
       recovered: false,
       position: undefined,
     });
   });
 
-  it("throws on duplicate channel subscribe and frees the channel on unsubscribe", () => {
+  it("fans one SDK subscription out to several consumers and frees it after the last", async () => {
     const realtime = createCentrifugeRealtime({ url: "wss://x" });
-    const subscription = realtime.subscribe("job:a", { onPublication: vi.fn() });
-    expect(() => realtime.subscribe("job:a", { onPublication: vi.fn() })).toThrow(
-      /Already subscribed/,
-    );
+    const first = vi.fn();
+    const second = vi.fn();
+    const a = realtime.subscribe("job:a", { onPublication: first });
+    const b = realtime.subscribe("job:a", { onPublication: second });
 
-    subscription.unsubscribe();
+    // One SDK subscription, however many consumers — which is what keeps the
+    // per-channel subscription token (app adapter) minted once per channel.
+    expect(lastClient().openCounts.get("job:a")).toBe(1);
+    lastClient()
+      .subscriptions.get("job:a")!
+      .emit("publication", { data: { progress: 1 } });
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+
+    a.unsubscribe();
+    await flushTeardown();
+    expect(lastClient().removed).toHaveLength(0);
+
+    b.unsubscribe();
+    // Teardown is deferred by one microtask (the StrictMode grace window), so
+    // the removed list is EMPTY until it flushes — reading it synchronously
+    // here is what used to pass and now would not.
+    expect(lastClient().removed).toHaveLength(0);
+    await flushTeardown();
+
     const fake = lastClient().removed[0]!;
     expect(fake.unsubscribeCalled).toBe(true);
     expect(fake.removedListeners).toBe(true);
     expect(() => realtime.subscribe("job:a", { onPublication: vi.fn() })).not.toThrow();
+    expect(lastClient().openCounts.get("job:a")).toBe(2);
   });
 
   it("disconnect tears down every subscription then the connection", () => {
@@ -208,4 +234,64 @@ describe("createCentrifugeRealtime", () => {
     realtime.setToken(null);
     expect(lastClient().token).toBe("");
   });
+
+  it("mints a per-channel subscription token once per channel, not per consumer", async () => {
+    const getSubscriptionToken = vi.fn(async (channel: string) => `jwt-${channel}`);
+    const realtime = createCentrifugeRealtime({ url: "wss://x", getSubscriptionToken });
+    realtime.subscribe("org:1", { onPublication: vi.fn() });
+    realtime.subscribe("org:1", { onPublication: vi.fn() });
+
+    // The SDK owns the calling — fan-out's job is that there is only ONE
+    // subscription to own it, so a second consumer costs no extra token round
+    // trip against `POST /v1/realtime/subscribe-token`.
+    expect(lastClient().openCounts.get("org:1")).toBe(1);
+    const options = lastClient().subscriptions.get("org:1")!.options as {
+      getToken?: () => Promise<string>;
+    };
+    await expect(options.getToken?.()).resolves.toBe("jwt-org:1");
+    expect(getSubscriptionToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the subscription-token hook when the app doesn't supply one", () => {
+    const realtime = createCentrifugeRealtime({ url: "wss://x" });
+    realtime.subscribe("org:1", { onPublication: vi.fn() });
+    expect(lastClient().subscriptions.get("org:1")!.options).not.toHaveProperty("getToken");
+  });
+});
+
+// The SAME behaviour table the mock and the no-op run (see fanout.test.ts),
+// driven here through the real adapter over the SDK fake. This is what stops
+// the mock — the thing every downstream app tests against — from drifting into
+// semantics the shipped adapter does not have.
+describeFanoutConformance({
+  name: "centrifuge adapter",
+  observable: true,
+  create() {
+    const client = createCentrifugeRealtime({ url: "wss://x" });
+    const sdk = lastClient();
+    const subscriptionFor = (channel: string) => {
+      const subscription = sdk.subscriptions.get(channel);
+      if (!subscription) throw new Error(`no SDK subscription for "${channel}"`);
+      return subscription;
+    };
+    return {
+      client,
+      openCount: (channel) => sdk.openCounts.get(channel) ?? 0,
+      isOpen: (channel) => sdk.subscriptions.has(channel),
+      emit: (channel, data, position) =>
+        subscriptionFor(channel).emit("publication", { data, offset: position?.offset }),
+      emitError: (channel, error) =>
+        subscriptionFor(channel).emit("error", { error: { message: error.message } }),
+      // Unlike the mock, the SDK reports `subscribed` asynchronously — the
+      // server round trip. Tests that need a live channel drive it explicitly.
+      settle: (channel) =>
+        subscriptionFor(channel).emit("subscribed", {
+          wasRecovering: false,
+          recovered: false,
+          streamPosition: { offset: 1, epoch: "e1" },
+        }),
+      resubscribe: (channel) =>
+        subscriptionFor(channel).emit("subscribed", { wasRecovering: true, recovered: true }),
+    };
+  },
 });

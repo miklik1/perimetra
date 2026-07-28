@@ -21,6 +21,7 @@ import {
 } from "@repo/validators/orders";
 import { type QuoteProduction } from "@repo/validators/quotes";
 
+import { errorEnvelope } from "../../common/filters/global-exception.filter.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
 import { LedgerService } from "../ledger/ledger.service.js";
@@ -188,19 +189,23 @@ export class OrdersService {
     );
     const incumbent = await this.orders.findLiveByQuoteIds(scope, siblings);
     if (incumbent) {
-      throw new ConflictException({
-        message: `a live order (${incumbent.orderNumber}) already exists for another revision of this quote`,
-        code: "order_exists_for_chain",
-        // The typed context goes under `details` — the slot
-        // `apiErrorEnvelopeSchema` declares (`GlobalExceptionFilter` does not
-        // forward it yet; flagged in ADR 0126). The incumbent's NUMBER is also
-        // folded into the message so the rep can act on the refusal today.
-        details: {
-          orderId: incumbent.id,
-          orderNumber: incumbent.orderNumber,
-          quoteId: incumbent.quoteId,
-        },
-      });
+      throw new ConflictException(
+        errorEnvelope({
+          message: `a live order (${incumbent.orderNumber}) already exists for another revision of this quote`,
+          code: "order_exists_for_chain",
+          // The typed context goes under `details` — the slot
+          // `apiErrorEnvelopeSchema` declares. `errorEnvelope()` is what makes
+          // the filter publish it (ADR 1035): `details` is OPT-IN, and a body
+          // that carries the key without the marker has it dropped silently.
+          // The incumbent's NUMBER stays folded into the message too, so the
+          // refusal remains actionable even where only the message is shown.
+          details: {
+            orderId: incumbent.id,
+            orderNumber: incumbent.orderNumber,
+            quoteId: incumbent.quoteId,
+          },
+        }),
+      );
     }
 
     // The series year is PRAGUE's, not the server's (`numberingYear`, ADR 0126):

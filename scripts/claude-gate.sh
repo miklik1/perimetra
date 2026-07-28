@@ -20,7 +20,43 @@ changed=$(git status --porcelain 2>/dev/null | awk '{print $NF}')
 printf '%s\n' "$changed" | grep -qvE '\.(md|mdx)$' || exit 0
 
 # Skip 2: this exact tree state already passed once.
-state=$( { git rev-parse HEAD; git diff; git diff --cached; } 2>/dev/null | sha1sum | cut -d' ' -f1)
+#
+# UNTRACKED FILES ARE PART OF THE STATE (ADR 1042), and leaving them out was a
+# FAIL-OPEN: `git diff` and `git diff --cached` both see TRACKED paths only, so a
+# change that ADDS A NEW FILE and touches nothing already tracked produced the
+# byte-identical hash the previous green run wrote — and the gate exited 0 having
+# executed ZERO checks. That is the worst shape a gate has, because it is also
+# the silent one: no output, no "skipped", just a pass. And it is not an exotic
+# input — "add a new module / test / route" is what a normal turn looks like, and
+# every project stamped from this skeleton inherited it.
+#
+# Skip 1 above was never the hole: `git status --porcelain` DOES report `?? path`,
+# so a new-file-only turn correctly gets past it and then dies on the hash.
+#
+# The fix hashes NAME AND CONTENT, not just the name list. A name-only state
+# would make the FIRST save of a new file gate and every subsequent edit of it
+# skip — the same defect one step further in, and harder to see. `git hash-object
+# --stdin-paths` is what supplies the content half.
+#
+# It is `git`, deliberately, and not `xargs sha1sum`. A Stop hook runs under a
+# stripped environment, and this repo's own `scripts/__tests__/claude-gate.test.sh`
+# goes further: `make_toolbin` builds a CURATED PATH containing only the binaries
+# the gate is known to need, and `xargs` is not on it. Reaching for a binary
+# outside that set fails SILENTLY — stderr is discarded and an empty `untracked`
+# hashes to a stable value, i.e. straight back to the fail-open this block exists
+# to close. `git` is already the one hard dependency of every line above.
+#
+# `--exclude-standard` keeps .gitignore in force, so node_modules / .turbo / dist
+# are never walked. Measured on this repo: 3 ms clean, 3 ms with 50 untracked
+# files. The `[ -n … ]` guard is required — `git hash-object --stdin-paths` on
+# empty input is `fatal: could not open ''`, not a no-op.
+untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
+state=$( { git rev-parse HEAD
+           git diff
+           git diff --cached
+           printf '%s\n' "$untracked"
+           [ -n "$untracked" ] && printf '%s\n' "$untracked" | git hash-object --stdin-paths
+         } 2>/dev/null | sha1sum | cut -d' ' -f1)
 green=.git/claude-gate-green
 [ -f "$green" ] && [ "$(cat "$green")" = "$state" ] && exit 0
 
@@ -143,10 +179,64 @@ fi
 # the runs that reach here at all (the no-change, markdown-only and green-hash
 # skips above all return before this point). Accepted deliberately. Cheapest
 # first, so a broken guard reports before the expensive tasks run.
+#
+# The e2e step is the same order rule taken one step further — it is the most
+# expensive thing this repo can run (a browser plus a `next dev` boot), so it
+# goes LAST, and it is OPT-IN and OFF by default. The gate fires on every stop:
+# a Playwright run per stop would tax every derived project for a suite that
+# only earns its cost on waves that actually touch the web surface. Without it,
+# though, no gate and no pre-push hook invokes Playwright at all, so a reskin
+# ships gate-green and CI-red — the failure this step exists to move earlier.
+#
+# The MARKER FILE is the primary opt-in, not the env var. `.git/` is never
+# committed and the gate already writes `.git/claude-gate-green` there, so both
+# the path and the .gitignore posture are already proven; a seat arms the wave
+# with `touch .git/claude-gate-e2e` and disarms it by deleting the file. The env
+# var stays as a one-off override for a manual run and for the selftest.
+#
+# THE E2E STEP MUST OWN THE SERVER IT DRIVES. `playwright.config.ts` sets
+# `reuseExistingServer` true for a local run, so a run that finds the wait-URL
+# already answering NEVER BOOTS ITS OWN SERVER and never says so. Measured with
+# Playwright 1.60 against a foreign HTTP server on the wait-URL: reuse-true drove
+# the impostor and reported the suite's own verdict (exit 0, "1 failed" only
+# because the probe spec asserted on the body); reuse-false refused to start —
+# `Error: http://localhost:PORT is already used ...`, exit 1, zero tests run.
+# So the gate declares ownership and gets a LOUD collision instead of a quiet
+# false green. Two halves, and BOTH are needed:
+#
+#   1. WEB_E2E_OWN_SERVER=1 — the fail-closed knob. It is NOT `CI=1`: `CI` also
+#      flips forbidOnly, retries (0→1), workers (parallel→1) and the reporter
+#      (list → github + html), and leaks into the `next dev` child, which is four
+#      unrelated behaviour changes plus a written `playwright-report/` per stop
+#      to buy one. Measured: the targeted knob produces the identical
+#      "already used" refusal with none of that. See ADR 1038.
+#
+#   2. A PER-CHECKOUT PORT. A single hardcoded constant is the same hazard wearing
+#      a different number: every skeleton and every project stamped from it
+#      inherits the SAME constant, so on a multi-seat box the gate that starts
+#      second finds the port bound — and before (1) it would then have driven the
+#      sibling repo's app, whose routes, UI and Czech 404 strings are identical.
+#      The port is therefore derived from the repo root's PHYSICAL path: stable
+#      for a checkout (same port every run), different for a sibling checkout or
+#      a worktree. The path is the right key precisely because worktrees — the
+#      fleet's normal multi-seat topology — share a remote and a HEAD lineage but
+#      never a path. 61000-65535 sits inside IANA's dynamic/private range and
+#      ABOVE Linux's default ephemeral ALLOCATION range (32768-60999 on this box,
+#      `net.ipv4.ip_local_port_range`), so the kernel never hands one of these
+#      out to an outbound socket. CLAUDE_GATE_WEB_PORT still overrides.
+gate_web_port() {
+  local h
+  h=$(pwd -P | sha1sum | cut -c1-8)
+  printf '%d' $(( 61000 + (16#$h % 4536) ))
+}
 gate_commands() {
   pnpm check:gitleaks-pin 2>&1 || return 1
   pnpm test:scripts 2>&1 || return 1
   pnpm turbo run check-types lint test --output-logs=errors-only 2>&1 || return 1
+  if [ -n "${CLAUDE_GATE_E2E:-}" ] || [ -f .git/claude-gate-e2e ]; then
+    WEB_PORT="${CLAUDE_GATE_WEB_PORT:-$(gate_web_port)}" WEB_E2E_OWN_SERVER=1 \
+      pnpm test:e2e 2>&1 || return 1
+  fi
 }
 out=$(gate_commands)
 if [ $? -eq 0 ]; then

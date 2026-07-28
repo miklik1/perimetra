@@ -14,6 +14,19 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly body?: unknown;
   /**
+   * Structured, machine-readable context for the failure, from the error
+   * envelope's `details` — the conflicting id on a `409`, the remaining budget
+   * on a `429`, the offending resource on a `422`. Part of the declared error
+   * contract (`apiErrorEnvelopeSchema` in `@repo/validators`), so a typed
+   * rejection carries it rather than forcing call sites back onto `body`.
+   *
+   * Deliberately NOT part of `errorContext()` in `errors.ts`: that helper
+   * excludes `body` because it may carry user input, and `details` has the same
+   * exposure. Shipping it into telemetry context is a separate, PII-weighted
+   * decision and is not made here.
+   */
+  readonly details?: Record<string, unknown>;
+  /**
    * Field-level validation errors keyed by form field path (from the error
    * envelope's `errors`). RHF surfaces these via `setError` (ADR 0009/0014).
    */
@@ -30,6 +43,7 @@ export class ApiError extends Error {
     message: string;
     code?: string;
     body?: unknown;
+    details?: Record<string, unknown>;
     fieldErrors?: Record<string, string[]>;
     retryAfterMs?: number;
   }) {
@@ -39,6 +53,7 @@ export class ApiError extends Error {
     this.status = args.status;
     this.code = args.code;
     this.body = args.body;
+    this.details = args.details;
     this.fieldErrors = args.fieldErrors;
     this.retryAfterMs = args.retryAfterMs;
   }
@@ -67,6 +82,24 @@ export function parseRetryAfter(header: string | null, maxMs?: number): number |
   const date = Date.parse(trimmed);
   if (Number.isNaN(date)) return undefined;
   return cap(Math.max(0, date - Date.now()));
+}
+
+/**
+ * True when a rejection is a CANCELLATION rather than a failure — the caller's
+ * own `AbortSignal` fired. Shared by the transport catch (which must not log it)
+ * and the retry middleware (which must not replay it): one predicate, so the two
+ * can never disagree about what an abort is.
+ *
+ * Matched on `name`, never `instanceof DOMException`: React Native's lib ships
+ * no `DOMException` at all, so an `instanceof` test is not portable across the
+ * runtimes this client targets. That is also why `retry.ts`'s `sleep` MINTS its
+ * aborts as `Object.assign(new Error(…), { name: "AbortError" })` — and why
+ * tests must use that same shape. Under jsdom a real `DOMException` is
+ * cross-realm, so `instanceof Error` is false there while a browser says true; a
+ * `DOMException` fixture measures the test environment, not this predicate.
+ */
+export function isAbortError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "AbortError";
 }
 
 /**
@@ -163,6 +196,7 @@ export interface ResponseEnvelopeConfig {
   mapError?: (body: unknown) => {
     message?: string;
     code?: string;
+    details?: Record<string, unknown>;
     fieldErrors?: Record<string, string[]>;
   } | void;
 }
@@ -267,17 +301,26 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
       response = await dispatch(request);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Network request failed";
-      // An ABORT is not an error: React Query cancels in-flight queries on
-      // unmount, so every ordinary navigation away from a page with a pending
-      // request would otherwise log `apiFetch network error … AbortError:
-      // signal is aborted without reason`. Proven on the ADR-0129 delivery-state
-      // query during the eyes-on pass — 12 console errors across a normal
-      // navigation sweep. Logging expected cancellation as an error is how a
-      // console gets loud enough that people stop reading it. Still THROWN, so
-      // callers and React Query keep their existing control flow unchanged.
-      if (!(cause instanceof Error && cause.name === "AbortError")) {
-        logger.error("apiFetch network error", { url, cause });
-      }
+      // A cancellation is not a network error. TanStack Query aborts in-flight
+      // queries on unmount, so every ordinary navigation away from a page with a
+      // pending request lands here — and `logger.error` also feeds the telemetry
+      // sink, so logging it raises an error-level Sentry issue PER NAVIGATION,
+      // burying real failures in noise. `retry.ts` already encodes the same rule
+      // via this predicate (an abort is the caller's signal, never a transport
+      // fault); this is the logging half of it.
+      //
+      // It still THROWS: the rejection is how the caller and TanStack Query
+      // settle the cancelled request, so control flow is unchanged. Only the log
+      // line — and the telemetry event behind it — is suppressed.
+      //
+      // MEASURED IN THIS REPO, before the upstream fix existed: the ADR-0129
+      // delivery-state query produced 12 `AbortError: signal is aborted without
+      // reason` console errors across one ordinary navigation sweep during the
+      // eyes-on pass. Perimetra had fixed this locally with an inline
+      // `cause.name === "AbortError"` test; the W16 drain replaced that with
+      // upstream's shared `isAbortError` predicate so this call site and
+      // `retry.ts` cannot drift apart on what counts as a cancellation.
+      if (!isAbortError(cause)) logger.error("apiFetch network error", { url, cause });
       throw new ApiError({ kind: "network", status: 0, message });
     }
 
@@ -319,6 +362,10 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
           (envelope?.success ? envelope.data.message : response.statusText || "Request failed"),
         code: mapped?.code ?? (envelope?.success ? envelope.data.code : undefined),
         body: data,
+        // The envelope's structured context. Parsed one line above and, until
+        // now, dropped here — so a typed rejection reached application code
+        // without the very fields the contract exists to carry.
+        details: mapped?.details ?? (envelope?.success ? envelope.data.details : undefined),
         fieldErrors: mapped?.fieldErrors ?? (envelope?.success ? envelope.data.errors : undefined),
         retryAfterMs: parseRetryAfter(response.headers.get("Retry-After")),
       });

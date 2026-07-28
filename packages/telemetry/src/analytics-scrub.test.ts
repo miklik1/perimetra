@@ -850,4 +850,399 @@ describe("sanitizeAnalyticsProperties — ADR 1031 vocabulary and structure repa
       }).$elements_chain,
     ).toBe(REDACTED);
   });
+
+  // ── `blob:` at the sink it actually leaked from (ADR 1032) ───────────────
+  //
+  // `$current_url` is set from `location.href`, so a page that navigated to a
+  // blob URL ships one on every autocaptured event. These are the same cases as
+  // the primitive suite in `./scrub.test`, exercised through the sink, because
+  // the reported leak was measured HERE and a rule closed at the primitive but
+  // missed at a sink is this module's oldest failure mode (ADR 1031).
+
+  const BLOB_UUID = "2c1f0a3e-1111-4222-8333-444455556666";
+
+  it("keeps the two browser-minted blob shapes", () => {
+    expect(
+      sanitizeAnalyticsProperties({ $current_url: `blob:https://app.example.com/${BLOB_UUID}` })
+        .$current_url,
+    ).toBe(`blob:https://app.example.com/${BLOB_UUID}`);
+    // The opaque-origin form, which the old arm corrupted to `blob:/null/<uuid>`.
+    expect(
+      sanitizeAnalyticsProperties({ $current_url: `blob:null/${BLOB_UUID}` }).$current_url,
+    ).toBe(`blob:null/${BLOB_UUID}`);
+  });
+
+  it("REDACTS author text behind `blob:` — the live leak, at the sink it leaked from", () => {
+    expect(
+      sanitizeAnalyticsProperties({
+        $current_url: "blob:jan.novak@klient.cz",
+        $referrer: "blob:null/novakova-8001011234",
+        $external_click_url: "blob:file:///etc/Novakova",
+      }),
+    ).toEqual({
+      $current_url: REDACTED,
+      $referrer: REDACTED,
+      $external_click_url: REDACTED,
+    });
+  });
+
+  it("REDACTS a blob-wrapped payload reached through an `$elements` href, not only a scalar", () => {
+    // The attribute vocabulary routes `attr__href` through the same primitive,
+    // so the arm has to hold at the DOM sinks too — that is what makes it a
+    // property of the primitive rather than of one key list.
+    expect(
+      sanitizeAnalyticsProperties({
+        $elements: [{ tag_name: "a", attr__href: "blob:null/novakova-8001011234" }],
+      }),
+    ).toEqual({ $elements: [{ tag_name: "a", attr__href: REDACTED }] });
+  });
+});
+
+// ── THE GATE-SYMMETRY MATRIX (ADR 1030) ────────────────────────────────────
+//
+// PostHog attaches BOTH `$elements` (an object per element) and
+// `$elements_chain` (the serialized element tree) to the SAME `$autocapture`
+// event, built from the SAME DOM. The two representations therefore carry the
+// same bytes under the same attribute names, and a rule applied to one and not
+// the other does not redact anything — it RELOCATES the leak onto the same wire
+// event. That is the failure `./analytics-scrub`'s own header records twice: two
+// vocabularies over one DOM, then one vocabulary consulted through two
+// independently authored boundaries.
+//
+// Ported from the round-6 insurance snapshot (`wip/w7-redaction-rounds`) so this
+// coverage outlives that branch. It is the artifact that enforces ADR 1030's
+// stated discipline, and it is ported in the SAFETY form on purpose:
+//
+//   AGREEMENT IS A PARITY PROPERTY. IT IS NOT A SAFETY PROPERTY.
+//
+// A matrix that asserts only that the two paths answer the SAME thing stays
+// green whenever both paths leak IDENTICALLY. That is not hypothetical — it is
+// how a `srcset` leak survived a matrix that already enumerated `attr__srcset`
+// as a key: every payload in that matrix was a scalar single URL, so the
+// list-valued shape had no cell to fail in.
+//
+// So every cell below must assert something a TOTAL PASSTHROUGH of the URL
+// policy would violate. Most rows do that by naming the MARKER that must not
+// survive; a row that has no such byte pins the exact ANSWER instead. The
+// structural `[?#@]` assertion is NOT that guarantee and never was — a payload
+// with none of those characters in it satisfies it while leaking whole. See the
+// trap note on `PAYLOADS`: this matrix has already been billed for that once.
+describe("sanitizeAnalyticsProperties — gate symmetry across $elements and $elements_chain", () => {
+  // Every name in the shared vocabulary, in the ONLY form posthog-js produces
+  // for the attribute tier (`attr__` + the raw attribute name), plus both forms
+  // of the `href` element-field tier.
+  const URL_ATTR_KEYS = [
+    "href",
+    "attr__href",
+    "attr__src",
+    "attr__srcset",
+    "attr__action",
+    "attr__formaction",
+    "attr__poster",
+    "attr__cite",
+    "attr__data",
+    "attr__ping",
+    "attr__background",
+    "attr__manifest",
+    "attr__longdesc",
+    "attr__usemap",
+    // The hyphenated `data-*` tier — what HTML attributes actually look like.
+    "attr__data-image-url",
+    "attr__data-x-src",
+    "attr__data-thumb-href",
+    // The NAMESPACED / framework-prefixed tier. React emits `attr__xlink:href`
+    // for `xlinkHref` and posthog-js serialises it into BOTH representations,
+    // but an earlier round's chain boundary admitted it while the scalar
+    // boundary did not — and the suite of the day pinned the CHAIN case with no
+    // `$elements` counterpart, affirmatively encoding the asymmetry. These names
+    // ride the same matrix as every other now, so it cannot be re-encoded.
+    "attr__xlink:href",
+    "xlink:href",
+    "attr__x-bind:href",
+    "attr__v-bind:src",
+    "attr__:href",
+    "attr__svg.href",
+  ];
+
+  /**
+   * ── THE MARKER-LESS TRAP — READ THIS BEFORE ADDING A ROW ─────────────────
+   *
+   * `marker` is the byte that must not survive, and naming it is what makes a
+   * cell a SAFETY assertion. A row whose marker is `null` names no such byte,
+   * so it degrades ITS WHOLE ROW — one cell per key — to the parity assertion
+   * alone, and parity is satisfied when both representations leak IDENTICALLY.
+   * That is the exact failure this matrix exists to prevent, arriving through
+   * the matrix itself.
+   *
+   * Not a hypothesis. With the URL policy replaced by a total passthrough
+   * (`case "url": return value` in `./analytics-scrub`), the two marker-less
+   * rows of the ported matrix were the ONLY cells left standing: 46 green out
+   * of 414, split exactly 23 + 23 — one per key, on the two rows that had
+   * nothing to lose.
+   *
+   * So the type below REQUIRES a marker-less row to pin `answer`, the exact
+   * output the policy must produce, and every cell asserts that `answer`
+   * DIFFERS from `value`. That last assertion is the real guard: a benign
+   * fixture whose reduced form happens to equal its own input cannot tell
+   * reduction from passthrough no matter what is asserted about it, and does
+   * not belong in this matrix. Swap the fixture — that is why `benign` carries
+   * a default port — or drop the row. Do not keep a cell that cannot fail.
+   */
+  type Payload =
+    | { value: string; marker: string; answer?: string }
+    | { value: string; marker: null; answer: string };
+
+  // One representative of every shape the URL policy branches on, EACH CARRYING
+  // THE MARKER THAT MUST NOT SURVIVE — or, where there is none, THE ANSWER IT
+  // MUST PRODUCE.
+  const PAYLOADS: Record<string, Payload> = {
+    "opaque data:": {
+      value: "data:text/plain,jan.novak@klient.cz-8001011234",
+      marker: "8001011234",
+    },
+    "opaque mailto:": { value: "mailto:jan.novak@klient.cz", marker: "jan.novak" },
+    "opaque tel:": { value: "tel:+420601234567", marker: "601234567" },
+    "opaque sms: with query": {
+      value: "sms:+420601234567?body=rodne-cislo-8001011234",
+      marker: "8001011234",
+    },
+    // `geo:` is not a `SAFE_SCHEMES` member, so the whole value goes. Pinned as
+    // the OUTCOME rather than as an absent marker: a coordinate pair IS the
+    // payload here, and "the digits are gone" would also be satisfied by an
+    // answer that kept a bare `geo:` — the outcome to hold is REDACTION.
+    "opaque geo:": { value: "geo:50.0875,14.4213", marker: null, answer: REDACTED },
+    "absolute with query": {
+      value: "https://app.cz/clients?token=SEKRET&search=Novakova",
+      marker: "SEKRET",
+    },
+    "protocol-relative with userinfo": {
+      value: "//novakova:8001011234@cdn.app.cz/report",
+      marker: "8001011234",
+    },
+    "relative with query": { value: "/clients?search=Novakova", marker: "Novakova" },
+    // The value that is SUPPOSED to survive — the row that stops this matrix
+    // from being satisfiable by a gate which simply redacts everything. "The
+    // payload is gone" is therefore the WRONG assertion for it; the right one is
+    // that the answer is the REDUCED form. So the fixture is chosen to make
+    // reduction VISIBLE: `host` is `hostname[:port]` and the parser drops a
+    // default `:443`, so `https://app.cz/o-nas` is reachable only by rebuilding
+    // from parser fields. Anything that hands back input bytes — a slice, a
+    // passthrough — still wears the `:443` and fails here. (The previous fixture
+    // `/o-nas` reduced to itself, which is precisely why its 23 cells could not
+    // fail.)
+    benign: { value: "https://app.cz:443/o-nas", marker: null, answer: "https://app.cz/o-nas" },
+
+    // THE NON-SCALAR TIER. Everything above is ONE URL — the model six rounds
+    // shared and six rounds were defeated by. These are the shapes that model
+    // does not describe, and they are the reason the primitive's "not one URL"
+    // test looks at separators rather than at what the members are.
+    "list-valued srcset with descriptors": {
+      value: "https://cdn.app.cz/a.png 1x, data:text/plain;base64,SEKRET 2x",
+      marker: "SEKRET",
+    },
+    "multi-token ping": { value: "https://app.cz/t mailto:novakova@app.cz", marker: "novakova" },
+    "comma-separated, no whitespace": {
+      value: "/a.png,data:text/plain;base64,SEKRET",
+      marker: "SEKRET",
+    },
+    "tab-separated list": { value: "https://app.cz/t\tdata:text/plain,SEKRET", marker: "SEKRET" },
+    "benign leading URL, hostile trailing (whitespace)": {
+      value: "/o-nas https://evil.cz/x?token=SEKRET",
+      marker: "SEKRET",
+    },
+    "benign leading URL, hostile trailing (comma)": {
+      value: "/o-nas,mailto:novakova@evil.cz",
+      marker: "novakova",
+    },
+    "nested percent-encoded URL": {
+      value: "https://app.cz/r?to=https%3A%2F%2Fevil.cz%2Fx%3Ftoken%3DSEKRET",
+      marker: "SEKRET",
+    },
+    "nested raw URL in the path": {
+      value: "https://app.cz/r/https://evil.cz/x?token=SEKRET",
+      marker: "SEKRET",
+    },
+    "bare payload, no URL at all": { value: "Novakova 8001011234", marker: "8001011234" },
+  };
+
+  /**
+   * Run ONE value through BOTH representations of the same DOM element.
+   *
+   * PATH A is the `$elements` object walk; PATH B is the `$elements_chain`
+   * segment walk, and its answer is read back out of the REJOINED chain so the
+   * real split/rejoin is exercised rather than a helper's idea of it. The full
+   * scrubbed chain comes back too, because a marker relocated out of the value
+   * and into a structure segment must be caught as well.
+   */
+  function bothPaths(key: string, value: string) {
+    const viaElements = (
+      sanitizeAnalyticsProperties({ $elements: [{ [key]: value }] }).$elements as Record<
+        string,
+        string
+      >[]
+    )[0]?.[key];
+    const scrubbedChain = sanitizeAnalyticsProperties({
+      $elements_chain: `img:${key}="${value}"nth-child="1"`,
+    }).$elements_chain as string;
+    const viaChain = /^img:[^"]*="([^"]*)"/.exec(scrubbedChain)?.[1];
+    return { viaElements, viaChain, scrubbedChain };
+  }
+
+  for (const key of URL_ATTR_KEYS) {
+    for (const [shape, row] of Object.entries(PAYLOADS)) {
+      const payload = row.value;
+      it(`${key} × ${shape}`, () => {
+        const { viaElements, viaChain, scrubbedChain } = bothPaths(key, payload);
+
+        // AXIS 1 — SAFETY, asserted FIRST because it is the property that
+        // matters. The marker must be gone from both answers AND from the whole
+        // rejoined chain.
+        if (row.marker !== null) {
+          expect(viaElements).not.toContain(row.marker);
+          expect(viaChain).not.toContain(row.marker);
+          expect(scrubbedChain).not.toContain(row.marker);
+          expect(viaElements).not.toBe(payload);
+        } else {
+          // A row with no marker pins the OUTCOME instead — see the trap note on
+          // `PAYLOADS`. The first assertion is the one that keeps this cell
+          // able to fail at all: a fixture whose required answer is its own
+          // input cannot distinguish reduction from passthrough, and this is
+          // where such a fixture is caught rather than silently tolerated.
+          const { answer } = row;
+          expect(answer).not.toBe(payload);
+          expect(viaElements).toBe(answer);
+          expect(viaChain).toBe(answer);
+          expect(scrubbedChain).toBe(`img:${key}="${answer}"nth-child="1"`);
+        }
+
+        // AXIS 1b — the STRUCTURAL half of safety. NOT the property that keeps
+        // a cell honest: a payload carrying none of these three characters
+        // satisfies it while leaking whole, which is why AXIS 1 above has to
+        // hold for EVERY row and not merely for most of them.
+        // Every safe answer is re-serialized as `protocol + "//" + host +
+        // pathname`: `search` and `hash` are never read, and `host` is
+        // `hostname[:port]` by definition, so userinfo is never read either. A
+        // `?`, `#` or `@` in an answer therefore means a byte was SLICED out of
+        // the input instead of rebuilt from parser fields — the exact regression
+        // the primitive's design exists to make impossible. (`@` is sound to
+        // assert here because no payload in this corpus has a legitimate `@` in
+        // a path, so a surviving one is necessarily userinfo.)
+        expect(viaElements).not.toMatch(/[?#@]/);
+        expect(viaChain).not.toMatch(/[?#@]/);
+
+        // AXIS 2 — PARITY. Safety at one representation is worthless if the
+        // twin ships the same bytes on the same event. Goes RED if EITHER gate
+        // is narrowed alone.
+        expect(viaChain).toBe(viaElements);
+      });
+    }
+  }
+
+  // No safe answer carries a query, fragment or userinfo marker — the same
+  // property AXIS 1b asserts structurally, restated with the markers PLANTED in
+  // exactly those three positions so a failure names which one leaked. This is
+  // the cell a "keep everything before the first `[?#]`" cut would fail, and
+  // that cut is what six rounds each certified and each falsified.
+  it("no safe answer carries a query / fragment / userinfo marker, on EITHER path", () => {
+    const MARKED = [
+      "https://app.cz/clients?token=QUERYMARK",
+      "https://app.cz/clients#FRAGMARK",
+      "https://app.cz/clients?token=QUERYMARK#FRAGMARK",
+      "https://novakova:USERMARK@app.cz/clients",
+      "https://USERMARK@app.cz/clients?token=QUERYMARK#FRAGMARK",
+      "//novakova:USERMARK@cdn.app.cz/report",
+      "/clients?search=QUERYMARK",
+      "/clients#FRAGMARK",
+      "?token=QUERYMARK",
+      "#FRAGMARK",
+    ];
+    for (const key of URL_ATTR_KEYS) {
+      for (const value of MARKED) {
+        const { viaElements, viaChain, scrubbedChain } = bothPaths(key, value);
+        for (const marker of ["QUERYMARK", "FRAGMARK", "USERMARK"]) {
+          expect(viaElements).not.toContain(marker);
+          expect(viaChain).not.toContain(marker);
+          expect(scrubbedChain).not.toContain(marker);
+        }
+        expect(viaElements).not.toMatch(/[?#@]/);
+        expect(viaChain).not.toMatch(/[?#@]/);
+        expect(viaChain).toBe(viaElements);
+      }
+    }
+  });
+
+  // The other side of the vocabulary: a name that is NOT url-bearing must be
+  // left alone by BOTH paths, so the matrix above cannot be satisfied by a gate
+  // that simply matches everything.
+  it("leaves a NON-url-bearing attribute untouched on both paths", () => {
+    const payload = "data:text/plain,Cena: 100";
+    for (const key of ["attr__data-xhref", "attr__myhref", "attr__nosrc"]) {
+      const { viaElements, scrubbedChain } = bothPaths(key, payload);
+      expect(viaElements).toBe(payload);
+      expect(scrubbedChain).toBe(`img:${key}="${payload}"nth-child="1"`);
+    }
+  });
+
+  // Why the attribute tier REQUIRES the `attr__` prefix on both adapters: a
+  // custom event property named `action` or `data` is free text, and the URL
+  // primitive decides with the PARSER, which reads ordinary Czech UI copy as an
+  // opaque URI. Widening without the prefix would have destroyed it.
+  it("does not read an un-prefixed custom property named after an attribute as a URL", () => {
+    expect(sanitizeAnalyticsProperties({ action: "Cena: 100", data: "Datum: 1.1.2026" })).toEqual({
+      action: "Cena: 100",
+      data: "Datum: 1.1.2026",
+    });
+  });
+
+  // ── THE RECORDED RESIDUAL ────────────────────────────────────────────────
+  //
+  // NOT a guarantee. This test pins CURRENT behaviour so the residual is a
+  // decision with a regression test rather than an undocumented gap, and it is
+  // named EXPOSURE so no reader concludes from the redaction around it that
+  // these schemes are covered.
+  //
+  // ADR 1032 ("The `file:` question, decided rather than inherited") measured
+  // that SHRINKING `SAFE_SCHEMES` closes one sink and opens two: the set is an
+  // allow-list in `safeUrlOrRedact`, but a route-or-return-the-input-RAW gate in
+  // `reduceSourceLocation` and a route-or-skip gate in `scrubDescription`. This
+  // skeleton ships no Capacitor, no Ionic and no `file:`-served build in any
+  // workspace, so the native-build PROVENANCE argument that put the three schemes
+  // on the list does not hold HERE at all — and the ADR records them as an OPEN
+  // RE-ARGUMENT rather than silently keeping them.
+  //
+  // If this test starts failing because these values now REDACT, that is the
+  // re-argument being settled — it needs its own ADR, not an edited expectation.
+  it("EXPOSURE: capacitor:/ionic:/file: are SAFE_SCHEMES, so a PATH payload survives on both paths", () => {
+    const CASES: [value: string, kept: string][] = [
+      // The path IS the payload — a document filename is exactly where a surname
+      // and a rodné číslo live, and nothing here cuts it.
+      [
+        "file:///storage/emulated/0/Download/Novakova-8001011234.pdf",
+        "file:///storage/emulated/0/Download/Novakova-8001011234.pdf",
+      ],
+      [
+        "capacitor://localhost/klienti/Novakova-8001011234",
+        "capacitor://localhost/klienti/Novakova-8001011234",
+      ],
+      // The QUERY is still cut on these schemes — the exposure is the path, and
+      // only the path.
+      [
+        "file:///android_asset/www/index.html?surname=Novakova",
+        "file:///android_asset/www/index.html",
+      ],
+      ["ionic://localhost/klienti?rc=8001011234", "ionic://localhost/klienti"],
+    ];
+    for (const [value, kept] of CASES) {
+      const { viaElements, viaChain, scrubbedChain } = bothPaths("attr__href", value);
+      expect(viaElements).toBe(kept);
+      // The residual is SYMMETRIC — it is a property of the shared primitive,
+      // not of one gate, so retiring it is one edit and not two.
+      expect(viaChain).toBe(kept);
+      expect(scrubbedChain).toBe(`img:attr__href="${kept}"nth-child="1"`);
+    }
+    // Stated outright rather than left implicit in the fixtures: these two ARE
+    // shipping their payload today.
+    expect(bothPaths("attr__href", CASES[0]![0]).viaElements).toContain("8001011234");
+    expect(bothPaths("attr__href", CASES[1]![0]).viaElements).toContain("8001011234");
+  });
 });

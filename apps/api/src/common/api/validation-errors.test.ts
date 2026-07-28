@@ -1,6 +1,7 @@
 /**
- * Envelope mapping: a zod failure must surface through the (unchanged)
- * GlobalExceptionFilter as 422 `{ message, code: "validation", errors }`.
+ * Envelope mapping: a zod failure must surface through GlobalExceptionFilter as
+ * 422 `{ message, code: "validation", errors }` — the filter copies the declared
+ * envelope fields off the thrown body and neither adds nor drops one (ADR 1035).
  */
 import { type ArgumentsHost } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
@@ -56,7 +57,7 @@ describe("createValidationException", () => {
     });
   });
 
-  it("passes through GlobalExceptionFilter unchanged (no filter edits needed)", () => {
+  it("reaches the wire through GlobalExceptionFilter with nothing added or dropped", () => {
     const error = failParse(z.object({ email: z.email() }), { email: "nope" });
 
     const send = vi.fn();

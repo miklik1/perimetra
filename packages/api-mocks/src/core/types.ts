@@ -58,10 +58,19 @@ export interface MockResponse {
 export class MockHttpError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  /**
+   * Structured, machine-readable context for the failure — the same
+   * `details` slot `apiErrorEnvelopeSchema` carries and `@repo/api` surfaces on
+   * its normalized `ApiError`. Without it the mock could not reproduce a
+   * details-carrying rejection, so the client half of that contract had no way
+   * to be exercised end to end under the repo's own mock-mode E2E.
+   */
+  readonly details?: Record<string, unknown>;
+  constructor(status: number, code: string, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "MockHttpError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }

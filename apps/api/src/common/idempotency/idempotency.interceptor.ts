@@ -15,7 +15,8 @@
  *   would let a retry duplicate a resource/window that has no uniqueness
  *   backstop) — the retry then replays-or-409s instead.
  * - concurrent duplicate while the winner is in flight → 409
- *   `{ code: "idempotency_in_flight" }` (clients back off and retry).
+ *   `{ code: "idempotency_in_flight" }` (clients back off and retry). Both 409s
+ *   carry their context in the envelope's `details` slot — see `replay()`.
  *
  * The stored record also fingerprints the request BODY (sha256 of canonical
  * JSON): a retry MUST carry the same body to replay — a same-key/different-body
@@ -37,6 +38,7 @@ import { type FastifyReply, type FastifyRequest } from "fastify";
 import { type Redis } from "ioredis";
 import { catchError, from, mergeMap, of, throwError, type Observable } from "rxjs";
 
+import { errorEnvelope } from "../filters/global-exception.filter.js";
 import { IDEMPOTENCY_REDIS } from "./idempotency.tokens.js";
 import { IDEMPOTENT_METADATA_KEY } from "./idempotent.decorator.js";
 
@@ -130,7 +132,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     // authorization for @Idempotent routes must live in a GUARD (runs before
     // this interceptor), never in the handler. See the authorization invariant
     // on `@Idempotent()`.
-    if (claimed !== "OK") return this.replay(redisKey, context, bodyHash);
+    if (claimed !== "OK") return this.replay(redisKey, context, bodyHash, idempotencyKey);
 
     const reply = context.switchToHttp().getResponse<FastifyReply>();
     return next.handle().pipe(
@@ -175,10 +177,26 @@ export class IdempotencyInterceptor implements NestInterceptor {
     );
   }
 
+  /**
+   * Both refusals below carry their context in the envelope's `details` slot and
+   * NOWHERE else — `GlobalExceptionFilter` forwards `{message, code, errors}`
+   * plus a `details` that OPTED IN, and drops the rest (ADR 1035). The opt-in is
+   * `errorEnvelope()`: without it `details` is dropped, because the filter must
+   * be able to tell a payload a service chose to publish from one a third-party
+   * library happened to park under the same key. These two 409s are this repo's
+   * only `details` producers, so they are the whole of the opt-in surface.
+   *
+   * The pair is deliberately the same shape: the bare `idempotencyKey` the
+   * caller sent (never `redisKey`, which embeds the user id) plus `retryable`,
+   * which is the whole decision a backing-off client has to make — `true` means
+   * the winner is still in flight and this key will resolve, `false` means the
+   * key is bound to a different body and no amount of retrying will change that.
+   */
   private async replay(
     redisKey: string,
     context: ExecutionContext,
     bodyHash: string,
+    idempotencyKey: string,
   ): Promise<Observable<unknown>> {
     const raw = await this.redis.get(redisKey);
     const record = parseRecord(raw);
@@ -187,20 +205,26 @@ export class IdempotencyInterceptor implements NestInterceptor {
     // request. Reject it: never replay the original (cross-request aliasing) and
     // never let a body-dependent authz check be skipped on the replay path.
     if (record && record.bodyHash !== undefined && record.bodyHash !== bodyHash) {
-      throw new ConflictException({
-        message: "This Idempotency-Key was already used with a different request body",
-        code: "idempotency_key_reused",
-      });
+      throw new ConflictException(
+        errorEnvelope({
+          message: "This Idempotency-Key was already used with a different request body",
+          code: "idempotency_key_reused",
+          details: { idempotencyKey, retryable: false },
+        }),
+      );
     }
 
     // `pending` = the winner is still in flight. `null` (key vanished between
     // our failed claim and this GET — winner failed/expired) is treated the
     // same: 409 tells the client to retry, and the retry will claim cleanly.
     if (!record || record.pending) {
-      throw new ConflictException({
-        message: "A request with this Idempotency-Key is already in flight",
-        code: "idempotency_in_flight",
-      });
+      throw new ConflictException(
+        errorEnvelope({
+          message: "A request with this Idempotency-Key is already in flight",
+          code: "idempotency_in_flight",
+          details: { idempotencyKey, retryable: true },
+        }),
+      );
     }
 
     const reply = context.switchToHttp().getResponse<FastifyReply>();

@@ -116,7 +116,7 @@ build.
 ### 7. Root-demo retirement
 
 > **STATUS UPDATE (2026-07-28) — DONE, and not by move (b).** The demo was retired
-> when [ADR 0125](0125-owner-dashboard-prehled.md) made `/` the authenticated
+> when [ADR 0125](0125-wave-d-dashboard.md) made `/` the authenticated
 > "Přehled" dashboard; `apps/web/app/page.tsx` says so in its own header. The
 > deferral below ("lands with move (b)") is therefore spent, and the reasoning that
 > justified it — that the e2e specs could not be verified without Docker — no longer

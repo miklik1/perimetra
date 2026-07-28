@@ -3,8 +3,8 @@
 **Status:** Accepted (2026-07-28 — Phase A). Supersedes the wiring decision recorded in
 `design/README.md` §1.3 ("wire it into `pnpm lint` as a separate, non-blocking `lint:design` task
 during the first surface, and promote it to blocking once the first two surfaces pass it clean").
-Related: [ADR 0111](0111-design-system-tokens-and-kit.md) (the tokens and kit this measures),
-[ADR 0114](0114-configurator-shell-and-spacing.md) §7.1 (the deliberate absence of spacing tokens),
+Related: [ADR 0111](0111-design-system-scale-and-component-kit.md) (the tokens and kit this measures),
+[ADR 0114](0114-design-canvas-adoption.md) §7.1 (the deliberate absence of spacing tokens),
 [ADR 1029](1029-the-guards-were-guarding-nothing.md) (the failure class this ADR is mostly about).
 
 ## Context

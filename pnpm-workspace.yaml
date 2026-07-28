@@ -19,6 +19,74 @@ overrides:
   # v7 either way: the guard passes an npm-undici Agent as fetch's `dispatcher`,
   # duck-typed against Node's bundled undici, so majors must move in lockstep.
   undici: "^7.28.0"
+  # ── Transitive security overrides (ADR 1040) ──────────────────────────────
+  # Every entry here clears a HIGH production advisory in a package nothing in
+  # this repo depends on directly, so there is no version to bump and no
+  # upstream release to wait for — the only lever is an override. The `undici`
+  # entry above is the same mechanism and predates this block.
+  #
+  # MAJOR-SCOPED where two vulnerable majors coexist. A bare `js-yaml: ^4.3.0`
+  # would drag `@istanbuljs/load-nyc-config` (which needs the v3 API) onto v4
+  # and break it; the `name@major` form fixes each line in place. Verified
+  # against the installed tree: js-yaml 3.14.2 + 4.1.1 + 4.2.0, brace-expansion
+  # 1.1.15 + 5.0.6 (2.1.1 is also installed and is NOT flagged — it is not
+  # overridden, because the audit, not a guess about the advisory's stated
+  # range, is the oracle here).
+  "js-yaml@3": "^3.15.0" # GHSA-52cp-r559-cp3m — quadratic CPU via merge-key chains
+  "js-yaml@4": "^4.3.0" # same advisory, v4 line
+  "brace-expansion@1": "^1.1.16" # GHSA-3jxr-9vmj-r5cp — exponential {} expansion
+  "brace-expansion@5": "^5.0.8" # + GHSA-mh99-v99m-4gvg — unbounded expansion OOM
+  # PERIMETRA-LOCAL, and it is the upstream block's OWN RULE being applied rather
+  # than a deviation from it: "the audit, not a guess about the advisory's stated
+  # range, is the oracle here". Upstream measured 2.1.1 as unflagged in ITS tree
+  # and therefore left the v2 line alone. In perimetra's tree `pnpm audit --prod`
+  # DOES flag it (GHSA-3jxr-9vmj-r5cp, `>=2.0.0 <2.1.2`), reached through
+  # `@miklik1/cardo-tax-cz > libxmljs2 > node-gyp > … > minimatch`, a chain the
+  # skeleton does not have. Same advisory as the v1 entry above, different major.
+  "brace-expansion@2": "^2.1.2"
+  # PERIMETRA-LOCAL for the same reason — a dependency the skeleton has no path
+  # to. GHSA-hmw2-7cc7-3qxx, CRLF injection via an unescaped filename/field name,
+  # reached through `@miklik1/cardo-tax-cz > saxon-js > axios > form-data`
+  # (4.0.5, patched >=4.0.6). Patch-level within the same major, so no consumer
+  # sees an API change.
+  form-data: "^4.0.6"
+  fast-uri: "^3.1.4" # GHSA-v2hh-gcrm-f6hx + GHSA-4c8g-83qw-93j6 — host confusion
+  shell-quote: "^1.8.5" # GHSA-395f-4hp3-45gv — quadratic `parse()` DoS
+  # THE TWO BELOW ARE NOT AUDIT-VERIFIABLE, and that is why they landed as their
+  # own commit (ADR 1041). Both sit in the BUILD pipeline, and `build` runs in
+  # neither the Stop-hook gate nor lefthook — so a clean advisory report after
+  # these move is evidence about the advisory database and about nothing else.
+  # Their acceptance criterion is a manual `pnpm build`, recorded in the ADR.
+  postcss: "^8.5.23" # GHSA-6g55-p6wh-862q + GHSA-r28c-9q8g-f849 — sourceMappingURL
+  #                    arbitrary .map file read / path traversal
+  sharp: "^0.35.3" # GHSA-f88m-g3jw-g9cj — inherited libvips CVE-2026-33327,
+  #                  -33328, -35590, -35591. This one swaps NATIVE binaries (the
+  #                  prebuilt libvips that `next/image` optimization runs on), so
+  #                  it is the reason the manual build is not ceremony.
+  # GHSA-c96f-x56v-gq3h — HTTP/2 DDoS. In range of fastify 5.8.5's own
+  # `find-my-way: ^9.0.0`, so this is a patch bump and not a forced major.
+  find-my-way: "^9.6.1"
+  # GHSA-83w8-p2f5-377r — route-guard bypass via path traversal, and the ONE
+  # entry here that crosses a declared peer range, so it carries its own
+  # argument. The fix exists only on the v10 line (`patched >=10.1.1`, no 9.x
+  # backport) while `@nestjs/platform-fastify@11.1.26` and `@nestjs/swagger@11.4.4`
+  # declare `^8.0.0 || ^9.0.0` and `@bull-board/fastify@7.2.1` pins `9.1.3`
+  # exactly. That mismatch is a DECLARED range, not a measured incompatibility:
+  # v10.0.0's entire breaking change is `setHeaders(res)` becoming
+  # `setHeaders(reply)` (fastify/fastify-static#598), and NO consumer in this
+  # tree passes `setHeaders` — the only occurrence is a type-only field in
+  # `@nestjs/platform-fastify`'s vendored `fastify-static-options.interface.d.ts`,
+  # which is a local copy and not an import, so it neither changes nor breaks
+  # `check-types`. Its dependency set is otherwise identical to 9.1.3's.
+  # This one MATTERS here rather than being cosmetic: the advisory is a guard
+  # bypass, and the two mounts this tree gives it are the Swagger UI assets and
+  # bull-board — which `apps/api/src/modules/jobs/jobs.module.ts` (the
+  # `fastify.register` at ~112, behind a `safeCompare` basic-auth hook and the
+  # `BULL_BOARD_ENABLED` fail-closed gate) mounts OUTSIDE Nest, i.e. exactly the
+  # "a route guard protects this static mount" shape the advisory defeats.
+  # (The upstream comment cites `common/config/env.ts` — that file holds only the
+  # flag and the credentials in this repo; the mount itself is in the jobs module.)
+  "@fastify/static": "^10.1.2"
   # Single @types/node for the whole tree (2026-06-11): without this, three
   # majors coexist (18 via testcontainers→@types/dockerode→@types/ssh2, 25 via
   # @inquirer optional peers, 22 ours) and their merged `net`/undici-types
@@ -57,9 +125,21 @@ catalog:
   # msw/native is a maintainer-flagged WIP and mobile is dormant, so no mobile
   # mock yet (the injectable client seam lets one drop in later).
   msw: ^2.7.0
-  # 16.2.9 (2026-06-11 bump): ≥16.2.6 clears the 8 high `pnpm audit` advisories
-  # the CI gate (ADR 0044) trips on against 16.2.1 (e.g. GHSA-q4gf-8mx6-v5v3).
-  next: 16.2.9
+  # 16.2.12 (2026-07-28 bump, ADR 1040; was 16.2.9 from 2026-06-11, which cleared
+  # the 16.2.1-era advisories). The advisory floor is 16.2.11, which clears four
+  # high `pnpm audit` advisories — two Server-Action ones, the Turbopack+single-
+  # locale middleware bypass and the rewrite-destination SSRF. All four
+  # preconditions were RE-VERIFIED in this repo rather than inherited from the
+  # skeleton's claim about itself — and this matters, because upstream is a
+  # template and perimetra is a shipping app with 40+ routes: no `"use server"`
+  # anywhere in `apps/web` or `packages/*`, no `i18n` key in next.config.js
+  # (next-intl runs WITHOUT i18n routing — cookie-selected locale via
+  # `./i18n/request.ts`, no `[locale]` segment), no `--turbopack` on any build,
+  # and every `rewrites()` destination is a literal host or the server-side
+  # `apiProxyTarget`. 16.2.12 is taken anyway rather than allowlisted: each of
+  # those is an APPLICATION property that one commit changes, and the same
+  # release also carries fixes that need none of them.
+  next: 16.2.12
   # i18n engine (ADR 0020): next-intl on web (incl. RSC), its framework-agnostic
   # core use-intl on mobile, over one shared ICU catalog. `use-intl` is pinned
   # EXACT (no caret) to freeze the React Native rough edges tracked in
@@ -83,10 +163,25 @@ catalog:
   zustand: ^5.0.14
   "@nestjs/testing": ^11.1.26
   fastify: ^5.8.5
-  # Better Auth: exact pin, CVE policy ADR 0033 (`auth` = its CLI, version-locked)
-  better-auth: 1.6.16
+  # Better Auth: exact pin, CVE policy ADR 0033 (`auth` = its CLI, version-locked).
+  # 1.6.25 (2026-07-28 bump, ADR 1040): GHSA-qq9h-g4jm-xgf3, account takeover via
+  # pre-account hijacking on magic-link and email-OTP sign-in (patched >=1.6.22).
+  # This is the highest-impact advisory in either skeleton — `better-auth` is a
+  # DIRECT dependency of both `@repo/auth` and `apps/api`, not a transitive one.
+  # PERIMETRA CORRECTION to the upstream comment, which says "the affected flows
+  # are sign-in flows this template ships": they are NOT shipped here. The
+  # advisory is specific to magic-link and email-OTP sign-in, and this repo
+  # configures exactly `admin()`, `organization({ ac, roles, … })` and
+  # `twoFactor({ issuer: "Perimetra" })` (`auth.instance.ts`), mirrored client-side
+  # in `@repo/auth` — no magic-link or email-OTP plugin anywhere (grep-verified).
+  # The bump is taken anyway, and deliberately: which plugins are enabled is an
+  # APPLICATION property one commit away from false, and nine minors of drift on
+  # the identity library is a worse thing to owe than a patch bump is to take.
+  # `auth` is the matching CLI and moves in the same edit or the CLI generates
+  # against a different schema than the runtime enforces.
+  better-auth: 1.6.25
   ioredis: ^5.11.1
-  auth: 1.6.16
+  auth: 1.6.25
   "@types/react": 19.2.14
   uuidv7: ^1.2.1
   nestjs-zod: ^5.4.0
@@ -129,7 +224,7 @@ catalogs:
   # (run in CI); bump the SDK and all its pins here together — see ADR 0013.
   expo56:
     "@expo/log-box": ~56.0.12
-    "@expo/metro-runtime": ~56.0.17
+    "@expo/metro-runtime": ~56.0.18
     # Device key/value store for the theme preference (ADR 0010 follow-up). A
     # native module, so it tracks the SDK: `expo install` resolves it from
     # bundledNativeModules (2.2.0 for SDK 56) and `expo install --check` guards it.
@@ -144,17 +239,17 @@ catalogs:
     # today: only @repo/telemetry dev-installs it for typechecking; apps/mobile
     # adds it (via `expo install`, `--check`-guarded) when mobile telemetry wires.
     "@sentry/react-native": ~8.13.0
-    expo: ~56.0.16
-    expo-constants: ~56.0.21
-    expo-linking: ~56.0.15
+    expo: ~56.0.17
+    expo-constants: ~56.0.22
+    expo-linking: ~56.0.16
     # Device locale detection for the initial mobile locale (ADR 0020). A native
     # module, so it tracks the SDK like async-storage — `expo install` resolves
     # it from bundledNativeModules (56.0.6 for SDK 56) and `--check` guards it.
     expo-localization: ~56.0.6
-    expo-router: ~56.2.15
+    expo-router: ~56.2.16
     # Splash held until the persisted theme rehydrates, to avoid a cold-start
     # theme flash (ADR 0015); a config plugin, registered in app.config.ts.
-    expo-splash-screen: ~56.0.13
+    expo-splash-screen: ~56.0.14
     expo-status-bar: ~56.0.4
     expo-system-ui: ~56.0.5
     jest-expo: ~56.0.5
@@ -168,7 +263,7 @@ catalogs:
     react-native-gesture-handler: ~2.31.1
     react-native-reanimated: 4.3.1
     react-native-safe-area-context: ~5.7.0
-    react-native-screens: 4.25.2
+    react-native-screens: ~4.26.0
     react-native-web: ~0.21.0
     react-native-worklets: 0.8.3
   react19:

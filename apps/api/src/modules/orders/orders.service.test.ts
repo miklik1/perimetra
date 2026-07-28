@@ -125,9 +125,10 @@ describe("OrdersService.create", () => {
     repo.findLiveByQuoteIds.mockResolvedValue(makeRow({ quoteId: REVISION_ID }));
 
     // Names the incumbent so the UI can offer RE-POINT instead of a second order
-    // (ADR-O1). Asserted on the exception itself: `GlobalExceptionFilter` does
-    // not yet forward `details` to the wire (flagged in ADR 0126), so the itest
-    // can only check the code.
+    // (ADR-O1). Asserted on the exception itself; the wire-level half — that a
+    // body built by `errorEnvelope()` actually publishes `details` — is pinned
+    // in `global-exception.filter.test.ts` (ADR 1035, which replaced the earlier
+    // shape-only forwarding this comment used to say was missing).
     await expect(service.create(SCOPE, { quoteId: QUOTE_ID })).rejects.toMatchObject({
       response: {
         code: "order_exists_for_chain",

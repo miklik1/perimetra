@@ -33,15 +33,55 @@ export const REDACTED = "[Filtered]";
 
 // Order matters: Bearer/JWT first so an email-less token line doesn't get
 // partially rewritten by a later pattern.
-const STRING_PATTERNS: RegExp[] = [
+//
+// EVERY UNBOUNDED QUANTIFIER THAT CAN SCAN A CAPTURED STRING CARRIES AN
+// EXPLICIT UPPER BOUND (ADR 1043). This module runs on `beforeSend` /
+// `beforeBreadcrumb` — synchronously, on the caller's thread, over strings an
+// attacker can influence (an error message, a request body, a breadcrumb) — so
+// a quadratic pattern here is a reachable DoS and not a style question. It was
+// one: measured on this box against a 128 KB string, the e-mail pattern alone
+// blocked for 9.0 s and the JWT pattern for 7.7 s. The bounds below are the
+// only reason the whole pass is now linear.
+//
+// The bounds are STANDARDS-DERIVED, never guessed, so what falls outside them
+// is stateable: RFC 5321 caps an e-mail local part at 64 octets, the longest
+// IANA TLD is 24 characters, and a DNS name has at most 127 labels. A string
+// outside those is not a deliverable address, and the cost of the bound is that
+// the redaction becomes NARROWER rather than absent — a 70-character local part
+// still redacts, just from character 65 onward. Pinned by `./scrub.test`, which
+// asserts both the coverage and the timing.
+// Exported for `./scrub.test`, which asserts the bound property structurally
+// (no open-ended `{n,}` survives here) rather than only by timing — a timing
+// assertion alone tells you a machine was fast, not that the pattern is safe.
+// The sibling skeleton exports the same list from its `@repo/utils` registry.
+export const STRING_PATTERNS: RegExp[] = [
   // Authorization header values: "Bearer <anything token-ish>".
+  // Deliberately NOT bounded: the literal `Bearer\s+` prefix anchors the match,
+  // so there is one start position per occurrence of that word and the trailing
+  // `[\w\-.~+/]+=*` has no ambiguity to backtrack through (`=` is not in the
+  // class). Measured flat at 0.6 ms on a 128 KB input.
   /\bBearer\s+[\w\-.~+/]+=*/gi,
-  // Bare JWTs (three base64url segments).
-  /\b[\w-]{8,}\.[\w-]{8,}\.[\w-]{4,}\b/g,
-  // Emails.
-  /[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/g,
+  // Bare JWTs (three base64url segments). Bounded per segment. The FIRST bound
+  // is the one that matters for cost — a string that is one long `[\w-]` run
+  // with no dot backtracks through the whole first segment at every word
+  // boundary — and 512 is chosen for headroom over a real header (a b64url
+  // `{"alg":"RS256","typ":"JWT"}` is 36 chars; ~200 with `kid`/`x5t`). The
+  // payload and signature bounds cost nothing measurable and are set generously:
+  // 4096 covers a large claim set, 1024 covers an RS512 signature (683 chars).
+  // Verified to still match HS256, RS256, RS512 and a 4 KB-payload token.
+  /\b[\w-]{8,512}\.[\w-]{8,4096}\.[\w-]{4,1024}\b/g,
+  // Emails. The domain is DECOMPOSED into labels rather than written as one
+  // `[\w.-]+` run, and that is a coverage decision, not a cosmetic one: the flat
+  // form has to be capped at the 255-octet domain limit to stay linear, which
+  // silently stops matching a long single-label domain, while the decomposed
+  // form is linear WITHOUT that cap because `[\w-]` cannot match the `.` that
+  // separates the labels — so the partition is deterministic and there is
+  // nothing to backtrack across. Same worst case (18.7 ms vs 18.1 ms at 128 KB),
+  // strictly more coverage.
+  /[\w.%+-]{1,64}@(?:[\w-]+\.){1,64}[A-Za-z]{2,24}/g,
   // Rodné číslo SHAPE: YYMMDD, optional "/", 3–4 digits — also catches the
-  // slashless 9–10 digit form (see the fail-safe note above).
+  // slashless 9–10 digit form (see the fail-safe note above). Already bounded;
+  // measured flat at 0.3 ms on a 128 KB digit run.
   /\b\d{6}\s*\/?\s*\d{3,4}\b/g,
 ];
 
@@ -92,7 +132,24 @@ const ANY_PATTERN = new RegExp(STRING_PATTERNS.map((p) => `(?:${p.source})`).joi
 // missed the string passed through with ZERO redaction. Dropping the anchor only
 // ever matches MORE text — the safe direction; the `://` requirement still stops
 // a bare "1/2?x" being mistaken for a URL.
-const EMBEDDED_URL_QUERY = /((?:https?|wss?):\/\/[^\s?#]*)[?#]\S*/gi;
+//
+// THE PATH RUN IS BOUNDED, and unlike the value-shape patterns above this one
+// could NOT be fixed by removing ambiguity (ADR 1043). `[^\s?#]*` excludes `?`
+// and `#`, so its backtracking is already provably useless — an atomic-group
+// rewrite was measured and only halved the cost, because the expense is the
+// GREEDY FORWARD SCAN, not the backtrack: on `"https://".repeat(16384)` every
+// one of the 16 384 `https://` occurrences is a match attempt that scans to the
+// end of the string. 1.5 s on a 128 KB input, from any captured string, with no
+// `@` and no token needed. The bound makes each attempt O(2048) instead of
+// O(remaining).
+//
+// The cost of the bound: a URL whose origin+path exceeds 2048 characters keeps
+// its query here. That is acceptable ONLY because this pass is explicitly the
+// best-effort half — the policy above says so in as many words. Anything a KEY
+// identifies as URL-bearing goes through `safeUrlOrRedact`, which is the URL
+// PARSER and has no regex and no length limit at all. This bound narrows the
+// free-text fallback, never the guarantee.
+const EMBEDDED_URL_QUERY = /((?:https?|wss?):\/\/[^\s?#]{0,2048})[?#]\S*/gi;
 
 // A PROTOCOL-RELATIVE URL ("//cdn.host/path?q=…") embedded in free text: no
 // scheme to anchor on, so it is guarded by a DOTTED host (a real domain) — this
@@ -101,8 +158,14 @@ const EMBEDDED_URL_QUERY = /((?:https?|wss?):\/\/[^\s?#]*)[?#]\S*/gi;
 // ("//api.stg.example.com:8443/x?q=…"): without it the host group ends at the
 // ":" and the whole match fails, leaving the query intact. Keeps `//host/path`,
 // drops the query/fragment; same whitespace-bounded tail as the scheme pass.
+//
+// Bounded on the same argument and by the same measurement as the pass above:
+// `"//a.b/".repeat(21845)` cost 2.2 s, because each `//` is a match attempt
+// whose optional path run scans to the end. The label bounds are the DNS limit
+// (63 octets); the port is at most 5 digits; the path bound is the one that
+// carries the cost, exactly as above.
 const EMBEDDED_PROTOCOL_RELATIVE_URL_QUERY =
-  /(\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:\/[^\s?#]*)?)[?#]\S*/gi;
+  /(\/\/[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+(?::\d{1,5})?(?:\/[^\s?#]{0,2048})?)[?#]\S*/gi;
 
 // Keys whose VALUES are redacted wholesale, wherever they appear in an event.
 // The PII registry (packages/db/src/pii.ts, ADR 0040) "drives the Sentry
@@ -305,6 +368,12 @@ function isSensitiveKey(key: string): boolean {
 const REQUEST_SCOPED_SENSITIVE_KEYS = /^data$/i;
 const REQUEST_KEY = /^request$/i;
 
+// The ARRAY key whose elements are stack frames — `exception.values[].stacktrace
+// .frames[]`, `threads.values[].stacktrace.frames[]` and the legacy top-level
+// `stacktrace.frames[]` all spell it the same way. It arms the source-location
+// allow-SHAPE below (ADR 1044).
+const FRAMES_KEY = /^frames$/i;
+
 // SDK/build metadata that is never user input: stack-frame locations, module
 // and symbol names, release/build identifiers. Exempt from string redaction so
 // a purely-numeric chunk filename or dotted module name can't be rewritten to
@@ -322,6 +391,24 @@ const STRUCTURAL_KEYS =
 // also disabled the value-shape pass there, so a rodné číslo in the same string
 // survived twice over. See `reduceSourceLocation` for why the replacement is
 // narrower than "run the primitive on these keys".
+//
+// AND IT IS NOW AN ALLOW-SHAPE, NOT A KEY NAME (ADR 1044). The pattern alone is
+// a claim about what a key CALLED `filename` cannot contain, which is the
+// fail-open spelling this lineage keeps being punished for — and it was matched
+// ANYWHERE in an event, at any depth. `filename` is not a reserved word in a
+// Sentry envelope: it is the natural key for an upload field, so a form post
+// `{filename: "novakova-8001011234.pdf"}` under `extra`, `contexts` or a
+// breadcrumb's `data` bag had ALL redaction disabled on it — no value-shape
+// pass, and `reduceSourceLocation` returns a relative value byte-identical, so
+// the rodné číslo in that filename shipped in the clear.
+//
+// The exemption's justification was only ever about a STACK FRAME, so the rule
+// is now scoped to where a frame actually lives: an element of a `frames` array
+// (`exception.values[].stacktrace.frames[]`, `threads.values[].stacktrace
+// .frames[]`, and the legacy top-level `stacktrace.frames[]`). Everywhere else
+// `filename` / `abs_path` are ordinary strings and get the full walk. The
+// arming is structural — the walk carries "this object came out of a `frames`
+// array" — never a guess about the object's contents.
 const SOURCE_LOCATION_KEYS = /^(filename|abs_path)$/;
 
 // ── Deny-by-default URL query stripping (ADR 1011) ──────────────────────────
@@ -469,10 +556,58 @@ export function redactString(value: string): string {
 // cut at, so a `mailto:` and a `data:text/csv` href shipped a surname and a
 // rodné číslo in the clear. Keying opacity on the absence of `//` was rejected:
 // `data://text/csv,<payload>` round-trips through that test and still delivers
-// its body. `capacitor:`/`ionic:`/`file:` are here on PROVENANCE — the
-// web-native lineage's native build really does serve pages from those origins,
-// and excluding them would redact every page view on that platform.
+// its body.
+//
+// SHRINKING THIS SET IS NOW SAFETY-MONOTONE, AND IT WAS NOT (ADR 1045).
+// It used to be read with three OPPOSITE polarities: an allow-list here, a
+// route-or-return-the-input-RAW gate in `reduceSourceLocation`, and a
+// route-or-SKIP gate in `scrubDescription`. Under that arrangement dropping a
+// scheme CLOSED one hole and OPENED two — measured: dropping `file:` makes the
+// primitive redact `file:` values, and the same edit makes
+// `file:///android_asset/www/index.html?surname=Novakova` survive WHOLE at the
+// other two. Both inverted readers are now allow-list-polarity too: a
+// non-member is REDACTED-TO-SCHEME (`data:[Filtered]`) rather than returned
+// raw, so membership only ever means "keep more", at every reader, and removing
+// an entry can only ever redact more. `redactTransaction` was already correct —
+// it routes anything URL-shaped through the primitive, which redacts an
+// unlisted scheme whole. Pinned in `./scrub.test`.
+//
+// MEMBERSHIP IS ARGUED FROM PRODUCERS WE SHIP, in both directions — a scheme is
+// added only when a producer we ship is shown to emit it, and removed when that
+// stops being true. Two entries currently FAIL that test and are flagged rather
+// than silently kept:
+//
+//   · `file:` STAYS, but not for the reason previously written here. The old
+//     comment justified it as a Capacitor/native PAGE origin, which is false for
+//     this tree. The real producer is Node's ESM loader: a stack frame in an
+//     ESM runtime is `file:///…/dist/x.js`, so removing `file:` would redact
+//     every server frame's `filename` and break source-map resolution — the very
+//     thing the source-location rule exists to protect.
+//   · `capacitor:` / `ionic:` HAVE NO PRODUCER IN THIS TREE. Verified: no
+//     `@capacitor/*` or `@ionic/*` dependency in any package.json, and no
+//     reference in any source file. The mobile app is Expo / React Native, which
+//     has no page URL at all. They are inherited entries, they are removal
+//     candidates under this block's own rule, and removing them is now safe —
+//     but it is a BEHAVIOUR change (a `capacitor://` value would go from
+//     origin+path to `[Filtered]`) with no measured gain here, since the query
+//     is already dropped for them. It belongs to its own decision, not to the
+//     polarity repair that merely made it possible. Boarded, not taken.
 const SAFE_SCHEMES = new Set(["http:", "https:", "ws:", "wss:", "file:", "capacitor:", "ionic:"]);
+
+// Build-synthetic frame schemes: values that are a BUILD-ARTIFACT identifier and
+// never a page URL, so they must survive BYTE-IDENTICAL or source-map resolution
+// and issue grouping break. This is the second allow-list `reduceSourceLocation`
+// consults, and writing it as an allow-list is the whole point of ADR 1045 — the
+// rule it replaces was "anything not safe is returned raw", i.e. an exemption
+// stated as a claim about what a value cannot contain.
+//
+// Producers, all shipped by this tree: Sentry's `RewriteFrames` (and the Next.js
+// SDK) rewrite frames to `app:///…`; webpack and Turbopack emit
+// `webpack-internal:///./src/x.tsx` and `webpack://_N_E/./src/x.tsx`; React
+// server components surface `rsc://React/…`; Node's own internals are `node:…`.
+// None of them can carry a page querystring, which is the leak this whole rule
+// exists for. Anything NOT on either list is redacted to its scheme.
+const FRAME_SYNTHETIC_SCHEMES = new Set(["app:", "webpack:", "webpack-internal:", "rsc:", "node:"]);
 
 // PostHog's "no referrer" sentinel. Not a URL; must not be mangled into
 // `/$direct`. Matched EXACTLY, never as a prefix — a test pins that
@@ -490,6 +625,107 @@ const SYNTHETIC_ORIGIN = "https://url-safety.invalid";
 // See `safeUrlOrRedact` — this is the whole list-valued-attribute defence, and
 // it deliberately does not look at what the members are.
 const NOT_ONE_URL = /[\s,]/;
+
+// ── The `blob:` ALLOW-SHAPE (ADR 1032, superseding ADR 1030 §4) ─────────────
+//
+// `blob:` cannot be on `SAFE_SCHEMES`, because `protocol + "//" + host +
+// pathname` is void for it: a `blob:` URL is NON-hierarchical, so its entire
+// body arrives as one opaque `pathname` and there is no authority to rebuild
+// from. It gets its own arm — and the arm is an ALLOW-SHAPE, not an exemption.
+//
+// The clause this replaces was written as an exemption ("there is nothing in a
+// blob to redact") and recursed on that opaque body. The recursive call saw
+// author-controlled text with no scheme, fell into the PATH-RELATIVE branch of
+// this same function, resolved it against the synthetic base and returned it
+// with a "/" bolted on: `blob:jan.novak@klient.cz` shipped as
+// `blob:/jan.novak@klient.cz`, `blob:null/novakova-8001011234` as
+// `blob:/null/novakova-8001011234`. Reachability of that branch from here WAS
+// the defect, so nothing below recurses.
+//
+// THE MINTERS THIS FLEET SHIPS — an ENUMERATION, not a count. The clause this
+// replaces read "exactly two bodies are legitimate, because exactly two kinds
+// of origin can mint one", which is a sentence about the world rather than a
+// predicate over the input — the exact tell ADR 1032 itself names as fail-open
+// prose — and it was FALSE for the React Native / Expo lineage both skeletons
+// ship (`apps/mobile` depends on `expo` and `react-native`, catalog `expo56`):
+//
+//   (a) a DOM document with an OPAQUE origin  → `blob:null/<uuid>`
+//       (W3C File API §11: a sandboxed iframe, a `data:` or `file:` document).
+//   (b) a DOM document with a TUPLE origin    → `blob:<origin>/<uuid>`
+//       (W3C File API §11).
+//   (c) the NATIVE runtime, ORIGIN-LESS       → `blob:<uuid>?offset=<int>&size=<int>`
+//       Two independent minters produce it, verified in the installed packages:
+//         · react-native `Libraries/Blob/URL.js` —
+//           ``return `${BLOB_URL_PREFIX}${blob.data.blobId}?offset=${blob.data.offset}&size=${blob.size}`;``
+//           where `BLOB_URL_PREFIX` gains its `//<host>/` suffix only when
+//           `BLOB_URI_HOST` is a string. iOS `RCTBlobManager.mm` exports
+//           `@"BLOB_URI_HOST" : [NSNull null]` beside `kBlobURIScheme = @"blob"`,
+//           so the guard fails and the prefix stays the bare `blob:` — no
+//           origin, no `/`. The id is `[NSUUID UUID].UUIDString`, i.e. an
+//           UPPERCASE v4 uuid, which is why the `i` flag below is load-bearing.
+//         · expo `src/winter/url.ts` ships its OWN `URL.createObjectURL` with
+//           the identical template, and `src/winter/runtime.native.ts` does
+//           `install('URL', () => require('./url').URL)` — so on the Expo
+//           lineage these skeletons actually ship, that polyfill is the one
+//           that wins.
+//
+// All three are matched on an anchored WHOLE shape, never a prefix.
+//
+// Android is NOT a fourth form and is deliberately NOT modelled. RN's
+// `BlobModule.kt` returns `mapOf("BLOB_URI_SCHEME" to "content", "BLOB_URI_HOST"
+// to resources.getString(resourceId))`, so that platform mints
+// `content://<authority>/<uuid>?offset=&size=` — a `content:` URL that never
+// reaches this arm at all and redacts on the scheme allow-list, before and
+// after this change. A `content:` authority is an app-declared string, not a
+// shape this module can prove; modelling it would mean allowing an arbitrary
+// host, and the value redacts either way.
+
+// The id every minter above emits. The version nibble is left open (1–8) rather
+// than pinned to `4`: every shipping browser mints v4 today, but a future move
+// to v7 must cost us a redaction we can see in a test, not the silent redaction
+// of every blob URL in production. Case-insensitivity is a REQUIREMENT, not
+// laxity — see minter (c), which mints uppercase.
+const BLOB_OBJECT_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+
+// (a) The OPAQUE-origin body, minted literally as `null/<uuid>` by a document
+// whose origin is opaque — a sandboxed iframe, a `data:` or `file:` document.
+// The old arm CORRUPTED this one to `blob:/null/<uuid>`, i.e. it destroyed the
+// single shape its own prose called browser-minted.
+const BLOB_OPAQUE_ORIGIN_BODY = new RegExp(`^null/${BLOB_OBJECT_ID}$`, "i");
+
+// (c) The ORIGIN-LESS body: the id alone, no origin and no `/` in front of it,
+// because minter (c) has no origin to serialize. Anchored at both ends, so
+// `blob:<uuid>/Novakova` and `blob:x<uuid>` are not this shape.
+const BLOB_ORIGINLESS_BODY = new RegExp(`^${BLOB_OBJECT_ID}$`, "i");
+
+// The ONE query this module accepts, anywhere — and only on form (c). It is
+// matched against the WHOLE `search` parser field, so this is an EXACT SHAPE and
+// never "a query is allowed here": both params, in the minted order, values
+// non-negative integers, nothing before, between or after them. The answer is
+// then re-serialized from the two capture groups, so the only author bytes that
+// can reach a sink through this branch are `[0-9]` — the punctuation is this
+// file's own literal. `?offset=0`, `?size=1234`, `?size=1234&offset=0`,
+// `?offset=0&size=1&rc=8001011234`, `?offset=jan&size=novak`,
+// `?offset=0%26size=1&x=2` and `?offset=0&size=1?offset=0&size=1` all fail the
+// anchor and REDACT. The residual channel is two integer runs; the value-shape
+// pass (`redactString`) still runs downstream of this primitive at every sink,
+// so even an RČ-shaped digit run stuffed into `offset=` is caught there.
+const BLOB_NATIVE_QUERY = /^\?offset=(\d+)&size=(\d+)$/;
+
+// (b) The TUPLE-origin body's path, tested against the INNER parser's
+// `pathname` — a parser field, so the browser-impossible query the outer parse
+// already split into `search` cannot be smuggled through it.
+const BLOB_OBJECT_PATH = new RegExp(`^/${BLOB_OBJECT_ID}$`, "i");
+
+// The schemes a DOCUMENT can be served from, which is what a blob's tuple
+// origin is. Deliberately NARROWER than `SAFE_SCHEMES`, and narrower on a
+// stated rule rather than on taste: a `file:` document has an OPAQUE origin and
+// therefore mints form (a), so a `blob:file:…` is proof the value was typed and
+// not minted; and no document is ever served over `ws:`/`wss:`.
+// `capacitor:`/`ionic:` ride along with their `SAFE_SCHEMES` membership — they
+// are real page origins on the native build, so a blob minted on one is exactly
+// as legitimate as the page that minted it.
+const BLOB_ORIGIN_SCHEMES = new Set(["http:", "https:", "capacitor:", "ionic:"]);
 
 function tryParseUrl(raw: string, base?: string): URL | null {
   try {
@@ -513,8 +749,11 @@ function tryParseUrl(raw: string, base?: string): URL | null {
  * 1. **Every safe answer is re-serialized from PARSER FIELDS**, never sliced out
  *    of the input. `protocol + "//" + host + pathname` — three fields the URL
  *    parser produced. `host` is `hostname[:port]` BY DEFINITION, so `username`
- *    and `password` are never read and userinfo cannot survive; `search` and
- *    `hash` are never read, so a query cannot survive. There is no
+ *    and `password` are never read and userinfo cannot survive; `hash` is never
+ *    read anywhere, and `search` is read at EXACTLY ONE place — the origin-less
+ *    native blob form, where it must match `?offset=<int>&size=<int>` as a WHOLE
+ *    field and the answer is rebuilt from the two integer capture groups — so an
+ *    author's query cannot survive there either. There is no
  *    strip-the-credential rule here because there is nothing to strip: the
  *    credential was never in the output. That is what makes it hold at the NEXT
  *    sink somebody adds. `https://novakova:8001011234@evil.cz/x` reduces to
@@ -535,7 +774,9 @@ function tryParseUrl(raw: string, base?: string): URL | null {
  * Deny-by-default throughout: an unparseable value, an unlisted scheme, and a
  * relative value that resolves somewhere other than the synthetic base all
  * REDACT. There is no path through this function that returns an unexamined
- * input byte.
+ * input byte — including the `blob:` arm, which ADR 1032 rewrote from an
+ * EXEMPTION into a narrow allow-shape precisely because the exemption spelling
+ * had falsified that sentence.
  */
 export function safeUrlOrRedact(raw: string): string {
   const value = raw.trim();
@@ -545,14 +786,38 @@ export function safeUrlOrRedact(raw: string): string {
 
   const absolute = tryParseUrl(value);
   if (absolute) {
-    // `blob:` is exempt from the allow-list because there is nothing in it to
-    // redact: its body is `<origin>/<uuid>` minted by `URL.createObjectURL`,
-    // browser-generated and never author-controlled text. It is still reduced
-    // rather than passed through — the inner URL goes through this same
-    // function — so a `blob:` carrying a query loses it like anything else.
+    // `blob:` — kept only when the body is PROVABLY one of the three shapes
+    // this fleet's minters produce (enumerated above), and REDACTED otherwise
+    // (ADR 1032). Evaluated without recursion: the path-relative branch below
+    // must not be reachable from here, because that reachability was the leak.
     if (absolute.protocol === "blob:") {
-      const inner = safeUrlOrRedact(absolute.pathname);
-      return inner === REDACTED ? REDACTED : `blob:${inner}`;
+      // The outer parse already split any `?…` into `search`, so `body` is the
+      // blob body and nothing else. `search` is consulted by form (c) alone,
+      // and only against an anchored whole-field shape.
+      const body = absolute.pathname;
+      // (a) `blob:null/<uuid>`. Returned as-is only after an anchored
+      // whole-shape match, so this is not an unexamined byte: it is 5 + 36
+      // characters of `null/` and hex, or it is not this branch.
+      if (BLOB_OPAQUE_ORIGIN_BODY.test(body)) return `blob:${body}`;
+      // (c) `blob:<uuid>` — the ORIGIN-LESS native form, with or WITHOUT the
+      // `offset`/`size` pair. The pair is optional because it is metadata, not
+      // identity: a consumer that logs `url.split("?")[0]` hands us the bare
+      // body, and that is the same minted value. Anything else in the query is
+      // an unmodelled variant and redacts.
+      if (BLOB_ORIGINLESS_BODY.test(body)) {
+        if (absolute.search === "") return `blob:${body}`;
+        const native = BLOB_NATIVE_QUERY.exec(absolute.search);
+        if (!native) return REDACTED;
+        return `blob:${body}?offset=${native[1]}&size=${native[2]}`;
+      }
+      // (b) `blob:<document-origin>/<uuid>`. Reduced through the same
+      // rebuild-from-parser-fields rule as every other safe answer, so a
+      // userinfo hidden in the body cannot survive here either.
+      const origin = tryParseUrl(body);
+      if (!origin) return REDACTED;
+      if (!BLOB_ORIGIN_SCHEMES.has(origin.protocol)) return REDACTED;
+      if (!BLOB_OBJECT_PATH.test(origin.pathname)) return REDACTED;
+      return `blob:${origin.protocol}//${origin.host}${origin.pathname}`;
     }
     if (!SAFE_SCHEMES.has(absolute.protocol)) return REDACTED;
     return `${absolute.protocol}//${absolute.host}${absolute.pathname}`;
@@ -587,9 +852,17 @@ export function safeUrlOrRedact(raw: string): string {
  * unlisted scheme, and either breaks source-map resolution and issue grouping,
  * which is exactly what the structural exemption existed to protect.
  *
- * So: parse. A safe-scheme absolute URL is reduced like any other URL. Anything
- * else is returned unchanged and is NOT pattern-redacted — stated plainly as the
- * exemption it is, rather than hidden inside a key list.
+ * TWO ALLOW-LISTS, NEVER A FALL-THROUGH (ADR 1045). This function used to end in
+ * `if (!SAFE_SCHEMES.has(...)) return value` — an exemption written as a claim
+ * about what a non-safe scheme cannot contain, and the reason `SAFE_SCHEMES`
+ * could not be shrunk safely. It is now stated the other way round: a SAFE
+ * scheme is reduced by the primitive; a BUILD-SYNTHETIC scheme is returned
+ * byte-identical (that is what protects source maps); anything else is
+ * REDACTED-TO-SCHEME. `data:text/csv,Novakova` in a frame becomes
+ * `data:[Filtered]` rather than shipping whole. The keep-the-scheme form is
+ * deliberate over a bare `[Filtered]`: the scheme is this module's own literal,
+ * carries no author bytes, and keeps the frame legible enough to tell a
+ * rewritten frame from a hostile one.
  *
  * Module-local: the walk that consumes it lives in this same file. (web-native's
  * mirror MUST export it, because its PII registry sits in `@repo/utils` and the
@@ -602,8 +875,9 @@ function reduceSourceLocation(value: string): string {
   } catch {
     return value; // relative or unparseable — synthetic, no page query to lose
   }
-  if (!SAFE_SCHEMES.has(parsed.protocol)) return value; // app:, webpack-internal:, …
-  return safeUrlOrRedact(value);
+  if (SAFE_SCHEMES.has(parsed.protocol)) return safeUrlOrRedact(value);
+  if (FRAME_SYNTHETIC_SCHEMES.has(parsed.protocol)) return value; // app:, webpack-internal:, …
+  return `${parsed.protocol}${REDACTED}`;
 }
 
 /**
@@ -625,15 +899,23 @@ export function scrubDescription(description: string): string {
   // whitespace AND parses absolute on a safe scheme", which is what makes this
   // safe on a field that also carries SQL and free prose: both contain spaces,
   // so neither reaches the primitive and neither is truncated at a stray "?".
+  //
+  // THE UNSAFE-SCHEME ARM IS NOT A SKIP (ADR 1045). It used to be — the condition
+  // read `parsed && SAFE_SCHEMES.has(...)`, and anything else fell through to
+  // plain pattern redaction, which is a deny-LIST and therefore misses an
+  // arbitrary query. That is the inverted polarity that made shrinking
+  // `SAFE_SCHEMES` unsafe, and it leaked for exactly the schemes where the path
+  // IS the payload: `stripEmbeddedUrlQueries` only knows http/https/ws/wss, so
+  // `file:///android_asset/www/index.html?surname=Novakova` and
+  // `data:text/csv,Novakova` both arrived here and left unchanged. A non-safe
+  // scheme is now REDACTED-TO-SCHEME, so membership means "keep more" here too.
   if (!/\s/.test(description)) {
-    let parsed: URL | null;
-    try {
-      parsed = new URL(description);
-    } catch {
-      parsed = null;
-    }
-    if (parsed && SAFE_SCHEMES.has(parsed.protocol)) {
-      return redactString(safeUrlOrRedact(description));
+    const parsed = tryParseUrl(description);
+    if (parsed) {
+      if (SAFE_SCHEMES.has(parsed.protocol)) {
+        return redactString(safeUrlOrRedact(description));
+      }
+      return `${parsed.protocol}${REDACTED}`;
     }
   }
   return redactString(description);
@@ -681,26 +963,48 @@ function scrubUrlValue(value: unknown, path: WeakSet<object>): unknown {
 // same object referenced from two sibling branches, common in Sentry events —
 // is cloned normally instead of being dropped on its second visit.
 //
-// `underRequest` is one level of parent context, set only when the immediate
-// parent key was `request`, and consumed only by `REQUEST_SCOPED_SENSITIVE_KEYS`.
-// It is deliberately NOT a full path stack: the single rule that needs it cares
-// about a direct child of Sentry's request interface and nothing deeper, so it
-// resets on every further descent.
-function scrubValue(value: unknown, path: WeakSet<object>, underRequest = false): unknown {
+// `at` is ONE level of parent context and nothing deeper. Two rules need it, and
+// both are about the immediate container rather than a path from the root:
+//
+//   · `underRequest` — set when the immediate parent key was `request`, consumed
+//     only by `REQUEST_SCOPED_SENSITIVE_KEYS` (the raw request BODY). Sentry's
+//     request interface is an object, never an array, so an array element is
+//     never a direct child of it.
+//   · `frame` / `framesArray` — the source-location allow-SHAPE (ADR 1044). A
+//     stack frame is an ELEMENT of a `frames` array, so this takes two hops
+//     rather than one: descending into a `frames` KEY sets `framesArray`, and
+//     the array branch turns that into `frame` for each element. It is the array
+//     branch's ONLY propagation, deliberately — an object nested deeper inside a
+//     frame (a frame's `vars` bag, say) is not itself a frame and must not
+//     inherit the exemption.
+//
+// Both reset on every further descent, which is the property that keeps this a
+// context rather than a path stack.
+type WalkContext = {
+  /** the immediate parent key was `request` */
+  underRequest?: boolean;
+  /** this OBJECT is an element of a `frames` array, i.e. a stack frame */
+  frame?: boolean;
+  /** this ARRAY is the value of a `frames` key, so its elements are frames */
+  framesArray?: boolean;
+};
+
+function scrubValue(value: unknown, path: WeakSet<object>, at: WalkContext = {}): unknown {
   if (typeof value === "string") return redactString(value);
   if (value === null || typeof value !== "object") return value;
   if (path.has(value)) return undefined; // genuine cycle — drop rather than recurse
   path.add(value);
   let out: unknown;
   if (Array.isArray(value)) {
-    out = value.map((item) => scrubValue(item, path));
+    const element: WalkContext = at.framesArray ? { frame: true } : {};
+    out = value.map((item) => scrubValue(item, path, element));
   } else {
     const record: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
       // The raw request BODY (`request.data`) — a blob no key rule can reach
       // into and no value shape matches. Checked first, and only under
       // `request`, so the `data` attribute bags stay walkable everywhere else.
-      if (underRequest && REQUEST_SCOPED_SENSITIVE_KEYS.test(key) && entry != null)
+      if (at.underRequest && REQUEST_SCOPED_SENSITIVE_KEYS.test(key) && entry != null)
         record[key] = REDACTED;
       else if (isSensitiveKey(key) && entry != null) record[key] = REDACTED;
       // A bare query string has no path worth keeping — drop it wholesale.
@@ -723,12 +1027,19 @@ function scrubValue(value: unknown, path: WeakSet<object>, underRequest = false)
       else if (/^transaction$/i.test(key) && typeof entry === "string")
         record[key] = scrubTransaction(entry);
       // A stack frame's script URL: a safe-scheme absolute URL is reduced by the
-      // parser; a synthetic or relative frame path stays byte-identical so
-      // source maps still resolve. Never pattern-redacted either way.
-      else if (SOURCE_LOCATION_KEYS.test(key) && typeof entry === "string")
+      // parser; a build-synthetic frame path stays byte-identical so source maps
+      // still resolve; anything else is redacted to its scheme. Never
+      // pattern-redacted either way — and ONLY inside a real frame (`at.frame`),
+      // so a `filename` in an upload field or a breadcrumb bag falls through to
+      // the ordinary walk below and is redacted like any other string.
+      else if (at.frame && SOURCE_LOCATION_KEYS.test(key) && typeof entry === "string")
         record[key] = reduceSourceLocation(entry);
       else if (STRUCTURAL_KEYS.test(key) && typeof entry === "string") record[key] = entry;
-      else record[key] = scrubValue(entry, path, REQUEST_KEY.test(key));
+      else
+        record[key] = scrubValue(entry, path, {
+          underRequest: REQUEST_KEY.test(key),
+          framesArray: FRAMES_KEY.test(key),
+        });
     }
     out = record;
   }

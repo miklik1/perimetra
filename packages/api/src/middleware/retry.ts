@@ -1,4 +1,4 @@
-import { parseRetryAfter, type ApiMiddleware } from "../client/create-api-client";
+import { isAbortError, parseRetryAfter, type ApiMiddleware } from "../client/create-api-client";
 import { isRetryableStatus } from "../errors";
 
 export interface RetryOptions {
@@ -8,10 +8,6 @@ export interface RetryOptions {
   baseDelayMs?: number;
   /** Upper bound on a single backoff wait. Default `30_000`. */
   maxDelayMs?: number;
-}
-
-function isAbort(cause: unknown): boolean {
-  return cause instanceof Error && cause.name === "AbortError";
 }
 
 /** Full-jitter exponential backoff: a random wait in `[0, min(cap, base*2^n)]`. */
@@ -24,6 +20,7 @@ function backoff(attempt: number, baseDelayMs: number, maxDelayMs: number): numb
 function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     // Portable AbortError (no DOMException / signal.reason — absent in RN's lib).
+    // This shape is what `isAbortError` recognizes; keep the two in step.
     const abortError = () =>
       Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
     if (signal?.aborted) return reject(abortError());
@@ -78,7 +75,7 @@ export function createRetryMiddleware(options: RetryOptions = {}): ApiMiddleware
         }
         return response;
       } catch (cause) {
-        if (idempotent && attempt < retries && !isAbort(cause)) {
+        if (idempotent && attempt < retries && !isAbortError(cause)) {
           attempt += 1;
           await sleep(backoff(attempt - 1, baseDelayMs, maxDelayMs), req.init.signal);
           continue;

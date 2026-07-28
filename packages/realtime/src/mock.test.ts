@@ -66,6 +66,30 @@ describe("createMockRealtime", () => {
     expect(realtime.subscribedSince("job:a")).toEqual({ offset: 7, epoch: "e1" });
   });
 
+  it("reports the position the stream REACHED on reconnect, not the one it opened with", () => {
+    // The mock/adapter divergence, pinned at the mock. `subscribed` fires on
+    // every (re)connect, and Centrifugo's `ctx.streamPosition` is the server's
+    // CURRENT position — so a mock that reports its `since` forever rewinds the
+    // channel on every reconnect (measured: 9 back to 4). Because the registry
+    // replays its tracked position to late joiners, that rewind escaped the
+    // mock's own consumer and reached any second one.
+    const realtime = createMockRealtime();
+    const onSubscribed = vi.fn();
+    realtime.subscribe(
+      "job:a",
+      { onPublication: vi.fn(), onSubscribed },
+      { since: { offset: 4, epoch: "e1" } },
+    );
+    expect(onSubscribed.mock.calls[0]?.[0]?.position).toEqual({ offset: 4, epoch: "e1" });
+
+    realtime.emit("job:a", { n: 1 }, { offset: 9, epoch: "e1" });
+    realtime.setState("disconnected");
+    realtime.setState("connected");
+
+    expect(onSubscribed).toHaveBeenCalledTimes(2);
+    expect(onSubscribed.mock.calls[1]?.[0]?.position).toEqual({ offset: 9, epoch: "e1" });
+  });
+
   it("lets tests script a failed recovery", () => {
     const realtime = createMockRealtime({
       subscribedContext: () => ({ wasRecovering: true, recovered: false }),
@@ -78,12 +102,21 @@ describe("createMockRealtime", () => {
     );
   });
 
-  it("throws on a duplicate channel subscription (contract rule)", () => {
+  it("fans a second subscription on the same channel out to both consumers", () => {
+    // This used to throw "Already subscribed" — the contract rule that made a
+    // second legitimate consumer of a shared broadcast channel impossible.
     const realtime = createMockRealtime();
-    realtime.subscribe("job:a", { onPublication: vi.fn() });
-    expect(() => realtime.subscribe("job:a", { onPublication: vi.fn() })).toThrow(
-      /Already subscribed/,
-    );
+    const first = vi.fn();
+    const second = vi.fn();
+    realtime.subscribe("job:a", { onPublication: first });
+    realtime.subscribe("job:a", { onPublication: second });
+
+    realtime.emit("job:a", { progress: 50 });
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(realtime.consumerCount("job:a")).toBe(2);
+    expect(realtime.openCount("job:a")).toBe(1);
   });
 
   it("unsubscribe stops delivery and frees the channel", () => {

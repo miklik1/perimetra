@@ -213,6 +213,36 @@ describe("apiFetch http errors", () => {
     expect(error.retryAfterMs).toBe(30_000);
   });
 
+  it("forwards the envelope's details onto the ApiError, and lets mapError override", async () => {
+    // `details` is the machine-readable half of the error contract (a 409's
+    // conflicting id, a 429's remaining quota). The client parses it and must
+    // hand it to callers — a typed rejection whose context is dropped forces
+    // application code back onto `error.body` and string-matching.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        { message: "Conflict", code: "E_CONFLICT", details: { conflictingId: "abc" } },
+        { status: 409 },
+      ),
+    );
+
+    const fromEnvelope = (await makeClient()
+      .apiFetch("/things")
+      .catch((e: unknown) => e)) as ApiError;
+    expect(fromEnvelope.details).toEqual({ conflictingId: "abc" });
+
+    // The ADR 0030 seam wins over the default schema here exactly as it does for
+    // `message`/`code`/`fieldErrors` — a backend with a foreign error envelope
+    // must be able to supply `details` too, not just fall back to it.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "conflict" }, { status: 409 }));
+    const mapped = (await createApiClient({
+      baseUrl: "https://api.test",
+      envelope: { mapError: () => ({ message: "Conflict", details: { source: "mapError" } }) },
+    })
+      .apiFetch("/things")
+      .catch((e: unknown) => e)) as ApiError;
+    expect(mapped.details).toEqual({ source: "mapError" });
+  });
+
   it("falls back to statusText when the body is not an envelope", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ unexpected: true }, { status: 500, statusText: "Server Error" }),
@@ -274,6 +304,29 @@ describe("apiFetch cancellation", () => {
       kind: "network",
       status: 0,
     });
+  });
+
+  it("does not log a cancellation as a network error", async () => {
+    // The abort MUST be built with the portable shape, never `new DOMException`:
+    // jsdom's DOMException is cross-realm, so `instanceof Error` is FALSE there
+    // while a real browser says true — a DOMException fixture would measure the
+    // test environment instead of `isAbortError`. This is the same convention
+    // retry.ts's `sleep` mints its aborts in, and for the same reason.
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error("The operation was aborted."), { name: "AbortError" }),
+    );
+
+    // Still REJECTS — React Query and every other caller keep their control flow.
+    await expect(makeClient().apiFetch("/things")).rejects.toMatchObject({
+      kind: "network",
+      status: 0,
+    });
+    // …but nothing reached the logger. `logger.error` also feeds the telemetry
+    // sink, so a logged cancellation is an error-level Sentry issue per
+    // navigation. Paired with the "normalizes a fetch rejection … and logs" test
+    // above, which pins the positive direction: a genuine transport failure IS
+    // logged. Both directions or neither.
+    expect(console.error).not.toHaveBeenCalled();
   });
 });
 

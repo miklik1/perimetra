@@ -89,6 +89,41 @@ against), not from "latest" — several libraries diverge from latest (e.g.
   continue to reconcile RN-library pins via `expo install --check` (ADR 0002 /
   0005).
 
+## Amendment (2026-07-27) — the table is a dated snapshot; the rule is the decision
+
+The pin table above records what `expo install --check` expected at `expo@56.0.8`.
+It is **not** a contract, and it must not be read as one. The durable decision is
+the first bullet of the Decision section — _derive every SDK-aligned pin from
+`expo install --check`, never hand-pick from "latest"_ — and the table is only the
+answer that rule gave on the day it was written.
+
+Treating the table as the contract is what makes it lie. Two entries are already
+stale by the rule's own standard: `expo` reads `~56.0.8` while the catalog has
+moved through `~56.0.16` to `~56.0.17`, and `react-native-screens` reads an exact
+`4.25.2` while the check now expects the range `~4.26.0`. The 2026-07-27 realign
+took the catalog to `@expo/metro-runtime@~56.0.18`, `expo@~56.0.17`,
+`expo-constants@~56.0.22`, `expo-linking@~56.0.16`, `expo-router@~56.2.16`,
+`expo-splash-screen@~56.0.14` and `react-native-screens@~4.26.0`, all derived from
+the check rather than chosen. The exact→tilde move on `react-native-screens` is
+the check's own answer and therefore correct under the rule; do not "restore" the
+exact pin to match the table.
+
+**Why this recurs, and why it is not a defect anyone introduced.** `expo install
+--check` resolves against Expo's _live_ API, not against the installed SDK. An
+untouched catalog therefore drifts out of alignment with no local change at all —
+the same bytes are green one week and red the next. This was the third realign of
+this block. Consequences worth carrying into any derived repo:
+
+- A drift report is **not** evidence that someone hand-picked a version. Re-run
+  the check and derive; do not go looking for the commit that "broke" it.
+- Because the drift arrives without a commit, it can only be caught by a job that
+  runs on a cadence rather than on a change. ADR 1003 gates the heavy Build job
+  off push events, which is precisely why an earlier drift went undetected until a
+  self-hosted runner surfaced it.
+- Alignment is a property of a moment, so record the date whenever this block is
+  realigned. A realign with no date cannot be distinguished from one that has
+  since rotted.
+
 ## Sources
 
 - Expo SDK 56 changelog (RN 0.85, React 19.2, Hermes V1 default, new animation

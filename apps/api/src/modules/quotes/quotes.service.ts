@@ -80,6 +80,7 @@ import {
   type SharedNabidka,
 } from "@repo/validators/quotes";
 
+import { errorEnvelope } from "../../common/filters/global-exception.filter.js";
 import { isPriceBlind, type OrgRole } from "../../common/rbac/org-role.js";
 import { type RequestScope } from "../../common/tenancy/request-scope.js";
 import { AuditService } from "../audit/audit.service.js";
@@ -621,17 +622,20 @@ export class QuotesService {
     // longer agreed to. Carries `supersededById` so the surface can send them
     // straight AT the revision instead of merely refusing — under `details`,
     // which is the slot `apiErrorEnvelopeSchema` declares for typed error
-    // context. NB `GlobalExceptionFilter` currently forwards only
-    // `message`/`code`/`errors`, so this rides along for logs/Sentry until that
-    // one-line gap is closed (flagged in ADR 0126); the sibling throws in this
-    // file put their context TOP-LEVEL, which the envelope does not declare at
-    // all — `details` is the shape to copy, not those.
+    // context, and built with `errorEnvelope()` because that slot is OPT-IN
+    // (ADR 1035): the filter publishes `details` only from a body carrying the
+    // helper's unforgeable marker, so the bare object form this throw used to
+    // have would now be dropped silently. The sibling throws in this file put
+    // their context TOP-LEVEL, which the envelope does not declare at all —
+    // `details` is the shape to copy, not those.
     if (row.supersededById) {
-      throw new ConflictException({
-        message: "quote has been superseded by a newer revision",
-        code: "quote_superseded",
-        details: { supersededById: row.supersededById },
-      });
+      throw new ConflictException(
+        errorEnvelope({
+          message: "quote has been superseded by a newer revision",
+          code: "quote_superseded",
+          details: { supersededById: row.supersededById },
+        }),
+      );
     }
     const effective = effectiveStatus(row.status, row.validUntil, new Date());
     if (effective !== "accepted") {
@@ -933,16 +937,20 @@ export class QuotesService {
       rounding: priceTable.roundingPolicy as RoundingPolicy,
     });
     if (!result.isValid) {
-      throw new UnprocessableEntityException({
-        message: "site did not derive to a valid result",
-        code: "site_invalid",
-        // The typed I5 issues ride the envelope's `details` slot, not the top
-        // level: the filter serializes `{message, code, details, errors}` and
-        // drops everything else, so a top-level `issues` array never reached
-        // the browser — the whole `IssueList` branch the issue panel is built
-        // around was unreachable (found by the ADR 0126 review pass).
-        details: { issues: result.issues },
-      });
+      throw new UnprocessableEntityException(
+        errorEnvelope({
+          message: "site did not derive to a valid result",
+          code: "site_invalid",
+          // The typed I5 issues ride the envelope's `details` slot, not the top
+          // level: the filter serializes `{message, code, details, errors}` and
+          // drops everything else, so a top-level `issues` array never reached
+          // the browser — the whole `IssueList` branch the issue panel is built
+          // around was unreachable (found by the ADR 0126 review pass). Since
+          // ADR 1035 the slot is OPT-IN as well as declared, so the payload has
+          // to be built by `errorEnvelope()` to reach the wire at all.
+          details: { issues: result.issues },
+        }),
+      );
     }
 
     // Margin-floor guard (ADR 0056 → ADR 0059): the floor is per-org, read from

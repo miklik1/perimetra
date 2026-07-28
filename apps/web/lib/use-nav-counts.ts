@@ -55,6 +55,16 @@ export function useNavCounts(
 
   // Any publication on the org channel may move a counted surface — re-fetch the
   // whole (cheap, PII-free) aggregate rather than reason about which key changed.
+  //
+  // THIS CHANNEL IS SHARED with `useDashboardSummary`, and both hooks are mounted
+  // on `/`. That was a live bug until the ADR 1039 fan-out registry landed: the
+  // adapter threw on the second subscribe to a channel and `useChannel` swallowed
+  // the throw, so whichever of the two mounted second silently got no
+  // subscription and degraded to focus-refetch. Both now receive every
+  // publication. Do NOT give either hook a `since` without giving it to both —
+  // one consumer asking for history while the other does not is a
+  // `since-conflict`, and which one throws depends on mount order (AppShell
+  // parent vs DashboardClient child), so it fires asymmetrically.
   useChannel<{ type: string }>(client, enabled ? `org:${orgId}` : null, {
     onPublication: () => {
       void invalidateKeys(queryClient, [keys.nav.counts()]);

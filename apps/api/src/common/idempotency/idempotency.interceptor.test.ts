@@ -6,11 +6,13 @@
  */
 import { createHash } from "node:crypto";
 import { ConflictException, type CallHandler, type ExecutionContext } from "@nestjs/common";
+import type { ArgumentsHost } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { type Redis } from "ioredis";
 import { lastValueFrom, of, throwError } from "rxjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GlobalExceptionFilter } from "../filters/global-exception.filter.js";
 import { IdempotencyInterceptor } from "./idempotency.interceptor.js";
 import { Idempotent } from "./idempotent.decorator.js";
 
@@ -60,6 +62,34 @@ function makeNext(
 
 function makeInterceptor(): IdempotencyInterceptor {
   return new IdempotencyInterceptor(redis as unknown as Redis, new Reflector());
+}
+
+/**
+ * Assert the body the CLIENT gets, not the body the interceptor threw.
+ *
+ * `details` only reaches the wire for a producer that opted in via
+ * `errorEnvelope()` (ADR 1035) — a rejection built without it type-checks,
+ * throws the same-looking object and then loses its context silently, which is
+ * exactly the failure class this ADR exists to kill. Asserting `getResponse()`
+ * cannot see that; running the real `GlobalExceptionFilter` over it can.
+ */
+function envelopeOf(exception: unknown): unknown {
+  let body: unknown;
+  const host = {
+    switchToHttp: () => ({
+      getResponse: () => ({
+        status() {
+          return this;
+        },
+        send(sent: unknown) {
+          body = sent;
+        },
+      }),
+    }),
+  } as unknown as ArgumentsHost;
+
+  new GlobalExceptionFilter().catch(exception, host);
+  return body;
 }
 
 beforeEach(() => {
@@ -131,7 +161,17 @@ describe("IdempotencyInterceptor", () => {
       .catch((e: unknown) => e)) as ConflictException;
 
     expect(error).toBeInstanceOf(ConflictException);
-    expect(error.getResponse()).toMatchObject({ code: "idempotency_key_reused" });
+    // toEqual on the WHOLE emitted envelope, never toMatchObject:
+    // `GlobalExceptionFilter` forwards `{message, code, errors}` plus an
+    // OPTED-IN `details` and drops everything else (ADR 1035), so a partial
+    // match here would stay green on a rejection whose context never reaches the
+    // client. `retryable: false` is the actionable half — this key can never
+    // succeed again; retrying it is pointless, the client must mint a new one.
+    expect(envelopeOf(error)).toEqual({
+      message: "This Idempotency-Key was already used with a different request body",
+      code: "idempotency_key_reused",
+      details: { idempotencyKey: "k1", retryable: false },
+    });
   });
 
   it("replays when the retried body matches the stored key's body hash (handler never runs)", async () => {
@@ -175,7 +215,15 @@ describe("IdempotencyInterceptor", () => {
     const error = (await makeInterceptor()
       .intercept(makeContext(makeRequest()), makeNext())
       .catch((e: unknown) => e)) as ConflictException;
-    expect(error.getResponse()).toMatchObject({ code: "idempotency_in_flight" });
+    // The mirror of the reuse case: same shape, `retryable: true` — the winner
+    // is still in flight, so backing off and retrying THIS key is the correct
+    // client behaviour. Asserted whole, through the filter (see above), so the
+    // context can't be dropped silently.
+    expect(envelopeOf(error)).toEqual({
+      message: "A request with this Idempotency-Key is already in flight",
+      code: "idempotency_in_flight",
+      details: { idempotencyKey: "k1", retryable: true },
+    });
   });
 
   it("releases the claim when the handler fails, so the key can be retried", async () => {

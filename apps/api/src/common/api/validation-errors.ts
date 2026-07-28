@@ -51,9 +51,14 @@ export function zodIssuesToFieldErrors(issues: ZodIssueLike[]): Record<string, s
 /**
  * `createValidationException` for nestjs-zod's `createZodValidationPipe`.
  * Returns a plain `UnprocessableEntityException` whose response body already
- * IS the ApiError envelope — `GlobalExceptionFilter` passes `message`/`code`/
- * `errors` through verbatim for any `HttpException`, so no filter change is
- * needed.
+ * IS the ApiError envelope — for any `HttpException`, `GlobalExceptionFilter`
+ * copies the four DECLARED fields (`message`/`code`/`details`/`errors`) off the
+ * thrown body verbatim and drops everything else (ADR 1035), so no filter
+ * change is needed.
+ *
+ * Field errors belong on `errors`, not `details`: `errors` is the per-field map
+ * RHF's `setError` consumes. `details` is the slot for a code-carrying
+ * rejection's non-field context, which a validation failure has none of.
  */
 export function createValidationException(error: unknown): HttpException {
   return new UnprocessableEntityException({

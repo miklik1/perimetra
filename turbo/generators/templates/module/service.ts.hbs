@@ -56,6 +56,33 @@ function auditDiff(
   return diff;
 }
 
+/**
+ * Typed rejections: whatever context a client needs to ACT on a refusal goes in
+ * the envelope's `details` slot, and it must be built with `errorEnvelope()` —
+ *
+ *     import { errorEnvelope } from "../../common/filters/global-exception.filter.js";
+ *
+ *     throw new ConflictException(
+ *       errorEnvelope({
+ *         message: "{{pascalCase singular}} is locked by another editor",
+ *         code: "{{snakeCase singular}}_locked",
+ *         details: { lockedBy: row.lockedBy },
+ *       }),
+ *     );
+ *
+ * `GlobalExceptionFilter` forwards `{ message, code, errors }` plus a `details`
+ * that OPTED IN (ADR 1035). Two traps, both silent:
+ *
+ * - A `details` on a body built WITHOUT `errorEnvelope()` is dropped. The opt-in
+ *   is what lets the filter tell a payload a service chose to publish from one a
+ *   third-party library happened to park under the same key — Terminus's
+ *   readiness map on the anonymous `/health/ready` was the real case.
+ * - A property parked anywhere but `details` is dropped too.
+ *
+ * Neither goes red: every envelope field but `message` is optional, so the
+ * client's parse of the stripped body still succeeds. And anything put in
+ * `details` IS public — curate it like a response field: no internals, no PII.
+ */
 @Injectable()
 export class {{pascalCase plural}}Service {
   constructor(

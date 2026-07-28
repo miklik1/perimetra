@@ -66,6 +66,10 @@
     "./project-site": {
       "types": "./dist/project-site.d.ts",
       "default": "./dist/project-site.js"
+    },
+    "./api-error": {
+      "types": "./dist/api-error.d.ts",
+      "default": "./dist/api-error.js"
     }
   },
   "scripts": {

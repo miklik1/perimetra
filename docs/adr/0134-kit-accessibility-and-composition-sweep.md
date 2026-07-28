@@ -1,7 +1,7 @@
 # ADR 0134 — The kit accessibility + composition sweep: five defects that were filed as taste
 
 **Status:** Accepted (2026-07-28 — Phase A, alongside the PER-SEC sweep). Amends the kit shipped by
-[ADR 0111](0111-design-system-tokens-and-kit.md) (tokens + primitives) and consumed by
+[ADR 0111](0111-design-system-scale-and-component-kit.md) (tokens + primitives) and consumed by
 [ADR 0117](0117-configurator-immersive-frame-and-direct-manipulation.md) §8.1 (the masked-edge scroll
 rule) and [ADR 0118](0118-authenticated-app-shell.md). Supersedes nothing — each change below is a
 repair to a primitive's behaviour, not a reversal of a decision.

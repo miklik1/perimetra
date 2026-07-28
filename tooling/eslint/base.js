@@ -144,6 +144,13 @@ export const baseConfig = [
                 "!@repo/ui/forms",
                 "!@repo/ui/forms/*",
                 "!@repo/validators/projects",
+                // `apps/api`'s global exception filter derives its `details`
+                // guard from `apiErrorEnvelopeSchema` rather than restating it
+                // (ADR 1035). The ROOT specifier cannot serve that: it maps to
+                // extensionless source, which apps/api's NodeNext resolution
+                // rejects at build and at runtime. So the schema needs its own
+                // dist-mapped subpath, exactly like `./projects`.
+                "!@repo/validators/api-error",
                 // Tooling-config packages under `tooling/*` (NOT runtime
                 // elements): their subpath exports ARE the public API — every
                 // `eslint.config.js` / `vitest.config.ts` / tsconfig imports
