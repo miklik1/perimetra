@@ -44,6 +44,17 @@ scope wherever the tokens/utilities are consumed below it — no `@theme inline`
 needed, and `--font-mono` now actually resolves to Geist Mono (it previously
 fell through to the Tailwind default).
 
+> **CORRECTED BY ADR [0139](0139-a-computed-string-is-not-a-rendered-pixel.md)
+> (2026-07-28).** Two claims in the paragraph above are false. Custom-property
+> substitution is **not** lazy into descendants: a `var()` inside a custom-property
+> declaration is substituted on the element that DECLARES the property, so the
+> `<body>`-scoped variables were never in scope for the `:root` tokens that consume
+> them. The trio nevertheless rendered correctly, because `@font-face` is
+> document-global and CSS family names are ASCII case-insensitive — the literal
+> fallbacks matched. And `--font-mono` did **not** resolve to Geist Mono: its
+> fallback arm was the generic `ui-monospace`, so the face never rendered at all.
+> The variables now sit on `<html>` and `--font-mono` has a family-name fallback.
+
 **Application** (configurator-first, the ADR 0072 pattern):
 
 - Body defaults to Synonym (`font-sans` on `<body>`).

@@ -46,14 +46,31 @@
 
   /*
    * Perimetra brand typography (ADR 0078) — the Bombardier Part-A hierarchy.
-   * Role-named font tokens, one source of truth (web + mobile). Each binds to a
-   * next/font CSS variable when present (web, set in apps/web/app/layout.tsx) and
-   * falls back to the literal family name otherwise (mobile expo-font / no-JS).
-   * Custom-property substitution is lazy, so the next/font variable — declared on
-   * <body> — is in scope wherever these utilities/tokens are consumed below it.
+   * Role-named font tokens, one source of truth. Each binds to a next/font CSS
+   * variable when present (web, set on <html> in apps/web/app/layout.tsx) and
+   * falls back to the literal family name for any consumer that registers the
+   * face under its natural name.
    *   Chillax → display / step labels / headings   (font-display)
    *   Synonym → body / UI text — the default sans   (font-sans)
    *   Amulya  → data labels / numeric emphasis        (font-data)
+   *
+   * SCOPE (ADR 0139 — this block previously claimed the opposite). A `var()`
+   * inside a custom-property declaration is substituted on the element that
+   * DECLARES the property, not where the property is finally used. `@theme`
+   * emits these at `:root`, so the next/font variables must be declared on
+   * <html> too; on <body> they are out of scope here and every token silently
+   * takes its fallback arm. That was the state until ADR 0139, and it went
+   * unnoticed for three months because CSS family names are ASCII
+   * case-insensitive and next/font names each face after its JS variable
+   * (`synonym`, `chillax`, `amulya`) — so the literal fallbacks below happened
+   * to match the real faces. `--font-mono` had no such luck: its fallback arm
+   * was the GENERIC `ui-monospace`, with no family name for the accident to
+   * catch, so Geist Mono never rendered at all.
+   *
+   * Keep a fallback inside every `var()`. A `var()` that resolves to nothing
+   * makes the whole declaration invalid at computed-value time (skeleton ADR
+   * 1036), which would poison the token for the two consumers that have no
+   * next/font at all — packages/ui/src/styles.css and apps/mobile/global.css.
    */
   --font-sans:
     var(--font-synonym, "Synonym"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
@@ -63,7 +80,8 @@
     sans-serif;
   --font-data: var(--font-amulya, "Amulya"), ui-monospace, ui-sans-serif, system-ui, sans-serif;
   --font-mono:
-    var(--font-geist-mono, ui-monospace), SFMono-Regular, "Liberation Mono", Menlo, monospace;
+    var(--font-geist-mono, "Geist Mono"), ui-monospace, SFMono-Regular, "Liberation Mono", Menlo,
+    monospace;
 
   /*
    * Perimetra brand layer (ADR 0072) — the Bombardier-derived premium-editorial

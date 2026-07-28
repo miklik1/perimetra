@@ -22,8 +22,13 @@ import "./globals.css";
 //   Synonym  → body / UI text (the default)        (--font-sans)
 //   Amulya   → data labels / numeric emphasis       (--font-data)
 // Each is a single variable file spanning its full weight axis; the role tokens
-// in tooling/tailwind-config/theme.css bind to these variables (web) and fall
-// back to the literal family name (mobile / no-JS).
+// in tooling/tailwind-config/theme.css bind to these variables.
+//
+// THE CLASSES BELONG ON <html>, NOT <body> (ADR 0139). The role tokens are
+// declared inside Tailwind's `@theme`, which emits them at `:root` — and a
+// `var()` inside a custom-property declaration is substituted on the element
+// that DECLARES it. Declared on <body>, these variables are invisible to the
+// `:root` tokens that consume them, one element too low.
 const chillax = localFont({
   src: "./fonts/Chillax-Variable.woff2",
   weight: "200 700",
@@ -83,7 +88,11 @@ export default async function RootLayout({
   // cookie is still bounced by AuthGuard once the session resolves.
   const initiallyAuthenticated = await hasSessionCookieHint();
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html
+      lang={locale}
+      suppressHydrationWarning
+      className={`${synonym.variable} ${chillax.variable} ${amulya.variable} ${geistMono.variable}`}
+    >
       <head>
         {/*
          * No-FOUC theme script: sets `.dark` from the stored preference (or the
@@ -105,9 +114,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${synonym.variable} ${chillax.variable} ${amulya.variable} ${geistMono.variable} bg-background text-foreground font-sans antialiased`}
-      >
+      <body className="bg-background font-sans text-foreground antialiased">
         {/*
          * I18nProvider (next-intl) — locale + messages passed explicitly (v4
          * does not reliably infer `locale` for the client provider here), so

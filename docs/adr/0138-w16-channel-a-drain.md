@@ -157,6 +157,19 @@ than a patch bump is to take.
 
 ### 1. The font chain (skeleton ADR 1036) — body drained, fix NOT applied
 
+> **CORRECTED BY ADR [0139](0139-a-computed-string-is-not-a-rendered-pixel.md)
+> (2026-07-28). Do not act on this section.** The scoping defect described below
+> is real, but the conclusion drawn from it is wrong. The measurement compared
+> computed `font-family` **strings**, which differ between the two placements
+> without a single pixel moving. `@font-face` rules are document-global, and CSS
+> family names are ASCII case-insensitive while `next/font/local` names each face
+> after its JS variable (`synonym` — it does **not** mint a hashed name), so the
+> literal `"Synonym"` fallback matched the real face all along. Rendered width is
+> identical across both placements. Only `--font-mono` was genuinely dead, because
+> its fallback arm was the generic `ui-monospace` rather than a family name. There
+> was no product-wide re-render to fear and the `.verify/*` corpus was never
+> invalidated. Kept unedited below as the record of what was believed.
+
 The ADR body is drained and its index row records the measurement, because the
 defect it describes **is live here and the knowledge must not be lost**. The fix is
 not applied, on Martin's explicit call (2026-07-28).
